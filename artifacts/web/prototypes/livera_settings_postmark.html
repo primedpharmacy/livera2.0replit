@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Postmark integration</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --nav-2:#312e81;
+  --surface:#ffffff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --gov:#a855f7; --gov-bg:#faf5ff; --gov-bdr:#e9d5ff;
+}
+
+/* TOP NAV (canonical) */
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+
+/* LAYOUT */
+.layout{display:flex;min-height:calc(100vh - 36px)}
+
+/* SIDEBAR (canonical from Settings landing) */
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+
+/* MAIN */
+.main{flex:1;padding:24px 30px;max-width:1180px;min-width:0}
+
+/* BREADCRUMB */
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+/* PAGE HEADER */
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#fef3c7 0%,#fbbf24 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .status-pill{font-size:10px;font-weight:700;letter-spacing:.4px;padding:3px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+.pg-info h1 .status-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.pg-info h1 .status-pill.connected{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.pg-info h1 .status-pill.disconnected{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+
+/* BUTTON */
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+.btn.danger{color:var(--err);border-color:var(--err-bdr)}
+.btn.danger:hover{background:var(--err-bg);border-color:var(--err);color:var(--err)}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+.card-body{padding:18px}
+
+/* KEY-VALUE GRID */
+.kv-grid{display:grid;grid-template-columns:200px 1fr;gap:0}
+.kv-row{display:contents}
+.kv-row .k{padding:11px 0;border-bottom:1px solid var(--bdr);font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;align-self:start}
+.kv-row .v{padding:11px 0;border-bottom:1px solid var(--bdr);font-size:13px;color:var(--t1)}
+.kv-row:last-child .k,.kv-row:last-child .v{border-bottom:none}
+.kv-row .v code{background:var(--brand-l);color:var(--brand-d);padding:2px 7px;border-radius:4px;font-size:11.5px;font-family:'SF Mono',Menlo,monospace;letter-spacing:-.2px}
+.kv-row .v .masked{font-family:'SF Mono',Menlo,monospace;color:var(--t2);background:var(--bg);padding:2px 8px;border-radius:4px;font-size:11.5px;letter-spacing:.3px}
+.kv-row .v .reveal-btn{margin-left:8px;font-size:10px;color:var(--brand);font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-style:dotted}
+.kv-row .v .reveal-btn:hover{color:var(--brand-d)}
+.kv-row .v .copy-btn{margin-left:6px;font-size:10px;color:var(--t3);cursor:pointer;background:transparent;border:none;font-family:inherit;padding:2px 6px;border-radius:3px}
+.kv-row .v .copy-btn:hover{background:var(--bg);color:var(--t1)}
+.kv-row .v .meta{font-size:11px;color:var(--t3);margin-top:3px}
+
+/* INPUT (for editable rows) */
+.kv-row .v input[type="text"],.kv-row .v input[type="email"]{font-family:inherit;font-size:12.5px;padding:6px 9px;border:1px solid var(--bdr-d);border-radius:5px;width:100%;max-width:340px;color:var(--t1)}
+.kv-row .v input:focus{outline:none;border-color:var(--brand)}
+
+/* HEALTH STATUS BLOCK */
+.health-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--bdr);border:1px solid var(--bdr);border-radius:8px;overflow:hidden}
+.health-cell{background:var(--surface);padding:12px 14px}
+.health-cell .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3)}
+.health-cell .val{font-size:18px;font-weight:700;color:var(--t1);margin-top:4px;line-height:1;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.health-cell .meta{font-size:10px;color:var(--t2);margin-top:4px;line-height:1.35}
+.health-cell.ok .val{color:var(--ok)}
+.health-cell.warn .val{color:var(--warn)}
+.health-cell.err .val{color:var(--err)}
+
+/* TEMPLATES TABLE */
+.tpl-row{display:grid;grid-template-columns:30px 1fr 130px 90px 90px;gap:0;padding:10px 18px;border-bottom:1px solid var(--bdr);font-size:12.5px;align-items:center}
+.tpl-row.head{background:var(--bg);border-bottom:1px solid var(--bdr-d);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding:9px 18px}
+.tpl-row:last-child{border-bottom:none}
+.tpl-row .tpl-icon{font-size:14px;color:var(--t3)}
+.tpl-row .tpl-name{color:var(--t1);font-weight:500}
+.tpl-row .tpl-name code{font-family:'SF Mono',Menlo,monospace;font-size:11px;color:var(--t3);background:var(--bg);padding:1px 5px;border-radius:3px;margin-left:6px}
+.tpl-row .tpl-cat{font-size:11px;color:var(--t2)}
+.tpl-row .tpl-stat{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.3px;width:fit-content}
+.tpl-row .tpl-stat.live{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.tpl-row .tpl-stat.draft{background:var(--bg);color:var(--t3);border:.5px solid var(--bdr-d)}
+.tpl-row .tpl-action{text-align:right;font-size:11px;font-weight:600;color:var(--brand);cursor:pointer;text-decoration:none}
+.tpl-row .tpl-action:hover{text-decoration:underline}
+
+/* ACTIVITY LOG */
+.act-row{display:grid;grid-template-columns:120px 90px 1fr 70px;gap:14px;padding:9px 18px;border-bottom:1px solid var(--bdr);font-size:12px;align-items:center}
+.act-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding:8px 18px}
+.act-row:last-child{border-bottom:none}
+.act-row .act-when{color:var(--t3);font-variant-numeric:tabular-nums;font-size:11px}
+.act-row .act-type{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.3px;width:fit-content}
+.act-row .act-type.send{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.act-row .act-type.bounce{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.act-row .act-type.config{background:var(--gov-bg);color:var(--gov);border:.5px solid var(--gov-bdr)}
+.act-row .act-detail{color:var(--t1);font-size:12px}
+.act-row .act-detail strong{font-weight:600}
+.act-row .act-result{font-size:11px;font-weight:700;text-align:right}
+.act-row .act-result.ok{color:var(--ok)}
+.act-row .act-result.fail{color:var(--err)}
+
+/* FOOTER NOTE */
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}
+.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+/* TEST CONNECTION RESULT BLOCK */
+.test-block{background:var(--ok-bg);border:1px solid var(--ok-bdr);border-radius:6px;padding:11px 14px;display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.test-block .ico{width:28px;height:28px;border-radius:50%;background:var(--ok);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.test-block .text{font-size:12px;color:var(--ok);line-height:1.4}
+.test-block .text strong{color:var(--t1);font-weight:600;display:block;margin-bottom:1px}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* H1 (already used elsewhere) */
+.h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2}
+</style>
+</head>
+<body>
+
+<!-- Top nav -->
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role">
+    <span>Signed in as</span>
+    <span class="role-pill">Qadir Hussain · Owner</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+
+    <!-- Breadcrumb -->
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Dashboard</a>
+      <span class="sep">›</span>
+      <a href="livera_settings_landing.html">Settings</a>
+      <span class="sep">›</span>
+      <a href="livera_settings_landing.html#integrations">Integrations</a>
+      <span class="sep">›</span>
+      <span class="cur">Postmark</span>
+    </div>
+
+    <!-- Page header -->
+    <div class="pg-head">
+      <div class="pg-icon">📨</div>
+      <div class="pg-info">
+        <h1>
+          Postmark
+          <span class="status-pill connected">CONNECTED</span>
+          <span class="bld-pill">BLD-7.3</span>
+        </h1>
+        <div class="sub">
+          Transactional email delivery for patient communications · 14 templates configured · last successful send 4 minutes ago
+        </div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="testConnection()">⚡ Test connection</button>
+        <button class="btn" onclick="showToast('Stub · would open template editor in new tab')">+ New template</button>
+      </div>
+    </div>
+
+    <!-- Test result block (shown after click — pre-rendered for demo) -->
+    <div class="test-block">
+      <div class="ico">✓</div>
+      <div class="text">
+        <strong>Connection healthy</strong>
+        Server token validated · sender email reachable · webhook responding 200 OK · last test 04 May 2026 · 14:38
+      </div>
+    </div>
+
+    <!-- Health metrics -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📊 Delivery health · last 30 days</div>
+        <div class="sub">Auto-refreshed every 15 minutes</div>
+        <div class="right">VSC + FeelTru combined</div>
+      </div>
+      <div style="padding:18px">
+        <div class="health-grid">
+          <div class="health-cell ok">
+            <div class="lbl">Sent</div>
+            <div class="val">2,847</div>
+            <div class="meta">Across 14 templates</div>
+          </div>
+          <div class="health-cell ok">
+            <div class="lbl">Delivered</div>
+            <div class="val">99.4%</div>
+            <div class="meta">2,830 of 2,847</div>
+          </div>
+          <div class="health-cell warn">
+            <div class="lbl">Bounced</div>
+            <div class="val">14</div>
+            <div class="meta">Hard bounces · 0.5%</div>
+          </div>
+          <div class="health-cell ok">
+            <div class="lbl">Opens</div>
+            <div class="val">73%</div>
+            <div class="meta">Of delivered</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Connection details -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🔑 Connection details</div>
+        <div class="right">All edits audit-logged</div>
+      </div>
+      <div class="card-body" style="padding:0 18px">
+        <div class="kv-grid">
+          <div class="kv-row">
+            <div class="k">Server token</div>
+            <div class="v">
+              <span class="masked" id="server-token">●●●●●●●●●●●●●●●●●●●●●●●●1ab9</span>
+              <span class="reveal-btn" onclick="revealToken()">Reveal</span>
+              <button class="copy-btn" onclick="showToast('Copied to clipboard')">⧉ Copy</button>
+              <div class="meta">Created 12 Jan 2026 · last rotated 12 Jan 2026 · expires never</div>
+            </div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Account ID</div>
+            <div class="v">
+              <code>postmarkapp.com/account/2348-quanta</code>
+              <div class="meta">Quanta Healthcare Ltd · UK datacenter</div>
+            </div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Default sender</div>
+            <div class="v">
+              <input type="email" value="hello@thevirtualslimmingclinic.co.uk">
+              <div class="meta">Verified · DKIM passing · DMARC aligned · SPF passing</div>
+            </div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Reply-to address</div>
+            <div class="v">
+              <input type="email" value="support@thevirtualslimmingclinic.co.uk">
+              <div class="meta">Inbound replies route to Intercom inbox via webhook</div>
+            </div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Bounce webhook</div>
+            <div class="v">
+              <code>https://api.livera.health/webhooks/postmark/bounce</code>
+              <div class="meta">Active · 200 OK responses · last bounce processed 2h ago</div>
+            </div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Delivery webhook</div>
+            <div class="v">
+              <code>https://api.livera.health/webhooks/postmark/delivery</code>
+              <div class="meta">Active · used to flip Omnisend send-state from sent → delivered in patient comms tab</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Templates -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📨 Templates · 14 configured</div>
+        <div class="sub">Postmark template ID maps to Livera template name · edit in Postmark admin</div>
+        <div class="right"><a href="#" onclick="event.preventDefault();showToast('Stub · would open Postmark admin');return false;" style="color:var(--brand);text-decoration:none;font-weight:600;font-size:11px">Open in Postmark ↗</a></div>
+      </div>
+      <div style="padding:0">
+        <div class="tpl-row head">
+          <span></span>
+          <span>Template name</span>
+          <span>Category</span>
+          <span>Status</span>
+          <span style="text-align:right">Action</span>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">📩</span>
+          <span class="tpl-name">Order received <code>tpl_order_received_v2</code></span>
+          <span class="tpl-cat">Order lifecycle</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">🩺</span>
+          <span class="tpl-name">Clinical check started <code>tpl_clinical_check_started</code></span>
+          <span class="tpl-cat">Order lifecycle</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">✓</span>
+          <span class="tpl-name">Order approved <code>tpl_order_approved_v2</code></span>
+          <span class="tpl-cat">Order lifecycle</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">📦</span>
+          <span class="tpl-name">Order dispatched <code>tpl_order_dispatched</code></span>
+          <span class="tpl-cat">Order lifecycle</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">📬</span>
+          <span class="tpl-name">Order delivered <code>tpl_order_delivered</code></span>
+          <span class="tpl-cat">Order lifecycle</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">⚠</span>
+          <span class="tpl-name">Order declined <code>tpl_order_declined</code></span>
+          <span class="tpl-cat">Order lifecycle</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">⏱</span>
+          <span class="tpl-name">Order expired <code>tpl_order_expired</code></span>
+          <span class="tpl-cat">Order lifecycle</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">📞</span>
+          <span class="tpl-name">Welcome call invitation <code>tpl_ft_welcome_invite</code></span>
+          <span class="tpl-cat">FeelTru only</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">📋</span>
+          <span class="tpl-name">Reorder reminder <code>tpl_reorder_reminder</code></span>
+          <span class="tpl-cat">Reorder cycle</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">📅</span>
+          <span class="tpl-name">Monthly check-in <code>tpl_monthly_checkin</code></span>
+          <span class="tpl-cat">Reorder cycle</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">📑</span>
+          <span class="tpl-name">GP letter notification <code>tpl_gp_letter_sent</code></span>
+          <span class="tpl-cat">Clinical comms</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">🔐</span>
+          <span class="tpl-name">Magic link login <code>tpl_magic_link</code></span>
+          <span class="tpl-cat">Auth</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">🩹</span>
+          <span class="tpl-name">Discontinuation letter <code>tpl_discontinuation</code></span>
+          <span class="tpl-cat">Clinical comms</span>
+          <span><span class="tpl-stat live">LIVE</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+        <div class="tpl-row">
+          <span class="tpl-icon">🤝</span>
+          <span class="tpl-name">Pharmacy comms summary <code>tpl_pharmacy_comms_summary</code></span>
+          <span class="tpl-cat">Group 6</span>
+          <span><span class="tpl-stat draft">DRAFT</span></span>
+          <a class="tpl-action" onclick="showToast('Edit in Postmark')">Edit →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent activity -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📜 Recent activity</div>
+        <div class="sub">Last 24 hours · live feed from Postmark webhook</div>
+        <div class="right"><a href="livera_audit_log.html" style="color:var(--brand);text-decoration:none;font-weight:600;font-size:11px">Full activity log →</a></div>
+      </div>
+      <div style="padding:0">
+        <div class="act-row head">
+          <span>When</span>
+          <span>Type</span>
+          <span>Detail</span>
+          <span style="text-align:right">Result</span>
+        </div>
+        <div class="act-row">
+          <span class="act-when">14:38</span>
+          <span><span class="act-type send">SEND</span></span>
+          <span class="act-detail"><strong>tpl_order_approved_v2</strong> → sarah.cookland@example.com (PT-00198, ORD-00441)</span>
+          <span class="act-result ok">✓ Delivered</span>
+        </div>
+        <div class="act-row">
+          <span class="act-when">14:22</span>
+          <span><span class="act-type send">SEND</span></span>
+          <span class="act-detail"><strong>tpl_clinical_check_started</strong> → sarah.cookland@example.com (PT-00198)</span>
+          <span class="act-result ok">✓ Delivered</span>
+        </div>
+        <div class="act-row">
+          <span class="act-when">13:45</span>
+          <span><span class="act-type send">SEND</span></span>
+          <span class="act-detail"><strong>tpl_ft_welcome_invite</strong> → sophia.kapoor@example.com (PT-FT-00029, FeelTru)</span>
+          <span class="act-result ok">✓ Delivered</span>
+        </div>
+        <div class="act-row">
+          <span class="act-when">11:14</span>
+          <span><span class="act-type bounce">BOUNCE</span></span>
+          <span class="act-detail"><strong>tpl_order_dispatched</strong> → user@invaliddomain.example (PT-00184)</span>
+          <span class="act-result fail">✕ Hard bounce</span>
+        </div>
+        <div class="act-row">
+          <span class="act-when">09:00</span>
+          <span><span class="act-type config">CONFIG</span></span>
+          <span class="act-detail"><strong>Qadir Hussain</strong> updated default sender from <code style="font-family:'SF Mono',monospace;font-size:10.5px;background:var(--bg);padding:1px 4px;border-radius:3px">noreply@</code> → <code style="font-family:'SF Mono',monospace;font-size:10.5px;background:var(--bg);padding:1px 4px;border-radius:3px">hello@</code></span>
+          <span class="act-result ok">✓ Saved</span>
+        </div>
+        <div class="act-row">
+          <span class="act-when">Yesterday 16:48</span>
+          <span><span class="act-type send">SEND</span></span>
+          <span class="act-detail"><strong>tpl_reorder_reminder</strong> · batch send to 38 patients (week-12 cohort)</span>
+          <span class="act-result ok">✓ 38 / 38 delivered</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="perm-note">
+      <strong>Postmark integration</strong> · BLD-7.3 · transactional email delivery layer. Sender domain DKIM/DMARC/SPF verified at Quanta Healthcare Ltd level. Webhooks process delivery + bounce events into Livera so order status pages reflect actual receipt. Visible to <code>Owner</code> and <code>RM</code> · read-only for <code>Admin</code>. Server token rotation requires Owner approval and propagates to running services within 5 minutes.
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  function revealToken() {
+    const t = document.getElementById('server-token');
+    if (t.textContent.startsWith('●')) {
+      t.textContent = 'pmk_live_aHQk3LpZ9vT2nW8xRf6DyMcB5e1ab9';
+      t.style.color = 'var(--t1)';
+      event.target.textContent = 'Hide';
+    } else {
+      t.textContent = '●●●●●●●●●●●●●●●●●●●●●●●●1ab9';
+      t.style.color = 'var(--t2)';
+      event.target.textContent = 'Reveal';
+    }
+  }
+  function testConnection() {
+    showToast('Connection test passed · 132ms');
+  }
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = '✓ ' + msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+</script>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

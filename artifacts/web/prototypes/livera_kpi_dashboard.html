@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — KPI Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --brand: #6366f1; --brand-d: #4338ca; --brand-l: #eef2ff; --brand-mid: #818cf8;
+    --nav: #1e1b4b;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --bdr: rgba(0,0,0,0.08); --bdr-s: rgba(0,0,0,0.13);
+    --t1: #0d0d0d; --t2: #5c5c5c; --t3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-bdr: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-bdr: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-bdr: #86efac;
+    --teal: #0d9488; --teal-bg: #f0fdfa; --teal-bdr: #99f6e4;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-bdr: #bfdbfe;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-bdr: #c4b5fd;
+    --warn: #f59e0b;
+    --r-sm: 6px; --r-md: 8px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--surface-2); color: var(--t1); font-size: 13px; line-height: 1.5; padding-top: 36px; }
+
+  /* Top nav */
+  #livera-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 99999;
+    background: var(--nav); border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex; align-items: center; height: 36px; padding: 0 12px; gap: 4px;
+    overflow-x: auto; scrollbar-width: none; }
+  #livera-nav::-webkit-scrollbar { display: none; }
+  #livera-nav-logo { font-size: 12px; font-weight: 700; color: #818cf8;
+    margin-right: 8px; white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
+  #livera-nav a { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.55);
+    text-decoration: none; padding: 3px 9px; border-radius: 4px;
+    white-space: nowrap; flex-shrink: 0; transition: all .15s; }
+  #livera-nav a:hover { background: rgba(99,102,241,.25); color: #fff; }
+  #livera-nav a.nav-current { background: rgba(99,102,241,.35); color: #c7d2fe; }
+  #livera-nav-sep { color: rgba(255,255,255,.15); font-size: 10px; flex-shrink: 0; }
+
+  .shell { display: flex; min-height: calc(100vh - 36px); }
+
+  /* Sidebar */
+  .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--bdr);
+    padding: 18px 12px; flex-shrink: 0; position: sticky; top: 36px;
+    height: calc(100vh - 36px); overflow-y: auto; }
+  .sidebar .sec { font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--t3); font-weight: 700; padding: 0 8px; margin: 18px 0 6px; }
+  .sidebar .sec:first-child { margin-top: 0; }
+  .sidebar a { display: flex; align-items: center; gap: 9px; padding: 7px 9px;
+    font-size: 13px; font-weight: 500; color: var(--t2); text-decoration: none;
+    border-radius: 6px; margin-bottom: 1px; position: relative; transition: all .12s; }
+  .sidebar a:hover { background: var(--brand-l); color: var(--t1); }
+  .sidebar a.active { background: var(--brand-l); color: var(--brand); font-weight: 600; }
+  .sidebar a.active::before { content: ''; position: absolute; left: -12px; top: 6px; bottom: 6px;
+    width: 3px; background: var(--brand); border-radius: 0 2px 2px 0; }
+  .sidebar a .ico { width: 16px; height: 16px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 13px; }
+
+  .main { flex: 1; min-width: 0; }
+  .topbar { height: 56px; background: var(--surface); border-bottom: 1px solid var(--bdr);
+    padding: 0 24px; display: flex; align-items: center; gap: 14px; }
+  .breadcrumb { font-size: 12px; color: var(--t3); display: flex; align-items: center; gap: 6px; }
+  .breadcrumb a { color: var(--t2); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--brand-d); }
+  .breadcrumb .cur { color: var(--t1); font-weight: 600; }
+  .breadcrumb .sep { color: var(--t3); }
+
+  .content { padding: 24px; max-width: 1320px; }
+
+  /* Page title */
+  .pt-strip { display: flex; align-items: flex-start; gap: 16px;
+    margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--bdr); }
+  .pt-info h1 { font-size: 22px; font-weight: 700; color: var(--t1);
+    letter-spacing: -0.5px; line-height: 1.2; }
+  .pt-info .sub { font-size: 13px; color: var(--t2); margin-top: 4px; }
+  .pt-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { padding: 7px 14px; font-size: 12px; font-weight: 600;
+    background: var(--surface); color: var(--t2); border: 1px solid var(--bdr-s);
+    border-radius: 6px; cursor: pointer; font-family: inherit;
+    display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+    transition: all .12s; }
+  .btn:hover { border-color: var(--brand); color: var(--brand); }
+  .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .btn.primary:hover { background: var(--brand-d); border-color: var(--brand-d); color: #fff; }
+
+  /* Filter bar */
+  .filter-bar { background: var(--surface); border: 1px solid var(--bdr);
+    border-radius: var(--r-md); padding: 10px 14px; margin-bottom: 18px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .filter-bar .lbl { font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--t3); }
+  .fb-group { display: flex; gap: 0; border: 1px solid var(--bdr-s); border-radius: 6px; overflow: hidden; }
+  .fb-btn { padding: 5px 11px; font-size: 11px; background: var(--surface);
+    color: var(--t2); border: none; cursor: pointer; font-family: inherit;
+    border-right: 1px solid var(--bdr-s); transition: all .12s; }
+  .fb-btn:last-child { border-right: none; }
+  .fb-btn.on { background: var(--brand); color: #fff; }
+  .fb-btn:hover:not(.on) { background: var(--brand-l); color: var(--brand-d); }
+
+  /* KPI strip */
+  .kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
+    background: var(--bdr); border: 1px solid var(--bdr); border-radius: var(--r-md);
+    overflow: hidden; margin-bottom: 18px; }
+  .kpi { background: var(--surface); padding: 14px 16px; }
+  .kpi .lbl { font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--t3); }
+  .kpi .val { font-size: 24px; font-weight: 700; color: var(--t1); line-height: 1;
+    margin-top: 5px; letter-spacing: -0.3px; font-variant-numeric: tabular-nums;
+    display: flex; align-items: baseline; gap: 4px; }
+  .kpi .val .unit { font-size: 13px; font-weight: 500; color: var(--t3); }
+  .kpi .meta { font-size: 10px; color: var(--t2); margin-top: 4px; line-height: 1.35; }
+  .kpi-delta { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px;
+    display: inline-flex; align-items: center; gap: 3px; margin-top: 4px; }
+  .kpi-delta.up { background: var(--green-bg); color: var(--green); }
+  .kpi-delta.down { background: var(--red-bg); color: var(--red); }
+
+  /* Section card */
+  .scard { background: var(--surface); border: 1px solid var(--bdr); border-radius: var(--r-md);
+    margin-bottom: 18px; overflow: hidden; }
+  .scard-head { padding: 14px 18px; border-bottom: 1px solid var(--bdr);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .scard-head .ttl { font-size: 14px; font-weight: 600; color: var(--t1);
+    display: flex; align-items: center; gap: 8px; }
+  .scard-head .sub { font-size: 11px; color: var(--t3); margin-left: 4px; }
+  .scard-head .right { margin-left: auto; font-size: 11px; color: var(--t3); }
+  .scard-body { padding: 18px; }
+
+  /* Two-col row */
+  .two-col { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .two-col .scard { margin-bottom: 0; }
+
+  /* Three-col row */
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .three-col .scard { margin-bottom: 0; }
+
+  /* Bar chart */
+  .barchart { width: 100%; }
+  .bar-row { display: grid; grid-template-columns: 100px 1fr 60px;
+    align-items: center; gap: 10px; padding: 6px 0; }
+  .bar-row .bar-lbl { font-size: 11.5px; color: var(--t1); font-weight: 500; }
+  .bar-row .bar-track { height: 16px; background: var(--surface-2);
+    border-radius: 4px; overflow: hidden; }
+  .bar-row .bar-fill { height: 100%; background: var(--brand); border-radius: 4px;
+    transition: width 0.4s; }
+  .bar-row .bar-fill.green { background: var(--green); }
+  .bar-row .bar-fill.amber { background: var(--warn); }
+  .bar-row .bar-count { font-size: 12px; font-weight: 600; color: var(--t1);
+    text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Trend line chart */
+  .trend-svg { width: 100%; height: 220px; display: block; }
+  .trend-legend { display: flex; gap: 16px; margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid var(--bdr); flex-wrap: wrap; }
+  .trend-legend .leg-item { display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--t2); }
+  .trend-legend .swatch { width: 18px; height: 2.5px; border-radius: 1px; }
+
+  /* Donut */
+  .donut-wrap { display: flex; flex-direction: column; align-items: center; padding: 6px 0; }
+  .donut-svg { width: 160px; height: 160px; }
+  .donut-center { text-align: center; margin-top: -98px; margin-bottom: 28px; pointer-events: none; }
+  .donut-center .v { font-size: 22px; font-weight: 700; color: var(--t1);
+    letter-spacing: -0.5px; line-height: 1; }
+  .donut-center .l { font-size: 9.5px; color: var(--t3); text-transform: uppercase;
+    letter-spacing: 0.3px; margin-top: 4px; }
+  .donut-legend { width: 100%; margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .donut-legend .leg-item { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .donut-legend .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .donut-legend .lbl { color: var(--t2); flex: 1; }
+  .donut-legend .val { color: var(--t1); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* Prescriber leaderboard */
+  .lb-row { display: grid; grid-template-columns: 24px 1fr 70px 70px 80px;
+    gap: 0; padding: 9px 18px;
+    border-bottom: 1px solid var(--bdr); align-items: center; font-size: 12px; }
+  .lb-row.head { background: var(--surface-2); font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px; color: var(--t3); padding: 8px 18px; }
+  .lb-row .rank { color: var(--t3); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .lb-row .who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .lb-row .who .av { width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand-mid), var(--brand-d));
+    color: #fff; font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .lb-row .who .nm { color: var(--t1); font-weight: 600; line-height: 1.2; }
+  .lb-row .who .role { font-size: 10px; color: var(--t3); }
+  .lb-row .num { color: var(--t1); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* Funnel */
+  .funnel { padding: 6px 0; }
+  .funnel-stage { display: grid; grid-template-columns: 130px 1fr 70px 60px;
+    align-items: center; gap: 10px; padding: 7px 0; }
+  .funnel-stage .lbl { font-size: 11.5px; color: var(--t1); font-weight: 600; }
+  .funnel-stage .lbl .desc { font-size: 10px; color: var(--t3); font-weight: 400;
+    margin-top: 1px; line-height: 1.3; }
+  .funnel-stage .track { height: 22px; background: var(--surface-2);
+    border-radius: 4px; overflow: hidden; }
+  .funnel-stage .fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand-d));
+    border-radius: 4px; transition: width 0.4s; }
+  .funnel-stage .ct { font-size: 12px; font-weight: 700; color: var(--t1);
+    font-variant-numeric: tabular-nums; }
+  .funnel-stage .pct { font-size: 11px; font-weight: 600; color: var(--brand);
+    font-variant-numeric: tabular-nums; }
+  .funnel-stage .pct.amber { color: var(--amber); }
+  .funnel-stage .pct.red { color: var(--red-mid); }
+
+  /* Footer */
+  .perm-note { font-size: 11px; color: var(--t2);
+    padding: 12px 16px; background: var(--surface-2);
+    border: 1px dashed var(--bdr-s); border-radius: 6px;
+    line-height: 1.55; margin-top: 18px; }
+  .perm-note strong { color: var(--t1); font-weight: 600; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px;
+    background: #1f2937; color: #fff; font-size: 12px; font-weight: 500;
+    padding: 10px 16px; border-radius: 999px; z-index: 300;
+    display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+  .toast.show { display: flex; }
+
+/* CANONICAL TOPNAV (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<!-- Top nav -->
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html" class="active"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto,#0d9488);background:var(--proto-bg,#f0fdfa);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="breadcrumb">
+        <a href="livera_owner_dashboard.html">Dashboard</a>
+        <span class="sep">›</span>
+        <span class="cur">KPI Dashboard</span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Page title -->
+      <div class="pt-strip">
+        <div class="pt-info">
+          <h1>KPI Dashboard</h1>
+          <div class="sub">Operational metrics across orders, queue health, prescriber activity, and patient outcomes · refreshes hourly</div>
+        </div>
+        <div class="pt-actions">
+          <button class="btn" onclick="showToast('Stub · CSV export of all KPI tables')">⤓ Export CSV</button>
+          <button class="btn" onclick="showToast('Stub · PDF export with charts')">⤓ Export PDF</button>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <span class="lbl">Range</span>
+        <div class="fb-group">
+          <button class="fb-btn">7d</button>
+          <button class="fb-btn">30d</button>
+          <button class="fb-btn on">90d</button>
+          <button class="fb-btn">YTD</button>
+        </div>
+        <span style="margin-left:auto;font-size:11px;color:var(--t3);">Window: 06 Feb 2026 → 06 May 2026 · last refresh 14:38</span>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="kpi-strip">
+        <div class="kpi">
+          <div class="lbl">Orders placed</div>
+          <div class="val">174</div>
+          <div class="meta">131 reorders · 43 first orders</div>
+          <span class="kpi-delta up">↑ 18% vs prior 90d</span>
+        </div>
+        <div class="kpi">
+          <div class="lbl">Approved</div>
+          <div class="val">189 <span class="unit">· 87%</span></div>
+          <div class="meta">17 declined · 12 expired</div>
+          <span class="kpi-delta up">↑ 3 pts vs prior</span>
+        </div>
+        <div class="kpi">
+          <div class="lbl">Avg time to approval</div>
+          <div class="val">3.4 <span class="unit">h</span></div>
+          <div class="meta">SLA target: ≤4h · 96% within</div>
+          <span class="kpi-delta up">↓ 0.7h vs prior</span>
+        </div>
+        <div class="kpi">
+          <div class="lbl">Reorder rate</div>
+          <div class="val">68 <span class="unit">%</span></div>
+          <div class="meta">First-order patients reordering at week 4+</div>
+          <span class="kpi-delta up">↑ 4 pts vs prior</span>
+        </div>
+        <div class="kpi">
+          <div class="lbl">Active patients</div>
+          <div class="val">312</div>
+          <div class="meta">On treatment · across both clinics</div>
+          <span class="kpi-delta up">↑ 18% vs prior</span>
+        </div>
+      </div>
+
+      <!-- Order trend (full width) -->
+      <div class="scard">
+        <div class="scard-head">
+          <div class="ttl">📈 Orders placed · 13-week trend</div>
+          <div class="sub">Weekly · this workspace</div>
+          <div class="right">Total this period: 174 orders</div>
+        </div>
+        <div class="scard-body">
+          <svg class="trend-svg" viewBox="0 0 800 220" preserveAspectRatio="none">
+            <defs>
+              <pattern id="kpi-grid" width="60" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 60 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,.04)" stroke-width="1"/>
+              </pattern>
+              <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#6366f1" stop-opacity="0.2"/>
+                <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <rect x="50" y="20" width="720" height="180" fill="url(#kpi-grid)"/>
+            <!-- Y axis labels -->
+            <text x="44" y="24" text-anchor="end" font-size="9" fill="#9ca3af">25</text>
+            <line x1="50" y1="20" x2="770" y2="20" stroke="rgba(0,0,0,.06)"/>
+            <text x="44" y="60" text-anchor="end" font-size="9" fill="#9ca3af">20</text>
+            <line x1="50" y1="56" x2="770" y2="56" stroke="rgba(0,0,0,.06)"/>
+            <text x="44" y="96" text-anchor="end" font-size="9" fill="#9ca3af">15</text>
+            <line x1="50" y1="92" x2="770" y2="92" stroke="rgba(0,0,0,.06)"/>
+            <text x="44" y="132" text-anchor="end" font-size="9" fill="#9ca3af">10</text>
+            <line x1="50" y1="128" x2="770" y2="128" stroke="rgba(0,0,0,.06)"/>
+            <text x="44" y="168" text-anchor="end" font-size="9" fill="#9ca3af">5</text>
+            <line x1="50" y1="164" x2="770" y2="164" stroke="rgba(0,0,0,.06)"/>
+            <text x="44" y="204" text-anchor="end" font-size="9" fill="#9ca3af">0</text>
+            <line x1="50" y1="200" x2="770" y2="200" stroke="rgba(0,0,0,.12)"/>
+
+            <!-- Workspace orders/week — values: 12,14,15,17,16,18,19,17,18,16,15,18,17 -->
+            <polygon points="50,114 110,98 170,90 230,76 290,84 350,68 410,60 470,76 530,68 590,84 650,92 710,68 770,76 770,200 50,200" fill="url(#trend-fill)"/>
+            <polyline points="50,114 110,98 170,90 230,76 290,84 350,68 410,60 470,76 530,68 590,84 650,92 710,68 770,76"
+              fill="none" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <!-- X axis labels -->
+            <text x="50" y="216" text-anchor="middle" font-size="8.5" fill="#9ca3af">06 Feb</text>
+            <text x="170" y="216" text-anchor="middle" font-size="8.5" fill="#9ca3af">20 Feb</text>
+            <text x="290" y="216" text-anchor="middle" font-size="8.5" fill="#9ca3af">06 Mar</text>
+            <text x="410" y="216" text-anchor="middle" font-size="8.5" fill="#9ca3af">20 Mar</text>
+            <text x="530" y="216" text-anchor="middle" font-size="8.5" fill="#9ca3af">03 Apr</text>
+            <text x="650" y="216" text-anchor="middle" font-size="8.5" fill="#9ca3af">17 Apr</text>
+            <text x="770" y="216" text-anchor="middle" font-size="8.5" fill="#9ca3af">06 May</text>
+
+            <!-- Endpoint dot -->
+            <circle cx="770" cy="76" r="4" fill="#6366f1" stroke="#fff" stroke-width="1.5"/>
+          </svg>
+          <div class="trend-legend">
+            <div class="leg-item"><span class="swatch" style="background:#6366f1;"></span>Orders/week</div>
+            <div class="leg-item" style="margin-left:auto;color:var(--t3);font-style:italic;">Stable around 17/week · ↑ from 12 at start of window</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Order conversion funnel + Treatment mix donut -->
+      <div class="two-col">
+        <div class="scard">
+          <div class="scard-head">
+            <div class="ttl">🪜 Order conversion funnel</div>
+            <div class="sub">Last 90 days · % of stage above</div>
+          </div>
+          <div class="scard-body">
+            <div class="funnel">
+              <div class="funnel-stage">
+                <div class="lbl">Order placed<div class="desc">Patient submits via app</div></div>
+                <div class="track"><div class="fill" style="width:100%;"></div></div>
+                <div class="ct">218</div>
+                <div class="pct">100%</div>
+              </div>
+              <div class="funnel-stage">
+                <div class="lbl">Identity verified<div class="desc">SumSub passed</div></div>
+                <div class="track"><div class="fill" style="width:97%;"></div></div>
+                <div class="ct">211</div>
+                <div class="pct">97%</div>
+              </div>
+              <div class="funnel-stage">
+                <div class="lbl">Reached Clinical Check<div class="desc">Awaiting prescriber review</div></div>
+                <div class="track"><div class="fill" style="width:94%;"></div></div>
+                <div class="ct">205</div>
+                <div class="pct">97%</div>
+              </div>
+              <div class="funnel-stage">
+                <div class="lbl">Approved<div class="desc">Prescriber decision: yes</div></div>
+                <div class="track"><div class="fill" style="width:87%;"></div></div>
+                <div class="ct">189</div>
+                <div class="pct">92%</div>
+              </div>
+              <div class="funnel-stage">
+                <div class="lbl">Dispatched<div class="desc">Primed Rx out the door</div></div>
+                <div class="track"><div class="fill" style="width:86%;"></div></div>
+                <div class="ct">187</div>
+                <div class="pct">99%</div>
+              </div>
+              <div class="funnel-stage">
+                <div class="lbl">Delivered<div class="desc">Patient confirmed receipt</div></div>
+                <div class="track"><div class="fill" style="width:84%;"></div></div>
+                <div class="ct">183</div>
+                <div class="pct">98%</div>
+              </div>
+            </div>
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--bdr);font-size:11px;color:var(--t2);line-height:1.5;">
+              <strong style="color:var(--t1);">Biggest drop:</strong> placed → ID verified (3% loss · 7 patients failed SumSub or didn't complete). Worth investigating if pattern persists next month.
+            </div>
+          </div>
+        </div>
+
+        <div class="scard">
+          <div class="scard-head">
+            <div class="ttl">💊 Treatment mix</div>
+            <div class="sub">189 approved · 90d</div>
+          </div>
+          <div class="scard-body">
+            <div class="donut-wrap">
+              <svg class="donut-svg" viewBox="0 0 160 160">
+                <!-- Mounjaro 116 (61.4%), Wegovy 73 (38.6%) -->
+                <!-- Circumference 2*pi*60 = 376.99 -->
+                <g transform="translate(80,80)">
+                  <circle r="60" fill="none" stroke="#f1f0ef" stroke-width="20"/>
+                  <!-- Mounjaro 61.4% = 231.4 -->
+                  <circle r="60" fill="none" stroke="#1e40af" stroke-width="20"
+                    stroke-dasharray="231.4 376.99" stroke-dashoffset="0"
+                    transform="rotate(-90)"/>
+                  <!-- Wegovy 38.6% = 145.5 -->
+                  <circle r="60" fill="none" stroke="#5b21b6" stroke-width="20"
+                    stroke-dasharray="145.5 376.99" stroke-dashoffset="-231.4"
+                    transform="rotate(-90)"/>
+                </g>
+              </svg>
+              <div class="donut-center">
+                <div class="v">189</div>
+                <div class="l">Approved · 90d</div>
+              </div>
+              <div class="donut-legend">
+                <div class="leg-item">
+                  <span class="swatch" style="background:#1e40af;"></span>
+                  <span class="lbl">Mounjaro (Tirzepatide)</span>
+                  <span class="val">116 · 61%</span>
+                </div>
+                <div class="leg-item">
+                  <span class="swatch" style="background:#5b21b6;"></span>
+                  <span class="lbl">Wegovy (Semaglutide)</span>
+                  <span class="val">73 · 39%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Queue health + SLA + Prescriber activity (3 col) -->
+      <div class="three-col">
+        <div class="scard">
+          <div class="scard-head">
+            <div class="ttl">⏱ Queue health</div>
+            <div class="sub">Right now</div>
+          </div>
+          <div class="scard-body" style="padding:14px 18px;">
+            <div class="barchart">
+              <div class="bar-row">
+                <span class="bar-lbl">&lt;6h fresh</span>
+                <div class="bar-track"><div class="bar-fill green" style="width:60%;"></div></div>
+                <span class="bar-count">3</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-lbl">6–24h warm</span>
+                <div class="bar-track"><div class="bar-fill amber" style="width:0%;"></div></div>
+                <span class="bar-count">0</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-lbl">&gt;24h breach</span>
+                <div class="bar-track"><div class="bar-fill" style="width:40%;background:var(--red-mid);"></div></div>
+                <span class="bar-count">2</span>
+              </div>
+            </div>
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bdr);font-size:11px;color:var(--t2);">
+              2 orders breaching 24h SLA — both reorders. <a href="livera_prototype_02_clinical_check_queue.html" style="color:var(--brand);text-decoration:none;font-weight:600;">Open queue →</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="scard">
+          <div class="scard-head">
+            <div class="ttl">🎯 SLA compliance</div>
+            <div class="sub">Last 90 days</div>
+          </div>
+          <div class="scard-body" style="padding:14px 18px;">
+            <div class="barchart">
+              <div class="bar-row">
+                <span class="bar-lbl">Approval ≤4h</span>
+                <div class="bar-track"><div class="bar-fill green" style="width:96%;"></div></div>
+                <span class="bar-count">96%</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-lbl">GP letter ≤48h</span>
+                <div class="bar-track"><div class="bar-fill green" style="width:91%;"></div></div>
+                <span class="bar-count">91%</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-lbl">Intervention ≤7d</span>
+                <div class="bar-track"><div class="bar-fill amber" style="width:84%;"></div></div>
+                <span class="bar-count">84%</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-lbl">Pharmacy comms ≤24h</span>
+                <div class="bar-track"><div class="bar-fill green" style="width:96%;"></div></div>
+                <span class="bar-count">96%</span>
+              </div>
+            </div>
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bdr);font-size:11px;color:var(--t2);">
+              Intervention SLA at 84% (target ≥90%). Worth reviewing.
+            </div>
+          </div>
+        </div>
+
+        <div class="scard">
+          <div class="scard-head">
+            <div class="ttl">📅 Welcome calls</div>
+            <div class="sub">Last 90 days</div>
+          </div>
+          <div class="scard-body" style="padding:14px 18px;">
+            <div class="barchart">
+              <div class="bar-row">
+                <span class="bar-lbl">Booked</span>
+                <div class="bar-track"><div class="bar-fill" style="width:88%;"></div></div>
+                <span class="bar-count">28</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-lbl">Completed</span>
+                <div class="bar-track"><div class="bar-fill green" style="width:81%;"></div></div>
+                <span class="bar-count">26</span>
+              </div>
+              <div class="bar-row">
+                <span class="bar-lbl">No-show</span>
+                <div class="bar-track"><div class="bar-fill" style="width:6%;background:var(--red-mid);"></div></div>
+                <span class="bar-count">2</span>
+              </div>
+            </div>
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bdr);font-size:11px;color:var(--t2);">
+              Completion rate 93% · enabled per <code style="font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px">clinic_config.welcome_calls_enabled</code>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prescriber leaderboard -->
+      <div class="scard">
+        <div class="scard-head">
+          <div class="ttl">⚕ Prescriber activity</div>
+          <div class="sub">By orders approved · 90d · this workspace</div>
+        </div>
+        <div style="padding:0;">
+          <div class="lb-row head">
+            <span></span>
+            <span>Prescriber</span>
+            <span>Approved</span>
+            <span>Declined</span>
+            <span>Avg time</span>
+          </div>
+          <div class="lb-row">
+            <span class="rank">1</span>
+            <span class="who">
+              <span class="av">CW</span>
+              <span><div class="nm">Charlotte Williams</div><div class="role">PIP · Lead</div></span>
+            </span>
+            <span class="num">62</span>
+            <span class="num">4</span>
+            <span class="num">2.8h</span>
+          </div>
+          <div class="lb-row">
+            <span class="rank">2</span>
+            <span class="who">
+              <span class="av" style="background:linear-gradient(135deg,#a5b4fc,#4338ca);">JK</span>
+              <span><div class="nm">James Kirby</div><div class="role">PIP · Locum</div></span>
+            </span>
+            <span class="num">38</span>
+            <span class="num">5</span>
+            <span class="num">3.1h</span>
+          </div>
+          <div class="lb-row">
+            <span class="rank">3</span>
+            <span class="who">
+              <span class="av" style="background:linear-gradient(135deg,#bbf7d0,#15803d);">RP</span>
+              <span><div class="nm">Rebecca Patel</div><div class="role">PIP · Locum</div></span>
+            </span>
+            <span class="num">36</span>
+            <span class="num">3</span>
+            <span class="num">3.2h</span>
+          </div>
+          <div class="lb-row" style="border-bottom:none;">
+            <span class="rank">4</span>
+            <span class="who">
+              <span class="av" style="background:linear-gradient(135deg,#fed7aa,#c2410c);">DH</span>
+              <span><div class="nm">David Holloway</div><div class="role">PIP · Locum</div></span>
+            </span>
+            <span class="num">15</span>
+            <span class="num">3</span>
+            <span class="num">5.4h</span>
+          </div>
+        </div>
+        <div style="padding:12px 18px;background:var(--surface-2);font-size:11px;color:var(--t2);border-top:1px solid var(--bdr);line-height:1.45;">
+          <strong style="color:var(--t1);">Note:</strong> David Holloway's avg approval time is above 4h SLA target. Cross-reference with <a href="livera_g6_flag_dashboard.html" style="color:var(--brand);text-decoration:none;font-weight:600;">Flag Dashboard</a> — proactive note effectiveness also low (45%). Coaching opportunity.
+        </div>
+      </div>
+
+      <!-- Outcomes -->
+      <div class="scard">
+        <div class="scard-head">
+          <div class="ttl">🎯 Patient outcomes · NICE 5% target</div>
+          <div class="sub">Active patients on treatment ≥12 weeks · 90d cohort</div>
+        </div>
+        <div class="scard-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:18px;">
+            <div>
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--t3);">Cohort size</div>
+              <div style="font-size:24px;font-weight:700;color:var(--t1);line-height:1;margin-top:5px;font-variant-numeric:tabular-nums;">156</div>
+              <div style="font-size:11px;color:var(--t2);margin-top:4px;">Patients ≥12 weeks on treatment</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--t3);">Hit 5% target</div>
+              <div style="font-size:24px;font-weight:700;color:var(--green);line-height:1;margin-top:5px;font-variant-numeric:tabular-nums;">114 <span style="font-size:13px;font-weight:500;color:var(--t3);">· 73%</span></div>
+              <div style="font-size:11px;color:var(--t2);margin-top:4px;">Achieved ≥5% body weight loss</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--t3);">Hit 10% target</div>
+              <div style="font-size:24px;font-weight:700;color:var(--brand);line-height:1;margin-top:5px;font-variant-numeric:tabular-nums;">42 <span style="font-size:13px;font-weight:500;color:var(--t3);">· 27%</span></div>
+              <div style="font-size:11px;color:var(--t2);margin-top:4px;">≥10% loss · maintenance candidates</div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--t3);">Avg loss at 12 wks</div>
+              <div style="font-size:24px;font-weight:700;color:var(--t1);line-height:1;margin-top:5px;font-variant-numeric:tabular-nums;">7.4 <span style="font-size:13px;font-weight:500;color:var(--t3);">%</span></div>
+              <div style="font-size:11px;color:var(--t2);margin-top:4px;">Across 156-patient cohort</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BLD-INT-OMNI-06: Marketing engagement widget (Wave 5 / Omnisend KPI) -->
+      <div style="background:linear-gradient(135deg,#fafbff 0%,#eff3ff 100%);border:1px solid #c7d4ff;border-radius:8px;margin-bottom:18px;overflow:hidden;">
+        <div style="padding:14px 18px;border-bottom:.5px solid #c7d4ff;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:14px;font-weight:600;color:#1e1b4b;display:flex;align-items:center;gap:8px;">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:5px;background:linear-gradient(135deg,#3b5cff,#1a4dff);color:#fff;font-weight:800;font-size:13px;letter-spacing:-1px;">O</span>
+            Marketing engagement
+          </span>
+          <span style="font-size:11px;color:var(--text-3);">Omnisend audience health · last 30 days · NO clinical data</span>
+          <span style="font-size:9px;font-weight:700;letter-spacing:.4px;background:#f0fdfa;color:#0d9488;border:.5px solid #99f6e4;padding:2px 7px;border-radius:3px;margin-left:auto;">BLD-INT-OMNI-06</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);padding:18px;gap:0;background:#fff;">
+          <div style="padding:0 18px;border-right:.5px solid #e2e8f0;">
+            <div style="font-size:24px;font-weight:700;color:#1a4dff;font-variant-numeric:tabular-nums;line-height:1.1;">487</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px;">Audience</div>
+            <div style="font-size:10.5px;color:var(--text-2);margin-top:3px;line-height:1.4;">Total contacts synced</div>
+          </div>
+          <div style="padding:0 18px;border-right:.5px solid #e2e8f0;">
+            <div style="font-size:24px;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums;line-height:1.1;">62</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px;">Marketing-consented</div>
+            <div style="font-size:10.5px;color:var(--text-2);margin-top:3px;line-height:1.4;">12.7% opt-in rate <span style="color:var(--green);font-weight:600;">↑ 1.2pp</span></div>
+          </div>
+          <div style="padding:0 18px;border-right:.5px solid #e2e8f0;">
+            <div style="font-size:24px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums;line-height:1.1;">42.3%</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px;">Avg open rate</div>
+            <div style="font-size:10.5px;color:var(--text-2);margin-top:3px;line-height:1.4;">3 campaigns sent · industry avg 21%</div>
+          </div>
+          <div style="padding:0 18px;border-right:.5px solid #e2e8f0;">
+            <div style="font-size:24px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums;line-height:1.1;">9.8%</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px;">Avg click rate</div>
+            <div style="font-size:10.5px;color:var(--text-2);margin-top:3px;line-height:1.4;">Industry avg 2.6%</div>
+          </div>
+          <div style="padding:0 18px;">
+            <div style="font-size:24px;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums;line-height:1.1;">2</div>
+            <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px;">Unsubs (30d)</div>
+            <div style="font-size:10.5px;color:var(--text-2);margin-top:3px;line-height:1.4;">0.41% churn · &lt;0.5% target ✓</div>
+          </div>
+        </div>
+        <div style="padding:12px 18px;background:#fafbff;border-top:.5px solid #c7d4ff;display:flex;align-items:center;gap:14px;font-size:11px;color:var(--text-2);">
+          <span style="font-weight:600;color:var(--text-2);">Latest campaign:</span>
+          <span style="color:var(--text-1);">May newsletter — sustainable habits beyond GLP-1</span>
+          <span style="color:var(--text-3);">·</span>
+          <span><strong style="color:var(--green);">48.4% open</strong> · <strong style="color:var(--brand);">12.1% click</strong></span>
+          <a href="livera_settings_omnisend.html" style="margin-left:auto;color:var(--brand);text-decoration:none;font-weight:600;font-size:11px;">View Omnisend settings →</a>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="perm-note">
+        <strong>KPI Dashboard</strong> · operational view. Distinct from <a href="livera_g6_flag_dashboard.html" style="color:var(--brand);text-decoration:none;font-weight:600;">Flag Dashboard</a> (governance-focused, mirrors Annex H). Visible to <strong>Owner</strong> and <strong>RM</strong> · read-only for <strong>Admin</strong>. Refreshed hourly from order data; treatment outcome figures refreshed nightly. CSV export at the row-level for cohort analysis.
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = '✓ ' + msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+</script>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

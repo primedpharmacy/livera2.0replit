@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — SCR-030 AI Note Drafting (BLD-6.1 → 6.4)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .pill { display: inline-flex; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 0.5px solid; align-items: center; gap: 5px; }
+  .p-cc { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .btn { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn.primary:hover { background: #3730a3; }
+  .btn.success { background: #16a34a; color: #fff; border-color: #16a34a; }
+  .btn.success:hover { background: #15803d; }
+  .btn.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .btn.amber:hover { background: #fef3c7; }
+  .btn.danger { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .btn.danger:hover { background: #fee2e2; }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  /* Two-col content */
+  .content { flex: 1; display: flex; overflow: hidden; }
+  .ctx-col { width: 320px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); overflow-y: auto; padding: 16px 18px; }
+  .ctx-title { font-size: 18px; font-weight: 700; color: var(--text-1); letter-spacing: -0.3px; }
+  .ctx-meta { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+
+  .ctx-section { margin-top: 18px; }
+  .ctx-sec-t { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; }
+  .dr { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+  .dk { font-size: 12px; color: var(--text-2); }
+  .dv { font-size: 12px; font-weight: 500; color: var(--text-1); text-align: right; }
+  .dv.g { color: var(--green); }
+  .dv.a { color: var(--amber); }
+  .dv.r { color: var(--red-mid); }
+
+  /* Right work area */
+  .work-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .work-head { padding: 18px 28px 0 28px; flex-shrink: 0; }
+  .work-title { font-size: 22px; font-weight: 700; color: var(--text-1); letter-spacing: -0.3px; }
+  .work-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; max-width: 700px; }
+
+  /* Stage indicator */
+  .stages { display: flex; gap: 6px; padding: 14px 28px 0 28px; align-items: center; flex-shrink: 0; }
+  .stage { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 0.5px solid; white-space: nowrap; }
+  .stage.done { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .stage.active { background: var(--brand-light); color: var(--brand-dark); border-color: rgba(99,102,241,0.3); }
+  .stage.pending { background: var(--surface-2); color: var(--text-3); border-color: var(--border-strong); }
+  .stage-arrow { color: var(--text-3); font-size: 12px; }
+
+  .work-body { flex: 1; overflow-y: auto; padding: 18px 28px 28px 28px; }
+
+  /* Active prompt banner */
+  .prompt-banner { padding: 11px 14px; background: var(--purple-bg); border: 0.5px solid var(--purple-border); border-radius: var(--r-md); margin-bottom: 16px; display: flex; align-items: center; gap: 12px; font-size: 12px; }
+  .prompt-banner-icon { font-size: 16px; flex-shrink: 0; }
+  .prompt-banner-text { flex: 1; color: var(--purple); line-height: 1.5; }
+  .prompt-banner-text strong { font-weight: 700; }
+  .prompt-banner a { color: var(--purple); text-decoration: underline; font-weight: 500; }
+
+  /* Card */
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); margin-bottom: 16px; overflow: hidden; }
+  .card-head { padding: 12px 18px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; display: flex; align-items: center; gap: 8px; }
+  .card-sub { font-size: 11px; color: var(--text-3); }
+  .card-body { padding: 16px 18px; }
+
+  .ai-icon { font-size: 14px; }
+  .ai-tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--purple); color: #fff; letter-spacing: 0.4px; }
+
+  /* Loading state */
+  .ai-loading { display: flex; align-items: center; gap: 12px; padding: 30px 20px; justify-content: center; color: var(--text-2); font-size: 13px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--brand-light); border-top-color: var(--brand-dark); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* AI draft body */
+  .draft-body { font-size: 13px; color: var(--text-1); line-height: 1.65; white-space: pre-wrap; }
+  .draft-body strong { font-weight: 600; }
+  .draft-section { margin-bottom: 14px; }
+  .draft-section-title { font-size: 11px; font-weight: 700; color: var(--brand-dark); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .draft-disclaimer { margin-top: 12px; padding: 8px 12px; background: var(--amber-bg); border: 0.5px solid var(--amber-border); border-radius: var(--r-sm); font-size: 11px; font-weight: 600; color: var(--amber); display: flex; align-items: center; gap: 6px; }
+
+  /* Editable */
+  .editable-textarea { width: 100%; padding: 12px 14px; font-size: 13px; line-height: 1.65; border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); font-family: inherit; background: var(--surface); color: var(--text-1); resize: vertical; min-height: 200px; }
+  .editable-textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+
+  /* Audit panel */
+  .audit-panel { margin-top: 12px; padding: 12px 14px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-sm); }
+  .audit-title { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .audit-grid { display: grid; grid-template-columns: 160px 1fr; gap: 4px 12px; font-size: 11px; }
+  .audit-k { color: var(--text-3); font-family: ui-monospace,'SF Mono',monospace; }
+  .audit-v { color: var(--text-1); font-weight: 500; font-family: ui-monospace,'SF Mono',monospace; word-break: break-all; }
+
+  /* Action bar */
+  .action-bar { display: flex; gap: 8px; justify-content: flex-end; padding: 14px 18px; background: var(--surface-2); border-top: 0.5px solid var(--border); }
+
+  /* Schema card */
+  .schema-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .schema-grid { display: grid; grid-template-columns: 200px 1fr; gap: 6px 14px; font-size: 12px; padding: 14px 18px; }
+  .schema-key { font-family: ui-monospace,'SF Mono',monospace; color: var(--brand-dark); font-size: 11px; }
+  .schema-val { color: var(--text-2); line-height: 1.5; }
+  .schema-val code { font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; color: var(--text-1); }
+
+  /* Modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(15,15,22,0.55); z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--r-lg); width: 100%; max-width: 560px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  .modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .modal-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .modal-icon.danger { background: var(--red-bg); color: var(--red-mid); }
+  .modal-icon.amber { background: var(--amber-bg); color: var(--amber); }
+  .modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .modal-close { background: transparent; border: none; cursor: pointer; font-size: 18px; color: var(--text-3); padding: 4px 8px; border-radius: var(--r-sm); font-family: inherit; }
+  .modal-body { padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .modal-foot { padding: 14px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--surface-2); }
+
+  .field-group { display: flex; flex-direction: column; gap: 6px; }
+  .field-label { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; }
+  .field-help { font-size: 11px; color: var(--text-3); }
+  .field-input, .field-select, .field-textarea { padding: 9px 12px; font-size: 13px; border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); font-family: inherit; background: var(--surface); color: var(--text-1); width: 100%; }
+  .field-textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+  .field-input:focus, .field-select:focus, .field-textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+
+  .impact-row { padding: 10px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-sm); display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.5; color: var(--text-1); }
+  .impact-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; }
+  .toast.show { display: flex; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html" class="active"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_prototype_02_clinical_check_queue.html">Orders</a>
+        <span class="sep">/</span>
+        <a href="livera_prototype_10_order_detail_admin.html">ORD-00441</a>
+        <span class="sep">/</span>
+        <span class="cur">AI clinical note draft</span>
+      </div>
+      <div class="topbar-right">
+        <div class="pill p-cc">Clinical Check</div>
+        <button class="btn">Cancel</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Patient context -->
+      <div class="ctx-col">
+        <div class="ctx-title">Sarah Cookland</div>
+        <div class="ctx-meta">50y · F · ORD-00441 · Reorder 6</div>
+
+        <div class="ctx-section">
+          <div class="ctx-sec-t">Order under review</div>
+          <div class="dr"><span class="dk">Product</span><span class="dv">Mounjaro 5mg</span></div>
+          <div class="dr"><span class="dk">Type</span><span class="dv">Reorder</span></div>
+          <div class="dr"><span class="dk">Submitted</span><span class="dv">07 Apr · 08:14</span></div>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-sec-t">Clinical context (sent to AI)</div>
+          <div class="dr"><span class="dk">BMI start</span><span class="dv">29.5</span></div>
+          <div class="dr"><span class="dk">Current weight</span><span class="dv">85.3kg</span></div>
+          <div class="dr"><span class="dk">Total loss</span><span class="dv a">4.1% · below 5%</span></div>
+          <div class="dr"><span class="dk">Cardiac history</span><span class="dv a">Yes · stable, on statins</span></div>
+          <div class="dr"><span class="dk">Side effects</span><span class="dv a">Mild bruising at site</span></div>
+          <div class="dr"><span class="dk">Adherence</span><span class="dv g">100% · all doses taken</span></div>
+          <div class="dr"><span class="dk">Check-ins</span><span class="dv g">6 / 6 complete</span></div>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-sec-t">Reorder questionnaire delta</div>
+          <div style="font-size:11px;color:var(--text-2);line-height:1.55;padding:8px 10px;background:var(--surface-2);border-radius:var(--r-sm);">
+            <strong>Q2 changed:</strong> Now reporting mild injection-site bruising (was: no side effects)
+            <br><br>
+            <strong>Q4 changed:</strong> 85.3kg (was: 85.9kg) · 4.1% total · below NICE ≥5%
+            <br><br>
+            Q1, Q3, Q5–Q7 unchanged
+          </div>
+        </div>
+      </div>
+
+      <!-- Work column -->
+      <div class="work-col">
+
+        <div class="work-head">
+          <div class="work-title">AI clinical note draft</div>
+          <div class="work-sub">SCR-030 · The AI drafts a clinical note based on patient data, reorder questionnaire delta, and weight history. The prescriber reviews, edits, then approves / declines / flags for intervention. AI never saves notes directly — every save requires prescriber action.</div>
+        </div>
+
+        <!-- Stage indicator -->
+        <div class="stages">
+          <div class="stage done">✓ Patient data gathered</div>
+          <div class="stage-arrow">→</div>
+          <div class="stage done" id="s-prompt">✓ Prompt loaded · v2.1</div>
+          <div class="stage-arrow">→</div>
+          <div class="stage active" id="s-ai">2 AI drafting</div>
+          <div class="stage-arrow">→</div>
+          <div class="stage pending" id="s-review">3 Prescriber review</div>
+          <div class="stage-arrow">→</div>
+          <div class="stage pending" id="s-action">4 Save / Decline / Intervention</div>
+        </div>
+
+        <div class="work-body">
+
+          <!-- BLD-6.5 reference banner -->
+          <div class="prompt-banner">
+            <div class="prompt-banner-icon">🛡</div>
+            <div class="prompt-banner-text">
+              Active prompt: <strong>v2.1</strong> · signed by Qadir Hussain on 30 Apr 2026 · prompt_sha <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;">9c8a2e1f</code> · model <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;">claude-sonnet-4-20250514</code>. <a href="livera_scr_ai_prompt_signoff.html">View prompt sign-off →</a>
+            </div>
+          </div>
+
+          <!-- AI Draft card -->
+          <div class="card" id="draft-card">
+            <div class="card-head">
+              <div class="card-title">
+                <span class="ai-icon">🧠</span>
+                <span>Drafted clinical note</span>
+                <span class="ai-tag">AI DRAFT</span>
+              </div>
+              <div class="card-sub" id="latency-pill">3.4s · 412 tokens</div>
+              <button class="btn" onclick="redraft()" style="margin-left:8px;">↻ Re-draft</button>
+            </div>
+
+            <!-- Loading state — initially shown then replaced -->
+            <div class="card-body" id="draft-loading" style="display:none;">
+              <div class="ai-loading">
+                <div class="spinner"></div>
+                <span>Anthropic API · drafting clinical note from patient context…</span>
+              </div>
+            </div>
+
+            <!-- Drafted note (initial visible state) -->
+            <div class="card-body" id="draft-content">
+              <textarea class="editable-textarea" id="draft-text">## Assessment
+
+Patient is a 50-year-old female on month 6 of GLP-1 therapy (Mounjaro 5mg). Total weight loss to date is 3.6 kg — 4.1% from baseline 89.4 kg. Patient reports 100% adherence with all 6 monthly check-ins completed. Mild injection-site bruising newly reported at this reorder; no other side effects.
+
+Cardiac history (controlled, on statins) remains stable per most recent record. Reorder questionnaire shows no changes to medical history, medications, or comorbidities since last submission.
+
+## Reasoning (NICE CG189)
+
+Patient continues to meet NICE comorbidity-pathway eligibility (BMI 27+ with cardiac comorbidity). However, total weight loss at 4.1% is below the NICE ≥5% target at this 6-month review point. Per NICE CG189 §1.5.4, suboptimal response warrants re-evaluation but does not automatically require discontinuation, particularly where adherence is good and tolerance is acceptable.
+
+The newly-reported mild bruising is consistent with documented injection-site reactions for tirzepatide and is not a contraindication to continuation. Recommend reinforcement of injection-site rotation guidance.
+
+## Recommendation
+
+Continue Mounjaro 5mg at current dose for one further cycle. Do not increase dose at this review — patient is tolerating current dose, and dose escalation in the absence of clear benefit signal would be premature. Reinforce injection-site rotation between abdomen, thigh, and upper arm at next contact.
+
+## Next review
+
+Re-review at next reorder (28 May 2026). If &lt;5% total loss persists at that point, consider discussion of dose escalation to 7.5mg with patient consent and renewed risk/benefit assessment.
+
+DRAFT — PENDING PRESCRIBER REVIEW</textarea>
+            </div>
+
+            <!-- Audit panel — always visible -->
+            <div style="padding: 14px 18px;">
+              <div class="audit-panel">
+                <div class="audit-title">📋 BLD-6.1 audit fields (written on save)</div>
+                <div class="audit-grid">
+                  <div class="audit-k">draft_id</div><div class="audit-v">draft_8a2f1c9e</div>
+                  <div class="audit-k">model</div><div class="audit-v">claude-sonnet-4-20250514</div>
+                  <div class="audit-k">prompt_version</div><div class="audit-v">v2.1</div>
+                  <div class="audit-k">prompt_sha</div><div class="audit-v">9c8a2e1f</div>
+                  <div class="audit-k">prompt_signed_by</div><div class="audit-v">user_qh_0001 (Qadir Hussain)</div>
+                  <div class="audit-k">input_token_count</div><div class="audit-v">847</div>
+                  <div class="audit-k">output_token_count</div><div class="audit-v">412</div>
+                  <div class="audit-k">latency_ms</div><div class="audit-v">3,412</div>
+                  <div class="audit-k">api_request_id</div><div class="audit-v">req_anth_0_8K2zJqL81</div>
+                  <div class="audit-k">drafted_at</div><div class="audit-v">2026-04-30T14:18:23Z</div>
+                  <div class="audit-k">drafted_for_order_id</div><div class="audit-v">ORD-00441</div>
+                  <div class="audit-k">drafted_for_patient_id</div><div class="audit-v">pat_sc_0419</div>
+                  <div class="audit-k">prescriber_user_id</div><div class="audit-v">user_cm_0042 (Claire Moynehan)</div>
+                  <div class="audit-k">prescriber_action</div><div class="audit-v" style="color:var(--text-3);">— pending —</div>
+                  <div class="audit-k">edits_made</div><div class="audit-v" style="color:var(--text-3);">— calculated on save —</div>
+                  <div class="audit-k">final_text_sha</div><div class="audit-v" style="color:var(--text-3);">— calculated on save —</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action bar (BLD-6.4 save handler entry points) -->
+            <div class="action-bar">
+              <button class="btn danger" onclick="openModal('decline')">✕ Decline order</button>
+              <button class="btn amber" onclick="openModal('intervention')">⏸ Flag for intervention</button>
+              <button class="btn success" onclick="openModal('approve')">✓ Approve & save note</button>
+            </div>
+          </div>
+
+          <!-- BLD-6.1 schema doc -->
+          <div class="schema-card">
+            <div class="card-head">
+              <div class="card-title">📦 ai_note_draft entity (BLD-6.1)</div>
+              <div class="card-sub">For Yohan · audit chain links AI output → prescriber action → final clinical_note</div>
+            </div>
+            <div class="schema-grid">
+              <div class="schema-key">draft_id</div>
+              <div class="schema-val">UUID · primary key · format <code>draft_XXXXXXXX</code></div>
+              <div class="schema-key">workspace_id</div>
+              <div class="schema-val">FK → workspaces · tenant isolation</div>
+              <div class="schema-key">model</div>
+              <div class="schema-val">String · e.g. <code>claude-sonnet-4-20250514</code> · pinned exactly, no aliases</div>
+              <div class="schema-key">prompt_version</div>
+              <div class="schema-val">String · e.g. <code>v2.1</code> · the human-readable version label from BLD-6.5</div>
+              <div class="schema-key">prompt_sha</div>
+              <div class="schema-val">String · 8-char SHA of the actual prompt body at draft time · proves which exact text was sent</div>
+              <div class="schema-key">prompt_signed_by</div>
+              <div class="schema-val">FK → users · denormalised at draft time · who signed off this prompt version per BLD-6.5</div>
+              <div class="schema-key">input_token_count</div>
+              <div class="schema-val">int · for cost tracking and prompt-engineering review</div>
+              <div class="schema-key">output_token_count</div>
+              <div class="schema-val">int · max 600 by config</div>
+              <div class="schema-key">latency_ms</div>
+              <div class="schema-val">int · API request → first complete response · for monitoring</div>
+              <div class="schema-key">api_request_id</div>
+              <div class="schema-val">String · returned by Anthropic API · for tracing into Anthropic logs</div>
+              <div class="schema-key">drafted_at</div>
+              <div class="schema-val">timestamptz · server-generated</div>
+              <div class="schema-key">drafted_for_order_id</div>
+              <div class="schema-val">FK → orders · the order this draft was generated for</div>
+              <div class="schema-key">drafted_for_patient_id</div>
+              <div class="schema-val">FK → patients · denormalised for audit query speed</div>
+              <div class="schema-key">draft_text</div>
+              <div class="schema-val">TEXT · the AI-generated text exactly as returned · <strong>immutable</strong> after write</div>
+              <div class="schema-key">prescriber_user_id</div>
+              <div class="schema-val">FK → users · who reviewed it</div>
+              <div class="schema-key">prescriber_action</div>
+              <div class="schema-val">enum: <code>approved</code> | <code>declined</code> | <code>intervention</code> | <code>discarded</code> · null until decided</div>
+              <div class="schema-key">final_text</div>
+              <div class="schema-val">TEXT · the prescriber-edited version that was saved · only set if action=approved</div>
+              <div class="schema-key">final_text_sha</div>
+              <div class="schema-val">String · SHA of <code>final_text</code> · proves what was saved differs from <code>draft_text</code></div>
+              <div class="schema-key">edits_made</div>
+              <div class="schema-val">jsonb · structured diff of draft_text vs final_text · summary stats (chars added/removed) for governance review</div>
+              <div class="schema-key">action_at</div>
+              <div class="schema-val">timestamptz · when the prescriber decided</div>
+              <div class="schema-key">linked_clinical_note_id</div>
+              <div class="schema-val">FK → clinical_notes · only set when action=approved · the audit chain</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BLD-6.3 — Decline modal -->
+    <div class="modal-backdrop" id="modal-decline">
+      <div class="modal">
+        <div class="modal-head">
+          <div class="modal-icon danger">✕</div>
+          <div class="modal-title">Decline order ORD-00441</div>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:13px;color:var(--text-2);line-height:1.55;">
+            Declining will release the Ryft authorisation (£169.00) without charging the patient, send the patient a notification, and save the AI draft note to the patient record with your decline rationale.
+          </div>
+
+          <div class="impact-row">
+            <div class="impact-icon">💳</div>
+            <div><strong>Payment:</strong> Ryft auth REL-XXXX released · no charge taken</div>
+          </div>
+          <div class="impact-row">
+            <div class="impact-icon">📧</div>
+            <div><strong>Patient email:</strong> Omnisend <code style="font-size:11px;">order_declined</code> sent · explains decision and next steps</div>
+          </div>
+          <div class="impact-row">
+            <div class="impact-icon">📝</div>
+            <div><strong>Note saved:</strong> AI draft + your rationale → clinical_note (type <code style="font-size:11px;">decline_rationale</code>) · linked back to draft_id for audit</div>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">Decline reason</div>
+            <select class="field-select">
+              <option>NICE eligibility not met</option>
+              <option>Insufficient response · clinical judgement</option>
+              <option>Contraindication identified</option>
+              <option>Adherence concerns</option>
+              <option>Patient request</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">Decline rationale (saved to clinical record)</div>
+            <textarea class="field-textarea" placeholder="Explain the clinical reasoning. This is appended to the AI draft and saved to the patient record."></textarea>
+            <div class="field-help">Required · BLD-6.4 saves this together with the AI draft</div>
+          </div>
+
+          <div style="font-size:11px;color:var(--text-3);line-height:1.55;padding:8px 10px;background:var(--surface-2);border-radius:var(--r-sm);">
+            On confirm, BLD-6.4 writes: <code style="font-size:10px;">ai_note_draft.prescriber_action = 'declined'</code> · <code style="font-size:10px;">ai_note_draft.action_at = now()</code> · creates a <code style="font-size:10px;">clinical_note</code> linked via <code style="font-size:10px;">linked_clinical_note_id</code> · transitions order status to <code style="font-size:10px;">cancelled</code> · triggers Ryft release + Omnisend send · writes AUD-04 event.
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn danger" onclick="saveAction('declined')">Confirm decline</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BLD-6.3 — Intervention modal -->
+    <div class="modal-backdrop" id="modal-intervention">
+      <div class="modal">
+        <div class="modal-head">
+          <div class="modal-icon amber">⏸</div>
+          <div class="modal-title">Flag ORD-00441 for intervention</div>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:13px;color:var(--text-2);line-height:1.55;">
+            Flagging for intervention pauses the order, holds the Ryft authorisation, and starts the 7-working-day intervention SLA timer. The AI draft + your intervention reason are saved to the patient record.
+          </div>
+
+          <div class="impact-row">
+            <div class="impact-icon">⏱</div>
+            <div><strong>SLA:</strong> 7-working-day timer starts now · breach triggers escalation per BLD-3.1</div>
+          </div>
+          <div class="impact-row">
+            <div class="impact-icon">💳</div>
+            <div><strong>Payment:</strong> Ryft auth held · not captured, not released · patient card unaffected</div>
+          </div>
+          <div class="impact-row">
+            <div class="impact-icon">📝</div>
+            <div><strong>Note saved:</strong> AI draft + your intervention reason → clinical_note (type <code style="font-size:11px;">intervention_rationale</code>)</div>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">Intervention reason</div>
+            <select class="field-select">
+              <option>Awaiting GP letter / GP records</option>
+              <option>Need patient consultation before approval</option>
+              <option>Clarify side effect history</option>
+              <option>Verify weight measurement</option>
+              <option>Clinical concern · cardiac</option>
+              <option>Clinical concern · other</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">Required action / next step</div>
+            <textarea class="field-textarea" placeholder="What needs to happen before this order can progress?"></textarea>
+          </div>
+
+          <div style="font-size:11px;color:var(--text-3);line-height:1.55;padding:8px 10px;background:var(--surface-2);border-radius:var(--r-sm);">
+            On confirm, BLD-6.4 writes: <code style="font-size:10px;">ai_note_draft.prescriber_action = 'intervention'</code> · creates a <code style="font-size:10px;">clinical_note</code> linked via <code style="font-size:10px;">linked_clinical_note_id</code> · transitions order to <code style="font-size:10px;">intervention</code> with <code style="font-size:10px;">intervention_raised_at = now()</code> · order appears on Intervention queue with SLA timer.
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn amber" onclick="saveAction('intervention')">Confirm intervention</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Approve confirmation modal -->
+    <div class="modal-backdrop" id="modal-approve">
+      <div class="modal">
+        <div class="modal-head">
+          <div class="modal-icon" style="background:var(--green-bg);color:var(--green);">✓</div>
+          <div class="modal-title">Approve ORD-00441 & save note</div>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:13px;color:var(--text-2);line-height:1.55;">
+            Approving captures the Ryft payment authorisation, sends the order to Primed for fulfilment, and saves your reviewed note to the patient's clinical record.
+          </div>
+
+          <div class="impact-row">
+            <div class="impact-icon">💳</div>
+            <div><strong>Payment:</strong> Ryft AUTH-7782341 captured · £169.00 charged</div>
+          </div>
+          <div class="impact-row">
+            <div class="impact-icon">📦</div>
+            <div><strong>Fulfilment:</strong> Primed order created automatically · estimated dispatch tomorrow</div>
+          </div>
+          <div class="impact-row">
+            <div class="impact-icon">📝</div>
+            <div><strong>Note saved:</strong> Your edited version → clinical_note · audit chain preserves both AI draft and your final text</div>
+          </div>
+
+          <div style="font-size:11px;color:var(--text-3);line-height:1.55;padding:8px 10px;background:var(--surface-2);border-radius:var(--r-sm);">
+            On confirm, BLD-6.4 writes: <code style="font-size:10px;">ai_note_draft.prescriber_action = 'approved'</code> · <code style="font-size:10px;">ai_note_draft.final_text = &lt;your edits&gt;</code> · <code style="font-size:10px;">final_text_sha = SHA-8(final_text)</code> · <code style="font-size:10px;">edits_made = diff(draft_text, final_text)</code> · creates <code style="font-size:10px;">clinical_note</code> linked via <code style="font-size:10px;">linked_clinical_note_id</code> · transitions order to <code style="font-size:10px;">approved</code> · captures Ryft + creates Primed order. AUD-04 audit event written.
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn success" onclick="saveAction('approved')">Confirm approve & save</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-030 · AI Note Drafting · Chunk 6 fully wired · prompt v2.1 active</span>
+      <span class="at">BLD-6.1</span>
+      <span>ai_note_draft entity · 21 fields · audit chain links AI output → prescriber action → final clinical_note via linked_clinical_note_id</span>
+      <span class="at">BLD-6.2</span>
+      <span>Anthropic API · claude-sonnet-4-20250514 · max 600 tokens · prompt loaded fresh from BLD-6.5 active version on each request · stale prompt = 412</span>
+      <span class="at">BLD-6.3</span>
+      <span>Decline + Intervention confirm modals · capture rationale · explain payment + comms + note impact before commit</span>
+      <span class="at">BLD-6.4</span>
+      <span>Save handler · approved/declined/intervention all converge to: write ai_note_draft → write clinical_note → transition order → side effects → AUD-04</span>
+      <span class="at">BLD-6.5</span>
+      <span>Active prompt banner shows v2.1 sign-off chain · click-through to sign-off screen</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  function openModal(kind) {
+    document.getElementById('modal-' + kind).classList.add('open');
+  }
+  function closeModal() {
+    document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('open'));
+  }
+  document.querySelectorAll('.modal-backdrop').forEach(m => {
+    m.addEventListener('click', (e) => {
+      if (e.target === m) closeModal();
+    });
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+  function saveAction(kind) {
+    closeModal();
+    document.getElementById('s-review').classList.remove('pending');
+    document.getElementById('s-review').classList.add('done');
+    document.getElementById('s-review').textContent = '✓ Prescriber reviewed';
+    document.getElementById('s-action').classList.remove('pending');
+    document.getElementById('s-action').classList.add('done');
+    const msgs = {
+      approved: '✓ Order approved · note saved · Ryft captured · Primed order created',
+      declined: '✓ Order declined · note saved · Ryft released · patient notified',
+      intervention: '✓ Order flagged for intervention · note saved · 7d SLA timer started'
+    };
+    document.getElementById('s-action').textContent = '✓ ' + ({approved:'Approved',declined:'Declined',intervention:'Intervention'}[kind]);
+    const t = document.getElementById('toast');
+    t.innerHTML = msgs[kind];
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  function redraft() {
+    document.getElementById('draft-content').style.display = 'none';
+    document.getElementById('draft-loading').style.display = '';
+    document.getElementById('s-ai').classList.remove('done');
+    document.getElementById('s-ai').classList.add('active');
+    document.getElementById('s-ai').textContent = '2 AI drafting';
+    setTimeout(() => {
+      document.getElementById('draft-content').style.display = '';
+      document.getElementById('draft-loading').style.display = 'none';
+      document.getElementById('s-ai').classList.remove('active');
+      document.getElementById('s-ai').classList.add('done');
+      document.getElementById('s-ai').textContent = '✓ AI draft ready';
+    }, 1800);
+  }
+
+  // Set initial state
+  document.getElementById('s-ai').classList.remove('active');
+  document.getElementById('s-ai').classList.add('done');
+  document.getElementById('s-ai').textContent = '✓ AI draft ready';
+  document.getElementById('s-review').classList.remove('pending');
+  document.getElementById('s-review').classList.add('active');
+  document.getElementById('s-review').textContent = '3 Awaiting your review';
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

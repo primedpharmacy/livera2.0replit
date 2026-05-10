@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Settings (Pass 2)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --nav-2:#312e81;
+  --surface:#ffffff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --gov:#a855f7; --gov-bg:#faf5ff; --gov-bdr:#e9d5ff;
+}
+
+/* TOP NAV */
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws-name{color:#fff;font-weight:600}
+.topnav .right{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:rgba(255,255,255,.08);border-radius:999px;border:1px solid rgba(255,255,255,.12)}
+.topnav .role-pill .dot{width:5px;height:5px;border-radius:50%;background:var(--ok)}
+.topnav .user{display:flex;align-items:center;gap:6px}
+.topnav .user .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--brand-mid),var(--brand-d));display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff}
+
+/* SHELL */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+
+/* SIDEBAR */
+.sidebar{width:218px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);font-weight:700;padding:0 8px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:9px;padding:7px 9px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:background .12s,color .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:6px;bottom:6px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+.sidebar a .badge{margin-left:auto;font-size:10px;font-weight:700;background:var(--brand);color:#fff;padding:1px 6px;border-radius:999px;min-width:18px;text-align:center}
+.sidebar a .badge.warn{background:var(--warn)}
+.sidebar a .badge.err{background:var(--err)}
+.sidebar a .badge.muted{background:var(--bdr-d);color:var(--t2)}
+
+/* MAIN */
+.main{flex:1;padding:24px 32px 64px;min-width:0;max-width:1280px}
+.h1{font-size:24px;font-weight:700;color:var(--t1);letter-spacing:-.5px;margin-bottom:4px}
+.sub{font-size:13px;color:var(--t2);margin-bottom:24px}
+
+/* SECTION */
+.section{margin-bottom:28px}
+.section-head{display:flex;align-items:baseline;gap:14px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--bdr)}
+.section-head h2{font-size:13px;font-weight:700;color:var(--t1);letter-spacing:-.2px;text-transform:uppercase;letter-spacing:.5px}
+.section-head .sub{margin:0;font-size:12px;color:var(--t3)}
+
+/* SETTINGS GRID */
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.scard{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:18px;text-decoration:none;color:inherit;display:flex;flex-direction:column;gap:10px;transition:all .15s;position:relative;cursor:pointer}
+.scard:hover{border-color:var(--brand);box-shadow:0 4px 12px rgba(99,102,241,.08);transform:translateY(-1px)}
+.scard.placeholder{cursor:not-allowed;opacity:.7}
+.scard.placeholder:hover{transform:none;border-color:var(--bdr);box-shadow:none}
+.scard .icon{width:36px;height:36px;background:var(--brand-l);color:var(--brand);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700}
+.scard.locked .icon{background:var(--gov-bg);color:var(--gov)}
+.scard.placeholder .icon{background:var(--bg);color:var(--t3)}
+.scard .head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.scard .tag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.4px}
+.scard .tag.locked{background:var(--gov-bg);color:var(--gov);border:1px solid var(--gov-bdr)}
+.scard .tag.live{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-bdr)}
+.scard .tag.coming{background:var(--proto-bg);color:var(--proto);border:1px solid var(--proto-bdr)}
+.scard .tag.draft{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-bdr)}
+.scard .title{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.2px;line-height:1.3}
+.scard .desc{font-size:11.5px;color:var(--t2);line-height:1.45;flex:1}
+.scard .meta{font-size:10px;color:var(--t3);font-weight:600;padding-top:8px;border-top:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;letter-spacing:.4px}
+.scard .meta .arrow{color:var(--brand);text-transform:none;letter-spacing:0}
+.scard.placeholder .meta .arrow{color:var(--t3)}
+
+.workspace-card{background:linear-gradient(135deg,var(--nav) 0%,var(--nav-2) 100%);color:#fff;padding:20px 22px;border-radius:8px;display:flex;align-items:center;gap:18px;margin-bottom:24px}
+.workspace-card .badge{width:48px;height:48px;background:rgba(255,255,255,.1);color:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;border:1px solid rgba(255,255,255,.15)}
+.workspace-card .info{flex:1;min-width:0}
+.workspace-card .info .name{font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:2px}
+.workspace-card .info .meta{font-size:11.5px;color:rgba(255,255,255,.7)}
+.workspace-card .info .meta strong{color:#fff;font-weight:600}
+.workspace-card .actions{display:flex;gap:8px}
+.workspace-card .actions a{padding:6px 12px;font-size:11.5px;font-weight:600;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:5px;text-decoration:none;transition:background .12s}
+.workspace-card .actions a:hover{background:rgba(255,255,255,.18)}
+
+/* AUDIT FOOTER */
+.ann{background:var(--nav);color:rgba(255,255,255,.7);padding:14px 24px;font-size:11px;display:flex;align-items:center;gap:14px;margin-top:32px;border-radius:8px}
+.ann .label{color:#fff;font-weight:600;display:flex;align-items:center;gap:6px}
+.ann .label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--brand-mid)}
+
+@media (max-width:760px){.shell{flex-direction:column}.sidebar{width:100%;height:auto;position:relative;top:auto}.main{padding:16px}}
+
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<div class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="right">
+    <span class="role-pill"><span class="dot"></span>Owner — full access</span>
+    <span class="user"><span class="av">QH</span>Qadir Hussain</span>
+  </div>
+</div>
+
+<div class="shell">
+
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_prototype_09b_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_prototype_05_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+
+    <h1 class="h1">Settings</h1>
+    <p class="sub">Configure how Livera operates for your clinic. Items marked 🔒 require regulatory sign-off before changes apply.</p>
+
+    <!-- Workspace identity card -->
+    <div class="workspace-card">
+      <div class="badge">V</div>
+      <div class="info">
+        <div class="name">VSC — Virtual Slimming Clinic (Clinic 001)</div>
+        <div class="meta">
+          <strong>Quanta Healthcare Ltd</strong> · GLP-1 weight management · Pharmacist Independent Prescriber model · Primed-API connected
+          · <strong>amendment_window</strong>: pre_dispensed · <strong>coaching_enabled</strong>: false
+        </div>
+      </div>
+      <div class="actions">
+        <a href="#">Switch to FeelTru</a>
+        <a href="#">Edit clinic config</a>
+      </div>
+    </div>
+
+    <!-- OPERATIONS -->
+    <div class="section">
+      <div class="section-head">
+        <h2>Operations</h2>
+        <span class="sub">SLA timers, calendars, and questionnaires that drive the patient journey</span>
+      </div>
+      <div class="sgrid">
+        <a href="livera_settings_sla_values.html" class="scard">
+          <div class="head"><div class="icon">⏱</div><span class="tag coming">G6 → Q3</span></div>
+          <div class="title">SLA values</div>
+          <div class="desc">10 configurable SLA thresholds — clinical check, intervention response, complaint ack, complaint response, welcome call, dispatch, etc.</div>
+          <div class="meta"><span>BLD-12.9</span><span class="arrow">Open →</span></div></a>
+
+        <a href="livera_scr_holiday_calendar.html" class="scard">
+          <div class="head"><div class="icon">📅</div><span class="tag live">LIVE</span></div>
+          <div class="title">Holiday calendar</div>
+          <div class="desc">UK bank holidays per clinic. Drives the dispatch date calculator (DEC-15) and SLA business-day calculations.</div>
+          <div class="meta"><span>BLD-3.7 · BLD-12.10</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_scr_questionnaire_builder.html" class="scard">
+          <div class="head"><div class="icon">📝</div><span class="tag live">LIVE</span></div>
+          <div class="title">Questionnaire builder</div>
+          <div class="desc">Customisable order + reorder questionnaires per clinic. Branching logic. Foundational — also drives GP letter consent and treatment-gap rules.</div>
+          <div class="meta"><span>BLD-13.4</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_settings_gp_letter_templates.html" class="scard">
+          <div class="head"><div class="icon">📑</div><span class="tag live">LIVE</span></div>
+          <div class="title">GP Letter Templates</div>
+          <div class="desc">Per-clinic library of reusable letter content. Prescribers/admins author templates here; the compose screen pulls from them. Not a letter-type system — just content shortcuts.</div>
+          <div class="meta"><span>BLD-7.6</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_settings_reorder_rules.html" class="scard">
+          <div class="head"><div class="icon">↻</div><span class="tag coming">COMING</span></div>
+          <div class="title">Reorder rules</div>
+          <div class="desc">Treatment-gap thresholds and dose-escalation gates per clinic. Backend-configurable — no hardcoded clinical logic.</div>
+          <div class="meta"><span>BLD-14.6</span><span class="arrow">Open →</span></div></a>
+
+        <a href="livera_scr_dispatch_calculator.html" class="scard">
+          <div class="head"><div class="icon">📦</div><span class="tag live">LIVE</span></div>
+          <div class="title">Dispatch calculator</div>
+          <div class="desc">4-scenario dispatch date tool. order_at + delivery_type + holidays → dispatch_date / delivery_date. Standalone diagnostic.</div>
+          <div class="meta"><span>BLD-3.6 · DEC-15</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_settings_patient_engagement.html" class="scard">
+          <div class="head"><div class="icon">📅</div><span class="tag live">LIVE</span></div>
+          <div class="title">Patient engagement</div>
+          <div class="desc">Configurable Day-X nudges across the treatment lifecycle. Per-clinic trigger day, copy, channels (push, email, SMS), suppression rules. DEC-30.</div>
+          <div class="meta"><span>BLD-DAY19-01</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_settings_consents.html" class="scard">
+          <div class="head"><div class="icon">📜</div><span class="tag live">LIVE</span></div>
+          <div class="title">Patient consents</div>
+          <div class="desc">Author the consent set shown to patients on first login. Single editable list — no platform-fixed split. DEC-32.</div>
+          <div class="meta"><span>BLD-CONSENT-CONFIG-01/02/03</span><span class="arrow">Open →</span></div>
+        </a>
+      </div>
+    </div>
+
+    <!-- COMPLIANCE & AUDITS -->
+    <div class="section">
+      <div class="section-head">
+        <h2>Compliance & audits</h2>
+        <span class="sub">Audit programmes, governance gates, and the Group 6 Clinical Flag system (with optional Primed alignment)</span>
+      </div>
+      <div class="sgrid">
+        <a href="livera_scr_audits_settings.html" class="scard">
+          <div class="head"><div class="icon">🔍</div><span class="tag live">LIVE</span></div>
+          <div class="title">Audit programme</div>
+          <div class="desc">8 audits with Q3 2026 hard deadline. AUD-01 (Prescribing) and AUD-02 (Consent) Proto done. AUD-03 to AUD-08 in build.</div>
+          <div class="meta"><span>BLD-12.x</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_scr_ai_prompt_signoff.html" class="scard locked">
+          <div class="head"><div class="icon">🛡</div><span class="tag locked">🔒 OWNER ONLY</span></div>
+          <div class="title">AI prompt sign-off</div>
+          <div class="desc">Owner-only governance gate. System prompts for AI Note Drafting must be signed off here before deployment to prescribers (DEC-07).</div>
+          <div class="meta"><span>BLD-6.5</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_g6_flag_rules.html" class="scard">
+          <div class="head"><div class="icon">🤝</div><span class="tag live">G6 LIVE</span></div>
+          <div class="title">Clinical flag rules</div>
+          <div class="desc">Threshold + severity + proactive note template per mirrored Annex E flag (A2 · B1–B4 · C1–C3 · E2). Owner + RM only. All threshold changes audit-logged.</div>
+          <div class="meta"><span>BLD-16.5</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_g6_flag_dashboard.html" class="scard">
+          <div class="head"><div class="icon">📊</div><span class="tag live">G6 LIVE</span></div>
+          <div class="title">Clinical flag dashboard</div>
+          <div class="desc">Mirrors Annex H §B2/B3 format for clinic data. Headline metric: proactive disclosure effectiveness. CSV export aligned with Primed.</div>
+          <div class="meta"><span>BLD-16.6</span><span class="arrow">Open →</span></div>
+        </a>
+      </div>
+    </div>
+
+    <!-- PEOPLE & PERMISSIONS -->
+    <div class="section">
+      <div class="section-head">
+        <h2>People & permissions</h2>
+        <span class="sub">Who can do what across the platform</span>
+      </div>
+      <div class="sgrid">
+        <a href="livera_scr_roles_permissions.html" class="scard locked">
+          <div class="head"><div class="icon">🔐</div><span class="tag locked">🔒 LOCKED CELLS</span></div>
+          <div class="title">Roles & permissions</div>
+          <div class="desc">155+ permission rows · named-person + role-based axes (DEC-21). Lock state governs regulatory non-negotiables. Group 6 surfaces added.</div>
+          <div class="meta"><span>Group 5 · DEC-21</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_settings_team.html" class="scard">
+          <div class="head"><div class="icon">👥</div><span class="tag coming">COMING</span></div>
+          <div class="title">Team members</div>
+          <div class="desc">Invite users, assign roles, deactivate. Audit log of role changes. Linked to Roles & permissions (which defines what each role can do).</div>
+          <div class="meta"><span>BLD-1.x</span><span class="arrow">Open →</span></div></a>
+      </div>
+    </div>
+
+    <!-- INTEGRATIONS -->
+    <div class="section">
+      <div class="section-head">
+        <h2>Integrations</h2>
+        <span class="sub">Third-party services connected to Livera</span>
+      </div>
+      <div class="sgrid">
+        <a href="livera_settings_intercom.html" class="scard">
+          <div class="head"><div class="icon">💬</div><span class="tag live">LIVE</span></div>
+          <div class="title">Intercom</div>
+          <div class="desc">Patient comms · 9 webhook topics live + 4 outbound API actions · brand-aware multi-workspace mapping (VSC + FeelTru) · OAuth scopes + IP allowlist health.</div>
+          <div class="meta"><span>BLD-INT-INTERCOM-01 · DEC-10</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_settings_intercom_tag_actions.html" class="scard">
+          <div class="head"><div class="icon">🏷</div><span class="tag live">LIVE</span></div>
+          <div class="title">Intercom tag actions</div>
+          <div class="desc">7 active tag→action rules · 3 protected (severe_se · safeguarding · allergic_symptom per DEC-36) · 4 clinic-customisable. Drives auto-incident, complaint, task, and prescriber-routing flows.</div>
+          <div class="meta"><span>BLD-INT-INTERCOM-02 · DEC-36</span><span class="arrow">Open →</span></div>
+        </a>
+
+        <a href="livera_settings_postmark.html" class="scard">
+          <div class="head"><div class="icon">📧</div><span class="tag coming">COMING</span></div>
+          <div class="title">Postmark</div>
+          <div class="desc">Transactional email — GP letters, welcome emails, complaint acknowledgements. Email + PDF send mechanics per DEC-08.</div>
+          <div class="meta"><span>BLD-7.3</span><span class="arrow">Open →</span></div></a>
+
+        <a href="livera_settings_omnisend.html" class="scard">
+          <div class="head"><div class="icon" style="background:linear-gradient(135deg,#3b5cff,#1a4dff);color:#fff;">O</div><span class="tag coming">COMING</span></div>
+          <div class="title">Omnisend</div>
+          <div class="desc">Marketing automation — email + SMS campaigns, audience segmentation. Field-level data sync controls; clinical data hard-blocked at platform level.</div>
+          <div class="meta"><span>BLD-INT-OMNI-01..06</span><span class="arrow">Open →</span></div></a>
+
+        <a href="livera_settings_couriers.html" class="scard">
+          <div class="head"><div class="icon">📦</div><span class="tag coming">COMING</span></div>
+          <div class="title">Courier visibility</div>
+          <div class="desc">Read-only mirror of Primed's dispatch feed across Royal Mail · DX · DPD. Tracking events flow Primed → Livera via webhook. Routing decisions live in Primed.</div>
+          <div class="meta"><span>BLD-INT-COURIER-01</span><span class="arrow">Open →</span></div></a>
+
+        <a href="livera_settings_sumsub.html" class="scard">
+          <div class="head"><div class="icon">🪪</div><span class="tag coming">COMING</span></div>
+          <div class="title">SumSub</div>
+          <div class="desc">Patient identity verification gate before Clinical Check (BLD-1.7). KYC fallback for amendment-window enforcement.</div>
+          <div class="meta"><span>BLD-1.7</span><span class="arrow">Open →</span></div></a>
+
+        <a href="livera_settings_calendly.html" class="scard">
+          <div class="head"><div class="icon">🗓</div><span class="tag coming">COMING</span></div>
+          <div class="title">Calendly</div>
+          <div class="desc">Welcome call + coaching call scheduling. Olwyn's calendar (FT). Auto-email patient on first dispatch (FT pull-model coaching).</div>
+          <div class="meta"><span>V1.1 Foundations</span><span class="arrow">Open →</span></div></a>
+
+        <a href="#" class="scard placeholder" title="OOS — Xero/QuickBooks Phase 2 Q1 2027">
+          <div class="head"><div class="icon">💷</div><span class="tag draft">PHASE 2</span></div>
+          <div class="title">Accounting (Xero / QuickBooks)</div>
+          <div class="desc">Out of V1.1 / V1.2 scope. Required Q1 2027 per OOS-5. Captures order revenue, refunds, and reconciliation events from Ryft.</div>
+          <div class="meta"><span>OOS-5</span><span class="arrow">Phase 2</span></div>
+        </a>
+      </div>
+    </div>
+
+    <!-- WORKSPACE -->
+    <div class="section">
+      <div class="section-head">
+        <h2>Workspace</h2>
+        <span class="sub">Identity, billing, and platform-level settings</span>
+      </div>
+      <div class="sgrid">
+        <a href="livera_settings_clinic_config.html" class="scard">
+          <div class="head"><div class="icon">🏥</div><span class="tag draft">DRAFT</span></div>
+          <div class="title">Clinic config</div>
+          <div class="desc">12 clinic_config fields including amendment_window, coaching_enabled, gender_eligibility, prescriber_model. Owner-only.</div>
+          <div class="meta"><span>BLD-1.3</span><span class="arrow">Open →</span></div></a>
+
+        <a href="livera_audit_log.html" class="scard">
+          <div class="head"><div class="icon">📜</div><span class="tag draft">DRAFT</span></div>
+          <div class="title">Audit log</div>
+          <div class="desc">All state changes across the platform. Immutable. Search by user, entity, action type, date range. Required for AUD-x evidence assembly.</div>
+          <div class="meta"><span>BLD-1.4</span><span class="arrow">Open →</span></div></a>
+
+        <a href="#" class="scard placeholder">
+          <div class="head"><div class="icon">🚪</div><span class="tag draft">DRAFT</span></div>
+          <div class="title">Sign out / switch role</div>
+          <div class="desc">End session or switch to a different role context for demo / multi-role testing.</div>
+          <div class="meta"><span>OOS for V1.2</span><span class="arrow">Coming</span></div>
+        </a>
+      </div>
+    </div>
+
+    <div class="ann">
+      <span class="label">Pass 2 build note</span>
+      <span>Settings landing (NEW · 6 May 2026) — connector screen 3 of 5. 6 LIVE cards link to existing built screens (Holiday calendar, Questionnaire builder, Audit programme, AI prompt sign-off, Roles & permissions, Intercom config, Dispatch calculator). 9 COMING placeholders represent BLD items not yet built. Workspace card up top shows VSC clinic_config snapshot.</span>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

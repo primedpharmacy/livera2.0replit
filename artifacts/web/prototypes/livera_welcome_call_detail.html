@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<!--
+  CANONICAL SHELL TEMPLATE v1
+  Date locked: 7 May 2026
+  Single source of truth for shell-drift fix pass
+
+  USAGE:
+  - Copy the <style> :root block AND the topnav/sidebar markup verbatim
+  - Replace `VSC — Quanta Healthcare Ltd` with the per-screen workspace (e.g. "VSC — Quanta Healthcare Ltd")
+  - Replace `Mobeen Alam · CARE COORDINATOR` with the per-screen user
+  - Replace `welcome-calls` with the slug of the active sidebar item:
+       dashboard | patients | orders | clinical-check | tasks | welcome-calls
+       complaints | incidents | gp-letters | kpi-dashboard | primed-flags | reports | settings
+  - Strip any `<div id="livera-nav">…</div>` demo strip from the source file
+  - Bump sidebar width from 218px → 240px if drifting
+  - Drop the body workspace data-attr if present (data-workspace="…")
+  - Replace any embedded ws-switcher (.ws-switcher) with the canonical topnav .ws element
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Welcome Call detail</title>
+
+<!-- ============ CANONICAL CSS — copy verbatim ============ -->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --nav-2:#312e81;
+  --surface:#ffffff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --gov:#a855f7; --gov-bg:#faf5ff; --gov-bdr:#e9d5ff;
+}
+
+/* TOP NAV (canonical) */
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+
+/* LAYOUT (canonical) */
+.layout{display:flex;min-height:calc(100vh - 36px)}
+
+/* SIDEBAR (canonical 240px) */
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+
+/* MAIN content area */
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+</style>
+</head>
+
+<body>
+
+<!-- ============ CANONICAL TOPNAV — copy verbatim ============ -->
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC — Quanta Healthcare Ltd and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Mobeen Alam · CARE COORDINATOR</span></div>
+</header>
+
+<div class="layout">
+
+  <!-- ============ CANONICAL SIDEBAR — copy verbatim ============
+       Set class="active" on the row matching the current screen.
+       Active class data-key reference at the top of the comment block above.
+  -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html" data-key="dashboard"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html" data-key="patients"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html" data-key="orders"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html" data-key="clinical-check"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html" data-key="tasks"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html" data-key="welcome-calls"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html" data-key="complaints"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html" data-key="incidents"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html" data-key="gp-letters"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html" data-key="kpi-dashboard"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html" data-key="primed-flags"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html" data-key="reports"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" data-key="settings"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <!-- ============== Welcome Call detail screen ============== -->
+    <style>
+      .wc-topbar { padding: 12px 24px; border-bottom: 0.5px solid #e5e7eb; background: #fff; }
+      .wc-breadcrumb { font-size: 11.5px; color: #6b7280; display: flex; align-items: center; gap: 6px; }
+      .wc-breadcrumb a { color: var(--brand, #6366f1); text-decoration: none; font-weight: 500; }
+      .wc-breadcrumb a:hover { text-decoration: underline; }
+      .wc-breadcrumb .sep { color: #d1d5db; }
+      .wc-content { padding: 22px 24px; max-width: 1080px; }
+      
+      .wc-header { background: #fff; border: 0.5px solid #e5e7eb; border-radius: 10px; padding: 18px 22px; margin-bottom: 18px; display: grid; grid-template-columns: 1fr auto; gap: 14px; }
+      .wc-header-main { display: flex; gap: 14px; }
+      .wc-call-icon { width: 48px; height: 48px; border-radius: 10px; background: linear-gradient(135deg, #eef2ff, #c7d2fe); color: #4338ca; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+      .wc-title-block h1 { margin: 0; font-size: 18px; font-weight: 700; color: #1f2937; line-height: 1.3; letter-spacing: -0.2px; }
+      .wc-call-id { font-family: 'SF Mono', monospace; font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 7px; border-radius: 3px; font-weight: 500; margin-right: 6px; vertical-align: middle; }
+      .wc-meta { font-size: 12px; color: #6b7280; margin-top: 5px; line-height: 1.55; }
+      .wc-meta strong { color: #374151; }
+      .wc-meta a { color: #4338ca; text-decoration: none; font-weight: 600; }
+      .wc-meta a:hover { text-decoration: underline; }
+      
+      .wc-status-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+      .wc-pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px; }
+      .wc-pill.awaiting { background: #fffbeb; color: #92400e; border: 0.5px solid #fde68a; }
+      .wc-pill.attempted { background: #eff6ff; color: #1e40af; border: 0.5px solid #bfdbfe; }
+      .wc-pill.completed { background: #f0fdf4; color: #166534; border: 0.5px solid #86efac; }
+      .wc-pill.unreachable { background: #fef2f2; color: #991b1b; border: 0.5px solid #fecaca; }
+      .wc-pill.declined { background: #f3f4f6; color: #374151; border: 0.5px solid #d1d5db; }
+      
+      .wc-actions-col { display: flex; gap: 8px; align-items: flex-start; flex-shrink: 0; }
+      .wc-btn { padding: 7px 14px; border-radius: 5px; font-size: 12px; font-weight: 600; border: 0.5px solid #d1d5db; background: #fff; color: #374151; cursor: pointer; font-family: inherit; }
+      .wc-btn:hover { background: #f9fafb; }
+      .wc-btn.primary { background: #1e1b4b; color: #fff; border-color: #1e1b4b; }
+      .wc-btn.primary:hover { background: #312e81; }
+      .wc-btn.success { background: #166534; color: #fff; border-color: #166534; }
+      .wc-btn.danger { background: #fff; border-color: #fecaca; color: #b91c1c; }
+      .wc-btn.danger:hover { background: #fef2f2; }
+      
+      .wc-grid { display: grid; grid-template-columns: 1fr 320px; gap: 18px; }
+      
+      .wc-card { background: #fff; border: 0.5px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }
+      .wc-card-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 0.5px solid #f3f4f6; display: flex; align-items: center; gap: 8px; }
+      .wc-card-title .wc-card-icon { font-size: 14px; color: #4338ca; }
+      .wc-card-title .wc-card-link { margin-left: auto; font-size: 11px; color: #4338ca; text-decoration: none; font-weight: 600; text-transform: none; letter-spacing: 0; }
+      
+      .wc-row { display: flex; padding: 5px 0; align-items: flex-start; }
+      .wc-row .wc-k { font-size: 11.5px; color: #6b7280; min-width: 130px; padding-top: 1px; }
+      .wc-row .wc-v { font-size: 12px; color: #1f2937; flex: 1; font-weight: 500; }
+      
+      .wc-attempts { display: flex; flex-direction: column; gap: 12px; }
+      .wc-attempt { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 0.5px solid #f3f4f6; border-radius: 7px; }
+      .wc-attempt.success { border-left: 3px solid #166534; background: #f9fdfa; }
+      .wc-attempt.no-answer { border-left: 3px solid #f59e0b; background: #fffdf6; }
+      .wc-attempt.voicemail { border-left: 3px solid #1e40af; background: #f8fafc; }
+      .wc-attempt.scheduled { border-left: 3px solid #6366f1; background: #fafbff; border-style: dashed; }
+      .wc-attempt-icon { width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; font-weight: 700; }
+      .wc-attempt.success .wc-attempt-icon { background: #166534; color: #fff; }
+      .wc-attempt.no-answer .wc-attempt-icon { background: #f59e0b; color: #fff; }
+      .wc-attempt.voicemail .wc-attempt-icon { background: #1e40af; color: #fff; }
+      .wc-attempt.scheduled .wc-attempt-icon { background: #eef2ff; color: #4338ca; border: 1px dashed #6366f1; }
+      .wc-attempt-body { font-size: 12.5px; color: #1f2937; line-height: 1.5; }
+      .wc-attempt-meta { font-size: 11px; color: #6b7280; margin-top: 3px; }
+      .wc-attempt-notes { background: #fafafa; border: 0.5px solid #e5e7eb; border-radius: 5px; padding: 8px 11px; margin-top: 7px; font-size: 12px; color: #374151; line-height: 1.5; }
+      .wc-attempt-notes blockquote { margin: 0; font-style: italic; color: #4b5563; }
+      
+      .wc-outcome-block { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 14px 16px; }
+      .wc-outcome-block h4 { margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.4px; }
+      .wc-outcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .wc-outcome-item { background: #fff; border: 0.5px solid #86efac; border-radius: 5px; padding: 7px 10px; }
+      .wc-outcome-item .wc-okey { font-size: 10.5px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.3px; }
+      .wc-outcome-item .wc-oval { font-size: 12px; color: #1f2937; margin-top: 2px; font-weight: 500; }
+      
+      .wc-anchor-card { display: flex; gap: 10px; padding: 11px 13px; background: #fafafa; border: 0.5px solid #e5e7eb; border-radius: 6px; align-items: center; cursor: pointer; }
+      .wc-anchor-card:hover { background: #f3f4f6; }
+      .wc-anchor-card .av { width: 36px; height: 36px; border-radius: 7px; background: linear-gradient(135deg, #6366f1, #4338ca); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+      .wc-anchor-card .info { flex: 1; }
+      .wc-anchor-card .info .nm { font-size: 13px; font-weight: 600; color: #1f2937; }
+      .wc-anchor-card .info .meta { font-size: 11px; color: #6b7280; margin-top: 2px; }
+      .wc-anchor-card .arrow { color: #9ca3af; }
+      
+      .wc-empty { padding: 20px; text-align: center; color: #6b7280; font-size: 12px; line-height: 1.55; background: #fafafa; border: 0.5px dashed #d1d5db; border-radius: 7px; font-style: italic; }
+      
+      .wc-actions-pane { display: flex; flex-direction: column; gap: 8px; }
+      .wc-actions-pane button { width: 100%; justify-content: flex-start; text-align: left; padding: 9px 12px; }
+      
+      .wc-not-found { padding: 60px 20px; text-align: center; }
+      .wc-not-found .nf-ico { font-size: 36px; color: #d1d5db; margin-bottom: 14px; }
+      .wc-not-found h2 { margin: 0 0 8px 0; font-size: 16px; font-weight: 700; color: #374151; }
+      .wc-not-found p { margin: 0; font-size: 12.5px; color: #6b7280; line-height: 1.55; }
+      .wc-not-found .links { margin-top: 18px; padding: 12px 16px; background: #fafafa; border-radius: 7px; display: inline-block; text-align: left; }
+      .wc-not-found .links a { display: block; font-size: 12px; color: #374151; text-decoration: none; padding: 4px 0; }
+      .wc-not-found .links a:hover { color: #4338ca; }
+      .wc-not-found .links code { font-family: monospace; font-size: 11px; color: #6b7280; margin-right: 8px; }
+      
+      @media (max-width: 1000px) {
+        .wc-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+    
+    <div class="wc-topbar">
+      <div class="wc-breadcrumb">
+        <a href="livera_owner_dashboard.html">Dashboard</a>
+        <span class="sep">›</span>
+        <a href="livera_scr_welcome_call_queue.html">Welcome Calls</a>
+        <span class="sep">›</span>
+        <span style="color:#374151;font-weight:600;" id="wc-bc-id">WC-0053</span>
+      </div>
+    </div>
+    
+    <div class="wc-content" id="wc-content">
+      <!-- Populated by JS -->
+    </div>
+    
+    <script>
+      // Demo data — three canonical examples covering the lifecycle
+      const CALLS = {
+        'WC-0053': {
+          id: 'WC-0053',
+          patient: 'Michelle Clarke',
+          patient_id: 'P-00210',
+          patient_initials: 'MC',
+          order_id: 'ORD-01278',
+          status: 'completed',
+          status_label: 'Completed · 1 attempt',
+          owner: 'Mobeen Alam',
+          owner_role: 'Care Coordinator',
+          trigger: 'First paid order dispatched 28 hours ago · 2-day welcome call rule',
+          attempts: [
+            {
+              type: 'success',
+              icon: '✓',
+              when: '06 May 2026 · 11:14',
+              by: 'Mobeen Alam',
+              duration: '8 min',
+              channel: 'Intercom telephone',
+              body: '<strong>Connected with patient.</strong> Walked through expectations for first injection, dose escalation timeline, side-effect monitoring, and the patient app.',
+              notes: '"Patient confirmed receipt of order, understood injection technique demonstrated in app video. Reported feeling positive about starting treatment. Asked about timing of meals around dosing — referred to in-app guidance and confirmed she would speak to her GP about her existing thyroid medication. No clinical concerns raised. Comfortable with side-effect reporting flow. Welcome call complete; flagged the thyroid medication query as a follow-up note for the prescriber."'
+            }
+          ],
+          outcome: {
+            'Outcome': 'Completed — clinical concern noted',
+            'Patient receptive': 'Yes',
+            'Comfortable with app': 'Yes',
+            'Side-effect reporting understood': 'Yes',
+            'Follow-up needed': 'Yes — thyroid medication query for prescriber',
+            'Flag raised?': 'Yes (FLAG-004 v1 · welcome call concern)'
+          },
+          flag_raised: {
+            flag_id: 'FLAG-004',
+            flag_name: 'Welcome call — clinical concern raised',
+            severity: 'MEDIUM',
+            reason: 'Patient on existing thyroid medication (levothyroxine 50mcg). Wants to clarify timing/interaction with GLP-1. Routing to prescriber for clinical review.'
+          }
+        },
+        'WC-0058': {
+          id: 'WC-0058',
+          patient: 'Sarah Chen',
+          patient_id: 'P-00214',
+          patient_initials: 'SC',
+          order_id: 'ORD-01287',
+          status: 'awaiting',
+          status_label: 'Awaiting first attempt · 53h since trigger',
+          owner: 'Mobeen Alam',
+          owner_role: 'Care Coordinator',
+          trigger: 'First paid order dispatched 53 hours ago · 2-day welcome call rule',
+          attempts: [],
+          outcome: null,
+          flag_raised: null
+        },
+        'WC-0047': {
+          id: 'WC-0047',
+          patient: 'Beth Newman',
+          patient_id: 'P-00198',
+          patient_initials: 'BN',
+          order_id: 'ORD-01258',
+          status: 'unreachable',
+          status_label: 'Unreachable after 3 attempts · escalation due',
+          owner: 'Mobeen Alam',
+          owner_role: 'Care Coordinator',
+          trigger: 'First paid order dispatched 96 hours ago · 2-day welcome call rule',
+          attempts: [
+            { type: 'no-answer', icon: '✗', when: '02 May 2026 · 10:14', by: 'Mobeen Alam', duration: '0:32', channel: 'Intercom telephone', body: '<strong>No answer.</strong> Rang out to voicemail; voicemail box was full so no message could be left.', notes: null },
+            { type: 'no-answer', icon: '✗', when: '03 May 2026 · 14:08', by: 'Mobeen Alam', duration: '0:28', channel: 'Intercom telephone', body: '<strong>No answer.</strong> Voicemail still full. SMS sent via Intercom: "Hi Beth, this is Mobeen from VSC — please ring us when convenient on 020 8000 0000."', notes: null },
+            { type: 'no-answer', icon: '✗', when: '04 May 2026 · 16:42', by: 'Mobeen Alam', duration: '0:25', channel: 'Intercom telephone', body: '<strong>No answer.</strong> Email sent as final attempt before flagging unreachable.', notes: null }
+          ],
+          outcome: {
+            'Outcome': 'Unreachable — 3 attempts over 2 days',
+            'Channels tried': 'Phone × 3, SMS × 1, Email × 1',
+            'Voicemail': 'Full each time',
+            'Escalation status': 'Pending — owner to review with prescriber',
+            'Patient app activity': 'Last login 30 Apr — used the app since dispatch'
+          },
+          flag_raised: null
+        }
+      };
+      
+      function renderCallDetail(){
+        const hash = (location.hash || '#WC-0053').replace(/^#/, '');
+        const c = CALLS[hash];
+        const content = document.getElementById('wc-content');
+        const bc = document.getElementById('wc-bc-id');
+        if(bc) bc.textContent = hash;
+        
+        if(!c){
+          content.innerHTML = `
+            <div class="wc-not-found">
+              <div class="nf-ico">📞</div>
+              <h2>Welcome call not found</h2>
+              <p>No call with ID <code>${escapeHtml(hash)}</code> in this prototype. Three canonical demo calls are wired:</p>
+              <div class="links">
+                <a href="#WC-0058"><code>WC-0058</code> Sarah Chen — awaiting first attempt</a>
+                <a href="#WC-0053"><code>WC-0053</code> Michelle Clarke — completed with flag raised</a>
+                <a href="#WC-0047"><code>WC-0047</code> Beth Newman — unreachable after 3 attempts</a>
+              </div>
+            </div>`;
+          return;
+        }
+        
+        // Header actions vary by status
+        let headerActions = '';
+        if(c.status === 'awaiting' || c.status === 'attempted'){
+          headerActions = `
+            <button class="wc-btn primary" onclick="alert('Stub: Intercom telephone integration places call to ' + ${JSON.stringify(c.patient)} + '. Call duration tracked, channel logged automatically.')">📞 Call ${escapeHtml(c.patient.split(' ')[0])}</button>
+            <button class="wc-btn" onclick="alert('Stub: opens log call modal with outcome capture, notes, and Raise flag option.')">+ Log attempt</button>`;
+        } else if(c.status === 'unreachable'){
+          headerActions = `
+            <button class="wc-btn primary" onclick="alert('Stub: Reopens call. Status returns to attempted. Counter resumes.')">↻ Reopen</button>
+            <button class="wc-btn danger" onclick="alert('Stub: marks call as Closed — Unreachable. Audit-logged with escalation owner. Prescriber notified for review.')">Close as unreachable</button>`;
+        } else if(c.status === 'completed'){
+          headerActions = `
+            <button class="wc-btn" onclick="alert('Stub: opens edit modal for the call log. Edit history captured.')">Edit log</button>
+            <button class="wc-btn" onclick="window.location.href = 'livera_scr_welcome_call_queue.html'">← Back to queue</button>`;
+        }
+        
+        // Build attempts list
+        let attemptsHtml = '';
+        if(c.attempts.length === 0){
+          attemptsHtml = `
+            <div class="wc-empty">
+              No call attempts yet. ${c.status === 'awaiting' ? 'This call is awaiting first contact — use the <strong>📞 Call</strong> button above to place a call via the Intercom telephone integration.' : ''}
+            </div>`;
+        } else {
+          c.attempts.forEach((a, idx) => {
+            const notesHtml = a.notes ? `<div class="wc-attempt-notes"><blockquote>${escapeHtml(a.notes)}</blockquote></div>` : '';
+            attemptsHtml += `
+              <div class="wc-attempt ${a.type}">
+                <div class="wc-attempt-icon">${a.icon}</div>
+                <div>
+                  <div class="wc-attempt-body">${a.body}</div>
+                  <div class="wc-attempt-meta"><strong>${escapeHtml(a.when)}</strong> · ${escapeHtml(a.by)} · ${escapeHtml(a.channel)} · duration ${escapeHtml(a.duration)}</div>
+                  ${notesHtml}
+                </div>
+              </div>`;
+          });
+        }
+        
+        // Outcome block
+        let outcomeHtml = '';
+        if(c.outcome){
+          let outcomeRows = '';
+          for(const [k, v] of Object.entries(c.outcome)){
+            outcomeRows += `<div class="wc-outcome-item"><div class="wc-okey">${escapeHtml(k)}</div><div class="wc-oval">${escapeHtml(v)}</div></div>`;
+          }
+          outcomeHtml = `
+            <div class="wc-card">
+              <div class="wc-card-title">
+                <span class="wc-card-icon">📋</span>
+                Call outcome
+              </div>
+              <div class="wc-outcome-block">
+                <h4>${escapeHtml(c.outcome['Outcome'] || 'Outcome captured')}</h4>
+                <div class="wc-outcome-grid">${outcomeRows}</div>
+              </div>
+            </div>`;
+        }
+        
+        // Flag block
+        let flagHtml = '';
+        if(c.flag_raised){
+          const f = c.flag_raised;
+          flagHtml = `
+            <div class="wc-card">
+              <div class="wc-card-title">
+                <span class="wc-card-icon">🚩</span>
+                Flag raised from this call
+                <a href="livera_flag_detail.html" class="wc-card-link">View fired flag detail →</a>
+              </div>
+              <div style="background:#fafbff;border:0.5px solid #c7d2fe;border-radius:6px;padding:10px 13px;font-size:12px;line-height:1.55;color:#1f2937;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                  <strong>${escapeHtml(f.flag_name)}</strong>
+                  <span style="font-family:monospace;font-size:10px;color:#6b7280;background:#f3f4f6;padding:1px 5px;border-radius:3px;">${f.flag_id}</span>
+                  <span style="font-size:9.5px;font-weight:700;background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:0.3px;">${f.severity}</span>
+                </div>
+                <div style="color:#4b5563;font-style:italic;">"${escapeHtml(f.reason)}"</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:6px;">Raised by ${escapeHtml(c.owner)} · routed to prescriber for clinical review · audit-logged per DEC-27.</div>
+              </div>
+            </div>`;
+        }
+        
+        // Actions pane
+        let actionsPane = '';
+        if(c.status === 'awaiting' || c.status === 'attempted'){
+          actionsPane = `
+            <div class="wc-actions-pane">
+              <button class="wc-btn primary" onclick="alert('Stub: places Intercom call to patient.')">📞 Call now</button>
+              <button class="wc-btn" onclick="alert('Stub: opens log attempt modal.')">+ Log attempt</button>
+              <button class="wc-btn" onclick="alert('Stub: reschedules for later. Calendar event created on owner calendar.')">📅 Reschedule</button>
+              <button class="wc-btn danger" onclick="alert('Stub: marks unreachable. Requires reason — opens reason modal.')">⚠ Mark unreachable</button>
+            </div>`;
+        } else if(c.status === 'unreachable'){
+          actionsPane = `
+            <div class="wc-actions-pane">
+              <button class="wc-btn primary" onclick="alert('Stub: reopens call.')">↻ Reopen call</button>
+              <button class="wc-btn" onclick="alert('Stub: opens prescriber escalation note pre-filled with call history.')">→ Escalate to prescriber</button>
+              <button class="wc-btn" onclick="alert('Stub: opens GP letter compose with welcome-call-unreachable template.')">📨 Send GP letter</button>
+            </div>`;
+        } else {
+          actionsPane = `
+            <div class="wc-actions-pane">
+              <button class="wc-btn" onclick="alert('Stub: opens edit log modal.')">Edit log</button>
+              <button class="wc-btn" onclick="alert('Stub: opens print view of call log for records.')">⎙ Print log</button>
+              <button class="wc-btn" onclick="alert('Stub: opens add note modal anchored to this call.')">＋ Add note</button>
+            </div>`;
+        }
+        
+        content.innerHTML = `
+          <div class="wc-header">
+            <div class="wc-header-main">
+              <div class="wc-call-icon">📞</div>
+              <div class="wc-title-block">
+                <h1><span class="wc-call-id">${escapeHtml(c.id)}</span>Welcome call · ${escapeHtml(c.patient)}</h1>
+                <div class="wc-meta">
+                  <strong>Patient:</strong> <a href="livera_prototype_09_patient_profile.html">${escapeHtml(c.patient)} (${escapeHtml(c.patient_id)})</a>
+                  · <strong>First order:</strong> <a href="livera_prototype_10_order_detail.html">${escapeHtml(c.order_id)}</a>
+                  · <strong>Owner:</strong> ${escapeHtml(c.owner)} (${escapeHtml(c.owner_role)})
+                </div>
+                <div class="wc-meta">
+                  <strong>Trigger:</strong> ${escapeHtml(c.trigger)}
+                </div>
+                <div class="wc-status-strip">
+                  <span class="wc-pill ${c.status}">● ${escapeHtml(c.status_label)}</span>
+                </div>
+              </div>
+            </div>
+            <div class="wc-actions-col">${headerActions}</div>
+          </div>
+          
+          <div class="wc-grid">
+            <div>
+              <div class="wc-card">
+                <div class="wc-card-title">
+                  <span class="wc-card-icon">⏱</span>
+                  Call attempts (${c.attempts.length})
+                </div>
+                <div class="wc-attempts">${attemptsHtml}</div>
+              </div>
+              ${outcomeHtml}
+              ${flagHtml}
+            </div>
+            
+            <div>
+              <div class="wc-card">
+                <div class="wc-card-title">
+                  <span class="wc-card-icon">👤</span>
+                  Patient
+                </div>
+                <a href="livera_prototype_09_patient_profile.html" style="text-decoration:none;display:block;">
+                  <div class="wc-anchor-card">
+                    <div class="av">${escapeHtml(c.patient_initials)}</div>
+                    <div class="info">
+                      <div class="nm">${escapeHtml(c.patient)}</div>
+                      <div class="meta">${escapeHtml(c.patient_id)}</div>
+                    </div>
+                    <div class="arrow">→</div>
+                  </div>
+                </a>
+              </div>
+              
+              <div class="wc-card">
+                <div class="wc-card-title">
+                  <span class="wc-card-icon">📦</span>
+                  First order
+                </div>
+                <a href="livera_prototype_10_order_detail.html" style="text-decoration:none;display:block;">
+                  <div class="wc-anchor-card">
+                    <div class="av" style="background:linear-gradient(135deg,#0d9488,#14b8a6);">OR</div>
+                    <div class="info">
+                      <div class="nm">${escapeHtml(c.order_id)}</div>
+                      <div class="meta">First paid order</div>
+                    </div>
+                    <div class="arrow">→</div>
+                  </div>
+                </a>
+              </div>
+              
+              <div class="wc-card">
+                <div class="wc-card-title">
+                  <span class="wc-card-icon">⚡</span>
+                  Actions
+                </div>
+                ${actionsPane}
+              </div>
+              
+              <div class="wc-card" style="background:#fafbff;border-color:#c7d2fe;">
+                <div class="wc-card-title">
+                  <span class="wc-card-icon">⚭</span>
+                  How welcome calls feed flags
+                </div>
+                <div style="font-size:11.5px;color:#374151;line-height:1.55;">
+                  Welcome calls surface clinical concerns that questionnaire-driven flags miss — by the time you're talking to a patient on day 2, you have richer context. The "🚩 Raise flag" affordance during a call writes a manual fired_flag using <strong>FLAG-004 v_n</strong> (manual source), with reason captured. Per DEC-27 the fired flag references the rule version at fire time.
+                </div>
+              </div>
+            </div>
+          </div>`;
+      }
+      
+      function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+      
+      window.addEventListener('hashchange', renderCallDetail);
+      renderCallDetail();
+    </script>
+  </main>
+</div>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Consultation detail</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --surface:#ffffff; --bg:#f1f0ef; --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --clinical:#10b981; --clinical-bg:#ecfdf5; --clinical-bdr:#86efac;
+  --gmeet:#00897b;
+}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:var(--clinical);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;color:#fff}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info h1 .conn-pill{font-size:10px;font-weight:700;letter-spacing:.4px;background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr);padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+.pg-info h1 .conn-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--info)}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-info .sub code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11.5px}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:.12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);color:#fff}
+.btn.danger{color:var(--err);border-color:var(--err-bdr)}
+.btn.danger:hover{background:var(--err-bg);color:var(--err)}
+.btn.gmeet{background:var(--gmeet);color:#fff;border-color:var(--gmeet);font-size:13px;padding:9px 18px}
+.btn.gmeet:hover{background:#00695c;color:#fff}
+
+/* Two-col body */
+.two-col{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start}
+
+.section{background:var(--surface);border:1px solid var(--bdr);border-radius:10px;margin-bottom:18px;overflow:hidden}
+.section-head{padding:12px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px;background:#fafafa}
+.section-head h2{font-size:13px;font-weight:700;color:var(--t1);flex:1}
+.section-head .right{font-size:11px;color:var(--t3)}
+.section-body{padding:18px}
+
+.kv{display:grid;grid-template-columns:160px 1fr;gap:10px 16px;font-size:13px;align-items:start}
+.kv > .lbl{color:var(--t2);font-weight:600;font-size:12px;padding-top:1px}
+.kv > .val{color:var(--t1)}
+.kv > .val a{color:var(--brand);text-decoration:none;font-weight:600}
+
+/* Phase tracker */
+.phases{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--bdr);border-radius:10px;overflow:hidden;margin-bottom:18px;background:var(--surface)}
+.phase{padding:14px 16px;border-right:1px solid var(--bdr);position:relative}
+.phase:last-child{border-right:0}
+.phase.done{background:var(--ok-bg)}
+.phase.now{background:var(--info-bg);box-shadow:inset 0 -3px 0 var(--info)}
+.phase.upcoming{background:#fafafa;color:var(--t3)}
+.phase-num{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+.phase.done .phase-num{color:var(--ok)}
+.phase.now .phase-num{color:var(--info)}
+.phase.now .phase-num::after{content:'NOW';font-size:9px;background:var(--info);color:#fff;padding:1px 5px;border-radius:3px;margin-left:auto}
+.phase-name{font-size:13px;font-weight:700;color:var(--t1);margin-top:4px}
+.phase.upcoming .phase-name{color:var(--t3)}
+.phase-meta{font-size:11px;color:var(--t2);margin-top:3px;line-height:1.4}
+
+/* Big join CTA */
+.join-card{background:linear-gradient(135deg,#e0f7f4 0%,#fff 100%);border:1px solid #99f6e4;border-radius:12px;padding:24px;display:flex;align-items:center;gap:18px;margin-bottom:18px}
+.join-card .gicon{width:54px;height:54px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--bdr);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.join-card .ginfo{flex:1;min-width:0}
+.join-card .title{font-size:15px;font-weight:700;color:var(--t1);letter-spacing:-0.2px}
+.join-card .sub{font-size:12px;color:var(--t2);margin-top:3px}
+.join-card .glink{font-size:11px;font-family:'SF Mono',Menlo,monospace;color:var(--t3);margin-top:4px;display:inline-flex;align-items:center;gap:4px}
+
+/* Identity verification */
+.id-verify{background:var(--warn-bg);border:1px solid var(--warn-bdr);border-radius:10px;padding:16px 18px;margin-bottom:18px}
+.id-verify .iv-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.id-verify .iv-h .iv-icon{font-size:22px}
+.id-verify .iv-h h3{font-size:13px;font-weight:700;color:#92400e;flex:1}
+.id-verify .iv-body{font-size:12px;color:#78350f;line-height:1.55;margin-bottom:12px}
+.id-verify .checks{display:flex;flex-direction:column;gap:7px}
+.id-verify label{display:flex;align-items:flex-start;gap:9px;padding:9px 12px;background:#fff;border:0.5px solid var(--warn-bdr);border-radius:7px;font-size:12.5px;color:var(--t1);cursor:pointer}
+.id-verify label.checked{background:#f0fdf4;border-color:var(--ok-bdr)}
+.id-verify label input{margin-top:2px}
+.id-verify label .lbl-name{font-weight:600}
+.id-verify label .lbl-sub{font-size:11px;color:var(--t2);margin-top:2px}
+
+/* Patient context */
+.pcx{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg);border-radius:8px;margin-bottom:14px}
+.pcx-av{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.pcx-info{flex:1;min-width:0}
+.pcx-name{font-size:14px;font-weight:700;color:var(--t1)}
+.pcx-name a{color:var(--t1);text-decoration:none}
+.pcx-name a:hover{color:var(--brand)}
+.pcx-meta{font-size:11px;color:var(--t2);margin-top:2px}
+
+/* Right rail items */
+.rcard{background:var(--surface);border:1px solid var(--bdr);border-radius:10px;margin-bottom:14px;overflow:hidden}
+.rcard-h{padding:11px 14px;background:#fafafa;border-bottom:1px solid var(--bdr);font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px}
+.rcard-b{padding:14px}
+.history-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--bdr);font-size:12px}
+.history-row:last-child{border-bottom:0}
+.h-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.h-dot.coach{background:#0ea5e9}
+.h-dot.welcome{background:#8b5cf6}
+.h-dot.clinical{background:#10b981}
+.h-name{flex:1;font-weight:600;color:var(--t1)}
+.h-time{font-size:10.5px;color:var(--t3)}
+.h-status{font-size:10px;font-weight:600;padding:1px 7px;border-radius:3px}
+.h-status.done{background:var(--ok-bg);color:var(--ok)}
+
+/* Compliance notice */
+.compliance{padding:12px 14px;background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:8px;font-size:11.5px;color:#1e3a8a;line-height:1.55;margin-top:14px}
+.compliance strong{display:block;margin-bottom:3px;color:#1e40af}
+
+/* Status pill */
+.spill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px}
+.spill.scheduled{background:var(--info-bg);color:var(--info);border:0.5px solid var(--info-bdr)}
+.spill.live{background:var(--err-bg);color:var(--err);border:0.5px solid var(--err-bdr)}
+.spill.live::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--err);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.foot-banner{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 18px;font-size:12px;color:var(--t2);line-height:1.55;margin-top:24px}
+.foot-banner code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11px}
+.foot-banner a{color:var(--brand-d);text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <button class="ws-trigger"><span>Workspace:</span><strong>FeelTru</strong><span class="ws-trigger" style="margin:0;padding:0">▼</span></button>
+  <div class="role"><span>Role:</span><span class="role-pill">Prescriber</span></div>
+</div>
+
+<div class="layout">
+
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders</a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check</a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments</a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks</a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls</a>
+    <a href="livera_scr_schedule_calendar.html" class="active"><span class="ico">📅</span>Schedule</a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints</a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents</a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Livera</a><span class="sep">›</span>
+      <a href="livera_scr_schedule_calendar.html">Schedule</a><span class="sep">›</span>
+      <span class="cur">Clinical consult — Sarah Cookland · 12 May 09:00</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">🎥</div>
+      <div class="pg-info">
+        <h1>
+          Clinical consult · dose review
+          <span class="bld-pill">BLD-CONS-DETAIL-01</span>
+          <span class="conn-pill"><span class="dot"></span>Scheduled · starts in 4 mins</span>
+        </h1>
+        <div class="sub">
+          <strong>Sarah Cookland</strong> · PT-00198 · with Claire Moynehan (Nurse Prescriber, NMC 1234567) · Tuesday 12 May 2026 · 09:00 – 09:45 BST · 45 min · Google Meet · <code>evt_8a3f72e1</code>
+        </div>
+      </div>
+      <div class="pg-actions">
+        <a href="livera_scr_schedule_calendar.html" class="btn">← Back to schedule</a>
+        <button class="btn">Reschedule</button>
+        <button class="btn danger">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Phase tracker -->
+    <div class="phases">
+      <div class="phase done">
+        <div class="phase-num">✓ 1 · Booked</div>
+        <div class="phase-name">Patient booked</div>
+        <div class="phase-meta">03 May 14:18 · self-booked via portal</div>
+      </div>
+      <div class="phase now">
+        <div class="phase-num">2 · Pre-call</div>
+        <div class="phase-name">Identity verification</div>
+        <div class="phase-meta">Verify name + DOB before clinical discussion</div>
+      </div>
+      <div class="phase upcoming">
+        <div class="phase-num">3 · In call</div>
+        <div class="phase-name">Consultation</div>
+        <div class="phase-meta">Google Meet · 45 min · clinical decision</div>
+      </div>
+      <div class="phase upcoming">
+        <div class="phase-num">4 · Post-call</div>
+        <div class="phase-name">Clinical note + outcome</div>
+        <div class="phase-meta">AI-assisted draft · clinician sign-off</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+
+      <!-- LEFT: working column -->
+      <div>
+
+        <!-- Patient context bar -->
+        <div class="pcx">
+          <div class="pcx-av">SC</div>
+          <div class="pcx-info">
+            <div class="pcx-name"><a href="livera_prototype_09_patient_profile.html">Sarah Cookland</a> · 50y · F</div>
+            <div class="pcx-meta">PT-00198 · Mounjaro 5mg · order ORD-00441 · last weight 85.3kg · BMI 30.2 · last coaching log 28 Apr (positive)</div>
+          </div>
+          <a href="livera_prototype_09_patient_profile.html" class="btn">Open profile →</a>
+        </div>
+
+        <!-- Identity verification (current phase) -->
+        <div class="id-verify">
+          <div class="iv-h">
+            <span class="iv-icon">🪪</span>
+            <h3>Identity verification required before call starts</h3>
+            <span class="spill scheduled">DEC-40 mandatory</span>
+          </div>
+          <div class="iv-body">
+            Google Meet has no built-in identity check — anyone with the link can join. Per DEC-40, you must verbally verify the patient's identity at the start of the call before any clinical discussion. Tick the boxes as you confirm each item; verification is logged to <code style="font-family:'SF Mono',Menlo,monospace;background:rgba(255,255,255,.6);padding:1px 4px;border-radius:3px;">join_audit_events</code> and AUD-04.
+          </div>
+          <div class="checks">
+            <label>
+              <input type="checkbox" onchange="toggleCheck(this)">
+              <span>
+                <span class="lbl-name">Verbally confirmed: full name</span>
+                <span class="lbl-sub">Patient stated their full name and it matches the record</span>
+              </span>
+            </label>
+            <label>
+              <input type="checkbox" onchange="toggleCheck(this)">
+              <span>
+                <span class="lbl-name">Verbally confirmed: date of birth</span>
+                <span class="lbl-sub">Patient stated DOB and it matches the record</span>
+              </span>
+            </label>
+            <label>
+              <input type="checkbox" onchange="toggleCheck(this)">
+              <span>
+                <span class="lbl-name">Visual identity check (video only)</span>
+                <span class="lbl-sub">Patient is visible on camera (clinical consults requiring face match)</span>
+              </span>
+            </label>
+            <label>
+              <input type="checkbox" onchange="toggleCheck(this)">
+              <span>
+                <span class="lbl-name">Privacy of location confirmed</span>
+                <span class="lbl-sub">Patient is in a private setting, no third parties present without consent</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Join card -->
+        <div class="join-card">
+          <div class="gicon">
+            <svg width="28" height="28" viewBox="0 0 87 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path fill="#00897B" d="M49.5 36 59 46.7l12.7 8.1 2.2-18.8-2.2-18.4L58.7 24.8z"/>
+              <path fill="#0066DA" d="M0 51.5V64.5c0 3 2.4 5.4 5.4 5.4h14L22 60l-2.7-9.4H10z"/>
+              <path fill="#E94235" d="M19.4 2 0 21.4l9.4 9 9.9 1.6V21.4z"/>
+              <path fill="#FFBA00" d="M19.4 21.4H0v29.1h19.4z"/>
+              <path fill="#188038" d="M81.6 9.7 71.7 17.5v37.3l9.9 7.7c2.7 0 5.4-2.4 5.4-5.4v-42c0-3-2.7-5.4-5.4-5.4z"/>
+              <path fill="#1967D2" d="M59 24.8v22.4l-9.5-10.3v-12c0-3 2.4-5.4 5.4-5.4h21.8l-2.7 5.4z"/>
+              <path fill="#34A853" d="M19.4 70h35.5c3 0 5.4-2.4 5.4-5.4v-9.8L49.5 47.2 38.7 38l-19.3 1.7z"/>
+            </svg>
+          </div>
+          <div class="ginfo">
+            <div class="title">Join with Google Meet</div>
+            <div class="sub">Starts in 4 mins · Sarah will receive join link via Calendly reminder</div>
+            <div class="glink">↗ meet.google.com/abc-defg-hij · link valid 09:00 – 10:15 today</div>
+          </div>
+          <a href="https://meet.google.com/abc-defg-hij" target="_blank" rel="noopener" class="btn gmeet">Join meet →</a>
+        </div>
+
+        <!-- Pre-call summary -->
+        <div class="section">
+          <div class="section-head"><h2>📋 Pre-call summary</h2><div class="right">Auto-compiled from patient record</div></div>
+          <div class="section-body">
+            <div class="kv">
+              <div class="lbl">Reason for consult</div>
+              <div class="val">Patient requested dose escalation review at week 18. Currently on Mounjaro 5mg, weight 85.3kg (down from 92kg, 7.3% reduction). Eligible for escalation per NICE CG189 · 4-week minimum + 5%+ reduction met.</div>
+
+              <div class="lbl">Current treatment</div>
+              <div class="val">Mounjaro (tirzepatide) 5mg weekly · Order ORD-00441 · approved 30 Apr</div>
+
+              <div class="lbl">Weight trajectory</div>
+              <div class="val">Start 92.0kg · Week 4 89.1kg · Week 8 87.4kg · Week 12 86.2kg · Week 18 85.3kg · <strong style="color:var(--ok)">−6.7kg (7.3%)</strong></div>
+
+              <div class="lbl">Side effects</div>
+              <div class="val" style="color:var(--ok)">No active side effect concerns · last reorder questionnaire (30 Apr) clear</div>
+
+              <div class="lbl">Active flags</div>
+              <div class="val">B4 · dose escalation review due (raised by Clinical Check workflow)</div>
+
+              <div class="lbl">Coaching context</div>
+              <div class="val">Last coaching log 28 Apr (Olwyn) — patient motivated, querying dose at next consult. Coaching tab on profile has 3 entries.</div>
+            </div>
+
+            <div class="compliance">
+              <strong>Pre-call checks complete</strong>
+              All clinical context auto-loaded from patient record. Photo consent on file (3-consent capture). GP communication consent on file. NICE CG189 escalation gate satisfied.
+            </div>
+          </div>
+        </div>
+
+        <!-- Post-call workflow (collapsed until call ends) -->
+        <div class="section" style="opacity:.55">
+          <div class="section-head"><h2>📝 Post-call · clinical note + outcome</h2><div class="right">Unlocks when call ends</div></div>
+          <div class="section-body">
+            <div style="font-size:12px;color:var(--t2);line-height:1.55">
+              After the call ends, you'll be prompted to write the clinical note. AI drafting (BLD-30) will pre-populate a structured SOAP note from the consultation context for your review and sign-off. The signed note becomes the clinical record (V1: clinician's note <em>is</em> the record — no recording per DEC-40). Outcomes available:
+              <ul style="margin-top:8px;padding-left:22px;line-height:1.7">
+                <li>Approve dose escalation → triggers reorder amendment flow</li>
+                <li>Continue current dose · review at next reorder</li>
+                <li>Decline / hold escalation with reason</li>
+                <li>Refer to GP / external (with patient consent)</li>
+                <li>Schedule follow-up consultation</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT: context rail -->
+      <div>
+
+        <div class="rcard">
+          <div class="rcard-h">Consultation details</div>
+          <div class="rcard-b">
+            <div class="kv" style="grid-template-columns:1fr 1fr;font-size:12px">
+              <div class="lbl">Type</div><div class="val">Clinical consult</div>
+              <div class="lbl">Modality</div><div class="val">🎥 Video</div>
+              <div class="lbl">Provider</div><div class="val">Google Meet</div>
+              <div class="lbl">Duration</div><div class="val">45 min</div>
+              <div class="lbl">Status</div><div class="val"><span class="spill scheduled">Scheduled</span></div>
+              <div class="lbl">Recording</div><div class="val" style="color:var(--t3)">Disabled</div>
+              <div class="lbl">Transcript</div><div class="val" style="color:var(--t3)">Disabled (V1)</div>
+              <div class="lbl">Booking source</div><div class="val">Patient self-served</div>
+              <div class="lbl">Calendly event</div><div class="val" style="font-family:'SF Mono',Menlo,monospace;font-size:11px">evt_8a3f72e1</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rcard">
+          <div class="rcard-h">Patient consultation history</div>
+          <div class="rcard-b">
+            <div class="history-row">
+              <span class="h-dot coach"></span>
+              <span class="h-name">Coaching · Olwyn</span>
+              <span class="h-time">28 Apr</span>
+              <span class="h-status done">✓</span>
+            </div>
+            <div class="history-row">
+              <span class="h-dot clinical"></span>
+              <span class="h-name">Clinical · Claire</span>
+              <span class="h-time">31 Mar</span>
+              <span class="h-status done">✓</span>
+            </div>
+            <div class="history-row">
+              <span class="h-dot coach"></span>
+              <span class="h-name">Coaching · Olwyn</span>
+              <span class="h-time">31 Mar</span>
+              <span class="h-status done">✓</span>
+            </div>
+            <div class="history-row">
+              <span class="h-dot coach"></span>
+              <span class="h-name">Coaching · Olwyn</span>
+              <span class="h-time">28 Feb</span>
+              <span style="font-size:10px;color:var(--err);font-weight:600">No-show</span>
+            </div>
+            <div class="history-row">
+              <span class="h-dot welcome"></span>
+              <span class="h-name">Welcome · Punam</span>
+              <span class="h-time">15 Jan</span>
+              <span class="h-status done">✓</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rcard">
+          <div class="rcard-h">Audit trail</div>
+          <div class="rcard-b" style="font-size:11.5px;color:var(--t2);line-height:1.6">
+            <strong style="color:var(--t1);display:block;margin-bottom:4px">Booking events</strong>
+            • 03 May 14:18 — patient self-booked<br>
+            • 03 May 14:18 — Calendly webhook received<br>
+            • 03 May 14:18 — Google Meet link generated<br>
+            • 03 May 14:19 — patient confirmation email sent<br>
+            • 12 May 08:30 — 30-min reminder sent (FCM #11)<br>
+            <strong style="color:var(--t1);display:block;margin:10px 0 4px">Join events (will append)</strong>
+            <span style="color:var(--t3)">Awaiting call start. Each join/leave event written to AUD-04 with role, user, IP, timestamp.</span>
+            <div style="margin-top:10px"><a href="livera_audit_log.html" class="btn" style="font-size:11px;padding:5px 10px">Full audit log →</a></div>
+          </div>
+        </div>
+
+        <div class="rcard" style="border-color:var(--info-bdr);background:var(--info-bg)">
+          <div class="rcard-h" style="background:rgba(59,130,246,.1);border-bottom-color:var(--info-bdr);color:var(--info)">DEC-40 compliance posture</div>
+          <div class="rcard-b" style="font-size:11.5px;color:#1e3a8a;line-height:1.6">
+            <strong style="color:#1e40af;display:block;margin-bottom:4px">For this consultation:</strong>
+            ✓ Workspace: Business Standard<br>
+            ✓ DPA on file<br>
+            ✓ DPIA approved (FeelTru video)<br>
+            ✓ Recording disabled at admin level<br>
+            ✓ Patient consent for video on file<br>
+            ✓ Clinical note will be source of record<br>
+            ✓ Identity verification required pre-call<br>
+            ✓ Audit trail to AUD-04
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="foot-banner">
+      <strong>Consultation detail</strong> · BLD-CONS-DETAIL-01 · DEC-40 · 4-phase workflow surface (Booked → Pre-call → In-call → Post-call) for any consultation type and modality. Provider-agnostic: this same screen handles Google Meet, Whereby, Zoom, Teams (video) and Intercom Phone, Twilio Voice (phone) by reading <code>provider</code> field. Identity verification step is mandatory for all video consultations and clinical consults regardless of modality. Clinical note (BLD-30 AI-assisted) is the V1 record — no recording. Companion screens: <a href="livera_scr_schedule_calendar.html">Schedule calendar ↗</a> · <a href="livera_settings_consultation_types.html">Consultation types config ↗</a> · <a href="livera_settings_google_workspace.html">Google Workspace integration ↗</a>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function toggleCheck(el){
+  const lbl = el.closest('label');
+  if (el.checked) lbl.classList.add('checked');
+  else lbl.classList.remove('checked');
+}
+</script>
+</body>
+</html>

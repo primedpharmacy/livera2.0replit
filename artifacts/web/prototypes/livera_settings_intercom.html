@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Intercom integration</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --surface:#ffffff; --bg:#f1f0ef; --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --intercom:#286efa;
+}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:var(--intercom);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;color:#fff;font-weight:800;letter-spacing:-1px}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info h1 .conn-pill{font-size:10px;font-weight:700;letter-spacing:.4px;background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr);padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+.pg-info h1 .conn-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 2px rgba(16,185,129,.18)}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-info .sub code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11.5px}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:.12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);color:#fff}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--bdr);margin-bottom:18px;overflow-x:auto}
+.tab{padding:11px 18px;font-size:12.5px;font-weight:600;color:var(--t2);background:none;border:none;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;transition:.12s;white-space:nowrap}
+.tab:hover{color:var(--t1)}
+.tab.on{color:var(--brand);border-bottom-color:var(--brand)}
+.tab .ct{display:inline-block;font-size:10px;font-weight:700;background:var(--bdr);color:var(--t2);padding:1px 6px;border-radius:3px;margin-left:6px;letter-spacing:.3px}
+.tab.on .ct{background:var(--brand-l);color:var(--brand)}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.stat-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px}
+.stat-num{font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1.1}
+.stat-num.warn{color:var(--warn)}
+.stat-num.ok{color:var(--ok)}
+.stat-num.err{color:var(--err)}
+.stat-lbl{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+.stat-sub{font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4}
+
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+/* Connection state card */
+.conn-grid{display:grid;grid-template-columns:200px 1fr;padding:14px 18px;border-bottom:.5px solid var(--bdr);align-items:flex-start;font-size:12.5px}
+.conn-grid:last-child{border-bottom:none}
+.conn-k{font-size:11.5px;color:var(--t3);font-weight:500;padding-top:1px}
+.conn-v{font-size:12.5px;color:var(--t1);font-weight:500}
+.conn-v code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px;border:.5px solid var(--bdr)}
+.conn-v .meta{font-size:11px;color:var(--t3);margin-top:3px;line-height:1.45}
+.conn-v .badge-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.conn-v .badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:3px;font-family:'SF Mono',Menlo,monospace;border:.5px solid;letter-spacing:.3px}
+.conn-v .badge.scope{background:#eff6ff;color:#1e40af;border-color:#bfdbfe}
+.conn-v .badge.scope.write{background:#faf5ff;color:#7c3aed;border-color:#ddd6fe}
+.conn-v .badge.scope.read{background:#eff6ff;color:#1e40af;border-color:#bfdbfe}
+
+/* Topic subscription rows */
+.topic-row{display:grid;grid-template-columns:32px 1fr 200px 110px 80px;gap:14px;padding:13px 18px;border-bottom:.5px solid var(--bdr);align-items:center;font-size:12.5px}
+.topic-row:last-child{border-bottom:none}
+.topic-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.topic-row.disabled{opacity:.55;background:repeating-linear-gradient(45deg,transparent,transparent 6px,rgba(0,0,0,0.015) 6px,rgba(0,0,0,0.015) 12px)}
+.topic-toggle{position:relative;width:32px;height:18px;background:var(--bdr);border-radius:999px;cursor:pointer;transition:.18s;flex-shrink:0}
+.topic-toggle.on{background:var(--ok)}
+.topic-toggle::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:.18s;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.topic-toggle.on::after{transform:translateX(14px)}
+.topic-name{font-family:'SF Mono',Menlo,monospace;font-size:11px;color:var(--t1);background:var(--bg);padding:3px 8px;border-radius:3px;border:.5px solid var(--bdr-d);width:fit-content;font-weight:600;display:inline-block;margin-bottom:3px}
+.topic-purpose{font-size:11.5px;color:var(--t2);line-height:1.45}
+.topic-permission{font-size:10px;font-weight:600;font-family:'SF Mono',Menlo,monospace;color:var(--t3);padding:2px 7px;background:var(--bg);border-radius:3px;border:.5px solid var(--bdr-d);width:fit-content}
+.topic-volume{font-size:11px;color:var(--t2);font-variant-numeric:tabular-nums;text-align:right}
+.topic-volume strong{color:var(--t1);font-size:13px;font-weight:700;display:block}
+.topic-status{font-size:9.5px;font-weight:700;padding:3px 7px;border-radius:3px;letter-spacing:.4px;text-align:center;width:fit-content}
+.topic-status.live{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.topic-status.off{background:var(--bg);color:var(--t3);border:.5px solid var(--bdr-d)}
+
+/* Outbound action rows */
+.out-row{display:grid;grid-template-columns:1fr 200px 100px 100px;gap:14px;padding:13px 18px;border-bottom:.5px solid var(--bdr);align-items:center;font-size:12.5px}
+.out-row:last-child{border-bottom:none}
+.out-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.out-trigger{font-size:12px;line-height:1.45}
+.out-trigger strong{color:var(--t1);font-weight:600;display:block}
+.out-trigger .meta{color:var(--t3);font-size:11px;margin-top:2px}
+.out-endpoint{font-family:'SF Mono',Menlo,monospace;font-size:10.5px;color:var(--t1);background:var(--bg);padding:4px 8px;border-radius:4px;border:.5px solid var(--bdr-d);width:fit-content}
+.out-endpoint .verb{font-weight:700;color:var(--brand);font-size:9.5px;background:var(--brand-l);padding:1px 5px;border-radius:2px;margin-right:4px;letter-spacing:.4px;border:.5px solid #c7d2fe;font-family:inherit}
+.out-vol{font-size:11px;color:var(--t2);font-variant-numeric:tabular-nums;text-align:right}
+.out-vol strong{color:var(--t1);font-size:13px;font-weight:700;display:block}
+
+/* Brand mapping */
+.brand-row{display:grid;grid-template-columns:32px 200px 1fr 200px 90px;gap:14px;padding:13px 18px;border-bottom:.5px solid var(--bdr);align-items:center;font-size:12.5px}
+.brand-row:last-child{border-bottom:none}
+.brand-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.brand-dot{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:10px;letter-spacing:-.5px}
+.brand-dot.vsc{background:linear-gradient(135deg,#9697E8,#4B5BA3)}
+.brand-dot.feeltru{background:linear-gradient(135deg,#1e293b,#0f172a)}
+.brand-name{font-weight:600;color:var(--t1)}
+.brand-name .meta{font-size:11px;color:var(--t3);font-weight:400;margin-top:2px}
+.brand-id{font-family:'SF Mono',Menlo,monospace;font-size:11px;color:var(--t1);background:var(--bg);padding:3px 8px;border-radius:3px;border:.5px solid var(--bdr-d);width:fit-content}
+.brand-id .meta{font-family:inherit;font-size:10.5px;color:var(--t3);margin-top:3px}
+
+/* Live event feed */
+.feed-row{display:grid;grid-template-columns:90px 1fr 200px 110px;gap:14px;padding:11px 18px;border-bottom:.5px solid var(--bdr);align-items:center;font-size:12.5px}
+.feed-row:last-child{border-bottom:none}
+.feed-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.feed-when{color:var(--t3);font-size:11px;font-variant-numeric:tabular-nums}
+.feed-detail{font-size:12px;color:var(--t1);line-height:1.45}
+.feed-detail strong{color:var(--brand);font-weight:600}
+.feed-topic{font-family:'SF Mono',Menlo,monospace;font-size:10px;color:var(--t1);background:#eff6ff;padding:2px 7px;border-radius:3px;border:.5px solid #bfdbfe;width:fit-content;font-weight:600}
+.feed-topic.outbound{background:#faf5ff;color:#7c3aed;border-color:#ddd6fe}
+.feed-status{font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:3px;letter-spacing:.4px;text-align:center;width:fit-content}
+.feed-status.processed{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.feed-status.deduped{background:var(--bg);color:var(--t3);border:.5px solid var(--bdr-d)}
+.feed-status.failed{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <div class="ws"><button class="ws-trigger"><strong>VSC — Quanta Healthcare Ltd</strong><span class="ws-chev">▼</span></button></div>
+  <div class="role"><span>Qadir Hussain</span><span class="role-pill">Owner</span></div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_settings_landing.html">Settings</a>
+      <span class="sep">›</span>
+      <a href="livera_settings_landing.html#integrations">Integrations</a>
+      <span class="sep">›</span>
+      <span class="cur">Intercom</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">in</div>
+      <div class="pg-info">
+        <h1>
+          Intercom integration
+          <span class="bld-pill">BLD-INT-INTERCOM-01</span>
+          <span class="conn-pill"><span class="dot"></span>CONNECTED</span>
+        </h1>
+        <div class="sub">Bi-directional integration with Intercom · 9 inbound webhook topics subscribed · 4 outbound API actions configured · brand-aware multi-workspace mapping (VSC + FeelTru). For tag → action mapping see the <a href="livera_settings_intercom_tag_actions.html" style="color:var(--brand);text-decoration:none;font-weight:600">Tag actions</a> screen.</div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Connection test passed · OAuth scopes valid · webhook signature OK · 184ms')">⚡ Test connection</button>
+        <button class="btn" onclick="window.open('https://app.intercom.com/a/apps','_blank')">↗ Open in Intercom</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num ok">99.7%</div>
+        <div class="stat-lbl">Webhook delivery (30d)</div>
+        <div class="stat-sub">3,447 events received · 12 deduped</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">9 / 14</div>
+        <div class="stat-lbl">Topics subscribed</div>
+        <div class="stat-sub">5 available but not enabled</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">238</div>
+        <div class="stat-lbl">Outbound calls (30d)</div>
+        <div class="stat-sub">notes posted · tags applied</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">2</div>
+        <div class="stat-lbl">Brands mapped</div>
+        <div class="stat-sub">VSC · FeelTru · separate workspaces</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab on">Overview</button>
+      <button class="tab" onclick="showToast('Stub · would scroll to Topics section')">Topic subscriptions <span class="ct">9</span></button>
+      <button class="tab" onclick="showToast('Stub · would scroll to Outbound section')">Outbound API <span class="ct">4</span></button>
+      <button class="tab" onclick="showToast('Stub · would scroll to Brand mapping section')">Brand mapping <span class="ct">2</span></button>
+      <button class="tab" onclick="showToast('Stub · would scroll to Event feed section')">Live feed</button>
+    </div>
+
+    <!-- ============================ -->
+    <!-- 1. CONNECTION & OAUTH SCOPES  -->
+    <!-- ============================ -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🔐 Connection &amp; OAuth scopes</div>
+        <div class="sub">App credentials, signing secret, granted permission scopes</div>
+        <div class="right"><button class="btn" onclick="showToast('Stub · would re-authorise OAuth flow')" style="font-size:11px;padding:5px 10px;">Re-authorise</button></div>
+      </div>
+
+      <div class="conn-grid">
+        <div class="conn-k">App ID</div>
+        <div class="conn-v"><code>a86dr8yl</code><div class="meta">Intercom-issued workspace identifier · used to disambiguate webhook payloads when multi-app installed</div></div>
+      </div>
+      <div class="conn-grid">
+        <div class="conn-k">Access token</div>
+        <div class="conn-v"><code>●●●●●●●●●●●●●●●●●●e8f4</code> <a onclick="showToast('Stub · key reveal')" style="color:var(--brand);font-size:11px;font-weight:600;cursor:pointer;margin-left:6px;">Reveal</a><div class="meta">Long-lived OAuth token · auto-rotation 90 days · last refreshed 14 Apr 2026</div></div>
+      </div>
+      <div class="conn-grid">
+        <div class="conn-k">Webhook signing secret</div>
+        <div class="conn-v"><code>whsec_●●●●●●●●●●●●a721</code> <a onclick="showToast('Stub · secret reveal')" style="color:var(--brand);font-size:11px;font-weight:600;cursor:pointer;margin-left:6px;">Reveal</a><div class="meta">Used to verify <code style="background:var(--bdr);">X-Hub-Signature</code> header on every inbound webhook · SHA1 HMAC</div></div>
+      </div>
+      <div class="conn-grid">
+        <div class="conn-k">API version</div>
+        <div class="conn-v"><code>2.15</code> (latest stable)<div class="meta">Pinned · v2.15 added Unix timestamp normalisation in conversation webhook payloads. Auto-upgrade disabled — manual review of breaking changes per release.</div></div>
+      </div>
+      <div class="conn-grid">
+        <div class="conn-k">Granted scopes</div>
+        <div class="conn-v">
+          <div class="badge-row">
+            <span class="badge scope read">Read conversations</span>
+            <span class="badge scope read">Read users</span>
+            <span class="badge scope read">Read tags</span>
+            <span class="badge scope read">Read teams</span>
+            <span class="badge scope write">Write conversations</span>
+            <span class="badge scope write">Write users</span>
+            <span class="badge scope write">Write notes</span>
+            <span class="badge scope write">Write tags</span>
+          </div>
+          <div class="meta">8 scopes granted via OAuth · 4 read · 4 write · NOT granted: <code>delete_conversations</code>, <code>read_calls</code> (would require Intercom Phone)</div>
+        </div>
+      </div>
+      <div class="conn-grid">
+        <div class="conn-k">IP allowlist (Europe region)</div>
+        <div class="conn-v"><code>34.231.68.152/29</code> · <code>52.49.173.169/29</code> · <code>3.249.69.171/29</code><div class="meta">Source IPs Intercom POSTs webhooks from · auto-refreshed daily from <code style="background:var(--bdr);">https://static.intercomcdn.com/intercom-ips/eu/intercom-ip-ranges.json</code></div></div>
+      </div>
+    </div>
+
+    <!-- ============================ -->
+    <!-- 2. WEBHOOK TOPIC SUBSCRIPTIONS-->
+    <!-- ============================ -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📡 Webhook topic subscriptions <span style="font-size:10px;font-weight:700;background:var(--ok-bg);color:var(--ok);padding:2px 7px;border-radius:3px;letter-spacing:.4px;border:.5px solid var(--ok-bdr);">9 LIVE</span></div>
+        <div class="sub">Inbound: Intercom → Livera. Each topic maps to a Livera workflow. To enable additional topics, toggle and grant the corresponding scope.</div>
+        <div class="right"><a href="https://developers.intercom.com/docs/references/webhooks/webhook-models" target="_blank" style="color:var(--brand);font-size:11px;font-weight:600;text-decoration:none;">Topic reference ↗</a></div>
+      </div>
+
+      <div class="topic-row head">
+        <span></span>
+        <span>Topic · what it does in Livera</span>
+        <span>Required scope</span>
+        <span style="text-align:right">Volume (30d)</span>
+        <span style="text-align:center">State</span>
+      </div>
+
+      <!-- LIVE topics -->
+      <div class="topic-row">
+        <div class="topic-toggle on" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">conversation.user.created</div>
+          <div class="topic-purpose">Patient starts a new Intercom thread → Livera mirrors to patient profile, runs AI clinical-classifier on first message body</div>
+        </div>
+        <span class="topic-permission">read_conversations</span>
+        <div class="topic-volume"><strong>1,284</strong>events</div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <div class="topic-row">
+        <div class="topic-toggle on" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">conversation.user.replied</div>
+          <div class="topic-purpose">Patient replies to existing thread → Livera updates patient profile feed, re-runs classifier if not yet flagged</div>
+        </div>
+        <span class="topic-permission">read_conversations</span>
+        <div class="topic-volume"><strong>2,038</strong>events</div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <div class="topic-row" style="background:rgba(239,68,68,0.025);">
+        <div class="topic-toggle on" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">conversation.user.tag.created</div>
+          <div class="topic-purpose">Tag added to patient conversation → triggers tag→action rules (auto-create incident, complaint, etc) per <a href="livera_settings_intercom_tag_actions.html" style="color:var(--brand);font-weight:600;text-decoration:none;">Tag actions</a></div>
+        </div>
+        <span class="topic-permission">read_tags</span>
+        <div class="topic-volume"><strong>87</strong>events</div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <div class="topic-row">
+        <div class="topic-toggle on" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">conversation.user.tag.deleted</div>
+          <div class="topic-purpose">Tag removed → audit log entry only · does not undo Livera-side action (Incident remains open until manually resolved)</div>
+        </div>
+        <span class="topic-permission">read_tags</span>
+        <div class="topic-volume"><strong>3</strong>events</div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <div class="topic-row">
+        <div class="topic-toggle on" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">conversation.admin.replied</div>
+          <div class="topic-purpose">Admin replies in Intercom → mirror reply to patient profile activity feed, mark "responded" in SLA timer</div>
+        </div>
+        <span class="topic-permission">read_conversations</span>
+        <div class="topic-volume"><strong>1,876</strong>events</div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <div class="topic-row">
+        <div class="topic-toggle on" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">conversation.admin.assigned</div>
+          <div class="topic-purpose">Conversation assigned/reassigned to a teammate → update Livera "owner" field on the mirrored conversation</div>
+        </div>
+        <span class="topic-permission">read_conversations · read_admins</span>
+        <div class="topic-volume"><strong>412</strong>events</div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <div class="topic-row">
+        <div class="topic-toggle on" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">conversation.admin.closed</div>
+          <div class="topic-purpose">Conversation closed → Livera enforces "closure rule" — blocks close if linked Incident still open (BLD-8.4)</div>
+        </div>
+        <span class="topic-permission">read_conversations</span>
+        <div class="topic-volume"><strong>1,541</strong>events</div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <div class="topic-row">
+        <div class="topic-toggle on" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">contact.tag.created</div>
+          <div class="topic-purpose">Tag added at contact (not conversation) level → e.g. "vip", "high_risk" attribute mirrored to patient profile</div>
+        </div>
+        <span class="topic-permission">read_tags</span>
+        <div class="topic-volume"><strong>34</strong>events</div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <div class="topic-row">
+        <div class="topic-toggle on" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">ticket.created</div>
+          <div class="topic-purpose">Intercom ticket created (separate from conversation) → mirrored to Livera as Tasks entry · BLD-13.2 integration</div>
+        </div>
+        <span class="topic-permission">read_tickets</span>
+        <div class="topic-volume"><strong>104</strong>events</div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <!-- AVAILABLE BUT NOT SUBSCRIBED topics -->
+      <div class="topic-row disabled">
+        <div class="topic-toggle" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">conversation_part.redacted</div>
+          <div class="topic-purpose">Patient or admin redacts a message part (GDPR Art 17) → required for our DSAR audit trail · enable before V1 launch</div>
+        </div>
+        <span class="topic-permission">read_conversations</span>
+        <div class="topic-volume">—</div>
+        <span class="topic-status off">OFF</span>
+      </div>
+
+      <div class="topic-row disabled">
+        <div class="topic-toggle" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">contact.created</div>
+          <div class="topic-purpose">New contact created in Intercom outside Livera flow → would surface for admin reconciliation. Currently we create contacts via Livera API only.</div>
+        </div>
+        <span class="topic-permission">read_users</span>
+        <div class="topic-volume">—</div>
+        <span class="topic-status off">OFF</span>
+      </div>
+
+      <div class="topic-row disabled">
+        <div class="topic-toggle" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">contact.unsubscribed</div>
+          <div class="topic-purpose">Patient unsubscribes from email/SMS in Intercom → would mirror to consent record + flag downstream Omnisend</div>
+        </div>
+        <span class="topic-permission">read_users</span>
+        <div class="topic-volume">—</div>
+        <span class="topic-status off">OFF</span>
+      </div>
+
+      <div class="topic-row disabled">
+        <div class="topic-toggle" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">data_connector.execution.completed</div>
+          <div class="topic-purpose">Intercom workflow connector ran (success/fail) → operational telemetry only, low priority</div>
+        </div>
+        <span class="topic-permission">read_workflows</span>
+        <div class="topic-volume">—</div>
+        <span class="topic-status off">OFF</span>
+      </div>
+
+      <div class="topic-row disabled">
+        <div class="topic-toggle" onclick="this.classList.toggle('on')"></div>
+        <div>
+          <div class="topic-name">call.* (Intercom Phone)</div>
+          <div class="topic-purpose">Phone call lifecycle events — call.started, call.completed, call.recording.available. Requires Intercom Phone subscription (DISC-INTERCOM-PHONE-01 still in scoping).</div>
+        </div>
+        <span class="topic-permission">read_calls</span>
+        <div class="topic-volume">—</div>
+        <span class="topic-status off">OFF · BLOCKED</span>
+      </div>
+    </div>
+
+    <!-- ============================ -->
+    <!-- 3. OUTBOUND API ACTIONS       -->
+    <!-- ============================ -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">↗ Outbound API actions</div>
+        <div class="sub">Livera → Intercom. Automated REST calls Livera makes when clinical actions happen on our side.</div>
+        <div class="right"><a href="https://developers.intercom.com/docs/references/rest-api/" target="_blank" style="color:var(--brand);font-size:11px;font-weight:600;text-decoration:none;">REST API reference ↗</a></div>
+      </div>
+
+      <div class="out-row head">
+        <span>Trigger · what Livera writes back to Intercom</span>
+        <span>Endpoint</span>
+        <span style="text-align:right">Volume (30d)</span>
+        <span style="text-align:right">Last call</span>
+      </div>
+
+      <div class="out-row">
+        <div class="out-trigger">
+          <strong>Order status change → contact note</strong>
+          <div class="meta">When order moves to Approved / Dispatched / Delivered, Livera POSTs a contact note so admin sees order context inside the Intercom conversation panel.</div>
+        </div>
+        <div class="out-endpoint"><span class="verb">POST</span>/contacts/{id}/notes</div>
+        <div class="out-vol"><strong>164</strong>calls</div>
+        <div class="out-vol" style="font-size:11px;color:var(--t3);"><strong style="font-size:11px;color:var(--t2);font-weight:500;">12:14</strong>4 min ago</div>
+      </div>
+
+      <div class="out-row">
+        <div class="out-trigger">
+          <strong>Incident created → conversation tag</strong>
+          <div class="meta">When a Livera Incident is opened (manually or via tag→action rule), Livera adds tag <code style="font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px;">livera-incident</code> on the linked Intercom conversation.</div>
+        </div>
+        <div class="out-endpoint"><span class="verb">POST</span>/conversations/{id}/tags</div>
+        <div class="out-vol"><strong>47</strong>calls</div>
+        <div class="out-vol" style="font-size:11px;color:var(--t3);"><strong style="font-size:11px;color:var(--t2);font-weight:500;">11:03</strong>1h ago</div>
+      </div>
+
+      <div class="out-row">
+        <div class="out-trigger">
+          <strong>Severe SE auto-write → contact note</strong>
+          <div class="meta">When safety-chain question triggers severe outcome in patient app, Livera writes a contact note flagging the SE before patient even contacts admin. Spec §9 / DEC-36.</div>
+        </div>
+        <div class="out-endpoint"><span class="verb">POST</span>/contacts/{id}/notes</div>
+        <div class="out-vol"><strong>11</strong>calls</div>
+        <div class="out-vol" style="font-size:11px;color:var(--t3);"><strong style="font-size:11px;color:var(--t2);font-weight:500;">Yesterday</strong>22h ago</div>
+      </div>
+
+      <div class="out-row">
+        <div class="out-trigger">
+          <strong>Custom attribute sync → contact</strong>
+          <div class="meta">Livera identity/demographics/treatment fields synced as Intercom custom attributes (BMI · current_dose · last_order_date · clinic_id). Hourly batched. Clinical-data fields hard-blocked.</div>
+        </div>
+        <div class="out-endpoint"><span class="verb">PUT</span>/contacts/{id}</div>
+        <div class="out-vol"><strong>16</strong>batches</div>
+        <div class="out-vol" style="font-size:11px;color:var(--t3);"><strong style="font-size:11px;color:var(--t2);font-weight:500;">12:00</strong>18 min ago</div>
+      </div>
+    </div>
+
+    <!-- ============================ -->
+    <!-- 4. BRAND / WORKSPACE MAPPING  -->
+    <!-- ============================ -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🏷 Brand → workspace mapping</div>
+        <div class="sub">Each Livera clinic maps to its own Intercom workspace, so VSC patients chat with VSC support and FeelTru patients with FeelTru. Per Apr 2026 Intercom multi-brand release.</div>
+      </div>
+
+      <div class="brand-row head">
+        <span></span>
+        <span>Livera clinic</span>
+        <span>Mapping rule</span>
+        <span>Intercom workspace</span>
+        <span style="text-align:center">State</span>
+      </div>
+
+      <div class="brand-row">
+        <div class="brand-dot vsc">VSC</div>
+        <div class="brand-name">VSC<div class="meta">Quanta Healthcare Ltd · clinic_id=001</div></div>
+        <div style="font-size:11.5px;color:var(--t2);line-height:1.45;">When <code style="font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px;">clinic_id=001</code> on patient → route to VSC workspace</div>
+        <div class="brand-id">vsc-uk · app_id <code style="font-family:inherit;background:transparent;padding:0;border:0;">a86dr8yl</code><div class="meta">📞 +44 20 ●●●● ●●●● · IVR enabled</div></div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+
+      <div class="brand-row">
+        <div class="brand-dot feeltru">FT</div>
+        <div class="brand-name">FeelTru<div class="meta">FeelTru Ltd · clinic_id=002</div></div>
+        <div style="font-size:11.5px;color:var(--t2);line-height:1.45;">When <code style="font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px;">clinic_id=002</code> on patient → route to FeelTru workspace</div>
+        <div class="brand-id">feeltru-uk · app_id <code style="font-family:inherit;background:transparent;padding:0;border:0;">b91ks9zm</code><div class="meta">📞 number not yet provisioned</div></div>
+        <span class="topic-status live">LIVE</span>
+      </div>
+    </div>
+
+    <!-- ============================ -->
+    <!-- 5. LIVE EVENT FEED            -->
+    <!-- ============================ -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📜 Live event feed</div>
+        <div class="sub">Last 24 hours · inbound webhooks + outbound API calls · auto-refresh 30s</div>
+        <div class="right">Showing 8 of 213 lifetime today</div>
+      </div>
+
+      <div class="feed-row head">
+        <span>When</span>
+        <span>Detail</span>
+        <span style="text-align:left">Topic / endpoint</span>
+        <span style="text-align:center">State</span>
+      </div>
+
+      <div class="feed-row">
+        <span class="feed-when">14:38</span>
+        <div class="feed-detail">Sarah Cookland (PT-00198) → reply on conv #38291: "got my injection ok this morning, thanks"</div>
+        <span class="feed-topic">conversation.user.replied</span>
+        <span class="feed-status processed">PROCESSED</span>
+      </div>
+
+      <div class="feed-row">
+        <span class="feed-when">14:35</span>
+        <div class="feed-detail">Order ORD-00420 → Approved → POSTed contact note to Helena Fox (PT-00184): "Order approved by Claire Moynehan"</div>
+        <span class="feed-topic outbound">POST /contacts/{id}/notes</span>
+        <span class="feed-status processed">PROCESSED</span>
+      </div>
+
+      <div class="feed-row">
+        <span class="feed-when">14:22</span>
+        <div class="feed-detail">Tag <code style="font-family:'SF Mono',Menlo,monospace;background:#fef2f2;color:#991b1b;padding:1px 5px;border-radius:3px;font-size:10.5px;border:.5px solid #fecaca;">severe_se</code> added to Marcus Tomlinson conv #38244 → triggered tag→action rule "auto-create incident" → Incident INC-00091 created</div>
+        <span class="feed-topic">conversation.user.tag.created</span>
+        <span class="feed-status processed">PROCESSED</span>
+      </div>
+
+      <div class="feed-row">
+        <span class="feed-when">13:56</span>
+        <div class="feed-detail">Conv #38228 (James Turner) → assigned from <strong>Olwyn Sutcliffe</strong> to <strong>Claire Moynehan</strong></div>
+        <span class="feed-topic">conversation.admin.assigned</span>
+        <span class="feed-status processed">PROCESSED</span>
+      </div>
+
+      <div class="feed-row">
+        <span class="feed-when">13:44</span>
+        <div class="feed-detail">Incident INC-00091 created on Livera → POSTed tag <code style="font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px;">livera-incident</code> to conv #38244</div>
+        <span class="feed-topic outbound">POST /conversations/{id}/tags</span>
+        <span class="feed-status processed">PROCESSED</span>
+      </div>
+
+      <div class="feed-row" style="background:rgba(148,163,184,0.04);">
+        <span class="feed-when">12:12</span>
+        <div class="feed-detail">Duplicate webhook delivery for event <code style="font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px;">notif_c2441832</code> · already processed → skipped (idempotency)</div>
+        <span class="feed-topic">conversation.user.replied</span>
+        <span class="feed-status deduped">DEDUPED</span>
+      </div>
+
+      <div class="feed-row">
+        <span class="feed-when">11:08</span>
+        <div class="feed-detail">Conv #38104 (Robert Henderson) → closed by Olwyn Sutcliffe · no linked Incident · close permitted</div>
+        <span class="feed-topic">conversation.admin.closed</span>
+        <span class="feed-status processed">PROCESSED</span>
+      </div>
+
+      <div class="feed-row">
+        <span class="feed-when">10:42</span>
+        <div class="feed-detail">Hourly custom-attribute sync → 487 contacts updated (BMI · current_dose · last_order_date · clinic_id) · clinical fields blocked</div>
+        <span class="feed-topic outbound">PUT /contacts/{id} (batch)</span>
+        <span class="feed-status processed">PROCESSED</span>
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Intercom integration</strong> · BLD-INT-INTERCOM-01 (spec §13) · multi-tenant Intercom integration covering inbound webhooks (9 topics live), outbound REST API actions (4 active), brand-aware workspace mapping (VSC + FeelTru on separate Intercom workspaces), and OAuth scope management. Phone-related topics (<code>call.*</code>) blocked pending Intercom Phone scoping decision (DISC-INTERCOM-PHONE-01). For tag → Livera-action rules see the dedicated <a href="livera_settings_intercom_tag_actions.html" style="color:var(--brand-d);font-weight:600;text-decoration:none;">Tag actions</a> screen. Visible to <code>Owner</code>, <code>RM</code>, <code>Admin</code>. Toggle changes audit-logged to AUD-04.
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+</script>
+</body>
+</html>

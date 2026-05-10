@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Clinician Home (SCR-019)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row:hover { background: var(--surface-2); }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .nb-red { background: var(--red-bg); color: var(--red-mid); }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .topbar-greet { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+  .topbar-date { font-size: 12px; color: var(--text-3); }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .status-toggle { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 0.5px solid var(--green-border); background: var(--green-bg); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--green); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;}50%{opacity:0.4;} }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn-sm:hover { background: var(--surface-2); }
+
+  /* Body */
+  .body { flex: 1; overflow-y: auto; padding: 20px 24px; display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-content: start; }
+
+  /* Priority banner */
+  .priority-banner { grid-column: 1 / -1; background: var(--brand-dark); border-radius: var(--r-xl); padding: 16px 20px; display: flex; align-items: center; gap: 16px; color: #fff; }
+  .pb-icon { font-size: 28px; flex-shrink: 0; }
+  .pb-title { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+  .pb-sub { font-size: 13px; color: rgba(255,255,255,0.7); margin-top: 2px; }
+  .pb-stats { display: flex; gap: 20px; margin-left: auto; flex-shrink: 0; }
+  .pb-stat { text-align: center; }
+  .pb-stat-num { font-size: 26px; font-weight: 700; line-height: 1; letter-spacing: -0.5px; }
+  .pb-stat-num.red { color: #fca5a5; }
+  .pb-stat-num.amber { color: #fde68a; }
+  .pb-stat-lbl { font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  /* BLD-2.8 — clickable + pulsing coach-flag stat */
+  .pb-stat.clickable { cursor: pointer; padding: 4px 10px; border-radius: var(--r-md); transition: background 0.15s; position: relative; }
+  .pb-stat.clickable:hover { background: rgba(255,255,255,0.1); }
+  .pb-stat.clickable .pb-stat-lbl { color: rgba(255,255,255,0.85); font-weight: 600; }
+  .pb-stat.coach-flag .pb-stat-num.red { animation: flag-pulse 2.4s ease-in-out infinite; }
+  @keyframes flag-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  .pb-stat.coach-flag::before { content: '⚑'; position: absolute; top: -2px; right: -2px; font-size: 10px; color: #fca5a5; }
+  .pb-ctas { display: flex; gap: 8px; flex-shrink: 0; }
+  .pb-cta-secondary { background: transparent; color: rgba(255,255,255,0.85); border: 1px solid rgba(255,255,255,0.25); padding: 8px 14px; border-radius: var(--r-md); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .pb-cta-secondary:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  /* BLD-2.8 — flash highlight when escalation card scrolled into view */
+  .card.flash-highlight { animation: card-flash 1.4s ease-out; }
+  @keyframes card-flash { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); } 50% { box-shadow: 0 0 0 6px rgba(220,38,38,0.18); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
+  .pb-cta { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.25); padding: 8px 16px; border-radius: var(--r-md); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; flex-shrink: 0; }
+  .pb-cta:hover { background: rgba(255,255,255,0.25); }
+
+  /* Cards */
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .card-head { padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .card-sub { font-size: 11px; color: var(--text-3); }
+  .card-body { padding: 0; }
+  .card-link { font-size: 12px; color: var(--brand-dark); text-decoration: none; font-weight: 500; }
+  .card-link:hover { text-decoration: underline; }
+  .card-ct { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+  .card-ct.red { background: var(--red-bg); color: var(--red); }
+  .card-ct.amber { background: var(--amber-bg); color: var(--amber); }
+
+  /* Review queue rows */
+  .qrow { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 0.5px solid var(--border); cursor: pointer; transition: background 0.1s; }
+  .qrow:last-child { border-bottom: none; }
+  .qrow:hover { background: var(--brand-light); }
+  .qrow.flagged { border-left: 3px solid var(--amber); }
+  .qrow.overdue { border-left: 3px solid var(--red-mid); }
+  .qrow-av { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .qrow-info { flex: 1; min-width: 0; }
+  .qrow-name { font-size: 13px; font-weight: 600; color: var(--text-1); display: flex; align-items: center; gap: 6px; }
+  .qrow-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+  .qrow-flags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .flag-chip { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+  .fc-nice { background: var(--amber-bg); color: var(--amber); }
+  .fc-cardiac { background: var(--amber-bg); color: var(--amber); }
+  .qrow-age { text-align: right; flex-shrink: 0; }
+  .age-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+  .ab-green { background: var(--green-bg); color: var(--green); }
+  .ab-amber { background: var(--amber-bg); color: var(--amber); }
+  .ab-red { background: var(--red-bg); color: var(--red-mid); }
+  .review-btn { padding: 5px 12px; border-radius: var(--r-md); border: 0.5px solid var(--border-strong); background: var(--brand-dark); font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; color: #fff; margin-top: 4px; white-space: nowrap; }
+  .review-btn:hover { background: #3730a3; }
+
+  /* === BLD-2.7 Coach Escalation row === */
+  .esc-row { display: flex; align-items: flex-start; gap: 10px; padding: 11px 16px; border-bottom: 0.5px solid var(--border); cursor: pointer; transition: background 0.1s; border-left: 3px solid var(--red-mid); }
+  .esc-row:last-child { border-bottom: none; }
+  .esc-row:hover { background: var(--surface-2); }
+  .esc-icon-sm { width: 26px; height: 26px; border-radius: 5px; background: var(--red-bg); border: 0.5px solid var(--red-border); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 1px; }
+  .esc-body-sm { flex: 1; min-width: 0; }
+  .esc-title-sm { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .esc-patient-sm { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .esc-coach-row { font-size: 10px; color: var(--text-3); margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .esc-coach-name { color: var(--brand-dark); font-weight: 600; }
+  .esc-state-chip { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .ess-open { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+  .ess-ack { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
+  .ess-resolved { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-border); }
+  .esc-sla-sm { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; flex-shrink: 0; align-self: flex-start; }
+  .esc-sla-sm.red { background: var(--red-bg); color: var(--red-mid); }
+  .esc-sla-sm.amber { background: var(--amber-bg); color: var(--amber); }
+
+  /* === BLD-3.1 Intervention SLA rows === */
+  .int-row { display: flex; align-items: flex-start; gap: 10px; padding: 11px 16px; border-bottom: 0.5px solid var(--border); cursor: pointer; transition: background 0.1s; border-left: 3px solid var(--amber); }
+  .int-row:last-child { border-bottom: none; }
+  .int-row.breach { border-left-color: var(--red-mid); background: linear-gradient(90deg, rgba(220,38,38,0.04), transparent 60%); }
+  .int-row:hover { background: var(--surface-2); }
+  .int-row.breach:hover { background: linear-gradient(90deg, rgba(220,38,38,0.08), var(--surface-2) 80%); }
+  .int-icon-sm { width: 26px; height: 26px; border-radius: 5px; background: var(--amber-bg); border: 0.5px solid var(--amber-border); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 1px; }
+  .int-row.breach .int-icon-sm { background: var(--red-bg); border-color: var(--red-border); }
+  .int-body-sm { flex: 1; min-width: 0; }
+  .int-title-sm { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .int-patient-sm { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .int-reason-sm { font-size: 11px; color: var(--text-2); margin-top: 4px; line-height: 1.4; }
+  .int-meta-row { font-size: 10px; color: var(--text-3); margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .int-sla-sm { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; flex-shrink: 0; align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; border: 0.5px solid; }
+  .int-sla-sm.green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .int-sla-sm.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .int-sla-sm.red { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .int-sla-sm .pulse-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: pulse-int 2.4s ease-in-out infinite; }
+  @keyframes pulse-int { 0%,100%{opacity:1;}50%{opacity:0.4;} }
+
+  /* Today's schedule */
+  .sched-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 16px; border-bottom: 0.5px solid var(--border); cursor: pointer; transition: background 0.1s; }
+  .sched-row:last-child { border-bottom: none; }
+  .sched-row:hover { background: var(--surface-2); }
+  .sched-time { font-size: 11px; font-weight: 700; color: var(--text-3); width: 44px; flex-shrink: 0; margin-top: 2px; text-align: right; }
+  .sched-bar { width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; min-height: 36px; }
+  .sched-info { flex: 1; }
+  .sched-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .sched-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+  .sched-chip { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px; border: 0.5px solid; margin-top: 4px; display: inline-flex; }
+  .sc-video { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .sc-review { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+
+  /* Metrics */
+  .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 16px; }
+  .metric { padding: 10px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); }
+  .metric-label { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .metric-value { font-size: 20px; font-weight: 700; color: var(--text-1); line-height: 1; letter-spacing: -0.5px; }
+  .metric-value.g { color: var(--green); }
+  .metric-value.a { color: var(--amber); }
+  .metric-sub { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+
+  /* Incidents */
+  .inc-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 0.5px solid var(--border); cursor: pointer; }
+  .inc-row:last-child { border-bottom: none; }
+  .inc-row:hover { background: var(--surface-2); }
+  .inc-sev { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; border: 0.5px solid; white-space: nowrap; }
+  .is-mild { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .is-mod { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .inc-name { font-size: 12px; color: var(--text-1); flex: 1; font-weight: 500; }
+  .inc-patient { font-size: 11px; color: var(--text-3); }
+  .inc-age { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+
+  /* GP letters */
+  .gp-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 0.5px solid var(--border); cursor: pointer; }
+  .gp-row:last-child { border-bottom: none; }
+  .gp-row:hover { background: var(--surface-2); }
+  .gp-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .gp-auto { background: var(--purple); }
+  .gp-man { background: var(--text-3); }
+  .gp-info { flex: 1; }
+  .gp-patient { font-size: 12px; font-weight: 500; color: var(--text-1); }
+  .gp-sub { font-size: 11px; color: var(--text-3); }
+  .gp-status { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+  .gp-draft { background: var(--amber-bg); color: var(--amber); }
+  .gp-sent { background: var(--green-bg); color: var(--green); }
+
+  /* FAB */
+  .fab-wrap { position: fixed; bottom: 28px; right: 28px; z-index: 100; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .fab-main { width: 52px; height: 52px; border-radius: 50%; background: var(--brand-dark); color: #fff; border: none; cursor: pointer; font-size: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(67,56,202,0.4); transition: all 0.2s; font-family: inherit; }
+  .fab-main:hover { background: #3730a3; transform: scale(1.05); }
+  .fab-main.open { background: #374151; transform: rotate(45deg); }
+  .fab-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; opacity: 0; pointer-events: none; transform: translateY(10px); transition: all 0.2s ease; }
+  .fab-actions.open { opacity: 1; pointer-events: all; transform: translateY(0); }
+  .fab-action { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .fab-action-label { background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .fab-icon-btn { width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15); transition: transform 0.15s; flex-shrink: 0; }
+  .fab-icon-btn:hover { transform: scale(1.1); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 90px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 300; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .toast.show { display: flex; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* Workspace switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); transition:background .12s; position:relative; }
+  .ws-switcher:hover { background:var(--surface-2); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); flex-shrink:0; }
+  .ws-menu { display:none; position:absolute; top:54px; left:8px; right:8px; background:var(--surface); border:0.5px solid var(--border-strong); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:500; overflow:hidden; }
+  .ws-menu.open { display:block; }
+  .ws-menu-item { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; transition:background .1s; }
+  .ws-menu-item:hover { background:var(--surface-2); }
+  .ws-menu-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ws-menu-name { font-size:12px; font-weight:600; color:var(--text-1); }
+  .ws-menu-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-menu-check { font-size:12px; color:#4338ca; font-weight:700; flex-shrink:0; }
+
+  /* === BLD-2.7 Escalation Detail Modal === */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 24px; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--r-lg); width: 600px; max-width: 100%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.25); }
+  .modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
+  .modal-icon-wrap { width: 36px; height: 36px; border-radius: 8px; background: var(--red-bg); border: 0.5px solid var(--red-border); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .modal-title-block { flex: 1; min-width: 0; }
+  .modal-title { font-size: 16px; font-weight: 700; color: var(--text-1); letter-spacing: -0.2px; }
+  .modal-sub { font-size: 12px; color: var(--text-3); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .modal-close { width: 28px; height: 28px; border: none; background: var(--surface-2); border-radius: 50%; cursor: pointer; font-size: 16px; color: var(--text-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: inherit; }
+  .modal-close:hover { background: var(--surface-3); }
+  .modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  .modal-section-label { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .modal-info-card { padding: 12px 14px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); font-size: 13px; color: var(--text-1); line-height: 1.5; }
+  .modal-info-card.red-tint { background: var(--red-bg); border-color: var(--red-border); }
+  .modal-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-meta { padding: 10px 12px; background: var(--surface-2); border-radius: var(--r-sm); border: 0.5px solid var(--border); }
+  .modal-meta-label { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .modal-meta-value { font-size: 13px; font-weight: 600; color: var(--text-1); }
+
+  .activity-log { display: flex; flex-direction: column; }
+  .activity-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); margin-top: 6px; flex-shrink: 0; }
+  .activity-dot.green { background: var(--green); }
+  .activity-dot.amber { background: var(--amber); }
+  .activity-dot.red { background: var(--red); }
+  .activity-content { flex: 1; }
+  .activity-title { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .activity-meta { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  .modal-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); background: var(--surface-2); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .modal-actions-left { display: flex; gap: 8px; }
+  .modal-actions-right { display: flex; gap: 8px; }
+  .modal-btn { padding: 8px 14px; border-radius: var(--r-md); font-size: 12px; font-weight: 600; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .modal-btn:hover { background: var(--surface-2); }
+  .modal-btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .modal-btn.primary:hover { background: #3730a3; }
+  .modal-btn.amber { background: var(--amber); color: #fff; border-color: var(--amber); }
+  .modal-btn.amber:hover { background: #92400e; }
+  .modal-btn.green { background: var(--green); color: #fff; border-color: var(--green); }
+  .modal-btn.green:hover { background: #14532d; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html" class="active"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-greet">Good morning, Claire 👋</div>
+        <div class="topbar-date">Thursday, 30 April 2026 · FeelTru Clinic</div>
+      </div>
+      <div class="topbar-right">
+        <div class="status-toggle" onclick="toggleStatus(this)">
+          <div class="status-dot"></div>
+          Available for review
+        </div>
+        <button class="btn-sm" onclick="showToast('Opening Calendly availability settings')">Manage availability</button>
+      </div>
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-019 — Clinician Home · Coach Escalations + Interventions (BLD-2.7 / BLD-2.8 / BLD-3.1)</span>
+      <span class="at">BLD-2.7</span>
+      <span class="at">BLD-2.8</span>
+      <span class="at">BLD-3.1</span>
+      <span>Intervention SLA chips green/amber/red · breached row prefixed red border + faint red wash · Coach SLAs separate (24h)</span>
+      <span class="at">FeelTru only</span>
+    </div>
+
+    <div class="body">
+
+      <!-- Priority banner — BLD-2.8 -->
+      <div class="priority-banner">
+        <div class="pb-icon">⚡</div>
+        <div>
+          <div class="pb-title" id="pbTitle">3 orders + 2 coach escalations + 1 intervention breach</div>
+          <div class="pb-sub" id="pbSub">2 orders waiting over 24h · 1 escalation under 24h SLA · 1 intervention SLA breached</div>
+        </div>
+        <div class="pb-stats">
+          <div class="pb-stat">
+            <div class="pb-stat-num red">2</div>
+            <div class="pb-stat-lbl">Overdue</div>
+          </div>
+          <!-- BLD-2.8: clickable, pulsing coach-flag stat with ⚑ marker -->
+          <div class="pb-stat clickable coach-flag" id="pbCoachFlag" onclick="scrollToEscalations()" title="Jump to coach escalations">
+            <div class="pb-stat-num red">2</div>
+            <div class="pb-stat-lbl">Coach flags</div>
+          </div>
+          <div class="pb-stat">
+            <div class="pb-stat-num">3h</div>
+            <div class="pb-stat-lbl">Avg wait</div>
+          </div>
+        </div>
+        <div class="pb-ctas">
+          <button class="pb-cta-secondary" id="pbViewEscBtn" onclick="scrollToEscalations()">⚑ View escalations</button>
+          <button class="pb-cta" onclick="window.location='livera_prototype_02_clinical_check_queue.html'">Open review queue →</button>
+        </div>
+      </div>
+
+      <!-- Left column -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        <!-- Clinical review queue -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Clinical Check queue</div>
+            <a href="livera_prototype_02_clinical_check_queue.html" class="card-link">View all →</a>
+          </div>
+          <div class="card-body">
+
+            <div class="qrow overdue flagged" onclick="window.location='livera_prototype_01c_order_review_weight_chart.html'">
+              <div class="qrow-av" style="background:#9697E8;">SC</div>
+              <div class="qrow-info">
+                <div class="qrow-name">
+                  Sarah Cookland
+                  <span style="font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:1px 6px;border-radius:4px;">Order 6</span>
+                </div>
+                <div class="qrow-sub">Mounjaro 5mg · Weight loss 4.1% — below NICE ≥5% target</div>
+                <div class="qrow-flags">
+                  <span class="flag-chip fc-nice">⚠ NICE</span>
+                  <span class="flag-chip fc-cardiac">⚠ Cardiac</span>
+                </div>
+              </div>
+              <div class="qrow-age">
+                <div class="age-badge ab-red">⏱ 26h</div>
+                <button class="review-btn" onclick="event.stopPropagation();window.location='livera_prototype_01c_order_review_weight_chart.html'">Review →</button>
+              </div>
+            </div>
+
+            <div class="qrow flagged" onclick="window.location='livera_prototype_01c_order_review_weight_chart.html'">
+              <div class="qrow-av" style="background:#6366f1;">HM</div>
+              <div class="qrow-info">
+                <div class="qrow-name">
+                  Helen Marsh
+                  <span style="font-size:10px;font-weight:600;color:var(--blue);background:var(--blue-bg);padding:1px 6px;border-radius:4px;">Order 1</span>
+                </div>
+                <div class="qrow-sub">Mounjaro 2.5mg · BMI 29.1 — comorbidity documentation needed</div>
+                <div class="qrow-flags"><span class="flag-chip fc-nice">⚠ BMI</span></div>
+              </div>
+              <div class="qrow-age">
+                <div class="age-badge ab-amber">⏱ 14h</div>
+                <button class="review-btn" onclick="event.stopPropagation();window.location='livera_prototype_01c_order_review_weight_chart.html'">Review →</button>
+              </div>
+            </div>
+
+            <div class="qrow" onclick="window.location='livera_prototype_01c_order_review_weight_chart.html'">
+              <div class="qrow-av" style="background:#4338ca;">JP</div>
+              <div class="qrow-info">
+                <div class="qrow-name">
+                  James Patel
+                  <span style="font-size:10px;font-weight:600;color:var(--green);background:var(--green-bg);padding:1px 6px;border-radius:4px;">Order 1</span>
+                </div>
+                <div class="qrow-sub">Wegovy 0.25mg · New patient · no flags</div>
+                <div class="qrow-flags"></div>
+              </div>
+              <div class="qrow-age">
+                <div class="age-badge ab-green">3h</div>
+                <button class="review-btn" onclick="event.stopPropagation();window.location='livera_prototype_01c_order_review_weight_chart.html'">Review →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BLD-2.7 — Coach Escalations card (FeelTru only) -->
+        <div class="card" id="coachEscCard">
+          <div class="card-head">
+            <div class="card-title">⚑ Coach escalations</div>
+            <span class="card-ct red">2 open</span>
+            <a href="#" class="card-link" onclick="return false">View all →</a>
+          </div>
+          <div class="card-body">
+
+            <div class="esc-row" onclick="openEscModal('esc-001')">
+              <div class="esc-icon-sm">⚑</div>
+              <div class="esc-body-sm">
+                <div class="esc-title-sm">Side effect concern — nausea</div>
+                <div class="esc-patient-sm">Sarah Reynolds · Wegovy 0.5mg · Week 8</div>
+                <div class="esc-coach-row">
+                  <span>Raised by <span class="esc-coach-name">Sarah Wentworth</span> · 29 Apr</span>
+                  <span class="esc-state-chip ess-open">Open</span>
+                </div>
+              </div>
+              <span class="esc-sla-sm red">18h left</span>
+            </div>
+
+            <div class="esc-row" onclick="openEscModal('esc-002')">
+              <div class="esc-icon-sm">⚑</div>
+              <div class="esc-body-sm">
+                <div class="esc-title-sm">Medication query — dose timing</div>
+                <div class="esc-patient-sm">Angela Patel · Mounjaro 2.5mg · Week 2</div>
+                <div class="esc-coach-row">
+                  <span>Raised by <span class="esc-coach-name">Sarah Wentworth</span> · 30 Apr</span>
+                  <span class="esc-state-chip ess-ack">Acknowledged</span>
+                </div>
+              </div>
+              <span class="esc-sla-sm amber">22h left</span>
+            </div>
+
+            <div style="padding:8px 16px;border-top:0.5px solid var(--border);font-size:10px;color:var(--text-3);">
+              Prescriber SLA: 24 working hours from coach escalation · BLD-2.7
+            </div>
+          </div>
+        </div>
+
+        <!-- BLD-3.1 — My Interventions card (7-working-day SLA) -->
+        <div class="card" id="interventionsCard">
+          <div class="card-head">
+            <div class="card-title">⏱ My interventions</div>
+            <span class="card-ct red">1 breached</span>
+            <a href="livera_prototype_09b_orders_list.html" class="card-link">View all →</a>
+          </div>
+          <div class="card-body">
+
+            <div class="int-row breach" onclick="window.location='livera_prototype_10_order_detail_admin.html'">
+              <div class="int-icon-sm">⏱</div>
+              <div class="int-body-sm">
+                <div class="int-title-sm">Margaret Stone · ORD-00408</div>
+                <div class="int-patient-sm">Mounjaro 2.5mg · Initial · raised 17 Apr</div>
+                <div class="int-reason-sm">Cardiac specialist letter requested · awaiting</div>
+                <div class="int-meta-row"><span>Day 9 of 7 · BREACHED</span></div>
+              </div>
+              <span class="int-sla-sm red"><span class="pulse-dot"></span>2d over</span>
+            </div>
+
+            <div class="int-row" onclick="window.location='livera_prototype_10_order_detail_admin.html'">
+              <div class="int-icon-sm">⏱</div>
+              <div class="int-body-sm">
+                <div class="int-title-sm">Naomi Patel · ORD-00422</div>
+                <div class="int-patient-sm">Wegovy 0.5mg · Reorder 3 · raised 23 Apr</div>
+                <div class="int-reason-sm">Weight loss &lt;5% at 12wk · NICE pathway review needed</div>
+                <div class="int-meta-row"><span>Day 5 of 7 · approaching</span></div>
+              </div>
+              <span class="int-sla-sm amber"><span class="pulse-dot"></span>2d left</span>
+            </div>
+
+            <div class="int-row" style="border-left-color:var(--green);" onclick="window.location='livera_prototype_10_order_detail_admin.html'">
+              <div class="int-icon-sm" style="background:var(--green-bg);border-color:var(--green-border);">⏱</div>
+              <div class="int-body-sm">
+                <div class="int-title-sm">Andrea Mitchell · ORD-00438</div>
+                <div class="int-patient-sm">Mounjaro 5mg · Reorder 4 · raised 28 Apr</div>
+                <div class="int-reason-sm">GP letter outstanding · awaiting comorbidity confirmation</div>
+                <div class="int-meta-row"><span>Day 2 of 7 · within SLA</span></div>
+              </div>
+              <span class="int-sla-sm green"><span class="pulse-dot"></span>5d left</span>
+            </div>
+
+            <div style="padding:8px 16px;border-top:0.5px solid var(--border);font-size:10px;color:var(--text-3);">
+              Prescriber SLA: 7 working days from intervention raised · BLD-3.1 · Coach Clinical Escalations have separate 24h SLA
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">My prescribing — April 2026</div>
+            <div class="card-sub">Month to date</div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric">
+              <div class="metric-label">Orders reviewed</div>
+              <div class="metric-value">24</div>
+              <div class="metric-sub">This month</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Approval rate</div>
+              <div class="metric-value g">79%</div>
+              <div class="metric-sub">19 approved · 5 rejected</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Avg review time</div>
+              <div class="metric-value">3.8<span style="font-size:13px;font-weight:400;color:var(--text-3);">h</span></div>
+              <div class="metric-sub">Target: ≤4h</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Interventions</div>
+              <div class="metric-value a">4</div>
+              <div class="metric-sub">Awaiting resolution</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Open incidents -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">My open incidents</div>
+            <a href="livera_scr_incident_detail_intercom.html" class="card-link">View all →</a>
+          </div>
+          <div class="card-body">
+            <div class="inc-row" onclick="window.location='livera_prototype_12_incident_detail.html'">
+              <div class="inc-sev is-mod">Moderate</div>
+              <div style="flex:1;">
+                <div class="inc-name">Persistent nausea — INC-0044</div>
+                <div class="inc-patient">Rachel Hewson · Mounjaro 5mg</div>
+              </div>
+              <div class="inc-age">4h open</div>
+            </div>
+            <div class="inc-row">
+              <div class="inc-sev is-mild">Mild</div>
+              <div style="flex:1;">
+                <div class="inc-name">Injection site bruising — INC-0043</div>
+                <div class="inc-patient">James Patel · Wegovy 0.25mg</div>
+              </div>
+              <div class="inc-age">1d open</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right column -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+
+        <!-- Today's schedule -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Today's schedule</div>
+            <a href="livera_scr_welcome_call_queue.html" class="card-link">Full calendar →</a>
+          </div>
+          <div class="card-body">
+            <div class="sched-row">
+              <div class="sched-time">09:00</div>
+              <div class="sched-bar" style="background:var(--green);"></div>
+              <div class="sched-info">
+                <div class="sched-title">Clinical Check queue</div>
+                <div class="sched-sub">3 orders awaiting review</div>
+                <div class="sched-chip sc-review">📋 Review</div>
+              </div>
+            </div>
+            <div class="sched-row" onclick="window.location='livera_prototype_13_consultations.html'">
+              <div class="sched-time">11:00</div>
+              <div class="sched-bar" style="background:var(--blue);"></div>
+              <div class="sched-info">
+                <div class="sched-title">Sarah Cookland</div>
+                <div class="sched-sub">Weight loss review · INVT-0041</div>
+                <div class="sched-chip sc-video">📹 Video call</div>
+              </div>
+            </div>
+            <div class="sched-row">
+              <div class="sched-time">12:00</div>
+              <div class="sched-bar" style="background:var(--border-strong);opacity:0.4;"></div>
+              <div class="sched-info">
+                <div class="sched-title" style="color:var(--text-3);">Lunch</div>
+                <div class="sched-sub" style="color:var(--text-3);">1 hour break</div>
+              </div>
+            </div>
+            <div class="sched-row" onclick="window.location='livera_prototype_13_consultations.html'">
+              <div class="sched-time">15:30</div>
+              <div class="sched-bar" style="background:var(--blue);"></div>
+              <div class="sched-info">
+                <div class="sched-title">Andrea Mitchell</div>
+                <div class="sched-sub">Dose escalation · INVT-0042</div>
+                <div class="sched-chip sc-video">📹 Video call</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GP letters -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">GP letters</div>
+            <a href="livera_prototype_14_gp_letters.html" class="card-link">View all →</a>
+          </div>
+          <div class="card-body">
+            <div class="gp-row" onclick="window.location='livera_prototype_14_gp_letters.html'">
+              <div class="gp-dot gp-man"></div>
+              <div class="gp-info">
+                <div class="gp-patient">David Wilson</div>
+                <div class="gp-sub">First prescription notification · draft</div>
+              </div>
+              <div class="gp-status gp-draft">Draft</div>
+            </div>
+            <div class="gp-row" onclick="window.location='livera_prototype_14_gp_letters.html'">
+              <div class="gp-dot gp-auto"></div>
+              <div class="gp-info">
+                <div class="gp-patient">Sarah Cookland</div>
+                <div class="gp-sub">Auto-sent · 28 Jan 2026</div>
+              </div>
+              <div class="gp-status gp-sent">Sent</div>
+            </div>
+            <div class="gp-row" onclick="window.location='livera_prototype_14_gp_letters.html'">
+              <div class="gp-dot gp-auto"></div>
+              <div class="gp-info">
+                <div class="gp-patient">Robert Chen</div>
+                <div class="gp-sub">Auto-sent · 01 Feb 2026</div>
+              </div>
+              <div class="gp-status gp-sent">Sent</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compliance snapshot -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">My compliance snapshot</div>
+            <div class="card-sub">This quarter</div>
+          </div>
+          <div class="card-body" style="padding:12px 16px;display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:var(--text-2);">Clinical notes on all decisions</span>
+              <span style="font-size:12px;font-weight:600;color:var(--green);">✓ 100%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:var(--text-2);">NICE CG189 eligibility checked</span>
+              <span style="font-size:12px;font-weight:600;color:var(--green);">✓ 100%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:var(--text-2);">Coach escalations within 24h SLA</span>
+              <span style="font-size:12px;font-weight:600;color:var(--green);">✓ 100%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:var(--text-2);">Interventions within 7 working-day SLA</span>
+              <span style="font-size:12px;font-weight:600;color:var(--red-mid);">⚠ 67%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:var(--text-2);">GP letters sent within 7 days</span>
+              <span style="font-size:12px;font-weight:600;color:var(--amber);">⚠ 92%</span>
+            </div>
+            <div style="margin-top:4px;padding:8px 10px;background:var(--amber-bg);border:0.5px solid var(--amber-border);border-radius:var(--r-sm);font-size:11px;color:var(--amber);line-height:1.5;">
+              ⚠ 1 GP letter sent outside the 7-day window — David Wilson. Draft pending.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- FAB -->
+    <div class="fab-wrap">
+      <div class="fab-actions" id="fab-actions">
+        <div class="fab-action" onclick="closeFAB();window.location='livera_prototype_02_clinical_check_queue.html'">
+          <div class="fab-action-label">Open review queue</div>
+          <button class="fab-icon-btn" style="background:#4338ca;">⚡</button>
+        </div>
+        <div class="fab-action" onclick="closeFAB();showToast('Clinical note modal would open here')">
+          <div class="fab-action-label">Create clinical note</div>
+          <button class="fab-icon-btn" style="background:#16a34a;">📋</button>
+        </div>
+        <div class="fab-action" onclick="closeFAB();showToast('Incident logged')">
+          <div class="fab-action-label">Log incident</div>
+          <button class="fab-icon-btn" style="background:#d97706;">⚠</button>
+        </div>
+        <div class="fab-action" onclick="closeFAB();window.location='livera_prototype_13_consultations.html'">
+          <div class="fab-action-label">Schedule consultation</div>
+          <button class="fab-icon-btn" style="background:#2563eb;">📅</button>
+        </div>
+      </div>
+      <button class="fab-main" id="fab-main" onclick="toggleFAB()">+</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ BLD-2.7 Escalation Detail Modal — same data shape as SCR-040 ═══ -->
+<div class="modal-overlay" id="escModal" onclick="if(event.target===this)closeEscModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-icon-wrap">⚑</div>
+      <div class="modal-title-block">
+        <div class="modal-title" id="escModalTitle">Side effect concern — nausea</div>
+        <div class="modal-sub">
+          <span id="escModalId">FLAG-001</span>
+          <span>·</span>
+          <span id="escModalRaisedBy">Raised by Sarah Wentworth (Coach)</span>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeEscModal()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div>
+        <div class="modal-section-label">Status</div>
+        <div class="modal-meta-grid">
+          <div class="modal-meta">
+            <div class="modal-meta-label">Current State</div>
+            <div class="modal-meta-value">
+              <span class="esc-state-chip ess-open" id="escStateChip">Open</span>
+            </div>
+          </div>
+          <div class="modal-meta">
+            <div class="modal-meta-label">Time to SLA</div>
+            <div class="modal-meta-value" id="escModalSla" style="color:var(--red-mid);">18h left</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-label">Patient & coaching log entry</div>
+        <div class="modal-info-card">
+          <strong id="escModalPatient">Sarah Reynolds</strong> · <span style="color:var(--text-3);" id="escModalTreatment">Wegovy 0.5mg · Week 8</span><br>
+          <span style="font-size:11px;color:var(--text-3);">Linked log entry: <span id="escModalLogRef">LOG-2026-04-29-SR-routine</span></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-label">Coach's clinical concern</div>
+        <div class="modal-info-card red-tint" id="escModalNote">
+          Patient reported persistent nausea for 5 days at routine check-in. Severity: moderate. Patient is still injecting on schedule but expresses concern about continuing at this dose. Requesting prescriber review for possible dose adjustment.
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-label">Activity log</div>
+        <div class="activity-log" id="escActivityLog"></div>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <div class="modal-actions-left">
+        <button class="modal-btn" onclick="window.location='livera_prototype_09_patient_profile.html'">→ Open patient profile</button>
+      </div>
+      <div class="modal-actions-right">
+        <button class="modal-btn amber" onclick="ackEsc()" id="ackBtn">Acknowledge</button>
+        <button class="modal-btn green" onclick="resolveEsc()">Mark resolved</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // FAB
+  let fabOpen = false;
+  function toggleFAB() { fabOpen = !fabOpen; document.getElementById('fab-main').classList.toggle('open', fabOpen); document.getElementById('fab-actions').classList.toggle('open', fabOpen); }
+  function closeFAB() { fabOpen = false; document.getElementById('fab-main').classList.remove('open'); document.getElementById('fab-actions').classList.remove('open'); }
+  document.addEventListener('click', (e) => { if (fabOpen && !e.target.closest('.fab-wrap')) closeFAB(); });
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.innerHTML = '<span style="color:#10b981;">✓</span> ' + msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  function toggleStatus(el) {
+    const isAvailable = el.querySelector('.status-dot').style.background !== 'var(--red-mid)';
+    if (isAvailable) {
+      el.style.background = 'var(--red-bg)';
+      el.style.borderColor = 'var(--red-border)';
+      el.style.color = 'var(--red-mid)';
+      el.querySelector('.status-dot').style.background = 'var(--red-mid)';
+      el.querySelector('.status-dot').style.animation = 'none';
+      el.childNodes[1].textContent = 'Unavailable';
+    } else {
+      el.style.background = 'var(--green-bg)';
+      el.style.borderColor = 'var(--green-border)';
+      el.style.color = 'var(--green)';
+      el.querySelector('.status-dot').style.background = 'var(--green)';
+      el.querySelector('.status-dot').style.animation = 'pulse 2s infinite';
+      el.childNodes[1].textContent = ' Available for review';
+    }
+    showToast(isAvailable ? 'Status set to Unavailable' : 'Status set to Available');
+  }
+
+  // Workspace switcher
+  function toggleWSMenu() { document.getElementById('wsMenu').classList.toggle('open'); }
+  document.addEventListener('click', function(e) { if (!e.target.closest('#wsSwitcher') && !e.target.closest('#wsMenu')) document.getElementById('wsMenu').classList.remove('open'); });
+
+  function setWorkspace(ws) {
+    document.getElementById('wsMenu').classList.remove('open');
+    if (ws === 'feeltru') {
+      document.getElementById('wsName').textContent = 'FeelTru';
+      document.getElementById('check-feeltru').style.opacity = '1';
+      document.getElementById('check-vsc').style.opacity = '0';
+      document.getElementById('coachEscCard').style.display = '';
+      // BLD-2.8: restore banner escalation refs on FeelTru
+      document.getElementById('pbCoachFlag').style.display = '';
+      document.getElementById('pbViewEscBtn').style.display = '';
+      document.getElementById('pbTitle').textContent = '3 orders + 2 coach escalations need your attention';
+      document.getElementById('pbSub').textContent = '2 orders waiting over 24h · 1 escalation under 24h SLA';
+    } else {
+      document.getElementById('wsName').textContent = 'VSC';
+      document.getElementById('check-feeltru').style.opacity = '0';
+      document.getElementById('check-vsc').style.opacity = '1';
+      // BLD-2.7: hide coach escalations on VSC (no coaching role)
+      document.getElementById('coachEscCard').style.display = 'none';
+      // BLD-2.8: hide banner escalation refs on VSC
+      document.getElementById('pbCoachFlag').style.display = 'none';
+      document.getElementById('pbViewEscBtn').style.display = 'none';
+      document.getElementById('pbTitle').textContent = '3 orders waiting for clinical review';
+      document.getElementById('pbSub').textContent = '2 have been waiting over 24 hours — action needed today';
+    }
+  }
+
+  // BLD-2.8 — smooth-scroll from priority banner to coach escalations card with flash highlight
+  function scrollToEscalations() {
+    const card = document.getElementById('coachEscCard');
+    if (!card || card.style.display === 'none') return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.remove('flash-highlight');
+    // re-trigger animation
+    void card.offsetWidth;
+    card.classList.add('flash-highlight');
+    setTimeout(() => card.classList.remove('flash-highlight'), 1500);
+  }
+
+  // === BLD-2.7 Escalation Detail Modal — shared data with SCR-040 ===
+  const escData = {
+    'esc-001': {
+      title: 'Side effect concern — nausea',
+      id: 'FLAG-001',
+      raisedBy: 'Raised by Sarah Wentworth (Coach)',
+      state: 'open',
+      sla: '18h left',
+      slaClass: 'red',
+      patient: 'Sarah Reynolds',
+      treatment: 'Wegovy 0.5mg · Week 8',
+      logRef: 'LOG-2026-04-29-SR-routine',
+      note: 'Patient reported persistent nausea for 5 days at routine check-in. Severity: moderate. Patient is still injecting on schedule but expresses concern about continuing at this dose. Requesting prescriber review for possible dose adjustment.',
+      activity: [
+        { dot: 'red', title: 'Flag raised by Sarah Wentworth (Coach)', meta: '29 Apr 2026, 14:22 · From coaching log entry' },
+        { dot: 'amber', title: 'Prescriber notified via FCM', meta: '29 Apr 2026, 14:22 · Auto-triggered' }
+      ]
+    },
+    'esc-002': {
+      title: 'Medication query — dose timing',
+      id: 'FLAG-002',
+      raisedBy: 'Raised by Sarah Wentworth (Coach)',
+      state: 'ack',
+      sla: '22h left',
+      slaClass: 'amber',
+      patient: 'Angela Patel',
+      treatment: 'Mounjaro 2.5mg · Week 2',
+      logRef: 'LOG-2026-04-30-AP-adhoc',
+      note: 'Patient travelling to USA on 5 May for 10 days. Unsure about injection timing across time zones. Has not had this conversation before. Needs prescriber guidance on how to adjust schedule.',
+      activity: [
+        { dot: 'red', title: 'Flag raised by Sarah Wentworth (Coach)', meta: '30 Apr 2026, 09:15 · From coaching log entry' },
+        { dot: 'amber', title: 'Prescriber notified via FCM', meta: '30 Apr 2026, 09:15 · Auto-triggered' },
+        { dot: 'amber', title: 'Acknowledged by Claire Moynehan (Prescriber)', meta: '30 Apr 2026, 11:48 · "Will respond by EOD"' }
+      ]
+    }
+  };
+
+  function openEscModal(id) {
+    const d = escData[id];
+    if (!d) return;
+    document.getElementById('escModalTitle').textContent = d.title;
+    document.getElementById('escModalId').textContent = d.id;
+    document.getElementById('escModalRaisedBy').textContent = d.raisedBy;
+    document.getElementById('escModalPatient').textContent = d.patient;
+    document.getElementById('escModalTreatment').textContent = d.treatment;
+    document.getElementById('escModalLogRef').textContent = d.logRef;
+    document.getElementById('escModalNote').textContent = d.note;
+    document.getElementById('escModalSla').textContent = d.sla;
+    document.getElementById('escModalSla').style.color = d.slaClass === 'red' ? 'var(--red-mid)' : (d.slaClass === 'amber' ? 'var(--amber)' : 'var(--green)');
+
+    const chip = document.getElementById('escStateChip');
+    chip.className = 'esc-state-chip ess-' + d.state;
+    chip.textContent = d.state === 'open' ? 'Open' : (d.state === 'ack' ? 'Acknowledged' : 'Resolved');
+
+    document.getElementById('ackBtn').style.display = d.state === 'open' ? '' : 'none';
+
+    const log = document.getElementById('escActivityLog');
+    log.innerHTML = '';
+    d.activity.forEach(a => {
+      const item = document.createElement('div');
+      item.className = 'activity-item';
+      item.innerHTML = '<div class="activity-dot ' + a.dot + '"></div><div class="activity-content"><div class="activity-title">' + a.title + '</div><div class="activity-meta">' + a.meta + '</div></div>';
+      log.appendChild(item);
+    });
+
+    document.getElementById('escModal').classList.add('show');
+  }
+
+  function closeEscModal() { document.getElementById('escModal').classList.remove('show'); }
+
+  function ackEsc() {
+    showToast('Escalation acknowledged · timer paused');
+    closeEscModal();
+  }
+
+  function resolveEsc() {
+    showToast('Escalation marked resolved · audit entry logged');
+    closeEscModal();
+  }
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

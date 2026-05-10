@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Clinical Check Queue (age indicator)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4;--gov:#a855f7;--gov-bg:#faf5ff;--gov-bdr:#e9d5ff}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+.main{flex:1;padding:24px 30px;max-width:1320px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}.crumb .cur{color:var(--t1);font-weight:600}
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:18px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#fef3c7 0%,#d97706 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+
+/* Banner */
+.banner{background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:flex-start;gap:12px}
+.banner .ic{width:32px;height:32px;border-radius:8px;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.banner .text{font-size:12px;color:var(--info);line-height:1.5}
+.banner .text strong{color:var(--t1);font-weight:600;display:block;margin-bottom:2px}
+
+/* Health stats strip */
+.age-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--bdr);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.age-stat{background:var(--surface);padding:12px 14px;cursor:pointer;transition:background .12s}
+.age-stat:hover{background:var(--brand-l)}
+.age-stat .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3)}
+.age-stat .val{font-size:24px;font-weight:700;color:var(--t1);line-height:1;margin-top:5px;letter-spacing:-.3px;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:6px}
+.age-stat .val .pct{font-size:12px;font-weight:500;color:var(--t3)}
+.age-stat .meta{font-size:10px;color:var(--t2);margin-top:4px;line-height:1.35}
+.age-stat.fresh{border-left:3px solid var(--ok)}
+.age-stat.fresh .val{color:var(--ok)}
+.age-stat.warm{border-left:3px solid var(--warn)}
+.age-stat.warm .val{color:var(--warn)}
+.age-stat.breach{border-left:3px solid var(--err)}
+.age-stat.breach .val{color:var(--err)}
+
+/* Filter bar */
+.filter-bar{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filter-bar .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3)}
+.fb-group{display:flex;gap:0;border:1px solid var(--bdr-d);border-radius:6px;overflow:hidden}
+.fb-btn{padding:5px 11px;font-size:11px;background:var(--surface);color:var(--t2);border:none;cursor:pointer;font-family:inherit;border-right:1px solid var(--bdr-d);transition:all .12s}
+.fb-btn:last-child{border-right:none}
+.fb-btn.on{background:var(--brand);color:#fff}
+.fb-btn:hover:not(.on){background:var(--brand-l);color:var(--brand-d)}
+
+/* Queue table */
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+.q-head{background:var(--bg);display:grid;grid-template-columns:120px 1fr 130px 130px 200px 110px 90px;padding:9px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);border-bottom:1px solid var(--bdr);align-items:center;gap:0}
+.q-head .sortable{display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:var(--brand-d)}
+.q-head .sortable::after{content:'↓';font-size:11px;opacity:.7}
+
+.q-row{display:grid;grid-template-columns:120px 1fr 130px 130px 200px 110px 90px;padding:11px 18px;border-bottom:1px solid var(--bdr);font-size:12.5px;align-items:center;cursor:pointer;transition:background .12s;gap:0}
+.q-row:hover{background:var(--brand-l)}
+.q-row:last-child{border-bottom:none}
+.q-row.breach{background:#fff6f6}
+.q-row.breach:hover{background:#ffeaea}
+.q-row.warm{background:#fffaf2}
+.q-row.warm:hover{background:#fff3e1}
+
+/* Order ID + clinic flag */
+.q-id{font-family:'SF Mono',monospace;font-size:11px;color:var(--t1);font-weight:600;letter-spacing:-.3px;display:flex;align-items:center;gap:6px}
+.q-id .clinic-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.q-id .clinic-dot.vsc{background:var(--brand)}
+.q-id .clinic-dot.ft{background:#db2777}
+
+/* Patient cell */
+.q-pat{display:flex;align-items:center;gap:9px;min-width:0}
+.q-pat .av{width:28px;height:28px;border-radius:50%;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:-.2px;flex-shrink:0}
+.q-pat .av.f{background:linear-gradient(135deg,#fbcfe8,#db2777)}
+.q-pat .av.m{background:linear-gradient(135deg,#c7d2fe,#818cf8)}
+.q-pat .nm{color:var(--t1);font-weight:600;line-height:1.2}
+.q-pat .meta{font-size:10px;color:var(--t3);margin-top:1px}
+.q-pat .meta code{font-family:'SF Mono',monospace;font-size:10px;background:var(--bg);padding:0 4px;border-radius:3px;color:var(--t3)}
+
+/* Treatment */
+.q-rx .nm{font-size:12px;color:var(--t1);font-weight:500}
+.q-rx .meta{font-size:10px;color:var(--t3);margin-top:1px}
+
+/* Type pill */
+.q-type{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.3px;width:fit-content;text-transform:uppercase}
+.q-type.first{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.q-type.reorder{background:var(--bg);color:var(--t2);border:.5px solid var(--bdr-d)}
+.q-type.reorder.escalation{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+
+/* AGE INDICATOR — the meat of this screen */
+.q-age-cell{display:flex;align-items:center;gap:10px;padding-right:10px}
+.q-age-bar{flex:1;height:6px;background:var(--bdr);border-radius:3px;position:relative;overflow:hidden;min-width:80px}
+.q-age-bar .fill{position:absolute;top:0;left:0;height:100%;border-radius:3px;transition:width .3s}
+.q-age-bar .fill.fresh{background:var(--ok)}
+.q-age-bar .fill.warm{background:var(--warn)}
+.q-age-bar .fill.breach{background:var(--err)}
+.q-age-bar .marker{position:absolute;top:-2px;height:10px;width:1px;background:var(--t3)}
+.q-age-bar .marker.warn-line{left:50%}
+.q-age-bar .marker.breach-line{left:100%;background:var(--err)}
+.q-age-info{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;min-width:64px}
+.q-age-info .age-time{font-size:11.5px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1.1}
+.q-age-info .age-time.warm{color:var(--warn)}
+.q-age-info .age-time.breach{color:var(--err)}
+.q-age-info .age-pct{font-size:9.5px;color:var(--t3);font-variant-numeric:tabular-nums;margin-top:1px;font-weight:600}
+.q-age-info .age-pct.warm{color:var(--warn)}
+.q-age-info .age-pct.breach{color:var(--err)}
+
+/* Status pill */
+.q-stat{font-size:10px;font-weight:700;padding:3px 9px;border-radius:3px;letter-spacing:.3px;width:fit-content;display:inline-flex;align-items:center;gap:5px}
+.q-stat::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.q-stat.cc{background:var(--warn-bg);color:var(--warn)}
+.q-stat.escal{background:var(--err-bg);color:var(--err)}
+
+/* Action */
+.q-act{display:flex;justify-content:flex-end}
+.q-act-btn{padding:5px 11px;font-size:11px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:5px;cursor:pointer;font-family:inherit;transition:all .12s;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.q-act-btn:hover{border-color:var(--brand);color:var(--brand)}
+.q-act-btn.urgent{background:var(--err);color:#fff;border-color:var(--err)}
+.q-act-btn.urgent:hover{background:#b91c1c;border-color:#b91c1c;color:#fff}
+.q-act-btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.q-act-btn.primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+
+/* Legend */
+.legend{padding:10px 18px;background:var(--bg);border-top:1px solid var(--bdr);font-size:11px;color:var(--t2);display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.legend .item{display:flex;align-items:center;gap:6px}
+.legend .item .dot{width:8px;height:8px;border-radius:50%}
+.legend .item .dot.fresh{background:var(--ok)}
+.legend .item .dot.warm{background:var(--warn)}
+.legend .item .dot.breach{background:var(--err)}
+
+/* Footer */
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Charlotte Williams · Prescriber</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_queue_age_indicator.html" class="active"><span class="ico">🩺</span>Clinical Check<span class="badge err">2</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Dashboard</a><span class="sep">›</span>
+      <a href="livera_prototype_02_clinical_check_queue.html">Clinical Check</a><span class="sep">›</span>
+      <span class="cur">Age indicator (full)</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">⏱</div>
+      <div class="pg-info">
+        <h1>Clinical Check Queue · with age indicator <span class="bld-pill">BLD-15.1</span></h1>
+        <div class="sub">Full SLA-percentage treatment · sortable age column · 4-hour approval SLA from <a href="livera_settings_sla_values.html" style="color:var(--brand);text-decoration:none;font-weight:600">SLA values config</a> · auto-escalation at 150% (6h)</div>
+      </div>
+      <div class="pg-actions">
+        <a class="btn" href="livera_settings_sla_values.html">⚙ SLA values</a>
+        <a class="btn primary" href="livera_prototype_02_clinical_check_queue.html">← Back to standard queue</a>
+      </div>
+    </div>
+
+    <div class="banner">
+      <div class="ic">i</div>
+      <div class="text">
+        <strong>How the age indicator works</strong>
+        Each row shows time since order placement against the 4h approval SLA. Bar fills as time elapses · turns amber at 50% (2h) · turns red at 100% (4h SLA breach) · auto-escalates incident at 150% (6h). Sortable: click "Age" header to sort oldest-first or fastest-first. Same engine drives KPI Dashboard SLA compliance metrics.
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="age-stats">
+      <div class="age-stat fresh" onclick="showToast('Filter: fresh only')">
+        <div class="lbl">Fresh (&lt;50% SLA)</div>
+        <div class="val">3 <span class="pct">of 7</span></div>
+        <div class="meta">Under 2 hours · within target</div>
+      </div>
+      <div class="age-stat warm" onclick="showToast('Filter: warm only')">
+        <div class="lbl">Warm (50–100% SLA)</div>
+        <div class="val">2 <span class="pct">of 7</span></div>
+        <div class="meta">Approaching 4h SLA</div>
+      </div>
+      <div class="age-stat breach" onclick="showToast('Filter: breach only')">
+        <div class="lbl">Breach (&gt;100% SLA)</div>
+        <div class="val">2 <span class="pct">of 7</span></div>
+        <div class="meta">Over 4h · KPI compliance impact</div>
+      </div>
+      <div class="age-stat" onclick="showToast('Filter: escalated only')">
+        <div class="lbl">Auto-escalated (&gt;150%)</div>
+        <div class="val">1 <span class="pct">of 7</span></div>
+        <div class="meta">Incident task created · &gt;6h</div>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <span class="lbl">Filter</span>
+      <div class="fb-group">
+        <button class="fb-btn on">All (7)</button>
+        <button class="fb-btn">Breach (2)</button>
+        <button class="fb-btn">Warm (2)</button>
+        <button class="fb-btn">Fresh (3)</button>
+      </div>
+      <span class="lbl" style="margin-left:8px">Clinic</span>
+      <div class="fb-group">
+        <button class="fb-btn on">Both</button>
+        <button class="fb-btn">VSC</button>
+        <button class="fb-btn">FeelTru</button>
+      </div>
+      <span class="lbl" style="margin-left:8px">Type</span>
+      <div class="fb-group">
+        <button class="fb-btn on">All</button>
+        <button class="fb-btn">First order</button>
+        <button class="fb-btn">Reorder</button>
+        <button class="fb-btn">Dose escalation</button>
+      </div>
+      <span style="margin-left:auto;font-size:11px;color:var(--t3)">Sorted by age · oldest first</span>
+    </div>
+
+    <!-- Queue with age indicator -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🩺 In Clinical Check · 7 orders</div>
+        <div class="sub">Age tracks against 4h approval SLA · click any row to open Order Detail</div>
+        <div class="right">SLA threshold from <code style="font-family:'SF Mono',monospace;font-size:10.5px;background:var(--bg);padding:1px 5px;border-radius:3px;color:var(--t2)">sla.approval_hours = 4h</code></div>
+      </div>
+      <div style="padding:0">
+        <div class="q-head">
+          <span>Order</span>
+          <span>Patient</span>
+          <span>Treatment</span>
+          <span>Type</span>
+          <span class="sortable">Age vs SLA (4h)</span>
+          <span>Status</span>
+          <span style="text-align:right">Action</span>
+        </div>
+
+        <!-- Auto-escalated breach (180% — 7h 12m) -->
+        <div class="q-row breach" onclick="window.location.href='livera_prototype_10_order_detail.html'">
+          <span class="q-id"><span class="clinic-dot vsc"></span>ORD-00441</span>
+          <span class="q-pat">
+            <span class="av f">SC</span>
+            <span><div class="nm">Sarah Cookland</div><div class="meta"><code>PT-00198</code> · F · 38</div></span>
+          </span>
+          <span class="q-rx">
+            <div class="nm">Mounjaro 5mg → 7.5mg</div>
+            <div class="meta">Reorder · dose escalation · B4 flag</div>
+          </span>
+          <span><span class="q-type reorder escalation">Escalation</span></span>
+          <span class="q-age-cell">
+            <div class="q-age-bar">
+              <div class="fill breach" style="width:100%"></div>
+              <span class="marker warn-line"></span>
+              <span class="marker breach-line"></span>
+            </div>
+            <div class="q-age-info">
+              <div class="age-time breach">7h 12m</div>
+              <div class="age-pct breach">180% · escalated</div>
+            </div>
+          </span>
+          <span><span class="q-stat escal">ESCALATED</span></span>
+          <span class="q-act"><a class="q-act-btn urgent" onclick="event.stopPropagation();window.location.href='livera_prototype_10_order_detail.html'">Review now →</a></span>
+        </div>
+
+        <!-- Breach (140% — 5h 36m) -->
+        <div class="q-row breach" onclick="window.location.href='livera_prototype_02_clinical_check_queue.html'">
+          <span class="q-id"><span class="clinic-dot vsc"></span>ORD-00442</span>
+          <span class="q-pat">
+            <span class="av f">RH</span>
+            <span><div class="nm">Rachel Hewson</div><div class="meta"><code>PT-00211</code> · F · 34</div></span>
+          </span>
+          <span class="q-rx">
+            <div class="nm">Wegovy 0.25mg</div>
+            <div class="meta">First order · BMI 32.1 · cleared</div>
+          </span>
+          <span><span class="q-type first">First</span></span>
+          <span class="q-age-cell">
+            <div class="q-age-bar">
+              <div class="fill breach" style="width:100%"></div>
+              <span class="marker warn-line"></span>
+              <span class="marker breach-line"></span>
+            </div>
+            <div class="q-age-info">
+              <div class="age-time breach">5h 36m</div>
+              <div class="age-pct breach">140% · breach</div>
+            </div>
+          </span>
+          <span><span class="q-stat cc" style="background:var(--err-bg);color:var(--err)">BREACH</span></span>
+          <span class="q-act"><a class="q-act-btn urgent" onclick="event.stopPropagation();window.location.href='livera_prototype_02_clinical_check_queue.html'">Review →</a></span>
+        </div>
+
+        <!-- Warm (87% — 3h 28m) -->
+        <div class="q-row warm" onclick="window.location.href='livera_prototype_02_clinical_check_queue.html'">
+          <span class="q-id"><span class="clinic-dot vsc"></span>ORD-00449</span>
+          <span class="q-pat">
+            <span class="av m">PT</span>
+            <span><div class="nm">Paul Thornton</div><div class="meta"><code>PT-00189</code> · M · 47</div></span>
+          </span>
+          <span class="q-rx">
+            <div class="nm">Mounjaro 5mg</div>
+            <div class="meta">Reorder · standard refill</div>
+          </span>
+          <span><span class="q-type reorder">Reorder</span></span>
+          <span class="q-age-cell">
+            <div class="q-age-bar">
+              <div class="fill warm" style="width:87%"></div>
+              <span class="marker warn-line"></span>
+              <span class="marker breach-line"></span>
+            </div>
+            <div class="q-age-info">
+              <div class="age-time warm">3h 28m</div>
+              <div class="age-pct warm">87% · warm</div>
+            </div>
+          </span>
+          <span><span class="q-stat cc">PENDING</span></span>
+          <span class="q-act"><a class="q-act-btn primary" onclick="event.stopPropagation();window.location.href='livera_prototype_02_clinical_check_queue.html'">Review →</a></span>
+        </div>
+
+        <!-- Warm (62% — 2h 28m) -->
+        <div class="q-row warm" onclick="window.location.href='livera_prototype_02_clinical_check_queue.html'">
+          <span class="q-id"><span class="clinic-dot ft"></span>ORD-00451</span>
+          <span class="q-pat">
+            <span class="av f">JB</span>
+            <span><div class="nm">Julia Barker</div><div class="meta"><code>PT-FT-00031</code> · F · 41 · FeelTru</div></span>
+          </span>
+          <span class="q-rx">
+            <div class="nm">Wegovy 0.5mg</div>
+            <div class="meta">Reorder · standard refill</div>
+          </span>
+          <span><span class="q-type reorder">Reorder</span></span>
+          <span class="q-age-cell">
+            <div class="q-age-bar">
+              <div class="fill warm" style="width:62%"></div>
+              <span class="marker warn-line"></span>
+              <span class="marker breach-line"></span>
+            </div>
+            <div class="q-age-info">
+              <div class="age-time warm">2h 28m</div>
+              <div class="age-pct warm">62% · warm</div>
+            </div>
+          </span>
+          <span><span class="q-stat cc">PENDING</span></span>
+          <span class="q-act"><a class="q-act-btn primary" onclick="event.stopPropagation();window.location.href='livera_prototype_02_clinical_check_queue.html'">Review →</a></span>
+        </div>
+
+        <!-- Fresh (40% — 1h 36m) -->
+        <div class="q-row" onclick="window.location.href='livera_prototype_02_clinical_check_queue.html'">
+          <span class="q-id"><span class="clinic-dot vsc"></span>ORD-00453</span>
+          <span class="q-pat">
+            <span class="av f">MK</span>
+            <span><div class="nm">Maria Kowalski</div><div class="meta"><code>PT-00219</code> · F · 32</div></span>
+          </span>
+          <span class="q-rx">
+            <div class="nm">Mounjaro 2.5mg</div>
+            <div class="meta">First order · BMI 33.4</div>
+          </span>
+          <span><span class="q-type first">First</span></span>
+          <span class="q-age-cell">
+            <div class="q-age-bar">
+              <div class="fill fresh" style="width:40%"></div>
+              <span class="marker warn-line"></span>
+              <span class="marker breach-line"></span>
+            </div>
+            <div class="q-age-info">
+              <div class="age-time">1h 36m</div>
+              <div class="age-pct">40% · fresh</div>
+            </div>
+          </span>
+          <span><span class="q-stat cc">PENDING</span></span>
+          <span class="q-act"><a class="q-act-btn" onclick="event.stopPropagation();window.location.href='livera_prototype_02_clinical_check_queue.html'">Review</a></span>
+        </div>
+
+        <!-- Fresh (28% — 1h 8m) -->
+        <div class="q-row" onclick="window.location.href='livera_prototype_02_clinical_check_queue.html'">
+          <span class="q-id"><span class="clinic-dot vsc"></span>ORD-00454</span>
+          <span class="q-pat">
+            <span class="av m">JT</span>
+            <span><div class="nm">James Turner</div><div class="meta"><code>PT-00176</code> · M · 44</div></span>
+          </span>
+          <span class="q-rx">
+            <div class="nm">Mounjaro 7.5mg → 10mg</div>
+            <div class="meta">Reorder · dose escalation</div>
+          </span>
+          <span><span class="q-type reorder escalation">Escalation</span></span>
+          <span class="q-age-cell">
+            <div class="q-age-bar">
+              <div class="fill fresh" style="width:28%"></div>
+              <span class="marker warn-line"></span>
+              <span class="marker breach-line"></span>
+            </div>
+            <div class="q-age-info">
+              <div class="age-time">1h 8m</div>
+              <div class="age-pct">28% · fresh</div>
+            </div>
+          </span>
+          <span><span class="q-stat cc">PENDING</span></span>
+          <span class="q-act"><a class="q-act-btn" onclick="event.stopPropagation();window.location.href='livera_prototype_02_clinical_check_queue.html'">Review</a></span>
+        </div>
+
+        <!-- Fresh (8% — 18m) -->
+        <div class="q-row" onclick="window.location.href='livera_prototype_02_clinical_check_queue.html'">
+          <span class="q-id"><span class="clinic-dot ft"></span>ORD-00455</span>
+          <span class="q-pat">
+            <span class="av f">SK</span>
+            <span><div class="nm">Sophia Kapoor</div><div class="meta"><code>PT-FT-00029</code> · F · 51 · FeelTru</div></span>
+          </span>
+          <span class="q-rx">
+            <div class="nm">Wegovy 0.25mg</div>
+            <div class="meta">First order · BMI 31.7</div>
+          </span>
+          <span><span class="q-type first">First</span></span>
+          <span class="q-age-cell">
+            <div class="q-age-bar">
+              <div class="fill fresh" style="width:8%"></div>
+              <span class="marker warn-line"></span>
+              <span class="marker breach-line"></span>
+            </div>
+            <div class="q-age-info">
+              <div class="age-time">18m</div>
+              <div class="age-pct">8% · fresh</div>
+            </div>
+          </span>
+          <span><span class="q-stat cc">PENDING</span></span>
+          <span class="q-act"><a class="q-act-btn" onclick="event.stopPropagation();window.location.href='livera_prototype_02_clinical_check_queue.html'">Review</a></span>
+        </div>
+
+      </div>
+
+      <div class="legend">
+        <div class="item"><span class="dot fresh"></span>Fresh · &lt;50% SLA · within target</div>
+        <div class="item"><span class="dot warm"></span>Warm · 50–100% SLA · approaching breach</div>
+        <div class="item"><span class="dot breach"></span>Breach · &gt;100% SLA · counts against KPI compliance</div>
+        <div style="margin-left:auto;font-size:10.5px;color:var(--t3)">Auto-escalation triggers incident at 150% · configurable in <a href="livera_settings_sla_values.html" style="color:var(--brand);text-decoration:none;font-weight:600">SLA values</a></div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="perm-note">
+      <strong>Queue age indicator</strong> · BLD-15.1 · operational SLA visibility on the Clinical Check queue. SLA threshold (4h default), warn point (50%), and escalation point (150%) all configurable in <a href="livera_settings_sla_values.html" style="color:var(--brand);text-decoration:none;font-weight:600">SLA values</a>. Same engine drives KPI Dashboard SLA compliance metrics, queue tinting, and auto-escalation. Visible to <code>Owner</code>, <code>RM</code>, <code>Prescriber</code> · <code>Coach</code> sees only assigned-patient orders · others read-only.
+    </div>
+
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

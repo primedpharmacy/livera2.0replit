@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<!--
+  CANONICAL SHELL TEMPLATE v1
+  Date locked: 7 May 2026
+  Single source of truth for shell-drift fix pass
+
+  USAGE:
+  - Copy the <style> :root block AND the topnav/sidebar markup verbatim
+  - Replace `VSC — Quanta Healthcare Ltd` with the per-screen workspace (e.g. "VSC — Quanta Healthcare Ltd")
+  - Replace `Charlotte Williams · PRESCRIBER` with the per-screen user
+  - Replace `primed-flags` with the slug of the active sidebar item:
+       dashboard | patients | orders | clinical-check | tasks | welcome-calls
+       complaints | incidents | gp-letters | kpi-dashboard | primed-flags | reports | settings
+  - Strip any `<div id="livera-nav">…</div>` demo strip from the source file
+  - Bump sidebar width from 218px → 240px if drifting
+  - Drop the body workspace data-attr if present (data-workspace="…")
+  - Replace any embedded ws-switcher (.ws-switcher) with the canonical topnav .ws element
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Flag Detail</title>
+
+<!-- ============ CANONICAL CSS — copy verbatim ============ -->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --nav-2:#312e81;
+  --surface:#ffffff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --gov:#a855f7; --gov-bg:#faf5ff; --gov-bdr:#e9d5ff;
+}
+
+/* TOP NAV (canonical) */
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+
+/* LAYOUT (canonical) */
+.layout{display:flex;min-height:calc(100vh - 36px)}
+
+/* SIDEBAR (canonical 240px) */
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+
+/* MAIN content area */
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+</style>
+</head>
+
+<body>
+
+<!-- ============ CANONICAL TOPNAV — copy verbatim ============ -->
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC — Quanta Healthcare Ltd and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Charlotte Williams · PRESCRIBER</span></div>
+</header>
+
+<div class="layout">
+
+  <!-- ============ CANONICAL SIDEBAR — copy verbatim ============
+       Set class="active" on the row matching the current screen.
+       Active class data-key reference at the top of the comment block above.
+  -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html" data-key="dashboard"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html" data-key="patients"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html" data-key="orders"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html" data-key="clinical-check"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html" data-key="tasks"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html" data-key="welcome-calls"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html" data-key="complaints"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html" data-key="incidents"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html" data-key="gp-letters"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html" data-key="kpi-dashboard"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html" data-key="primed-flags"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html" data-key="reports"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" data-key="settings"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <!-- ============== Flag Detail screen ============== -->
+    <style>
+      .fd-topbar { padding: 12px 24px; border-bottom: 0.5px solid #e5e7eb; background: #fff; }
+      .fd-breadcrumb { font-size: 11.5px; color: #6b7280; display: flex; align-items: center; gap: 6px; }
+      .fd-breadcrumb a { color: var(--brand, #6366f1); text-decoration: none; font-weight: 500; }
+      .fd-breadcrumb a:hover { text-decoration: underline; }
+      .fd-breadcrumb .sep { color: #d1d5db; }
+      .fd-content { padding: 22px 24px; max-width: 1100px; }
+      
+      .fd-header { background: #fff; border: 0.5px solid #e5e7eb; border-radius: 10px; padding: 18px 22px; margin-bottom: 18px; display: grid; grid-template-columns: 1fr auto; gap: 14px; }
+      .fd-header-main { display: flex; gap: 14px; }
+      .fd-flag-icon { width: 48px; height: 48px; border-radius: 10px; background: linear-gradient(135deg, #fef2f2, #fecaca); color: #b91c1c; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+      .fd-title-block h1 { margin: 0; font-size: 18px; font-weight: 700; color: #1f2937; line-height: 1.3; letter-spacing: -0.2px; }
+      .fd-flag-id { font-family: 'SF Mono', monospace; font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 7px; border-radius: 3px; font-weight: 500; margin-right: 6px; vertical-align: middle; }
+      .fd-meta { font-size: 12px; color: #6b7280; margin-top: 5px; line-height: 1.55; }
+      .fd-meta strong { color: #374151; }
+      .fd-meta a { color: #4338ca; text-decoration: none; font-weight: 600; }
+      .fd-meta a:hover { text-decoration: underline; }
+      
+      .fd-status-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+      .fd-pill { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px; }
+      .fd-pill.crit { background: #fef2f2; color: #991b1b; border: 0.5px solid #fecaca; }
+      .fd-pill.high { background: #fed7aa; color: #9a3412; border: 0.5px solid #fdba74; }
+      .fd-pill.med  { background: #fef3c7; color: #92400e; border: 0.5px solid #fde68a; }
+      .fd-pill.low  { background: #dbeafe; color: #1e40af; border: 0.5px solid #bfdbfe; }
+      .fd-pill.open { background: #fef2f2; color: #b91c1c; border: 0.5px solid #fecaca; }
+      .fd-pill.acknowledged { background: #fffbeb; color: #92400e; border: 0.5px solid #fde68a; }
+      .fd-pill.resolved { background: #f0fdf4; color: #166534; border: 0.5px solid #86efac; }
+      .fd-pill.source { font-weight: 700; }
+      .fd-pill.questionnaire { background: #eef2ff; color: #4338ca; border: 0.5px solid #c7d2fe; }
+      .fd-pill.manual { background: #f0fdfa; color: #0f766e; border: 0.5px solid #99f6e4; }
+      .fd-pill.system { background: #fef3c7; color: #92400e; border: 0.5px solid #fde68a; }
+      .fd-pill.category { background: #f3f4f6; color: #374151; }
+      
+      .fd-actions-col { display: flex; gap: 8px; align-items: flex-start; flex-shrink: 0; }
+      .fd-btn { padding: 7px 14px; border-radius: 5px; font-size: 12px; font-weight: 600; border: 0.5px solid #d1d5db; background: #fff; color: #374151; cursor: pointer; font-family: inherit; }
+      .fd-btn:hover { background: #f9fafb; }
+      .fd-btn.primary { background: #166534; color: #fff; border-color: #166534; }
+      .fd-btn.primary:hover { background: #14532d; }
+      
+      .fd-grid { display: grid; grid-template-columns: 1fr 360px; gap: 18px; }
+      
+      .fd-card { background: #fff; border: 0.5px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }
+      .fd-card-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 0.5px solid #f3f4f6; display: flex; align-items: center; gap: 8px; }
+      .fd-card-title .fd-card-icon { font-size: 14px; color: #4338ca; }
+      .fd-card-title .fd-card-link { margin-left: auto; font-size: 11px; color: #4338ca; text-decoration: none; font-weight: 600; text-transform: none; letter-spacing: 0; }
+      .fd-card-title .fd-card-link:hover { text-decoration: underline; }
+      
+      .fd-row { display: flex; padding: 5px 0; align-items: center; }
+      .fd-row .fd-k { font-size: 11.5px; color: #6b7280; min-width: 130px; }
+      .fd-row .fd-v { font-size: 12px; color: #1f2937; flex: 1; font-weight: 500; }
+      
+      .fd-rule-snapshot { background: #fafbff; border: 0.5px solid #c7d2fe; border-radius: 6px; padding: 10px 12px; margin-top: 8px; }
+      .fd-rule-snapshot .rs-label { font-size: 10px; font-weight: 700; color: #4338ca; text-transform: uppercase; letter-spacing: 0.4px; }
+      .fd-rule-snapshot .rs-condition { font-family: 'SF Mono', monospace; font-size: 11px; color: #374151; background: #fff; padding: 6px 8px; border-radius: 4px; border: 0.5px solid #c7d2fe; margin-top: 5px; }
+      
+      .fd-version-warning { background: #fffbeb; border: 0.5px solid #fde68a; border-radius: 6px; padding: 10px 12px; margin-top: 10px; font-size: 11.5px; color: #92400e; line-height: 1.5; }
+      .fd-version-warning strong { color: #78350f; }
+      .fd-version-warning code { background: #fef3c7; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 10.5px; }
+      
+      .fd-trigger-context { background: #f9fafb; border: 0.5px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; margin-top: 8px; font-size: 12px; color: #1f2937; line-height: 1.55; }
+      .fd-trigger-context .tc-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+      .fd-trigger-context blockquote { margin: 6px 0 0 0; padding: 8px 11px; background: #fff; border-left: 3px solid #6366f1; font-style: italic; color: #374151; }
+      
+      .fd-timeline { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+      .fd-tl-item { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 0.5px solid #f3f4f6; }
+      .fd-tl-item:last-child { border-bottom: none; }
+      .fd-tl-icon { width: 22px; height: 22px; border-radius: 5px; background: #eef2ff; color: #4338ca; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+      .fd-tl-icon.fired { background: #fef2f2; color: #b91c1c; }
+      .fd-tl-icon.acknowledged { background: #fffbeb; color: #92400e; }
+      .fd-tl-icon.resolved { background: #f0fdf4; color: #166534; }
+      .fd-tl-icon.note { background: #f3f4f6; color: #6b7280; }
+      .fd-tl-body { font-size: 12px; color: #1f2937; line-height: 1.5; }
+      .fd-tl-meta { font-size: 11px; color: #6b7280; margin-top: 2px; }
+      .fd-tl-meta strong { color: #374151; }
+      
+      .fd-anchor-card { display: flex; gap: 10px; padding: 11px 13px; background: #fafafa; border: 0.5px solid #e5e7eb; border-radius: 6px; align-items: center; }
+      .fd-anchor-card:hover { background: #f3f4f6; cursor: pointer; }
+      .fd-anchor-card .av { width: 36px; height: 36px; border-radius: 7px; background: linear-gradient(135deg, #6366f1, #4338ca); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+      .fd-anchor-card .info { flex: 1; }
+      .fd-anchor-card .info .nm { font-size: 13px; font-weight: 600; color: #1f2937; }
+      .fd-anchor-card .info .meta { font-size: 11px; color: #6b7280; margin-top: 2px; }
+      .fd-anchor-card .arrow { color: #9ca3af; }
+      
+      .fd-resolution-form { background: #f0fdf4; border: 0.5px solid #86efac; border-radius: 8px; padding: 14px 16px; margin-top: 14px; }
+      .fd-resolution-form h4 { margin: 0 0 8px 0; font-size: 12.5px; font-weight: 700; color: #166534; }
+      .fd-resolution-form textarea { width: 100%; min-height: 70px; padding: 8px 10px; border: 0.5px solid #86efac; border-radius: 5px; font-family: inherit; font-size: 12.5px; line-height: 1.5; resize: vertical; box-sizing: border-box; background: #fff; }
+      .fd-resolution-form .hint { font-size: 10.5px; color: #166534; margin-top: 4px; }
+      .fd-resolution-form-foot { display: flex; gap: 8px; margin-top: 8px; }
+      
+      @media (max-width: 1000px) {
+        .fd-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+    
+    <div class="fd-topbar">
+      <div class="fd-breadcrumb">
+        <a href="livera_owner_dashboard.html">Dashboard</a>
+        <span class="sep">›</span>
+        <a href="livera_g6_flag_dashboard.html">Clinical Flags</a>
+        <span class="sep">›</span>
+        <span style="color:#374151;font-weight:600;">Fired flag · FF-001847</span>
+      </div>
+    </div>
+    
+    <div class="fd-content">
+      <!-- Header -->
+      <div class="fd-header">
+        <div class="fd-header-main">
+          <div class="fd-flag-icon">🚩</div>
+          <div class="fd-title-block">
+            <h1><span class="fd-flag-id">FF-001847</span>Eating disorder history disclosed</h1>
+            <div class="fd-meta">
+              <strong>Anchor:</strong>
+              <a href="livera_prototype_09_patient_profile.html">Sarah Cookland (PT-00198)</a>
+              · 
+              <a href="livera_prototype_10_order_detail.html">ORD-00441</a>
+              · 
+              <strong>Fired:</strong> 06 May 2026 · 09:14 (1d 4h ago)
+              · 
+              <strong>Source:</strong> questionnaire-driven
+            </div>
+            <div class="fd-status-strip">
+              <span class="fd-pill open">● Open · awaiting prescriber action</span>
+              <span class="fd-pill crit">CRITICAL</span>
+              <span class="fd-pill source questionnaire">questionnaire</span>
+              <span class="fd-pill category">safeguarding</span>
+            </div>
+          </div>
+        </div>
+        <div class="fd-actions-col">
+          <button class="fd-btn" onclick="alert('Stub: opens add note modal anchored to this fired flag.')">＋ Add note</button>
+          <button class="fd-btn primary" onclick="document.getElementById('fd-resolve-form').scrollIntoView({behavior:'smooth'})">✓ Mark resolved</button>
+        </div>
+      </div>
+      
+      <!-- Two-column layout -->
+      <div class="fd-grid">
+        <!-- LEFT — main detail -->
+        <div>
+          
+          <!-- Rule snapshot -->
+          <div class="fd-card">
+            <div class="fd-card-title">
+              <span class="fd-card-icon">⚭</span>
+              Rule snapshot — what fired this flag
+              <a href="livera_g6_flag_rules.html" class="fd-card-link">View rule in Library →</a>
+            </div>
+            <div class="fd-row"><span class="fd-k">Flag ID</span><span class="fd-v" style="font-family:monospace;">FLAG-001 · Eating disorder history disclosed</span></div>
+            <div class="fd-row"><span class="fd-k">Fired against version</span><span class="fd-v"><strong style="color:#4338ca;">v1</strong> (effective 24 Apr 2026)</span></div>
+            <div class="fd-row"><span class="fd-k">Current version</span><span class="fd-v"><strong style="color:#92400e;">v2</strong> (effective 02 May 2026)</span></div>
+            <div class="fd-row"><span class="fd-k">Severity at fire time</span><span class="fd-v">HIGH (current rule: CRITICAL)</span></div>
+            <div class="fd-row"><span class="fd-k">Source</span><span class="fd-v">questionnaire — Initial Registration v3.2 → Q017</span></div>
+            
+            <div class="fd-rule-snapshot">
+              <span class="rs-label">Trigger condition (v1, as fired)</span>
+              <div class="rs-condition">q_017_eating_disorder = "yes"</div>
+            </div>
+            
+            <div class="fd-version-warning">
+              <strong>⚠ Rule has changed since this flag fired.</strong> Per DEC-27 Sub-decision B, this fired flag references <code>v1</code> and is NOT re-evaluated against <code>v2</code>. The current rule (v2) raised severity HIGH → CRITICAL after MHRA Yellow Card update May 2026. Reviewing this flag means reviewing it against v1's clinical context, not v2's.
+            </div>
+          </div>
+          
+          <!-- Trigger context -->
+          <div class="fd-card">
+            <div class="fd-card-title">
+              <span class="fd-card-icon">📋</span>
+              Trigger context — patient response that fired this flag
+            </div>
+            <div class="fd-trigger-context">
+              <div class="tc-label">Question (Q017, Initial Registration v3.2)</div>
+              <div>"Have you been diagnosed with or treated for an eating disorder?"</div>
+              <div class="tc-label" style="margin-top:10px;">Patient answer</div>
+              <blockquote>Yes</blockquote>
+              <div class="tc-label" style="margin-top:10px;">Captured</div>
+              <div>06 May 2026 · 09:14 — at registration submission</div>
+            </div>
+          </div>
+          
+          <!-- Activity timeline -->
+          <div class="fd-card">
+            <div class="fd-card-title">
+              <span class="fd-card-icon">⏱</span>
+              Activity timeline
+            </div>
+            <div class="fd-timeline">
+              <div class="fd-tl-item">
+                <div class="fd-tl-icon fired">🚩</div>
+                <div>
+                  <div class="fd-tl-body">Flag fired automatically against rule <strong>FLAG-001 v1</strong></div>
+                  <div class="fd-tl-meta">06 May 2026 · 09:14 · <strong>System</strong> · trigger: q_017 = "yes" on registration</div>
+                </div>
+              </div>
+              <div class="fd-tl-item">
+                <div class="fd-tl-icon note">📝</div>
+                <div>
+                  <div class="fd-tl-body">Note added by Charlotte Williams: "Cross-checked safeguarding lead — Lara McKenzie. Notified by phone 06 May 11:30. Awaiting Lara's review before clinical decision on this order."</div>
+                  <div class="fd-tl-meta">06 May 2026 · 11:32 · <strong>Charlotte Williams (Prescriber)</strong></div>
+                </div>
+              </div>
+              <div class="fd-tl-item">
+                <div class="fd-tl-icon note">📝</div>
+                <div>
+                  <div class="fd-tl-body">Note added by Lara McKenzie: "Reviewed clinical context. Patient disclosed historical eating disorder (recovered 2018). No current safeguarding concern. Cleared for prescribing subject to standard NICE pathway."</div>
+                  <div class="fd-tl-meta">07 May 2026 · 14:08 · <strong>Lara McKenzie (Safeguarding Lead)</strong></div>
+                </div>
+              </div>
+              <div class="fd-tl-item">
+                <div class="fd-tl-icon acknowledged">✓</div>
+                <div>
+                  <div class="fd-tl-body">Status changed from <strong>Open</strong> → <strong>Acknowledged</strong></div>
+                  <div class="fd-tl-meta">07 May 2026 · 14:08 · <strong>Charlotte Williams (Prescriber)</strong> · Reason: "Safeguarding cleared per Lara's review"</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Resolution form -->
+          <div class="fd-resolution-form" id="fd-resolve-form">
+            <h4>✓ Mark this flag as resolved</h4>
+            <textarea placeholder="Resolution notes — required. e.g. 'Cleared by safeguarding review. Prescribing approved per NICE pathway. No ongoing risk identified.' Captured in the audit trail and visible in patient timeline."></textarea>
+            <div class="hint">Per DEC-27, resolution is logged with editor identity, timestamp, and reason. Cannot be undone — reopen requires raising a new flag instance.</div>
+            <div class="fd-resolution-form-foot">
+              <button class="fd-btn">Cancel</button>
+              <button class="fd-btn primary" onclick="alert('Stub: flag marked resolved. Status pill turns green. Audit timeline gets a new resolved entry. Patient Profile timeline updated.')">✓ Confirm resolved</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- RIGHT — sidebar -->
+        <div>
+          <!-- Patient anchor -->
+          <div class="fd-card">
+            <div class="fd-card-title">
+              <span class="fd-card-icon">👤</span>
+              Patient anchor
+            </div>
+            <a href="livera_prototype_09_patient_profile.html" style="text-decoration:none;display:block;">
+              <div class="fd-anchor-card">
+                <div class="av">SC</div>
+                <div class="info">
+                  <div class="nm">Sarah Cookland</div>
+                  <div class="meta">PT-00198 · Female · 50 · Mounjaro 5mg</div>
+                </div>
+                <div class="arrow">→</div>
+              </div>
+            </a>
+          </div>
+          
+          <!-- Order anchor -->
+          <div class="fd-card">
+            <div class="fd-card-title">
+              <span class="fd-card-icon">📦</span>
+              Order anchor
+            </div>
+            <a href="livera_prototype_10_order_detail.html" style="text-decoration:none;display:block;">
+              <div class="fd-anchor-card">
+                <div class="av" style="background:linear-gradient(135deg,#0d9488,#14b8a6);">OR</div>
+                <div class="info">
+                  <div class="nm">ORD-00441 — Mounjaro 5mg</div>
+                  <div class="meta">Clinical Check · submitted 06 May 09:14</div>
+                </div>
+                <div class="arrow">→</div>
+              </div>
+            </a>
+          </div>
+          
+          <!-- Other flags -->
+          <div class="fd-card">
+            <div class="fd-card-title">
+              <span class="fd-card-icon">🚩</span>
+              Other flags on this patient
+            </div>
+            <div style="font-size:11.5px;color:#6b7280;line-height:1.5;">
+              No other open flags. <a href="livera_prototype_09_patient_profile.html" style="color:#4338ca;font-weight:600;">View patient flag history →</a>
+            </div>
+          </div>
+          
+          <!-- Library reference -->
+          <div class="fd-card" style="background:#fafbff;border-color:#c7d2fe;">
+            <div class="fd-card-title">
+              <span class="fd-card-icon">📚</span>
+              Per DEC-27
+            </div>
+            <div style="font-size:11.5px;color:#374151;line-height:1.55;">
+              This fired flag is anchored to <strong>FLAG-001 v1</strong>. Even though the rule has been edited to v2 (severity raised to CRITICAL), this instance keeps its original context. <a href="livera_g6_flag_rules.html" style="color:#4338ca;font-weight:600;">See rule version history in the Library →</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

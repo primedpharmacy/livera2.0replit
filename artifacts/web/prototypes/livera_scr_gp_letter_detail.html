@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — GP Letter Detail (BLD-7.1 → 7.5)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .pill { display: inline-flex; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 0.5px solid; align-items: center; gap: 5px; }
+  .p-draft { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .btn { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn.primary:hover { background: #3730a3; }
+  .btn.success { background: #16a34a; color: #fff; border-color: #16a34a; }
+  .btn.success:hover { background: #15803d; }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  .content { flex: 1; display: flex; overflow: hidden; }
+
+  /* Left context */
+  .ctx-col { width: 280px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); overflow-y: auto; padding: 16px 18px; }
+  .ctx-title { font-size: 17px; font-weight: 700; color: var(--text-1); letter-spacing: -0.3px; }
+  .ctx-meta { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
+  .ctx-section { margin-top: 18px; }
+  .ctx-sec-t { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; }
+  .dr { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+  .dk { font-size: 12px; color: var(--text-2); }
+  .dv { font-size: 12px; font-weight: 500; color: var(--text-1); text-align: right; }
+  .dv.g { color: var(--green); }
+  .dv.a { color: var(--amber); }
+  .dv.b { color: var(--blue); }
+  .ctx-block { font-size: 12px; color: var(--text-1); line-height: 1.6; padding: 10px 12px; background: var(--surface-2); border-radius: var(--r-sm); }
+
+  /* Work area */
+  .work-col { flex: 1; display: flex; flex-direction: column; overflow-y: auto; min-width: 0; }
+  .work-head { padding: 16px 28px 0 28px; flex-shrink: 0; }
+  .work-title { font-size: 22px; font-weight: 700; color: var(--text-1); letter-spacing: -0.3px; display: flex; align-items: center; gap: 10px; }
+  .work-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; max-width: 700px; }
+
+  /* SLA strip (BLD-3.2 cross-ref) */
+  .sla-strip { margin: 12px 28px 0 28px; padding: 10px 14px; background: var(--green-bg); border: 0.5px solid var(--green-border); border-radius: var(--r-md); display: flex; align-items: center; gap: 10px; font-size: 12px; flex-shrink: 0; }
+  .sla-strip-text { flex: 1; color: var(--green); line-height: 1.5; }
+  .sla-strip-text strong { font-weight: 700; }
+
+  /* Template tabs */
+  .template-tabs { padding: 14px 28px 0 28px; display: flex; gap: 8px; border-bottom: 0.5px solid var(--border); flex-shrink: 0; align-items: center; }
+  .template-tab { padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--text-2); cursor: pointer; border: 0.5px solid transparent; border-bottom: 2px solid transparent; margin-bottom: -0.5px; display: flex; align-items: center; gap: 6px; background: transparent; font-family: inherit; }
+  .template-tab.on { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 600; }
+  .template-tab .t-tag { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--surface-2); color: var(--text-3); border: 0.5px solid var(--border-strong); text-transform: uppercase; letter-spacing: 0.4px; }
+  .template-tab.on .t-tag { background: var(--brand-light); color: var(--brand-dark); border-color: rgba(99,102,241,0.3); }
+  .template-spacer { flex: 1; }
+  .template-tab-info { font-size: 11px; color: var(--text-3); padding-bottom: 8px; }
+
+  /* Side-by-side panels */
+  .work-body { flex-shrink: 0; display: flex; padding: 18px 28px 22px 28px; gap: 16px; height: 720px; }
+  .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .pane-head { padding: 11px 16px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .pane-title { font-size: 12px; font-weight: 600; color: var(--text-1); flex: 1; display: flex; align-items: center; gap: 6px; }
+  .pane-sub { font-size: 11px; color: var(--text-3); }
+  .pane-body { flex: 1; overflow-y: auto; padding: 18px 22px; min-height: 0; }
+
+  /* Editor pane */
+  .editor-textarea { width: 100%; height: 100%; box-sizing: border-box; padding: 18px 22px; border: none; outline: none; font-family: ui-monospace, 'SF Mono', monospace; font-size: 12px; line-height: 1.7; color: var(--text-1); background: transparent; resize: none; display: block; }
+  .editor-textarea:focus { outline: none; }
+
+  /* Variable hint */
+  .var-hint-bar { padding: 8px 16px; background: #fef9c3; border-top: 0.5px solid #fde68a; font-size: 11px; color: var(--amber); display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
+  .var-chip { font-family: ui-monospace,'SF Mono',monospace; font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,0.6); color: var(--amber); border: 0.5px solid var(--amber-border); }
+
+  /* Letter preview rendering */
+  .letter-page { background: #fff; padding: 30px 38px; font-family: 'Georgia', serif; font-size: 12px; line-height: 1.7; color: #1a1a1a; max-width: 580px; margin: 0 auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 0.5px solid var(--border); border-radius: 4px; min-height: 580px; }
+  .letterhead { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid #d4d4d4; }
+  .letterhead-clinic { font-size: 15px; font-weight: 700; color: #4338ca; font-family: -apple-system, sans-serif; letter-spacing: -0.2px; }
+  .letterhead-tag { font-size: 9px; color: #6b6b6b; margin-top: 2px; font-family: -apple-system, sans-serif; }
+  .letterhead-meta { text-align: right; font-size: 10px; color: #6b6b6b; line-height: 1.5; font-family: -apple-system, sans-serif; }
+  .letter-date { font-size: 11px; color: #6b6b6b; margin-bottom: 14px; font-family: -apple-system, sans-serif; }
+  .letter-recipient { margin-bottom: 14px; line-height: 1.6; }
+  .letter-recipient-name { font-weight: 600; }
+  .letter-subject { margin: 14px 0; padding: 8px 12px; background: #f5f3ff; border-left: 3px solid #6366f1; font-weight: 600; font-size: 12px; color: #1a1a1a; font-family: -apple-system, sans-serif; }
+  .letter-body p { margin-bottom: 11px; }
+  .letter-body strong { font-weight: 600; }
+  .letter-signature { margin-top: 28px; }
+  .letter-sig-name { font-weight: 600; }
+  .letter-sig-line { font-size: 10px; color: #6b6b6b; line-height: 1.5; }
+
+  /* PDF infra card (below preview) */
+  .pdf-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); margin-top: 14px; overflow: hidden; }
+  .pdf-head { padding: 10px 14px; border-bottom: 0.5px solid var(--border); background: var(--surface-2); display: flex; align-items: center; gap: 8px; }
+  .pdf-title { font-size: 12px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .pdf-meta { font-size: 11px; color: var(--text-3); }
+  .pdf-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 11px; line-height: 1.55; }
+  .pdf-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .pdf-row-k { color: var(--text-3); font-family: ui-monospace,'SF Mono',monospace; flex-shrink: 0; }
+  .pdf-row-v { color: var(--text-1); font-weight: 500; font-family: ui-monospace,'SF Mono',monospace; word-break: break-all; text-align: right; }
+  .pdf-row-v code { background: var(--surface-2); padding: 1px 5px; border-radius: 3px; font-size: 10px; }
+
+  /* Activity log card */
+  .act-card { margin: 14px 28px 18px 28px; }
+  .act-card-head { padding: 11px 16px; background: var(--surface); border: 0.5px solid var(--border); border-bottom: none; border-radius: var(--r-lg) var(--r-lg) 0 0; display: flex; align-items: center; gap: 8px; }
+  .act-card-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .act-card-sub { font-size: 11px; color: var(--text-3); }
+  .act-list { background: var(--surface); border: 0.5px solid var(--border); border-top: none; border-radius: 0 0 var(--r-lg) var(--r-lg); padding: 6px 16px 10px 16px; max-height: 240px; overflow-y: auto; }
+  .act-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
+  .act-row:last-child { border-bottom: none; }
+  .act-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .act-body-content { flex: 1; }
+  .act-text { font-size: 12px; color: var(--text-1); line-height: 1.45; }
+  .act-text strong { font-weight: 500; }
+  .act-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .act-time { font-size: 11px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+
+  /* Bottom action bar */
+  .action-bar { padding: 12px 28px; background: var(--surface); border-top: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .action-bar-left { font-size: 12px; color: var(--text-2); }
+  .action-bar-spacer { flex: 1; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; }
+  .toast.show { display: flex; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html" class="active"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_prototype_14_gp_letters.html">GP Letters</a>
+        <span class="sep">/</span>
+        <span class="cur">GPL-00128 · Sarah Cookland</span>
+      </div>
+      <div class="topbar-right">
+        <div class="pill p-draft">⏳ Draft · awaiting send</div>
+        <button class="btn">Save draft</button>
+        <button class="btn primary" onclick="generatePdf()">📄 Generate PDF preview</button>
+        <button class="btn success" onclick="sendLetter()">📧 Approve & send to GP</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Patient context -->
+      <div class="ctx-col">
+        <div class="ctx-title">Sarah Cookland</div>
+        <div class="ctx-meta">50y · F · 14 Parkside Avenue, Leeds, LS18 4FJ</div>
+
+        <div class="ctx-section">
+          <div class="ctx-sec-t">GP details</div>
+          <div class="ctx-block">
+            <strong>Dr. Robin Lane</strong><br>
+            Hyde &amp; Wansford Surgery<br>
+            42 Wansford Road<br>
+            Leeds, LS17 8JD<br>
+            <span style="color:var(--text-3);font-size:11px;">NHS ODS: G82194</span>
+          </div>
+          <div class="dr" style="margin-top:8px;"><span class="dk">Email</span><span class="dv b">robin.lane@hwsurgery.nhs.uk</span></div>
+          <div class="dr"><span class="dk">Verified</span><span class="dv g">✓ NHS ODS · 28 Jan</span></div>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-sec-t">Letter context</div>
+          <div class="dr"><span class="dk">Type</span><span class="dv">Initial Rx</span></div>
+          <div class="dr"><span class="dk">Trigger</span><span class="dv">First approval</span></div>
+          <div class="dr"><span class="dk">Order</span><span class="dv">ORD-00301</span></div>
+          <div class="dr"><span class="dk">Approved at</span><span class="dv">07 Apr · 09:14</span></div>
+          <div class="dr"><span class="dk">SLA · 48h</span><span class="dv g">✓ 22h remaining</span></div>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-sec-t">Patient consent</div>
+          <div class="dr"><span class="dk">GP comms consent</span><span class="dv g">✓ Granted at signup</span></div>
+          <div class="dr"><span class="dk">Consent version</span><span class="dv">v2.1</span></div>
+          <div class="dr"><span class="dk">Captured</span><span class="dv">28 Jan 2026</span></div>
+        </div>
+      </div>
+
+      <!-- Work area -->
+      <div class="work-col">
+
+        <div class="work-head">
+          <div class="work-title">
+            GP letter · GPL-00128
+          </div>
+          <div class="work-sub">Two parallel letters are generated for every GP communication: a <strong>clinical letter</strong> from the prescriber for the patient's GP, and an <strong>admin letter</strong> from the clinic for the patient's records. Both render side-by-side with live PDF preview, then send via Postmark with both PDFs attached.</div>
+        </div>
+
+        <div class="sla-strip">
+          <span style="font-size:14px;">⏱</span>
+          <div class="sla-strip-text">
+            <strong>BLD-3.2 SLA timer running</strong> · 22h remaining of 48h window from order approval (07 Apr 09:14). Send before 09 Apr 09:14 to avoid breach.
+          </div>
+        </div>
+
+        <!-- BLD-7.1: Template tabs -->
+        <div class="template-tabs">
+          <button class="template-tab on" id="tab-clinical" onclick="switchTab('clinical')">
+            📘 Clinical letter <span class="t-tag">→ GP</span>
+          </button>
+          <button class="template-tab" id="tab-admin" onclick="switchTab('admin')">
+            🟣 Admin letter <span class="t-tag">→ Patient record</span>
+          </button>
+          <div class="template-spacer"></div>
+          <div class="template-tab-info">Both templates render in parallel · same source data, different recipients</div>
+        </div>
+
+        <!-- BLD-7.5: Side-by-side editor + preview -->
+        <div class="work-body">
+
+          <!-- Editor pane -->
+          <div class="pane">
+            <div class="pane-head">
+              <span style="font-size:14px;">✏️</span>
+              <div class="pane-title">Editable template <span style="color:var(--text-3);font-weight:400;font-size:11px;" id="editor-template-tag">clinical_initial_rx_v3</span></div>
+              <div class="pane-sub">Markdown · variables in <code style="font-family:ui-monospace,'SF Mono',monospace;background:var(--surface-2);padding:1px 5px;border-radius:3px;font-size:10px;">{{handlebars}}</code></div>
+            </div>
+            <div class="pane-body" style="padding:0;">
+<textarea class="editor-textarea" id="editor-textarea" oninput="renderPreview()">## Letterhead
+{{clinic.letterhead}}
+
+## Recipient
+Dr. {{gp.name}}
+{{gp.surgery}}
+{{gp.address}}
+
+## Date
+{{letter.dated_at}}
+
+## Subject
+**Re: {{patient.full_name}} — DOB {{patient.dob}} — NHS no. {{patient.nhs_number}}**
+
+## Body
+Dear Dr. {{gp.name}},
+
+I am writing to inform you that your patient {{patient.full_name}} has commenced treatment under the FeelTru weight management programme on {{order.approved_at_date}}.
+
+**Clinical summary**
+- BMI at start: {{patient.bmi_at_start}}
+- Weight at start: {{patient.weight_at_start}}
+- Comorbidity pathway: {{patient.comorbidity_pathway}}
+- NICE eligibility confirmed: Yes (CG189)
+
+**Prescription details**
+- Medication: {{order.product_name}}
+- Dose: {{order.dose}}
+- Quantity: {{order.quantity}}
+- Frequency: weekly subcutaneous injection
+
+**Patient assessment**
+{{ai_draft.assessment}}
+
+**Clinical reasoning (NICE CG189)**
+{{ai_draft.reasoning}}
+
+**Continuing care**
+The patient will remain under FeelTru clinical supervision for the duration of treatment with monthly check-ins, side-effect monitoring, and weight tracking. We will write to you again at: 6-month review point, dose changes, or treatment cessation.
+
+Please contact us if you have any clinical concerns or relevant updates from the patient's primary care record.
+
+Yours sincerely,
+
+{{prescriber.signature_block}}
+{{clinic.gphc_footer}}</textarea>
+            </div>
+            <div class="var-hint-bar">
+              <span>📌 12 variables resolved:</span>
+              <span class="var-chip">clinic.letterhead</span>
+              <span class="var-chip">gp.name</span>
+              <span class="var-chip">patient.full_name</span>
+              <span class="var-chip">patient.bmi_at_start</span>
+              <span class="var-chip">order.product_name</span>
+              <span class="var-chip">ai_draft.assessment</span>
+              <span class="var-chip">+ 6 more</span>
+            </div>
+          </div>
+
+          <!-- Preview pane -->
+          <div class="pane">
+            <div class="pane-head">
+              <span style="font-size:14px;">📄</span>
+              <div class="pane-title">Live preview</div>
+              <div class="pane-sub" id="preview-meta">renders to PDF on send</div>
+            </div>
+            <div class="pane-body" style="background:#f5f5f5;">
+
+              <!-- Rendered letter -->
+              <div class="letter-page" id="letter-preview">
+                <div class="letterhead">
+                  <div>
+                    <div class="letterhead-clinic">FeelTru Clinic</div>
+                    <div class="letterhead-tag">CQC-registered weight management · GLP-1 prescribing</div>
+                  </div>
+                  <div class="letterhead-meta">
+                    Reference: GPL-00128<br>
+                    Tel: 020 7946 0958<br>
+                    care@feeltru.com
+                  </div>
+                </div>
+
+                <div class="letter-date">07 April 2026</div>
+
+                <div class="letter-recipient">
+                  <div class="letter-recipient-name">Dr. Robin Lane</div>
+                  <div>Hyde &amp; Wansford Surgery</div>
+                  <div>42 Wansford Road, Leeds, LS17 8JD</div>
+                </div>
+
+                <div class="letter-subject">Re: Sarah Cookland — DOB 12/05/1975 — NHS no. 943 476 5919</div>
+
+                <div class="letter-body">
+                  <p>Dear Dr. Lane,</p>
+                  <p>I am writing to inform you that your patient <strong>Sarah Cookland</strong> has commenced treatment under the FeelTru weight management programme on 07 April 2026.</p>
+                  <p><strong>Clinical summary</strong></p>
+                  <p>BMI at start: 29.5<br>
+                  Weight at start: 89.4 kg<br>
+                  Comorbidity pathway: cardiac history (controlled, on statins)<br>
+                  NICE eligibility confirmed: Yes (CG189)</p>
+                  <p><strong>Prescription details</strong></p>
+                  <p>Medication: Mounjaro (tirzepatide) 2.5mg starter<br>
+                  Dose: 2.5 mg weekly · titrated per protocol<br>
+                  Quantity: 4 pens per cycle<br>
+                  Frequency: weekly subcutaneous injection</p>
+                  <p><strong>Patient assessment</strong></p>
+                  <p>50-year-old female, BMI 29.5 with documented cardiac comorbidity. Meets NICE CG189 criteria via comorbidity pathway. Adherence and tolerance to be reviewed monthly.</p>
+                  <p><strong>Continuing care</strong></p>
+                  <p>The patient will remain under FeelTru clinical supervision with monthly check-ins. We will write to you again at 6-month review, dose changes, or treatment cessation.</p>
+                  <p>Please contact us if you have any clinical concerns or relevant updates from the patient's primary care record.</p>
+                  <p>Yours sincerely,</p>
+                </div>
+
+                <div class="letter-signature">
+                  <div class="letter-sig-name">Claire Moynehan</div>
+                  <div class="letter-sig-line">Nurse Prescriber · NMC 1234567</div>
+                  <div class="letter-sig-line">FeelTru Clinic · CQC ref: 1-12345678</div>
+                  <div class="letter-sig-line">GPhC fulfilment: Primed Pharmacy 1039469</div>
+                </div>
+              </div>
+
+              <!-- BLD-7.2: PDF infrastructure card -->
+              <div class="pdf-card">
+                <div class="pdf-head">
+                  <span style="font-size:14px;">🛡</span>
+                  <div class="pdf-title">PDF generation infrastructure</div>
+                  <div class="pdf-meta">BLD-7.2 · gates Postmark send</div>
+                </div>
+                <div class="pdf-body">
+                  <div class="pdf-row">
+                    <span class="pdf-row-k">renderer</span>
+                    <span class="pdf-row-v"><code>chromium-headless</code> + <code>puppeteer</code></span>
+                  </div>
+                  <div class="pdf-row">
+                    <span class="pdf-row-k">template_engine</span>
+                    <span class="pdf-row-v">Handlebars · v4.7</span>
+                  </div>
+                  <div class="pdf-row">
+                    <span class="pdf-row-k">page_format</span>
+                    <span class="pdf-row-v">A4 · 20mm margins · 96 DPI</span>
+                  </div>
+                  <div class="pdf-row">
+                    <span class="pdf-row-k">storage</span>
+                    <span class="pdf-row-v"><code>S3 · gp-letters/feeltru/2026/</code></span>
+                  </div>
+                  <div class="pdf-row">
+                    <span class="pdf-row-k">retention</span>
+                    <span class="pdf-row-v">7 years · CQC governance</span>
+                  </div>
+                  <div class="pdf-row">
+                    <span class="pdf-row-k">checksum</span>
+                    <span class="pdf-row-v">SHA-256 · stored on gp_letter row</span>
+                  </div>
+                  <div class="pdf-row">
+                    <span class="pdf-row-k">last_render</span>
+                    <span class="pdf-row-v" id="last-render-time">— not yet generated —</span>
+                  </div>
+                  <div class="pdf-row">
+                    <span class="pdf-row-k">render_time_ms</span>
+                    <span class="pdf-row-v" id="render-time-ms">—</span>
+                  </div>
+                  <div class="pdf-row">
+                    <span class="pdf-row-k">size</span>
+                    <span class="pdf-row-v" id="pdf-size">—</span>
+                  </div>
+                  <div style="padding:8px 10px;background:var(--surface-2);border-radius:var(--r-sm);color:var(--text-2);line-height:1.55;margin-top:4px;">
+                    PDF generation runs synchronously in the send flow — the letter cannot be sent without a successful render. Failed renders are retried up to 3 times with exponential backoff before failing the send and surfacing on the activity log. The S3 URL + checksum are written to <code style="background:var(--surface);padding:1px 4px;border-radius:3px;font-size:10px;">gp_letter.pdf_url</code> and <code style="background:var(--surface);padding:1px 4px;border-radius:3px;font-size:10px;">gp_letter.pdf_sha256</code> for audit and download.
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        <!-- BLD-7.4 — Activity log -->
+        <div class="act-card">
+          <div class="act-card-head">
+            <span style="font-size:14px;">📋</span>
+            <div class="act-card-title">Activity log — GPL-00128</div>
+            <div class="act-card-sub">All events · BLD-7.4</div>
+          </div>
+          <div class="act-list">
+            <div class="act-row">
+              <div class="act-dot" style="background:var(--brand);"></div>
+              <div class="act-body-content">
+                <div class="act-text"><strong>GP letter created</strong> — auto-generated on order approval · template <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">clinical_initial_rx_v3</code> selected</div>
+                <div class="act-meta">System · auto · ORD-00301 → GPL-00128</div>
+              </div>
+              <div class="act-time">07 Apr · 09:14</div>
+            </div>
+            <div class="act-row">
+              <div class="act-dot" style="background:var(--purple);"></div>
+              <div class="act-body-content">
+                <div class="act-text"><strong>Admin letter generated</strong> — parallel template <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">admin_initial_rx_v3</code> created · same source data, different recipient</div>
+                <div class="act-meta">System · auto · BLD-7.1 dual-template rule</div>
+              </div>
+              <div class="act-time">07 Apr · 09:14</div>
+            </div>
+            <div class="act-row">
+              <div class="act-dot" style="background:var(--blue);"></div>
+              <div class="act-body-content">
+                <div class="act-text"><strong>Variables resolved</strong> — 12 variables populated from patient + order + ai_draft scope · 0 missing</div>
+                <div class="act-meta">System · template_render · resolved_against draft_8a2f1c9e</div>
+              </div>
+              <div class="act-time">07 Apr · 09:14</div>
+            </div>
+            <div class="act-row">
+              <div class="act-dot" style="background:var(--text-3);"></div>
+              <div class="act-body-content">
+                <div class="act-text"><strong>Opened by prescriber</strong> — Claire Moynehan accessed SCR-014 detail view</div>
+                <div class="act-meta">User · cm@feeltru.com</div>
+              </div>
+              <div class="act-time">07 Apr · 14:22</div>
+            </div>
+            <div class="act-row">
+              <div class="act-dot" style="background:var(--amber);"></div>
+              <div class="act-body-content">
+                <div class="act-text"><strong>Edited body section</strong> — clinical reasoning paragraph modified · diff stored on gp_letter.edits[]</div>
+                <div class="act-meta">User · cm@feeltru.com · 142 chars changed</div>
+              </div>
+              <div class="act-time">07 Apr · 14:38</div>
+            </div>
+            <div id="act-pending" style="font-size:11px;color:var(--text-3);text-align:center;padding:10px;background:var(--surface-2);border-radius:var(--r-sm);margin-top:6px;">
+              ⏳ PDF generation, send, and delivery confirmation will append to this log
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>Chunk 7 · GP Letter detail SCR-014 · BLD-7.1 dual templates · BLD-7.2 PDF infra · BLD-7.3 Postmark + PDF attach · BLD-7.4 activity log · BLD-7.5 side-by-side preview</span>
+      <span class="at">BLD-7.1</span>
+      <span>Clinical letter (→ GP) and admin letter (→ patient record) generated in parallel from same data · tabs to switch · both rendered as PDFs and attached to one Postmark send</span>
+      <span class="at">BLD-7.2</span>
+      <span>chromium-headless + puppeteer · Handlebars templates · A4 · S3 storage 7yr retention · SHA-256 checksum · synchronous render gates send · 3 retries</span>
+      <span class="at">BLD-7.3</span>
+      <span>Postmark transactional template gp_letter_initial_rx · PDFs attached as base64 · MessageStream gp-letters · DKIM-signed · delivery + bounce webhooks</span>
+      <span class="at">BLD-7.4</span>
+      <span>10+ event types: created, generated, variables_resolved, opened, edited, pdf_rendered, sent, delivered, bounced, failed</span>
+      <span class="at">BLD-7.5</span>
+      <span>Editor + live preview side-by-side · Handlebars resolution debounced 250ms · 12 variables shown in hint bar</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  function switchTab(kind) {
+    document.querySelectorAll('.template-tab').forEach(t => t.classList.remove('on'));
+    document.getElementById('tab-' + kind).classList.add('on');
+    const tagEl = document.getElementById('editor-template-tag');
+    tagEl.textContent = kind === 'clinical' ? 'clinical_initial_rx_v3' : 'admin_initial_rx_v3';
+
+    // Swap editor body with the admin variant
+    const editor = document.getElementById('editor-textarea');
+    if (kind === 'admin') {
+      editor.value = `## Letterhead
+{{clinic.letterhead}}
+
+## Recipient (patient self)
+{{patient.full_name}}
+{{patient.address}}
+
+## Date
+{{letter.dated_at}}
+
+## Subject
+**Your treatment plan summary — {{letter.dated_at}}**
+
+## Body
+Dear {{patient.first_name}},
+
+This letter summarises the treatment plan we have started for you and the information we have shared with your GP.
+
+**What we've prescribed**
+- {{order.product_name}}, {{order.dose}}
+- {{order.quantity}}
+- Started: {{order.approved_at_date}}
+
+**What we've told your GP**
+We have written to {{gp.name}} at {{gp.surgery}} confirming you have started treatment with us. They have a copy of the same clinical information for their records.
+
+**Your next steps**
+- Monthly check-ins through the FeelTru app
+- Weight and side-effect tracking at each check-in
+- Reach out via the app or care@feeltru.com for any concerns
+
+**For your records**
+Please keep this letter for your reference. You can also access it any time in the FeelTru app under Care &gt; Documents.
+
+Kind regards,
+
+The FeelTru clinical team
+{{clinic.gphc_footer}}`;
+    } else {
+      editor.value = `## Letterhead
+{{clinic.letterhead}}
+
+## Recipient
+Dr. {{gp.name}}
+{{gp.surgery}}
+{{gp.address}}
+
+## Date
+{{letter.dated_at}}
+
+## Subject
+**Re: {{patient.full_name}} — DOB {{patient.dob}} — NHS no. {{patient.nhs_number}}**
+
+## Body
+Dear Dr. {{gp.name}},
+
+I am writing to inform you that your patient {{patient.full_name}} has commenced treatment under the FeelTru weight management programme on {{order.approved_at_date}}.
+
+**Clinical summary**
+- BMI at start: {{patient.bmi_at_start}}
+- Weight at start: {{patient.weight_at_start}}
+- Comorbidity pathway: {{patient.comorbidity_pathway}}
+- NICE eligibility confirmed: Yes (CG189)
+
+**Prescription details**
+- Medication: {{order.product_name}}
+- Dose: {{order.dose}}
+- Quantity: {{order.quantity}}
+- Frequency: weekly subcutaneous injection
+
+**Patient assessment**
+{{ai_draft.assessment}}
+
+**Clinical reasoning (NICE CG189)**
+{{ai_draft.reasoning}}
+
+**Continuing care**
+The patient will remain under FeelTru clinical supervision for the duration of treatment with monthly check-ins, side-effect monitoring, and weight tracking. We will write to you again at: 6-month review point, dose changes, or treatment cessation.
+
+Please contact us if you have any clinical concerns or relevant updates from the patient's primary care record.
+
+Yours sincerely,
+
+{{prescriber.signature_block}}
+{{clinic.gphc_footer}}`;
+    }
+
+    // Swap rendered preview
+    swapPreview(kind);
+  }
+
+  function swapPreview(kind) {
+    const preview = document.getElementById('letter-preview');
+    if (kind === 'admin') {
+      preview.innerHTML = `
+        <div class="letterhead">
+          <div>
+            <div class="letterhead-clinic">FeelTru Clinic</div>
+            <div class="letterhead-tag">For your records · patient copy</div>
+          </div>
+          <div class="letterhead-meta">
+            Reference: GPL-00128-A<br>
+            care@feeltru.com<br>
+            Tel: 020 7946 0958
+          </div>
+        </div>
+        <div class="letter-date">07 April 2026</div>
+        <div class="letter-recipient">
+          <div class="letter-recipient-name">Sarah Cookland</div>
+          <div>14 Parkside Avenue, Leeds, LS18 4FJ</div>
+        </div>
+        <div class="letter-subject" style="background:#f0fdf4;border-left-color:#16a34a;">Your treatment plan summary — 07 April 2026</div>
+        <div class="letter-body">
+          <p>Dear Sarah,</p>
+          <p>This letter summarises the treatment plan we have started for you and the information we have shared with your GP.</p>
+          <p><strong>What we've prescribed</strong></p>
+          <p>Mounjaro (tirzepatide) 2.5mg starter<br>4 pens per monthly cycle<br>Started: 07 April 2026</p>
+          <p><strong>What we've told your GP</strong></p>
+          <p>We have written to Dr. Robin Lane at Hyde &amp; Wansford Surgery confirming you have started treatment with us. They have a copy of the same clinical information for their records.</p>
+          <p><strong>Your next steps</strong></p>
+          <p>Monthly check-ins through the FeelTru app<br>Weight and side-effect tracking at each check-in<br>Reach out via the app or care@feeltru.com for any concerns</p>
+          <p><strong>For your records</strong></p>
+          <p>Please keep this letter for your reference. You can also access it any time in the FeelTru app under Care &gt; Documents.</p>
+          <p>Kind regards,</p>
+        </div>
+        <div class="letter-signature">
+          <div class="letter-sig-name">The FeelTru clinical team</div>
+          <div class="letter-sig-line">FeelTru Clinic · CQC ref: 1-12345678</div>
+          <div class="letter-sig-line">GPhC fulfilment: Primed Pharmacy 1039469</div>
+        </div>
+      `;
+    } else {
+      // Restore clinical letter
+      preview.innerHTML = `
+        <div class="letterhead">
+          <div>
+            <div class="letterhead-clinic">FeelTru Clinic</div>
+            <div class="letterhead-tag">CQC-registered weight management · GLP-1 prescribing</div>
+          </div>
+          <div class="letterhead-meta">
+            Reference: GPL-00128<br>
+            Tel: 020 7946 0958<br>
+            care@feeltru.com
+          </div>
+        </div>
+        <div class="letter-date">07 April 2026</div>
+        <div class="letter-recipient">
+          <div class="letter-recipient-name">Dr. Robin Lane</div>
+          <div>Hyde &amp; Wansford Surgery</div>
+          <div>42 Wansford Road, Leeds, LS17 8JD</div>
+        </div>
+        <div class="letter-subject">Re: Sarah Cookland — DOB 12/05/1975 — NHS no. 943 476 5919</div>
+        <div class="letter-body">
+          <p>Dear Dr. Lane,</p>
+          <p>I am writing to inform you that your patient <strong>Sarah Cookland</strong> has commenced treatment under the FeelTru weight management programme on 07 April 2026.</p>
+          <p><strong>Clinical summary</strong></p>
+          <p>BMI at start: 29.5<br>Weight at start: 89.4 kg<br>Comorbidity pathway: cardiac history (controlled, on statins)<br>NICE eligibility confirmed: Yes (CG189)</p>
+          <p><strong>Prescription details</strong></p>
+          <p>Medication: Mounjaro (tirzepatide) 2.5mg starter<br>Dose: 2.5 mg weekly · titrated per protocol<br>Quantity: 4 pens per cycle<br>Frequency: weekly subcutaneous injection</p>
+          <p><strong>Patient assessment</strong></p>
+          <p>50-year-old female, BMI 29.5 with documented cardiac comorbidity. Meets NICE CG189 criteria via comorbidity pathway. Adherence and tolerance to be reviewed monthly.</p>
+          <p><strong>Continuing care</strong></p>
+          <p>The patient will remain under FeelTru clinical supervision with monthly check-ins. We will write to you again at 6-month review, dose changes, or treatment cessation.</p>
+          <p>Please contact us if you have any clinical concerns or relevant updates from the patient's primary care record.</p>
+          <p>Yours sincerely,</p>
+        </div>
+        <div class="letter-signature">
+          <div class="letter-sig-name">Claire Moynehan</div>
+          <div class="letter-sig-line">Nurse Prescriber · NMC 1234567</div>
+          <div class="letter-sig-line">FeelTru Clinic · CQC ref: 1-12345678</div>
+          <div class="letter-sig-line">GPhC fulfilment: Primed Pharmacy 1039469</div>
+        </div>
+      `;
+    }
+  }
+
+  let renderTimeout;
+  function renderPreview() {
+    clearTimeout(renderTimeout);
+    document.getElementById('preview-meta').textContent = '⏳ debouncing render…';
+    renderTimeout = setTimeout(() => {
+      document.getElementById('preview-meta').textContent = 'rendered · ready for PDF';
+    }, 250);
+  }
+
+  function generatePdf() {
+    const t = document.getElementById('toast');
+    t.innerHTML = '⏳ Generating PDFs · clinical + admin variants';
+    t.classList.add('show');
+    setTimeout(() => {
+      const now = new Date();
+      const ts = now.toLocaleString('en-GB');
+      document.getElementById('last-render-time').textContent = ts;
+      document.getElementById('render-time-ms').textContent = '847 ms';
+      document.getElementById('pdf-size').textContent = '142 KB · 3 pages';
+      t.innerHTML = '✓ PDFs generated · clinical (142 KB) + admin (118 KB) ready';
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }, 1200);
+  }
+
+  function sendLetter() {
+    const t = document.getElementById('toast');
+    t.innerHTML = '📧 Sending via Postmark · DKIM-signed · attaching both PDFs';
+    t.classList.add('show');
+    // Append a successful send to the activity log
+    setTimeout(() => {
+      const list = document.querySelector('.act-list');
+      const pending = document.getElementById('act-pending');
+      const newRows = `
+        <div class="act-row">
+          <div class="act-dot" style="background:#16a34a;"></div>
+          <div class="act-body-content">
+            <div class="act-text"><strong>PDF rendered</strong> — clinical (142 KB) + admin (118 KB) · stored on S3 · SHA-256 written</div>
+            <div class="act-meta">System · BLD-7.2 · gp-letters/feeltru/2026/GPL-00128.pdf</div>
+          </div>
+          <div class="act-time">just now</div>
+        </div>
+        <div class="act-row">
+          <div class="act-dot" style="background:#16a34a;"></div>
+          <div class="act-body-content">
+            <div class="act-text"><strong>Sent via Postmark</strong> — to robin.lane@hwsurgery.nhs.uk · MessageStream gp-letters · DKIM-signed · MessageID pm_msg_298103</div>
+            <div class="act-meta">System · BLD-7.3 · template gp_letter_initial_rx · 2 PDFs attached (260 KB total)</div>
+          </div>
+          <div class="act-time">just now</div>
+        </div>
+        <div class="act-row">
+          <div class="act-dot" style="background:#16a34a;"></div>
+          <div class="act-body-content">
+            <div class="act-text"><strong>Delivery confirmed</strong> — Postmark webhook event_type=Delivery · server response 250 OK</div>
+            <div class="act-meta">System · BLD-7.3 · webhook · MX hwsurgery.nhs.uk</div>
+          </div>
+          <div class="act-time">just now</div>
+        </div>
+      `;
+      pending.insertAdjacentHTML('beforebegin', newRows);
+      pending.style.display = 'none';
+      // Update SLA strip
+      const sla = document.querySelector('.sla-strip');
+      sla.innerHTML = '<span style="font-size:14px;">✓</span><div class="sla-strip-text"><strong>BLD-3.2 SLA met</strong> · sent within 48h window · letter delivered · GPL-00128 marked complete.</div>';
+      // Topbar pill
+      document.querySelector('.pill').className = 'pill';
+      document.querySelector('.pill').style.cssText = 'background:var(--green-bg);color:var(--green);border-color:var(--green-border);';
+      document.querySelector('.pill').textContent = '✓ Sent and delivered';
+      t.innerHTML = '✓ GP letter delivered · 250 OK · activity log updated';
+      setTimeout(() => t.classList.remove('show'), 3500);
+    }, 1500);
+  }
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

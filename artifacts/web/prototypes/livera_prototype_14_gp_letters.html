@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — GP Letters (SCR-015)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row:hover { background: var(--surface-2); }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .nb-red { background: var(--red-bg); color: var(--red-mid); }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+  .topbar-sub { font-size: 12px; color: var(--text-3); }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn-sm:hover { background: var(--surface-2); }
+  .btn-sm.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+
+  .tabs { display: flex; background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 24px; flex-shrink: 0; }
+  .tab { padding: 11px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; display: flex; align-items: center; gap: 6px; }
+  .tab.on { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 500; }
+  .tab-ct { background: var(--surface-2); color: var(--text-3); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; border: 0.5px solid var(--border-strong); }
+
+  /* === BLD-3.2 — SLA strip === */
+  .sla-strip { padding: 10px 24px; background: linear-gradient(0deg, rgba(180,83,9,0.04), rgba(180,83,9,0.04)), var(--surface); border-bottom: 0.5px solid var(--amber-border); display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .sla-strip-icon { width: 30px; height: 30px; border-radius: 7px; background: var(--amber-bg); border: 0.5px solid var(--amber-border); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .sla-strip-text { flex: 1; min-width: 200px; }
+  .sla-strip-title { font-size: 12px; font-weight: 700; color: var(--text-1); }
+  .sla-strip-sub { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+  .sla-strip-stats { display: flex; gap: 10px; flex-shrink: 0; }
+  .sla-stat { padding: 6px 12px; border-radius: var(--r-md); background: var(--surface); border: 0.5px solid var(--border); display: flex; flex-direction: column; align-items: center; min-width: 70px; }
+  .sla-stat-num { font-size: 16px; font-weight: 700; line-height: 1; }
+  .sla-stat-num.green { color: var(--green); }
+  .sla-stat-num.amber { color: var(--amber); }
+  .sla-stat-num.red { color: var(--red-mid); }
+  .sla-stat-lbl { font-size: 10px; color: var(--text-3); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  /* Filter bar */
+  .filter-bar { padding: 9px 24px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+  .search-wrap { position: relative; flex: 1; min-width: 200px; max-width: 320px; }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--text-3); pointer-events: none; }
+  .search-input { width: 100%; padding: 7px 10px 7px 32px; border: 0.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 13px; font-family: inherit; color: var(--text-1); background: var(--surface); outline: none; }
+  .fp { padding: 5px 12px; border-radius: 999px; border: 0.5px solid var(--border-strong); background: var(--surface); font-size: 12px; color: var(--text-2); cursor: pointer; white-space: nowrap; font-family: inherit; }
+  .fp.on { background: var(--brand-light); color: var(--brand-dark); border-color: var(--brand-mid); }
+  .fp.breach { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+
+  /* Table */
+  .panel { display: none; flex: 1; overflow-y: auto; flex-direction: column; }
+  .panel.on { display: flex; }
+  .letters-table { width: 100%; border-collapse: collapse; }
+  .letters-table thead th { padding: 10px 18px; font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; text-align: left; border-bottom: 0.5px solid var(--border); background: var(--surface); position: sticky; top: 0; white-space: nowrap; }
+  .letters-table tbody tr { border-bottom: 0.5px solid var(--border); cursor: pointer; transition: background 0.1s; }
+  .letters-table tbody tr:hover { background: var(--brand-light); }
+  .letters-table tbody tr.sla-breach { border-left: 3px solid var(--red-mid); background: linear-gradient(90deg, rgba(220,38,38,0.04), transparent 60%); }
+  .letters-table tbody tr.sla-breach:hover { background: linear-gradient(90deg, rgba(220,38,38,0.08), var(--brand-light) 80%); }
+  .letters-table td { padding: 11px 18px; font-size: 13px; vertical-align: middle; }
+  .status-chip { display: inline-flex; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 0.5px solid; }
+  .sc-sent { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .sc-draft { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .letter-subject { font-size: 13px; font-weight: 500; color: var(--text-1); }
+  .letter-id { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .trigger-chip { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+  .tc-auto { background: var(--purple-bg); color: var(--purple); }
+  .tc-manual { background: var(--surface-2); color: var(--text-2); border: 0.5px solid var(--border-strong); }
+
+  /* === BLD-3.2 SLA chip === */
+  .sla-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+  .sla-bar { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 0.5px solid; display: inline-flex; align-items: center; gap: 4px; }
+  .sla-bar.green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .sla-bar.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .sla-bar.red { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .sla-bar.sent { background: var(--surface-2); color: var(--text-3); border-color: var(--border-strong); }
+  .sla-bar .pulse-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;}50%{opacity:0.4;} }
+  .sla-meta { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+  .sla-meta.breach { color: var(--red-mid); font-weight: 600; }
+
+  /* Slide-over */
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 50; display: none; }
+  .backdrop.show { display: block; }
+  .slideover { position: fixed; right: 0; top: 0; bottom: 0; width: 480px; background: var(--surface); box-shadow: -8px 0 32px rgba(0,0,0,0.12); z-index: 51; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; }
+  .slideover.open { transform: translateX(0); }
+  .so-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
+  .so-title { font-size: 15px; font-weight: 700; color: var(--text-1); flex: 1; line-height: 1.3; }
+  .so-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer; font-size: 16px; color: var(--text-3); }
+  .so-body { flex: 1; overflow-y: auto; }
+  .so-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); display: flex; gap: 8px; }
+  .so-btn { flex: 1; padding: 9px; border-radius: var(--r-md); border: 0.5px solid var(--border-strong); background: var(--surface); font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; color: var(--text-2); text-align: center; }
+  .so-btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .so-sec { padding: 14px 20px; border-bottom: 0.5px solid var(--border); }
+  .so-sec-t { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; }
+  .so-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+  .so-k { font-size: 12px; color: var(--text-2); }
+  .so-v { font-size: 12px; font-weight: 500; color: var(--text-1); text-align: right; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 28px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; padding: 10px 16px; border-radius: 999px; display: none; z-index: 300; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .toast.show { display: flex; }
+
+  /* WS switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); position:relative; }
+  .ws-switcher:hover { background:var(--surface-2); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+  .ws-menu { display:none; position:absolute; top:54px; left:8px; right:8px; background:var(--surface); border:0.5px solid var(--border-strong); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:500; overflow:hidden; }
+  .ws-menu.open { display:block; }
+  .ws-menu-item { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; }
+  .ws-menu-item:hover { background:var(--surface-2); }
+  .ws-menu-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ws-menu-name { font-size:12px; font-weight:600; color:var(--text-1); }
+  .ws-menu-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-menu-check { font-size:12px; color:#4338ca; font-weight:700; flex-shrink:0; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html" class="active"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">GP Letters</div>
+        <div class="topbar-sub">Patient-centric workflow · one letter per patient lifetime · audit-grade record</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn-sm" onclick="window.location.href='livera_settings_gp_letter_templates.html'">📑 Manage templates</button>
+        <button class="btn-sm primary" onclick="alert('Ad-hoc letter creation — pick a patient, then compose. Bypasses workflow trigger logic.')">＋ New ad-hoc letter</button>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" type="text" id="search-input" placeholder="Search patient name…" oninput="renderRows()">
+      </div>
+      <button class="fp on" data-filter="owed" onclick="setFilter('owed', this)">🟠 Owed <span style="opacity:.6">(<span id="ct-owed">0</span>)</span></button>
+      <button class="fp" data-filter="awaiting" onclick="setFilter('awaiting', this)">⚪ Awaiting consent <span style="opacity:.6">(<span id="ct-awaiting">0</span>)</span></button>
+      <button class="fp" data-filter="sent" onclick="setFilter('sent', this)">🟢 Sent <span style="opacity:.6">(<span id="ct-sent">0</span>)</span></button>
+      <button class="fp" data-filter="cancelled" onclick="setFilter('cancelled', this)">⚫ Cancelled <span style="opacity:.6">(<span id="ct-cancelled">0</span>)</span></button>
+      <button class="fp" data-filter="adhoc" onclick="setFilter('adhoc', this)">📝 Ad-hoc <span style="opacity:.6">(<span id="ct-adhoc">0</span>)</span></button>
+      <button class="fp" data-filter="all" onclick="setFilter('all', this)">All</button>
+    </div>
+
+    <!-- Table -->
+    <div class="panel on">
+      <table class="letters-table">
+        <thead>
+          <tr>
+            <th style="width:25%">Patient</th>
+            <th style="width:20%">Treatment</th>
+            <th style="width:15%">Status</th>
+            <th style="width:25%">Triggered</th>
+            <th style="width:15%; text-align:right; padding-right:24px">Action</th>
+          </tr>
+        </thead>
+        <tbody id="letters-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Cancellation modal (hidden by default) -->
+    <div id="cancel-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center;">
+      <div style="background:#fff; border-radius:12px; padding:24px; width:480px; max-width:90vw;">
+        <h3 style="font-size:16px; font-weight:700; margin-bottom:8px;">Cancel GP letter</h3>
+        <p style="font-size:13px; color:var(--text-2); margin-bottom:14px;">For <strong id="cancel-patient">—</strong>. This action is logged in the audit trail.</p>
+        <label style="font-size:12px; font-weight:600; color:var(--text-2); display:block; margin-bottom:6px;">Reason for cancellation (required)</label>
+        <textarea id="cancel-reason" rows="4" style="width:100%; padding:8px 10px; border:0.5px solid var(--border-strong); border-radius:6px; font-family:inherit; font-size:13px; resize:vertical;" placeholder="e.g. GP already informed via consultation. Patient confirmed."></textarea>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
+          <button class="btn-sm" onclick="closeCancelModal()">Keep letter</button>
+          <button class="btn-sm primary" style="background:var(--red-mid); border-color:var(--red-mid);" onclick="confirmCancel()">Confirm cancellation</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<style>
+/* Status chip extensions for new lifecycle states */
+.sc-awaiting { background:#f3f4f6; color:#6b7280; border-color:#d1d5db; }
+.sc-cancelled { background:#f3f4f6; color:#374151; border-color:#9ca3af; }
+.sc-adhoc { background:#fdf4ff; color:#7e22ce; border-color:#e9d5ff; }
+</style>
+
+<script>
+const PATIENTS = [
+  { patientId:'PT-00198', name:'Sarah Cookland', avatar:'SC', treatment:'Mounjaro 5mg',
+    status:'owed', triggeredBy:'Order ORD-00441 approved', triggeredAt:'2026-05-08 09:42',
+    consentDate:'2026-01-28', consentSource:'Registration' },
+  { patientId:'PT-00210', name:'Julia Barker', avatar:'JB', treatment:'Wegovy 0.5mg',
+    status:'owed', triggeredBy:'Order ORD-00452 approved', triggeredAt:'2026-05-07 16:15',
+    consentDate:'2026-04-02', consentSource:'Registration' },
+  { patientId:'PT-00220', name:'Maria Kowalski', avatar:'MK', treatment:'Mounjaro 5mg',
+    status:'owed', triggeredBy:'Order ORD-00455 approved', triggeredAt:'2026-05-07 11:03',
+    consentDate:'2026-04-12', consentSource:'Patient portal' },
+  { patientId:'PT-00189', name:'Paul Thornton', avatar:'PT', treatment:'Mounjaro 5mg',
+    status:'owed', triggeredBy:'Order ORD-00449 approved', triggeredAt:'2026-05-06 14:22',
+    consentDate:'2026-02-15', consentSource:'Registration' },
+  { patientId:'PT-00201', name:'Rachel Hewson', avatar:'RH', treatment:'Wegovy 0.25mg',
+    status:'awaiting', triggeredBy:'Registered, no consent given', triggeredAt:'2026-05-02',
+    consentDate:null, consentSource:null },
+  { patientId:'PT-00215', name:"James O'Reilly", avatar:'JO', treatment:'Mounjaro 2.5mg',
+    status:'awaiting', triggeredBy:'Registered, no consent given', triggeredAt:'2026-05-04',
+    consentDate:null, consentSource:null },
+  { patientId:'PT-00224', name:'Aisha Patel', avatar:'AP', treatment:'Wegovy 0.5mg',
+    status:'awaiting', triggeredBy:'Registered, no consent given', triggeredAt:'2026-04-29',
+    consentDate:null, consentSource:null },
+  { patientId:'PT-00150', name:'Helen Marsh', avatar:'HM', treatment:'Mounjaro 5mg',
+    status:'sent', triggeredBy:'Letter sent 06 May 2026', triggeredAt:'2026-05-06 10:30',
+    consentDate:'2026-02-14', consentSource:'Registration', sentBy:'Charlotte Williams · PIP', letterId:'GP-0014' },
+  { patientId:'PT-00167', name:'Robert Chen', avatar:'RC', treatment:'Wegovy 0.5mg',
+    status:'sent', triggeredBy:'Letter sent 02 May 2026', triggeredAt:'2026-05-02 14:15',
+    consentDate:'2026-04-15', consentSource:'Registration', sentBy:'Charlotte Williams · PIP', letterId:'GP-0013' },
+  { patientId:'PT-00178', name:'Emma Clarke', avatar:'EC', treatment:'Mounjaro 7.5mg',
+    status:'sent', triggeredBy:'Letter sent 28 Apr 2026', triggeredAt:'2026-04-28 11:50',
+    consentDate:'2026-03-22', consentSource:'Registration', sentBy:'Charlotte Williams · PIP', letterId:'GP-0012' },
+  { patientId:'PT-00130', name:'Michael Brown', avatar:'MB', treatment:'Wegovy 0.25mg',
+    status:'cancelled', triggeredBy:'Cancelled 04 May 2026', triggeredAt:'2026-05-04 09:15',
+    consentDate:'2026-01-01', consentSource:'Registration', cancelReason:'GP already informed via consultation 02 May. Patient confirmed.', cancelledBy:'Charlotte Williams · PIP' },
+  { patientId:'PT-00198', name:'Sarah Cookland', avatar:'SC', treatment:'Mounjaro 5mg',
+    status:'adhoc', triggeredBy:'Manual: safeguarding referral', triggeredAt:'2026-04-30 16:00',
+    consentDate:'2026-01-28', consentSource:'Registration', sentBy:'Claire Moynehan · NMC 1234567', letterId:'GP-AH-0008' },
+];
+
+let currentFilter = 'owed';
+
+function getFiltered() {
+  const search = document.getElementById('search-input').value.toLowerCase();
+  return PATIENTS.filter(p => {
+    const matchSearch = !search || p.name.toLowerCase().includes(search) || p.patientId.toLowerCase().includes(search);
+    const matchFilter = currentFilter === 'all' ? true : p.status === currentFilter;
+    return matchSearch && matchFilter;
+  });
+}
+
+function statusChipHTML(s) {
+  const map = {
+    'owed':      ['🟠 Owed',              'sc-draft'],
+    'awaiting':  ['⚪ Awaiting consent',   'sc-awaiting'],
+    'sent':      ['🟢 Sent',              'sc-sent'],
+    'cancelled': ['⚫ Cancelled',         'sc-cancelled'],
+    'adhoc':     ['📝 Ad-hoc',            'sc-adhoc'],
+  };
+  const [label, cls] = map[s] || ['?','sc-draft'];
+  return `<span class="status-chip ${cls}">${label}</span>`;
+}
+
+function actionHTML(p) {
+  if (p.status === 'owed') {
+    return `<a href="livera_gp_letter_compose_full.html" class="btn-sm primary" style="font-size:11px;padding:4px 10px;text-decoration:none;display:inline-block;">Compose →</a>
+            <button class="btn-sm" style="font-size:11px;padding:4px 8px;margin-left:4px;color:var(--red-mid);" onclick="event.stopPropagation();openCancelModal('${p.name.replace(/'/g, "\\'")}','${p.patientId}')">Cancel</button>`;
+  }
+  if (p.status === 'awaiting') {
+    return `<button class="btn-sm" style="font-size:11px;padding:4px 10px;" onclick="event.stopPropagation();alert('Chase consent for ${p.name.replace(/'/g, "\\'")} — opens email or in-app message stub')">Chase consent →</button>`;
+  }
+  if (p.status === 'sent') {
+    return `<a href="livera_scr_gp_letter_detail.html" class="btn-sm" style="font-size:11px;padding:4px 10px;text-decoration:none;display:inline-block;">View</a>`;
+  }
+  if (p.status === 'cancelled') {
+    return `<button class="btn-sm" style="font-size:11px;padding:4px 10px;" onclick="event.stopPropagation();alert('Cancellation reason:\n\n${(p.cancelReason||'').replace(/'/g, "\\'")}\n\nCancelled by ${(p.cancelledBy||'').replace(/'/g, "\\'")}')">View reason</button>`;
+  }
+  if (p.status === 'adhoc') {
+    return `<a href="livera_scr_gp_letter_detail.html" class="btn-sm" style="font-size:11px;padding:4px 10px;text-decoration:none;display:inline-block;">View</a>`;
+  }
+  return '';
+}
+
+function renderRows() {
+  const tbody = document.getElementById('letters-tbody');
+  const filtered = getFiltered();
+  
+  const counts = { owed:0, awaiting:0, sent:0, cancelled:0, adhoc:0 };
+  PATIENTS.forEach(p => { if (counts[p.status] !== undefined) counts[p.status]++; });
+  Object.keys(counts).forEach(k => {
+    const el = document.getElementById('ct-'+k);
+    if (el) el.textContent = counts[k];
+  });
+  
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-3);font-size:13px;">No patients match this filter.</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = filtered.map(p => {
+    const consentLine = p.consentDate
+      ? `<div style="font-size:10px;color:var(--text-3);margin-top:2px;">Consent: ${p.consentDate} · ${p.consentSource}</div>`
+      : `<div style="font-size:10px;color:var(--amber);margin-top:2px;">No consent on file</div>`;
+    return `<tr onclick="window.location.href='livera_prototype_09_patient_profile.html'" style="cursor:pointer">
+      <td>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--brand-light);color:var(--brand-dark);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${p.avatar}</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;">${p.name}</div>
+            <div style="font-size:10px;color:var(--text-3);font-family:monospace;">${p.patientId}</div>
+          </div>
+        </div>
+      </td>
+      <td><div style="font-size:12px;">${p.treatment}</div>${consentLine}</td>
+      <td>${statusChipHTML(p.status)}</td>
+      <td>
+        <div style="font-size:12px;">${p.triggeredBy}</div>
+        ${p.triggeredAt ? `<div style="font-size:10px;color:var(--text-3);margin-top:2px;">${p.triggeredAt}</div>` : ''}
+      </td>
+      <td style="text-align:right; padding-right:24px;">${actionHTML(p)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.fp').forEach(p => p.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  renderRows();
+}
+
+let pendingCancelPatient = null;
+function openCancelModal(name, patientId) {
+  pendingCancelPatient = { name, patientId };
+  document.getElementById('cancel-patient').textContent = `${name} · ${patientId}`;
+  document.getElementById('cancel-reason').value = '';
+  document.getElementById('cancel-modal').style.display = 'flex';
+}
+function closeCancelModal() {
+  document.getElementById('cancel-modal').style.display = 'none';
+  pendingCancelPatient = null;
+}
+function confirmCancel() {
+  const reason = document.getElementById('cancel-reason').value.trim();
+  if (!reason) {
+    alert('Reason is required for audit trail.');
+    return;
+  }
+  alert(`Stub: cancellation logged for ${pendingCancelPatient.name}\n\nReason: ${reason}\n\nAudit: cancelled by Charlotte Williams · ${new Date().toLocaleString()}`);
+  closeCancelModal();
+}
+
+document.addEventListener('DOMContentLoaded', renderRows);
+renderRows();
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

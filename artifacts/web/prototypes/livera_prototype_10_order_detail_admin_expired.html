@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Order Detail Admin (Expired) · BLD-3.5</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --grey: #6b6b6b; --grey-bg: #f5f5f5; --grey-border: #d4d4d4;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .pill { display: inline-flex; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 0.5px solid; }
+  .p-ex { background: var(--grey-bg); color: var(--grey); border-color: var(--grey-border); }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn-sm.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+
+  /* Layout */
+  .content { flex: 1; display: flex; overflow: hidden; }
+  .left-col { width: 320px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+  .order-hero { padding: 18px 20px; border-bottom: 0.5px solid var(--border); }
+  .order-id { font-size: 20px; font-weight: 700; color: var(--text-1); letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+  .order-type { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-border); }
+  .order-meta { font-size: 12px; color: var(--text-2); margin-top: 5px; }
+
+  /* Expiry hero card */
+  .expiry-card { margin: 14px; border-radius: var(--r-lg); overflow: hidden; border: 1.5px solid var(--grey-border); }
+  .expiry-head { background: var(--grey); padding: 10px 14px; display: flex; align-items: center; gap: 8px; }
+  .expiry-head-title { font-size: 12px; font-weight: 700; color: #fff; flex: 1; }
+  .expiry-head-badge { background: rgba(255,255,255,0.25); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .expiry-body { background: var(--grey-bg); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .ex-row { display: flex; justify-content: space-between; align-items: center; }
+  .ex-label { font-size: 12px; color: var(--grey); }
+  .ex-value { font-size: 12px; font-weight: 600; color: #3a3a3a; text-align: right; }
+  .ex-reason { font-size: 11px; color: var(--grey); line-height: 1.5; padding-top: 6px; border-top: 0.5px solid var(--grey-border); margin-top: 2px; font-style: italic; }
+
+  /* Payment released card */
+  .payment-card { margin: 0 14px 14px 14px; border-radius: var(--r-lg); overflow: hidden; border: 1.5px solid var(--green-border); }
+  .payment-head { background: var(--green); padding: 10px 14px; display: flex; align-items: center; gap: 8px; }
+  .payment-head-title { font-size: 12px; font-weight: 700; color: #fff; flex: 1; }
+  .payment-head-badge { background: rgba(255,255,255,0.25); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .payment-body { background: var(--green-bg); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .pay-row { display: flex; justify-content: space-between; align-items: center; }
+  .pay-label { font-size: 12px; color: var(--green); }
+  .pay-value { font-size: 12px; font-weight: 600; color: var(--green); }
+  .pay-note { font-size: 11px; color: var(--green); line-height: 1.5; padding-top: 6px; border-top: 0.5px solid var(--green-border); margin-top: 2px; }
+
+  /* Sections */
+  .osec { padding: 12px 14px; border-bottom: 0.5px solid var(--border); }
+  .osec-t { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; }
+  .dr { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+  .dk { font-size: 12px; color: var(--text-2); }
+  .dv { font-size: 12px; font-weight: 500; color: var(--text-1); text-align: right; }
+  .dv.g { color: var(--green); }
+  .dv.r { color: var(--red-mid); }
+
+  /* Right panel */
+  .right-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .tabs { display: flex; background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 24px; flex-shrink: 0; }
+  .tab { padding: 11px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; display: flex; align-items: center; gap: 6px; }
+  .tab.on { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 500; }
+  .tab-ct { background: var(--surface-2); color: var(--text-3); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; border: 0.5px solid var(--border-strong); }
+
+  .panel { display: none; flex: 1; overflow-y: auto; padding: 20px 24px; flex-direction: column; gap: 14px; }
+  .panel.on { display: flex; }
+
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .card-head { padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .card-sub { font-size: 11px; color: var(--text-3); }
+  .card-body { padding: 12px 16px; }
+
+  /* Activity log */
+  .act-list { display: flex; flex-direction: column; }
+  .act-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .act-row:last-child { border-bottom: none; }
+  .act-row.expiry-event { background: linear-gradient(90deg, rgba(107,107,107,0.05), transparent); padding-left: 10px; padding-right: 10px; margin: 0 -10px; border-radius: var(--r-sm); border-bottom-color: var(--grey-border); }
+  .act-row.ryft-event { background: linear-gradient(90deg, rgba(34,197,94,0.06), transparent); padding-left: 10px; padding-right: 10px; margin: 0 -10px; border-radius: var(--r-sm); border-bottom-color: var(--green-border); }
+  .act-row.omnisend-event { background: linear-gradient(90deg, rgba(99,102,241,0.06), transparent); padding-left: 10px; padding-right: 10px; margin: 0 -10px; border-radius: var(--r-sm); border-bottom-color: var(--brand-mid); }
+  .act-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .act-body { flex: 1; }
+  .act-text { font-size: 12px; color: var(--text-1); line-height: 1.4; }
+  .act-text strong { font-weight: 500; }
+  .act-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .act-time { font-size: 11px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+  .act-evidence { font-size: 11px; color: var(--text-2); margin-top: 4px; padding: 6px 8px; background: var(--surface-2); border-radius: var(--r-sm); border: 0.5px solid var(--border); display: flex; flex-direction: column; gap: 2px; font-family: ui-monospace, 'SF Mono', monospace; }
+  .act-evidence-row { display: flex; justify-content: space-between; gap: 8px; }
+  .act-evidence-k { color: var(--text-3); font-size: 10px; }
+  .act-evidence-v { color: var(--text-1); font-weight: 500; font-size: 10px; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* WS switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html" class="active"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_prototype_09b_orders_list.html">Orders</a>
+        <span class="sep">/</span>
+        <a href="livera_prototype_09b_orders_list.html">Expired</a>
+        <span class="sep">/</span>
+        <span class="cur">ORD-00375</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="pill p-ex">Expired</div>
+        <div style="font-size:11px;color:var(--grey);font-weight:500;">Auto-expired 23 Apr · 6 calendar days from creation</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn-sm">Export to CSV</button>
+        <button class="btn-sm">Re-issue order link →</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Left panel -->
+      <div class="left-col">
+
+        <div class="order-hero">
+          <div class="order-id">
+            ORD-00375
+            <span class="order-type">Reorder · Order 4</span>
+          </div>
+          <div class="order-meta">Joanna Bell · 17 Apr 2026 · 09:12</div>
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+            <a href="livera_prototype_09_patient_profile.html" style="font-size:11px;color:var(--brand-dark);text-decoration:none;font-weight:500;padding:3px 9px;background:var(--brand-light);border-radius:999px;border:0.5px solid rgba(99,102,241,0.2);">View patient profile →</a>
+          </div>
+        </div>
+
+        <!-- BLD-3.3 — Expiry card -->
+        <div class="expiry-card">
+          <div class="expiry-head">
+            <span style="font-size:16px;">⌛</span>
+            <div class="expiry-head-title">Order auto-expired</div>
+            <div class="expiry-head-badge">EXPIRED</div>
+          </div>
+          <div class="expiry-body">
+            <div class="ex-row">
+              <span class="ex-label">Expired at</span>
+              <span class="ex-value">23 Apr 2026 · 09:12</span>
+            </div>
+            <div class="ex-row">
+              <span class="ex-label">Days from creation</span>
+              <span class="ex-value">6 calendar days</span>
+            </div>
+            <div class="ex-row">
+              <span class="ex-label">Trigger</span>
+              <span class="ex-value">Automatic · system rule</span>
+            </div>
+            <div class="ex-row">
+              <span class="ex-label">Last status</span>
+              <span class="ex-value">Clinical Check</span>
+            </div>
+            <div class="ex-reason">
+              "Patient did not complete questionnaire within 6 days. Reorder questionnaire submission timed out at the 6-day expiry threshold."
+            </div>
+          </div>
+        </div>
+
+        <!-- BLD-3.5 — Payment released card -->
+        <div class="payment-card">
+          <div class="payment-head">
+            <span style="font-size:16px;">✓</span>
+            <div class="payment-head-title">Payment authorisation released</div>
+            <div class="payment-head-badge">RELEASED</div>
+          </div>
+          <div class="payment-body">
+            <div class="pay-row">
+              <span class="pay-label">Amount released</span>
+              <span class="pay-value">£169.00</span>
+            </div>
+            <div class="pay-row">
+              <span class="pay-label">Released at</span>
+              <span class="pay-value">23 Apr 2026 · 09:12</span>
+            </div>
+            <div class="pay-row">
+              <span class="pay-label">Original auth</span>
+              <span class="pay-value" style="font-size:11px;">Ryft AUTH-7782341</span>
+            </div>
+            <div class="pay-row">
+              <span class="pay-label">Release ref</span>
+              <span class="pay-value" style="font-size:11px;">REL-7782341</span>
+            </div>
+            <div class="pay-note">
+              The authorisation was released automatically on order expiry. No charge has been made to the patient. The card on file is unaffected.
+            </div>
+          </div>
+        </div>
+
+        <!-- Order info -->
+        <div class="osec">
+          <div class="osec-t">Order summary</div>
+          <div class="dr"><span class="dk">Product</span><span class="dv">Mounjaro 5mg</span></div>
+          <div class="dr"><span class="dk">Quantity</span><span class="dv">Monthly · 4 pens</span></div>
+          <div class="dr"><span class="dk">Total</span><span class="dv">£169.00</span></div>
+          <div class="dr"><span class="dk">Submitted</span><span class="dv">17 Apr 2026 · 09:12</span></div>
+          <div class="dr"><span class="dk">Source</span><span class="dv">Patient app · reorder</span></div>
+        </div>
+
+        <div class="osec">
+          <div class="osec-t">Subscription impact</div>
+          <div class="dr"><span class="dk">Subscription</span><span class="dv g">Active · unaffected</span></div>
+          <div class="dr"><span class="dk">Subscription ID</span><span class="dv" style="font-size:11px;">SUB-00211</span></div>
+          <div class="dr"><span class="dk">Next billing</span><span class="dv">17 May 2026</span></div>
+          <div style="font-size:11px;color:var(--text-3);line-height:1.5;margin-top:6px;padding:6px 8px;background:var(--surface-2);border-radius:var(--r-sm);">
+            Order expiry does not cancel the subscription. Patient may submit a new reorder within the active period.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right panel -->
+      <div class="right-col">
+
+        <div class="tabs">
+          <div class="tab on" id="t-activity" onclick="showTab('activity',this)">Activity log <span class="tab-ct">9</span></div>
+          <div class="tab" id="t-comms" onclick="showTab('comms',this)">Patient comms</div>
+          <div class="tab" id="t-patient" onclick="showTab('patient',this)">Patient snapshot</div>
+        </div>
+
+        <div class="panel on" id="panel-activity">
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Activity log — ORD-00375</div>
+              <div class="card-sub">Chronological · expiry events highlighted</div>
+            </div>
+            <div class="card-body" style="padding:12px 16px;">
+              <div class="act-list">
+
+                <!-- Order created -->
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--brand);"></div>
+                  <div class="act-body">
+                    <div class="act-text"><strong>Order created</strong> — Reorder submitted by patient via VSC app</div>
+                    <div class="act-meta">System · auto-generated</div>
+                  </div>
+                  <div class="act-time">17 Apr · 09:12</div>
+                </div>
+
+                <!-- Payment authorised -->
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--green);"></div>
+                  <div class="act-body">
+                    <div class="act-text"><strong>Payment authorised</strong> — £169.00 ring-fenced · Ryft AUTH-7782341</div>
+                    <div class="act-meta">Ryft · authorise-not-capture</div>
+                  </div>
+                  <div class="act-time">17 Apr · 09:12</div>
+                </div>
+
+                <!-- Entered Clinical Check -->
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--amber);"></div>
+                  <div class="act-body">
+                    <div class="act-text"><strong>Entered Clinical Check</strong> — awaiting prescriber review</div>
+                    <div class="act-meta">System · auto-routed</div>
+                  </div>
+                  <div class="act-time">17 Apr · 09:12</div>
+                </div>
+
+                <!-- Day 3 reminder -->
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--blue);"></div>
+                  <div class="act-body">
+                    <div class="act-text"><strong>Day 3 reminder</strong> — patient prompt sent: "Complete your reorder questionnaire to continue treatment"</div>
+                    <div class="act-meta">Omnisend · order_pending_action</div>
+                  </div>
+                  <div class="act-time">20 Apr · 09:12</div>
+                </div>
+
+                <!-- Day 5 final reminder -->
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--amber);"></div>
+                  <div class="act-body">
+                    <div class="act-text"><strong>Day 5 final reminder</strong> — "Order expires tomorrow if no action taken"</div>
+                    <div class="act-meta">Omnisend · order_expiring_tomorrow</div>
+                  </div>
+                  <div class="act-time">22 Apr · 09:12</div>
+                </div>
+
+                <!-- BLD-3.3 — auto-transition to Expired -->
+                <div class="act-row expiry-event">
+                  <div class="act-dot" style="background:var(--grey);"></div>
+                  <div class="act-body">
+                    <div class="act-text"><strong>Order auto-expired</strong> — system transitioned status: Clinical Check → Expired at 6-day threshold</div>
+                    <div class="act-meta">System · order_expiry_rule · BLD-3.3</div>
+                    <div class="act-evidence">
+                      <div class="act-evidence-row"><span class="act-evidence-k">previous_status</span><span class="act-evidence-v">clinical-check</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">new_status</span><span class="act-evidence-v">expired</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">expiry_reason</span><span class="act-evidence-v">questionnaire_timeout_6d</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">days_elapsed</span><span class="act-evidence-v">6 calendar days</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">expired_at</span><span class="act-evidence-v">2026-04-23T09:12:00Z</span></div>
+                    </div>
+                  </div>
+                  <div class="act-time">23 Apr · 09:12</div>
+                </div>
+
+                <!-- BLD-3.5 — Ryft auth release -->
+                <div class="act-row ryft-event">
+                  <div class="act-dot" style="background:var(--green);"></div>
+                  <div class="act-body">
+                    <div class="act-text"><strong>Ryft authorisation released</strong> — £169.00 ring-fence cleared automatically · no charge made to patient card</div>
+                    <div class="act-meta">Ryft · release_authorisation API · BLD-3.5</div>
+                    <div class="act-evidence">
+                      <div class="act-evidence-row"><span class="act-evidence-k">ryft_request</span><span class="act-evidence-v">POST /v1/payments/AUTH-7782341/release</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">release_id</span><span class="act-evidence-v">REL-7782341</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">amount_released</span><span class="act-evidence-v">£169.00</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">ryft_status</span><span class="act-evidence-v">released_ok (HTTP 200)</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">released_at</span><span class="act-evidence-v">2026-04-23T09:12:04Z</span></div>
+                    </div>
+                  </div>
+                  <div class="act-time">23 Apr · 09:12</div>
+                </div>
+
+                <!-- BLD-3.5 — Omnisend "Order expired" -->
+                <div class="act-row omnisend-event">
+                  <div class="act-dot" style="background:var(--brand);"></div>
+                  <div class="act-body">
+                    <div class="act-text"><strong>Patient notification sent</strong> — "Your order has expired" email triggered via Omnisend `order_expired` template</div>
+                    <div class="act-meta">Omnisend · transactional event · BLD-3.5</div>
+                    <div class="act-evidence">
+                      <div class="act-evidence-row"><span class="act-evidence-k">omnisend_event</span><span class="act-evidence-v">order_expired_sent</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">template_id</span><span class="act-evidence-v">tpl_order_expired_v1</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">recipient</span><span class="act-evidence-v">joanna.bell@example.com</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">message_id</span><span class="act-evidence-v">om_msg_18229301</span></div>
+                      <div class="act-evidence-row"><span class="act-evidence-k">delivery_status</span><span class="act-evidence-v">delivered</span></div>
+                    </div>
+                  </div>
+                  <div class="act-time">23 Apr · 09:12</div>
+                </div>
+
+                <!-- Subscription state confirmed -->
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--text-3);"></div>
+                  <div class="act-body">
+                    <div class="act-text"><strong>Subscription state preserved</strong> — SUB-00211 remains active · patient may place a new reorder before next billing date</div>
+                    <div class="act-meta">System · subscription_unchanged</div>
+                  </div>
+                  <div class="act-time">23 Apr · 09:13</div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:12px 14px;background:var(--blue-bg);border:0.5px solid var(--blue-border);border-radius:var(--r-md);">
+            <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px;">For Yohan / Charana — implementation reference</div>
+            <div style="font-size:11px;color:#1e3a8a;line-height:1.5;">
+              The expiry timeline is the AUD-04 audit trail for BLD-3.3 + 3.5. All three coupled actions — state transition, Ryft release, Omnisend send — must write timeline events with structured evidence (request payload, response status, IDs). The order detail timeline component on the canonical SCR-010 (livera_prototype_10_order_detail_admin.html) should be extended to render these new event types when <code>activity.type ∈ ('order_expired','ryft_released','omnisend_sent')</code>.
+            </div>
+          </div>
+
+        </div>
+
+        <div class="panel" id="panel-comms">
+          <div class="card">
+            <div class="card-head"><div class="card-title">Patient communications log</div></div>
+            <div class="card-body">
+              <div style="font-size:12px;color:var(--text-2);line-height:1.7;">
+                <strong>20 Apr 2026 · 09:12</strong> — Day 3 nudge email · subject "Complete your reorder to continue your treatment plan"<br>
+                <strong>22 Apr 2026 · 09:12</strong> — Day 5 final reminder email · subject "Your order expires tomorrow"<br>
+                <strong>23 Apr 2026 · 09:12</strong> — Order expired email · subject "Your order has expired · no charge made"<br>
+              </div>
+              <div style="margin-top:14px;padding:8px 10px;background:var(--surface-2);border-radius:var(--r-sm);font-size:11px;color:var(--text-3);">
+                All three emails sent via Omnisend transactional API. Delivery status confirmed for each. Patient may re-engage by placing a new reorder.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-patient">
+          <div class="card">
+            <div class="card-head"><div class="card-title">Patient snapshot — Joanna Bell</div></div>
+            <div class="card-body">
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <div class="dr"><span class="dk">DOB</span><span class="dv">12 May 1986</span></div>
+                <div class="dr"><span class="dk">Active subscription</span><span class="dv g">Yes · SUB-00211</span></div>
+                <div class="dr"><span class="dk">Last successful order</span><span class="dv">ORD-00301 · 17 Mar 2026</span></div>
+                <div class="dr"><span class="dk">GP letter</span><span class="dv g">✓ Sent 04 Feb 2026</span></div>
+              </div>
+              <div style="margin-top:14px;">
+                <a href="livera_prototype_09_patient_profile.html" style="display:block;text-align:center;padding:10px;background:var(--brand-light);color:var(--brand-dark);text-decoration:none;font-size:13px;font-weight:500;border-radius:var(--r-md);border:0.5px solid rgba(99,102,241,0.2);">Open full patient profile →</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-010 variant · Expired order detail · BLD-3.3 + 3.4 + 3.5</span>
+      <span class="at">BLD-3.3</span>
+      <span>State machine: Clinical Check → Expired at 6 calendar days · expiry_reason captured · auto-transitioned by system rule</span>
+      <span class="at">BLD-3.5</span>
+      <span>Ryft auth released (REL-7782341 · £169 cleared) · Omnisend `order_expired` template sent (om_msg_18229301) · all logged on activity timeline with structured evidence</span>
+      <span class="at">AUD-04</span>
+      <span>Subscription state preserved · patient may re-order before next billing date</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function showTab(id, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('panel-' + id).classList.add('on');
+  el.classList.add('on');
+}
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

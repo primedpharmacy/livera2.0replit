@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Courier visibility</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --surface:#ffffff; --bg:#f1f0ef; --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --primed:#0891b2;
+}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#cffafe 0%,#0891b2 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info h1 .read-only-pill{font-size:10px;font-weight:700;letter-spacing:.4px;background:var(--bg);color:var(--t2);border:.5px solid var(--bdr-d);padding:3px 8px;border-radius:999px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-info .sub code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11.5px}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+
+/* Architecture banner — explains what this screen IS and ISN'T */
+.arch-banner{background:linear-gradient(135deg,#ecfeff 0%,#f0fdfa 100%);border:1px solid #99f6e4;border-radius:10px;padding:14px 18px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
+.arch-banner .ic{width:36px;height:36px;border-radius:8px;background:var(--primed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;font-weight:800;letter-spacing:-.5px}
+.arch-banner .text{font-size:12.5px;color:#155e75;line-height:1.6}
+.arch-banner .text strong{color:#0f172a;font-weight:700;display:block;margin-bottom:4px;font-size:13px}
+.arch-banner .text code{font-family:'SF Mono',Menlo,monospace;background:rgba(8,145,178,0.1);color:#155e75;padding:1px 5px;border-radius:3px;font-size:11px}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.stat-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px}
+.stat-num{font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1.1}
+.stat-num.warn{color:var(--warn)}
+.stat-num.ok{color:var(--ok)}
+.stat-lbl{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+.stat-sub{font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4}
+
+/* Courier cards (3-up) */
+.courier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.courier-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;overflow:hidden}
+.courier-card-head{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)}
+.courier-card-head .logo{width:36px;height:36px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:11px;letter-spacing:-.5px;flex-shrink:0}
+.courier-card-head .logo.rm{background:linear-gradient(135deg,#dc2626,#991b1b)}
+.courier-card-head .logo.dx{background:linear-gradient(135deg,#1e40af,#1e3a8a)}
+.courier-card-head .logo.dpd{background:linear-gradient(135deg,#dc2626,#991b1b)}
+.courier-card-head .nm{font-size:14px;font-weight:700;color:var(--t1);line-height:1.2}
+.courier-card-head .meta{font-size:10.5px;color:var(--t3);margin-top:2px}
+.courier-card-head .feed-pill{margin-left:auto;font-size:9.5px;font-weight:700;background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr);padding:2px 7px;border-radius:999px;display:inline-flex;align-items:center;gap:4px;letter-spacing:.4px}
+.courier-card-head .feed-pill .dot{width:5px;height:5px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 2px rgba(16,185,129,0.18)}
+.courier-card-body{padding:14px 16px;font-size:12px}
+.cc-row{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0}
+.cc-row .l{color:var(--t3);font-size:11.5px}
+.cc-row .r{color:var(--t1);font-weight:600;font-variant-numeric:tabular-nums}
+.cc-row .r.warn{color:var(--warn)}
+.cc-row .r.ok{color:var(--ok)}
+.cc-foot{padding:10px 16px;background:var(--bg);font-size:10.5px;color:var(--t3);border-top:.5px dashed var(--bdr);line-height:1.45}
+.cc-foot strong{color:var(--t2);font-weight:600}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+/* Webhook box */
+.webhook-row{padding:12px 14px;background:var(--bg);border:0.5px solid var(--bdr-d);border-radius:6px;margin:0 18px 10px;font-size:12px;color:var(--t1);font-family:'SF Mono',Menlo,monospace;display:flex;align-items:center;gap:10px;line-height:1.4}
+.webhook-row .verb{font-weight:700;color:var(--primed);font-size:10.5px;background:#cffafe;padding:2px 7px;border-radius:3px;letter-spacing:.4px}
+.webhook-row .url{flex:1;word-break:break-all;color:var(--t1);font-size:11.5px}
+.webhook-row .events{font-family:inherit;font-size:11px;color:var(--t3);font-weight:500}
+.webhook-row.read-only{opacity:.85}
+.webhook-card-foot{padding:10px 18px 14px;font-size:11px;color:var(--t2);line-height:1.55}
+.webhook-card-foot code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px}
+
+/* Tracking event mapping table */
+.evmap{font-size:12.5px}
+.evmap-row{display:grid;grid-template-columns:200px 28px 1fr 130px;gap:14px;padding:11px 18px;border-bottom:.5px solid var(--bdr);align-items:center}
+.evmap-row:last-child{border-bottom:none}
+.evmap-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.evmap-from{font-family:'SF Mono',Menlo,monospace;font-size:11px;color:var(--t1);background:#cffafe;padding:3px 8px;border-radius:4px;border:.5px solid #67e8f9;width:fit-content;font-weight:600}
+.evmap-arrow{color:var(--t3);text-align:center;font-size:14px}
+.evmap-desc{font-size:11.5px;color:var(--t2);line-height:1.45}
+.evmap-state{font-family:'SF Mono',Menlo,monospace;font-size:11px;color:var(--brand-d);background:var(--brand-l);padding:3px 8px;border-radius:4px;border:.5px solid #c7d2fe;width:fit-content;font-weight:600}
+
+/* Recent feed */
+.feed-row{display:grid;grid-template-columns:90px 80px 1fr 200px 110px;gap:14px;padding:12px 18px;border-bottom:.5px solid var(--bdr);align-items:center;font-size:12.5px}
+.feed-row:last-child{border-bottom:none}
+.feed-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.feed-when{color:var(--t3);font-size:11px;font-variant-numeric:tabular-nums}
+.feed-courier{font-size:9.5px;font-weight:700;letter-spacing:.4px;padding:3px 7px;border-radius:3px;width:fit-content}
+.feed-courier.rm{background:#fef2f2;color:#991b1b;border:.5px solid #fecaca}
+.feed-courier.dx{background:#dbeafe;color:#1e3a8a;border:.5px solid #bfdbfe}
+.feed-courier.dpd{background:#fef2f2;color:#991b1b;border:.5px solid #fecaca}
+.feed-detail{color:var(--t1);line-height:1.4}
+.feed-detail strong{color:var(--brand);font-weight:600}
+.feed-track{color:var(--t2);font-family:'SF Mono',Menlo,monospace;font-size:10.5px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--bdr-d)}
+.feed-track:hover{color:var(--brand)}
+.feed-state{font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:3px;letter-spacing:.4px;text-align:center;width:fit-content}
+.feed-state.dispatched{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.feed-state.transit{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.feed-state.delivered{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.feed-state.exception{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <div class="ws"><button class="ws-trigger"><strong>VSC — Quanta Healthcare Ltd</strong><span class="ws-chev">▼</span></button></div>
+  <div class="role"><span>Qadir Hussain</span><span class="role-pill">Owner</span></div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_settings_landing.html">Settings</a>
+      <span class="sep">›</span>
+      <a href="livera_settings_landing.html#integrations">Integrations</a>
+      <span class="sep">›</span>
+      <span class="cur">Courier visibility</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">📦</div>
+      <div class="pg-info">
+        <h1>
+          Courier visibility
+          <span class="bld-pill">BLD-INT-COURIER-01</span>
+          <span class="read-only-pill">READ-ONLY MIRROR</span>
+        </h1>
+        <div class="sub">Tracking events for the 3 couriers Primed dispatches with: Royal Mail, DX, DPD. Livera does not select couriers, hold accounts, generate labels, or file manifests — all of that lives in Primed. This screen mirrors Primed's tracking feed via <code>primed_dispatch_event</code> webhook so the patient app and admin can show "where's my package".</div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Stub · would open the Primed dispatch console in a new tab')">↗ Primed dispatch console</button>
+      </div>
+    </div>
+
+    <!-- ARCHITECTURE BANNER -->
+    <div class="arch-banner">
+      <div class="ic">P→L</div>
+      <div class="text">
+        <strong>Where the courier logic lives</strong>
+        Primed (GPhC 1039469) operates the OBA/business accounts, generates shipping labels, files manifests, and decides which courier handles which package — including Schedule 4 controlled-drug routing rules under MHRA POM-CD distribution requirements. Livera receives <code>primed_dispatch_event</code> webhooks for each tracking update and maps them onto the 5 patient-facing order states from spec §14: <code>dispatched</code>, <code>in_transit</code>, <code>out_for_delivery</code>, <code>delivered</code>, <code>exception</code>. Settings on this page are <strong>configurable in Primed</strong>, not Livera.
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num">51</div>
+        <div class="stat-lbl">Currently in transit</div>
+        <div class="stat-sub">Across all 3 couriers · this workspace only</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num ok">96.4%</div>
+        <div class="stat-lbl">Delivered on time</div>
+        <div class="stat-sub">Last 30d · per courier SLA</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num warn">3</div>
+        <div class="stat-lbl">In transit &gt;48h</div>
+        <div class="stat-sub">Auto-flagged · admin task created</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">14:38</div>
+        <div class="stat-lbl">Last tracking event</div>
+        <div class="stat-sub">Webhook stream healthy · &lt;5s latency</div>
+      </div>
+    </div>
+
+    <!-- COURIER CARDS — read-only summaries -->
+    <div class="courier-grid">
+
+      <!-- Royal Mail -->
+      <div class="courier-card">
+        <div class="courier-card-head">
+          <div class="logo rm">RM</div>
+          <div>
+            <div class="nm">Royal Mail</div>
+            <div class="meta">Standard + Special Delivery</div>
+          </div>
+          <div class="feed-pill"><span class="dot"></span>FEED ACTIVE</div>
+        </div>
+        <div class="courier-card-body">
+          <div class="cc-row"><span class="l">In transit</span><span class="r">28</span></div>
+          <div class="cc-row"><span class="l">Delivered (30d)</span><span class="r">187</span></div>
+          <div class="cc-row"><span class="l">On-time rate</span><span class="r ok">96%</span></div>
+          <div class="cc-row"><span class="l">Exceptions</span><span class="r warn">3</span></div>
+          <div class="cc-row"><span class="l">Used for</span><span class="r" style="font-size:11px;font-weight:500;color:var(--t2);">Most non-CD orders + CDs (SD1)</span></div>
+        </div>
+        <div class="cc-foot"><strong>Routing decision:</strong> Primed default for non-controlled-drug orders and Schedule 4 CDs (Special Delivery 1pm).</div>
+      </div>
+
+      <!-- DX -->
+      <div class="courier-card">
+        <div class="courier-card-head">
+          <div class="logo dx">DX</div>
+          <div>
+            <div class="nm">DX Secure</div>
+            <div class="meta">Healthcare logistics specialist</div>
+          </div>
+          <div class="feed-pill"><span class="dot"></span>FEED ACTIVE</div>
+        </div>
+        <div class="courier-card-body">
+          <div class="cc-row"><span class="l">In transit</span><span class="r">14</span></div>
+          <div class="cc-row"><span class="l">Delivered (30d)</span><span class="r">82</span></div>
+          <div class="cc-row"><span class="l">On-time rate</span><span class="r ok">98%</span></div>
+          <div class="cc-row"><span class="l">Exceptions</span><span class="r ok">0</span></div>
+          <div class="cc-row"><span class="l">Used for</span><span class="r" style="font-size:11px;font-weight:500;color:var(--t2);">Cold-chain + signed-for CDs</span></div>
+        </div>
+        <div class="cc-foot"><strong>Routing decision:</strong> Primed selects DX for temperature-controlled GLP-1 shipments and consignments needing strict chain-of-custody.</div>
+      </div>
+
+      <!-- DPD -->
+      <div class="courier-card">
+        <div class="courier-card-head">
+          <div class="logo dpd">DPD</div>
+          <div>
+            <div class="nm">DPD</div>
+            <div class="meta">1-hour predict + Saturday</div>
+          </div>
+          <div class="feed-pill"><span class="dot"></span>FEED ACTIVE</div>
+        </div>
+        <div class="courier-card-body">
+          <div class="cc-row"><span class="l">In transit</span><span class="r">9</span></div>
+          <div class="cc-row"><span class="l">Delivered (30d)</span><span class="r">54</span></div>
+          <div class="cc-row"><span class="l">On-time rate</span><span class="r ok">95%</span></div>
+          <div class="cc-row"><span class="l">Exceptions</span><span class="r ok">0</span></div>
+          <div class="cc-row"><span class="l">Used for</span><span class="r" style="font-size:11px;font-weight:500;color:var(--t2);">Saturday + customer-preferred slot</span></div>
+        </div>
+        <div class="cc-foot"><strong>Routing decision:</strong> Primed selects DPD for weekend delivery and patient-preferred 1-hour windows.</div>
+      </div>
+
+    </div>
+
+    <!-- WEBHOOK CONFIG (read-only) -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🔌 Primed → Livera dispatch webhook</div>
+        <div class="sub">Read-only · single inbound feed for all 3 couriers</div>
+        <div class="right">Live · &lt;5s p95 latency</div>
+      </div>
+      <div class="webhook-row read-only" style="margin-top:14px;">
+        <span class="verb">POST</span>
+        <div class="url">https://api.livera.health/webhooks/primed/dispatch</div>
+        <span class="events">5 event types</span>
+      </div>
+      <div class="webhook-card-foot">
+        <strong style="color:var(--t1);font-weight:600;">Why a single webhook for all 3 couriers:</strong> Primed normalises courier-specific event payloads (Royal Mail OBA, DX webhook, DPD push API) into a single <code>primed_dispatch_event</code> shape before forwarding. Livera never speaks to the couriers directly — the abstraction lives in Primed. This means adding a 4th courier in future requires zero Livera changes.
+      </div>
+    </div>
+
+    <!-- EVENT MAPPING TABLE -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">↔ Tracking event mapping</div>
+        <div class="sub">How Primed events map to the 5 patient-facing order states (spec §14)</div>
+      </div>
+      <div class="evmap">
+        <div class="evmap-row head">
+          <span>Primed event</span>
+          <span></span>
+          <span>What it means · what fires in Livera</span>
+          <span>Patient state</span>
+        </div>
+        <div class="evmap-row">
+          <span class="evmap-from">dispatch.label_created</span>
+          <span class="evmap-arrow">→</span>
+          <div class="evmap-desc">Primed has generated a courier label and committed the consignment. Livera flips order to <code>dispatched</code>, fires FCM #7 to patient, sets dispatch_at timestamp.</div>
+          <span class="evmap-state">dispatched</span>
+        </div>
+        <div class="evmap-row">
+          <span class="evmap-from">dispatch.in_transit</span>
+          <span class="evmap-arrow">→</span>
+          <div class="evmap-desc">Courier scanned the package at first hub. Patient app shows live tracking link via Primed's tracking redirect URL.</div>
+          <span class="evmap-state">in_transit</span>
+        </div>
+        <div class="evmap-row">
+          <span class="evmap-from">dispatch.out_for_delivery</span>
+          <span class="evmap-arrow">→</span>
+          <div class="evmap-desc">Out on the round. Livera fires FCM #8 to patient ("your package is out for delivery today").</div>
+          <span class="evmap-state">out_for_delivery</span>
+        </div>
+        <div class="evmap-row">
+          <span class="evmap-from">dispatch.delivered</span>
+          <span class="evmap-arrow">→</span>
+          <div class="evmap-desc">Courier reports delivered (signature, photo, or safe-place per courier rules). Livera flips order to <code>delivered</code>, fires FCM #9 + Trustpilot review trigger after 24h cooling period.</div>
+          <span class="evmap-state">delivered</span>
+        </div>
+        <div class="evmap-row">
+          <span class="evmap-from">dispatch.exception</span>
+          <span class="evmap-arrow">→</span>
+          <div class="evmap-desc">Failed delivery, attempted delivery, address issue, or carded. Livera surfaces exception in Tasks, creates an admin task with the courier's exception reason. No patient FCM (admin handles patient comms).</div>
+          <span class="evmap-state">exception</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECENT FEED -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📜 Recent dispatch events</div>
+        <div class="sub">Last 24 hours · this workspace only · all 3 couriers</div>
+        <div class="right">Live feed · auto-refresh 30s</div>
+      </div>
+      <div>
+        <div class="feed-row head">
+          <span>When</span>
+          <span>Courier</span>
+          <span>Event</span>
+          <span>Tracking ref</span>
+          <span style="text-align:right">State</span>
+        </div>
+        <div class="feed-row">
+          <span class="feed-when">14:38</span>
+          <span><span class="feed-courier rm">ROYAL MAIL</span></span>
+          <div class="feed-detail"><strong>ORD-00420</strong> · Helena Fox · scanned at Sheffield Mail Centre</div>
+          <a class="feed-track">RM24TS9920884GB</a>
+          <span class="feed-state transit">IN TRANSIT</span>
+        </div>
+        <div class="feed-row">
+          <span class="feed-when">14:18</span>
+          <span><span class="feed-courier dx">DX</span></span>
+          <div class="feed-detail"><strong>ORD-00432</strong> · Marcus Tomlinson · cold-chain dispatch confirmed by Primed</div>
+          <a class="feed-track">DX-CC-99440112</a>
+          <span class="feed-state dispatched">DISPATCHED</span>
+        </div>
+        <div class="feed-row">
+          <span class="feed-when">13:56</span>
+          <span><span class="feed-courier rm">ROYAL MAIL</span></span>
+          <div class="feed-detail"><strong>ORD-00428</strong> · James Turner · Special Delivery 1pm — out for delivery</div>
+          <a class="feed-track">SD1MJ4471XX</a>
+          <span class="feed-state transit">OUT FOR DEL</span>
+        </div>
+        <div class="feed-row">
+          <span class="feed-when">12:41</span>
+          <span><span class="feed-courier dpd">DPD</span></span>
+          <div class="feed-detail"><strong>ORD-00425</strong> · Sarah Cookland · 1-hour window 13:00–14:00</div>
+          <a class="feed-track">DPD-15500-994212</a>
+          <span class="feed-state delivered">DELIVERED</span>
+        </div>
+        <div class="feed-row">
+          <span class="feed-when">11:30</span>
+          <span><span class="feed-courier rm">ROYAL MAIL</span></span>
+          <div class="feed-detail"><strong>ORD-00422</strong> · Beth Aldridge · 2nd attempted delivery — carded · admin task created</div>
+          <a class="feed-track">RM24TS9912770GB</a>
+          <span class="feed-state exception">EXCEPTION</span>
+        </div>
+        <div class="feed-row">
+          <span class="feed-when">10:02</span>
+          <span><span class="feed-courier dx">DX</span></span>
+          <div class="feed-detail"><strong>ORD-00415</strong> · David Reid · signature captured at door</div>
+          <a class="feed-track">DX-CC-99440084</a>
+          <span class="feed-state delivered">DELIVERED</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Courier visibility</strong> · BLD-INT-COURIER-01 (spec §14 / DEC-14). <strong>Read-only mirror</strong> of Primed's dispatch feed. Livera does not configure couriers, hold OBA accounts, generate labels, file manifests, or apply CD-routing rules — Primed (GPhC 1039469) owns all of that. Livera receives <code>primed_dispatch_event</code> webhooks and maps them to the 5 patient-facing states from spec §14. To change which courier handles a dispatch type, edit the rule in Primed; the new routing flows through to Livera automatically. Visible to <code>Owner</code>, <code>RM</code>, and <code>Admin</code> · all roles see this read-only.
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+</script>
+</body>
+</html>

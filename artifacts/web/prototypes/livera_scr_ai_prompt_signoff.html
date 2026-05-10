@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — AI Prompt Sign-off (BLD-6.5)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+
+  .content { flex: 1; overflow-y: auto; padding: 24px 32px 32px; }
+  .page-head { margin-bottom: 22px; }
+  .page-title { font-size: 24px; font-weight: 700; color: var(--text-1); letter-spacing: -0.4px; }
+  .page-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; max-width: 760px; }
+
+  /* Status banner */
+  .gate-banner { padding: 16px 20px; border-radius: var(--r-lg); margin-bottom: 22px; display: flex; align-items: center; gap: 14px; background: var(--amber-bg); border: 1.5px solid var(--amber-border); }
+  .gate-banner.signed { background: var(--green-bg); border-color: var(--green-border); }
+  .gate-icon { font-size: 26px; flex-shrink: 0; }
+  .gate-info { flex: 1; }
+  .gate-title { font-size: 14px; font-weight: 700; color: var(--amber); }
+  .gate-banner.signed .gate-title { color: var(--green); }
+  .gate-sub { font-size: 12px; color: var(--text-2); margin-top: 3px; line-height: 1.5; }
+
+  /* Two-col layout */
+  .two-col { display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: start; }
+
+  /* Card */
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); margin-bottom: 14px; overflow: hidden; }
+  .card-head { padding: 12px 18px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; display: flex; align-items: center; gap: 8px; }
+  .card-sub { font-size: 11px; color: var(--text-3); }
+  .card-body { padding: 16px 18px; }
+
+  /* Version pill */
+  .v-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--brand-light); color: var(--brand-dark); border: 0.5px solid rgba(99,102,241,0.3); font-family: ui-monospace,'SF Mono',monospace; letter-spacing: 0.3px; }
+  .status-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 0.5px solid; text-transform: uppercase; letter-spacing: 0.4px; }
+  .status-draft { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .status-signed { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .status-superseded { background: var(--surface-2); color: var(--text-3); border-color: var(--border-strong); }
+
+  /* Prompt block */
+  .prompt-block { padding: 16px 18px; background: #1e1b4b; color: #c7d2fe; border-radius: var(--r-md); font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; line-height: 1.7; overflow-x: auto; white-space: pre-wrap; max-height: 420px; overflow-y: auto; }
+  .prompt-block .pcomment { color: #818cf8; opacity: 0.7; }
+  .prompt-block .pemph { color: #fcd34d; font-weight: 600; }
+  .prompt-block .ph { color: #a5b4fc; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Diff */
+  .diff-row { padding: 4px 18px; font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; line-height: 1.6; }
+  .diff-add { background: #f0fdf4; color: var(--green); border-left: 3px solid var(--green); }
+  .diff-rem { background: #fff1f1; color: var(--red-mid); border-left: 3px solid var(--red-border); text-decoration: line-through; opacity: 0.85; }
+  .diff-ctx { color: var(--text-3); border-left: 3px solid transparent; padding-left: 18px; }
+
+  /* Sign-off form */
+  .signoff-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .signoff-head { padding: 12px 18px; border-bottom: 0.5px solid var(--border); background: var(--brand-light); display: flex; align-items: center; gap: 8px; }
+  .signoff-title { font-size: 13px; font-weight: 700; color: var(--brand-dark); flex: 1; }
+  .signoff-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+  .check-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-sm); }
+  .check-row input { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; cursor: pointer; }
+  .check-row label { font-size: 12px; line-height: 1.5; color: var(--text-1); cursor: pointer; flex: 1; }
+  .check-row label strong { font-weight: 600; }
+
+  .field-group { display: flex; flex-direction: column; gap: 5px; }
+  .field-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .field-input, .field-textarea { padding: 8px 12px; font-size: 13px; border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); font-family: inherit; background: var(--surface); color: var(--text-1); }
+  .field-textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+  .field-input:focus, .field-textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+
+  .btn { padding: 8px 14px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn.primary:hover { background: #3730a3; }
+  .btn.primary[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .btn.danger { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+
+  /* Version history table */
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; background: var(--surface-2); border-bottom: 0.5px solid var(--border); }
+  td { padding: 11px 14px; font-size: 12px; color: var(--text-1); border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .vh-name { font-weight: 500; }
+  .vh-sha { font-family: ui-monospace,'SF Mono',monospace; font-size: 10px; color: var(--text-3); }
+  .vh-meta { font-size: 11px; color: var(--text-3); }
+
+  /* Anthropic ref card */
+  .anth-card { padding: 12px 16px; background: #faf5ff; border: 0.5px solid #d8b4fe; border-radius: var(--r-md); margin-top: 8px; }
+  .anth-title { font-size: 12px; font-weight: 700; color: #6b21a8; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .anth-row { display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; }
+  .anth-k { color: #7e22ce; }
+  .anth-v { color: #4c1d95; font-weight: 500; font-family: ui-monospace,'SF Mono',monospace; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; }
+  .toast.show { display: flex; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_settings_landing.html">Settings</a>
+        <span class="sep">/</span>
+        <a href="livera_settings_landing.html">AI Governance</a>
+        <span class="sep">/</span>
+        <span class="cur">Prompt sign-off</span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="page-head">
+        <div class="page-title">AI prompt sign-off</div>
+        <div class="page-sub">Clinical sign-off is required for every system prompt change before it can be used in production. Per the Livera constitution, system prompts are clinic-specific and require sign-off from <strong>Qadir Hussain</strong> for each clinic before launch. This screen is the gating control: <strong>BLD-6.5</strong> blocks <strong>BLD-6.2</strong> (the Anthropic API wiring on SCR-030) until a signed prompt version exists.</div>
+      </div>
+
+      <!-- Gate banner -->
+      <div class="gate-banner" id="gate-banner">
+        <div class="gate-icon">⏳</div>
+        <div class="gate-info">
+          <div class="gate-title">Sign-off required — v2.1 awaiting your approval</div>
+          <div class="gate-sub">FeelTru workspace · prompt version <strong>v2.1</strong> drafted by Claire Moynehan on 28 Apr 2026 · <strong>not yet usable in production</strong>. The AI Note Drafting feature on SCR-030 will return 412 Precondition Failed until you sign off, or you can roll back to <strong>v2.0</strong> (signed 17 Mar 2026) below.</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+
+        <!-- Left: prompt + diff + history -->
+        <div>
+
+          <!-- Pending prompt -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">
+                <span>📝 Pending prompt</span>
+                <span class="v-pill">v2.1</span>
+                <span class="status-pill status-draft">Awaiting sign-off</span>
+              </div>
+              <div class="card-sub">claude-sonnet-4-20250514</div>
+            </div>
+            <div class="card-body">
+<pre class="prompt-block"><span class="ph">## ROLE</span>
+You are a clinical note drafting assistant for <span class="pemph">FeelTru</span>, a CQC-registered
+weight management clinic. You draft clinical notes for nurse prescribers
+to review, edit, and save. You <span class="pemph">never</span> save notes directly.
+
+<span class="ph">## CONTEXT</span>
+The clinic prescribes GLP-1 receptor agonists (Mounjaro/tirzepatide,
+Wegovy/semaglutide) to patients meeting NICE criteria. Patients are
+women aged 30–55. Sole prescriber: Claire Moynehan (NMC 1234567).
+
+<span class="ph">## INPUTS</span>
+You will receive:
+- Patient clinical history (age, BMI, comorbidities, medications)
+- Reorder questionnaire delta (changes since last reorder)
+- Most recent weight, side effects reported
+- Order context (product, dose, type)
+
+<span class="ph">## OUTPUT FORMAT</span>
+Plain text · max 400 words · structured into:
+1. <span class="pemph">Assessment</span> — what the data shows
+2. <span class="pemph">Reasoning</span> — clinical rationale referenced to NICE CG189
+3. <span class="pemph">Recommendation</span> — continue / dose change / decline / refer
+4. <span class="pemph">Next review</span> — when to review
+
+<span class="ph">## RULES (NON-NEGOTIABLE)</span>
+- <span class="pemph">Never</span> recommend dose increase without prescriber review
+- <span class="pemph">Never</span> claim a clinical decision — frame as draft for review
+- <span class="pemph">Always</span> flag NICE ≥5% target if unmet
+- <span class="pemph">Always</span> flag cardiac history if present in record
+- <span class="pemph">Always</span> recommend GP letter for first prescription
+- <span class="pemph">Refuse</span> to draft if patient gender field = "male" — redirect to VSC
+- <span class="pemph">Refuse</span> to draft if BMI &lt; 27 with no comorbidity
+- <span class="pemph">Always</span> end output with the disclaimer: "DRAFT — PENDING PRESCRIBER REVIEW"
+
+<span class="pcomment"># NEW IN v2.1 (vs v2.0):</span>
+- Added cardiac history flagging rule
+- Added NICE CG189 explicit reference
+- Tightened "never claim a clinical decision" wording
+- Added 400-word cap (was unlimited)
+</pre>
+            </div>
+          </div>
+
+          <!-- Diff -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">
+                <span>🔍 Diff vs v2.0 (currently signed)</span>
+              </div>
+              <div class="card-sub">4 additions · 1 modification · 0 deletions</div>
+            </div>
+            <div class="card-body" style="padding:0;">
+              <div class="diff-row diff-ctx">  ## RULES (NON-NEGOTIABLE)</div>
+              <div class="diff-row diff-ctx">  - Never recommend dose increase without prescriber review</div>
+              <div class="diff-row diff-rem">- - Never claim a clinical decision</div>
+              <div class="diff-row diff-add">+ - Never claim a clinical decision — frame as draft for review</div>
+              <div class="diff-row diff-ctx">  - Always flag NICE ≥5% target if unmet</div>
+              <div class="diff-row diff-add">+ - Always flag cardiac history if present in record</div>
+              <div class="diff-row diff-ctx">  - Always recommend GP letter for first prescription</div>
+              <div class="diff-row diff-ctx">  - Refuse to draft if patient gender field = "male" — redirect to VSC</div>
+              <div class="diff-row diff-ctx">  - Refuse to draft if BMI &lt; 27 with no comorbidity</div>
+              <div class="diff-row diff-ctx">  - Always end output with the disclaimer: "DRAFT — PENDING PRESCRIBER REVIEW"</div>
+              <div class="diff-row diff-ctx">  </div>
+              <div class="diff-row diff-add">+ ## OUTPUT FORMAT (additions)</div>
+              <div class="diff-row diff-add">+ Plain text · max 400 words</div>
+              <div class="diff-row diff-add">+ Reasoning section must reference NICE CG189</div>
+            </div>
+          </div>
+
+          <!-- History -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title"><span>📜 Version history</span></div>
+              <div class="card-sub">FeelTru workspace</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:80px;">Version</th>
+                  <th>Status</th>
+                  <th>SHA</th>
+                  <th>Author</th>
+                  <th>Signed by</th>
+                  <th>Signed at</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="background:var(--amber-bg);">
+                  <td><span class="v-pill">v2.1</span></td>
+                  <td><span class="status-pill status-draft">Awaiting sign-off</span></td>
+                  <td class="vh-sha">9c8a2e1f</td>
+                  <td class="vh-name">Claire Moynehan</td>
+                  <td class="vh-meta">—</td>
+                  <td class="vh-meta">28 Apr 2026 · drafted</td>
+                </tr>
+                <tr>
+                  <td><span class="v-pill">v2.0</span></td>
+                  <td><span class="status-pill status-signed">✓ Signed · in use</span></td>
+                  <td class="vh-sha">a3f1b88c</td>
+                  <td class="vh-name">Claire Moynehan</td>
+                  <td class="vh-name">Qadir Hussain</td>
+                  <td class="vh-meta">17 Mar 2026 · 14:22</td>
+                </tr>
+                <tr>
+                  <td><span class="v-pill">v1.2</span></td>
+                  <td><span class="status-pill status-superseded">Superseded</span></td>
+                  <td class="vh-sha">2d7e09a4</td>
+                  <td class="vh-name">Qadir Hussain</td>
+                  <td class="vh-name">Qadir Hussain</td>
+                  <td class="vh-meta">04 Feb 2026 · 11:08</td>
+                </tr>
+                <tr>
+                  <td><span class="v-pill">v1.1</span></td>
+                  <td><span class="status-pill status-superseded">Superseded</span></td>
+                  <td class="vh-sha">7b4c331d</td>
+                  <td class="vh-name">Qadir Hussain</td>
+                  <td class="vh-name">Qadir Hussain</td>
+                  <td class="vh-meta">22 Jan 2026 · 09:17</td>
+                </tr>
+                <tr>
+                  <td><span class="v-pill">v1.0</span></td>
+                  <td><span class="status-pill status-superseded">Superseded</span></td>
+                  <td class="vh-sha">5e0d8f2b</td>
+                  <td class="vh-name">Qadir Hussain</td>
+                  <td class="vh-name">Qadir Hussain</td>
+                  <td class="vh-meta">15 Jan 2026 · 16:45 · initial</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+
+        <!-- Right: sign-off form + Anthropic config -->
+        <div>
+
+          <div class="signoff-card">
+            <div class="signoff-head">
+              <span style="font-size:16px;">🛡</span>
+              <div class="signoff-title">Sign off v2.1</div>
+            </div>
+            <div class="signoff-body">
+
+              <div style="font-size:12px;color:var(--text-2);line-height:1.55;">
+                As the clinical authority for FeelTru, you must confirm the following before this prompt can go live. Each clinic requires a separate sign-off — the VSC workspace prompt is signed independently.
+              </div>
+
+              <div class="check-row">
+                <input type="checkbox" id="c1" onchange="updateBtn()">
+                <label for="c1">I have <strong>read v2.1 in full</strong> and the diff against v2.0</label>
+              </div>
+              <div class="check-row">
+                <input type="checkbox" id="c2" onchange="updateBtn()">
+                <label for="c2">The prompt's <strong>clinical rules are correct</strong> for FeelTru (women only, NICE CG189, GLP-1 weight management)</label>
+              </div>
+              <div class="check-row">
+                <input type="checkbox" id="c3" onchange="updateBtn()">
+                <label for="c3">The prompt <strong>does not output diagnoses or final clinical decisions</strong> — only drafts for prescriber review</label>
+              </div>
+              <div class="check-row">
+                <input type="checkbox" id="c4" onchange="updateBtn()">
+                <label for="c4">The "<strong>refuse if male</strong>" rule and "<strong>refuse if BMI &lt; 27 with no comorbidity</strong>" guards are present and correct</label>
+              </div>
+              <div class="check-row">
+                <input type="checkbox" id="c5" onchange="updateBtn()">
+                <label for="c5">I accept clinical responsibility for AI drafts produced under this prompt version</label>
+              </div>
+
+              <div class="field-group">
+                <div class="field-label">Sign-off note (optional)</div>
+                <textarea class="field-textarea" placeholder="Reason for this version, internal review notes…"></textarea>
+              </div>
+
+              <div class="field-group">
+                <div class="field-label">Type your full name to confirm</div>
+                <input class="field-input" type="text" id="signature" placeholder="Qadir Hussain" oninput="updateBtn()">
+              </div>
+
+              <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button class="btn">Send back to author</button>
+                <button class="btn primary" id="btn-sign" disabled onclick="sign()">Sign and activate v2.1</button>
+              </div>
+
+              <div style="font-size:11px;color:var(--text-3);line-height:1.5;padding-top:8px;border-top:0.5px dashed var(--border);">
+                On sign-off, this version becomes the active prompt for the FeelTru workspace. v2.0 is automatically marked superseded. AUD-04 audit event written. The Anthropic API wiring (BLD-6.2) on SCR-030 will start using v2.1 immediately.
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Anthropic config -->
+          <div class="anth-card">
+            <div class="anth-title">🧠 Anthropic API configuration</div>
+            <div class="anth-row"><span class="anth-k">model</span><span class="anth-v">claude-sonnet-4-20250514</span></div>
+            <div class="anth-row"><span class="anth-k">max_tokens</span><span class="anth-v">600</span></div>
+            <div class="anth-row"><span class="anth-k">temperature</span><span class="anth-v">0.2</span></div>
+            <div class="anth-row"><span class="anth-k">stop_sequences</span><span class="anth-v">["DRAFT — PENDING"]</span></div>
+            <div class="anth-row"><span class="anth-k">prompt_version</span><span class="anth-v">v2.1 (pending)</span></div>
+            <div class="anth-row"><span class="anth-k">prompt_sha</span><span class="anth-v">9c8a2e1f</span></div>
+            <div class="anth-row"><span class="anth-k">workspace</span><span class="anth-v">feeltru</span></div>
+          </div>
+
+          <div style="margin-top:14px;font-size:11px;color:var(--text-3);line-height:1.55;padding:10px 12px;background:var(--surface-2);border-radius:var(--r-sm);">
+            <strong style="color:var(--text-2);">Why two-clinic separation?</strong> The constitution requires per-clinic clinical sign-off. VSC and FeelTru run different prompts because the patient population, prescriber model, and CQC scope differ. Switching workspaces above this screen swaps to the VSC version and its independent sign-off chain.
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>BLD-6.5 · System prompt sign-off · gating dependency for BLD-6.2 (Anthropic API wiring) · per-clinic chain</span>
+      <span class="at">BLD-6.5</span>
+      <span>Five mandatory checkboxes + name confirmation · sign-off writes AUD-04 event with prompt SHA · v2.0 auto-superseded on activation</span>
+      <span class="at">AUD-04</span>
+      <span>SCR-030 returns 412 Precondition Failed if no signed prompt exists · BLD-6.2 reads active version at request time</span>
+      <span class="at">BLD-6.2</span>
+      <span>Constitution rule: "system prompt is clinic-specific and requires clinical sign-off from Qadir for each clinic before launch"</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  function updateBtn() {
+    const allChecked = ['c1','c2','c3','c4','c5'].every(id => document.getElementById(id).checked);
+    const sig = document.getElementById('signature').value.trim();
+    const ready = allChecked && sig.length >= 5;
+    document.getElementById('btn-sign').disabled = !ready;
+  }
+  function sign() {
+    document.getElementById('gate-banner').classList.add('signed');
+    document.querySelector('.gate-icon').textContent = '✓';
+    document.querySelector('.gate-title').textContent = 'v2.1 signed and active';
+    document.querySelector('.gate-sub').innerHTML = 'Signed by <strong>Qadir Hussain</strong> at ' + new Date().toLocaleString('en-GB') + ' · prompt is now in use on SCR-030 · AUD-04 event written';
+    const t = document.getElementById('toast');
+    t.innerHTML = '✓ Prompt v2.1 signed and active · AI Note Drafting unlocked';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Incidents (Pass 2)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --surface:#ffffff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa;
+  --gov:#a855f7; --gov-bg:#faf5ff; --gov-bdr:#e9d5ff;
+}
+
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws-name{color:#fff;font-weight:600}
+.topnav .right{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:rgba(255,255,255,.08);border-radius:999px;border:1px solid rgba(255,255,255,.12)}
+.topnav .role-pill .dot{width:5px;height:5px;border-radius:50%;background:var(--ok)}
+.topnav .user{display:flex;align-items:center;gap:6px}
+.topnav .user .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--brand-mid),var(--brand-d));display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff}
+
+.shell{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:218px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);font-weight:700;padding:0 8px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:9px;padding:7px 9px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:background .12s,color .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:6px;bottom:6px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+.sidebar a .badge{margin-left:auto;font-size:10px;font-weight:700;background:var(--brand);color:#fff;padding:1px 6px;border-radius:999px;min-width:18px;text-align:center}
+.sidebar a .badge.warn{background:var(--warn)}
+.sidebar a .badge.err{background:var(--err)}
+.sidebar a .badge.muted{background:var(--bdr-d);color:var(--t2)}
+
+.main{flex:1;padding:24px 32px 64px;min-width:0}
+.h1{font-size:24px;font-weight:700;color:var(--t1);letter-spacing:-.5px;margin-bottom:4px;display:flex;align-items:center;gap:14px}
+.h1 .crumb{font-size:13px;color:var(--t3);font-weight:500;letter-spacing:0}
+.sub{font-size:12.5px;color:var(--t2);margin-bottom:20px}
+
+.actionbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.search{position:relative;flex:1;max-width:340px}
+.search input{width:100%;padding:8px 12px 8px 34px;font-size:13px;border:1px solid var(--bdr);border-radius:6px;outline:none;font-family:inherit;background:var(--surface)}
+.search input:focus{border-color:var(--brand)}
+.search::before{content:'⌕';position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:14px}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;border:1px solid var(--bdr);background:var(--surface);color:var(--t2);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all .12s;text-decoration:none}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+
+/* SUMMARY STRIP */
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--bdr);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;margin-bottom:18px}
+.summary .stat{background:var(--surface);padding:12px 16px;cursor:pointer;transition:background .12s}
+.summary .stat:hover{background:var(--brand-l)}
+.summary .stat .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t2);margin-bottom:4px}
+.summary .stat .val{font-size:22px;font-weight:700;color:var(--t1);line-height:1;letter-spacing:-.5px}
+.summary .stat .delta{font-size:10px;color:var(--t3);margin-top:4px;font-weight:500}
+.summary .stat.severe .val{color:var(--err)}
+.summary .stat.moderate .val{color:var(--warn)}
+
+/* FILTERS */
+.filters{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--bdr)}
+.fchip{padding:5px 12px;font-size:11.5px;font-weight:600;background:var(--surface);border:1px solid var(--bdr);color:var(--t2);border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .12s}
+.fchip:hover{border-color:var(--bdr-d);color:var(--t1)}
+.fchip.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.fchip .n{font-size:10px;font-weight:700;opacity:.85}
+.fchip select{background:transparent;border:none;color:inherit;font:inherit;font-weight:inherit;cursor:pointer;outline:none;padding:0}
+.fdiv{width:1px;height:20px;background:var(--bdr);margin:0 4px}
+
+.tbl{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;overflow:hidden}
+.thead,.trow{display:grid;grid-template-columns:90px 2.5fr 1.4fr 90px 100px 90px 80px;gap:14px;align-items:center;padding:11px 16px}
+.thead{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);border-bottom:1px solid var(--bdr)}
+.trow{border-bottom:1px solid var(--bdr);font-size:12.5px;cursor:pointer;text-decoration:none;color:inherit;transition:background .12s}
+.trow:last-child{border-bottom:none}
+.trow:hover{background:var(--brand-l)}
+.trow .id-col{font-family:'SF Mono',Menlo,monospace;font-size:11px;font-weight:700;color:var(--brand);letter-spacing:-.2px}
+.trow .id-col .origin{display:block;font-size:9px;color:var(--t3);font-weight:500;margin-top:2px;letter-spacing:.3px;text-transform:uppercase}
+.trow .what .title{font-size:12.5px;font-weight:600;color:var(--t1);line-height:1.3}
+.trow .what .links{font-size:11px;color:var(--t2);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap}
+.trow .what .links a{color:var(--brand);text-decoration:none;font-weight:500}
+.trow .what .links a:hover{text-decoration:underline}
+.trow .who-col{font-size:11.5px;color:var(--t2)}
+.trow .who-col .pname{font-weight:600;color:var(--t1)}
+.trow .who-col .clinic{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;letter-spacing:.3px;margin-left:4px;display:inline-block}
+.trow .who-col .clinic.vsc{background:var(--brand-l);color:var(--brand)}
+.trow .who-col .clinic.ft{background:var(--gov-bg);color:var(--gov)}
+.trow .sev{font-size:10px;font-weight:700;padding:3px 8px;border-radius:3px;letter-spacing:.4px;text-align:center;display:inline-flex;align-items:center;justify-content:center}
+.trow .sev.severe{background:var(--err);color:#fff}
+.trow .sev.moderate{background:var(--warn);color:#fff}
+.trow .sev.mild{background:var(--info-bg);color:var(--info);border:1px solid var(--info-bdr)}
+.trow .stat{font-size:10px;font-weight:700;padding:3px 8px;border-radius:3px;letter-spacing:.4px;display:inline-flex;align-items:center;gap:4px}
+.trow .stat::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
+.trow .stat.open{background:var(--err-bg);color:var(--err)}
+.trow .stat.in-progress{background:var(--warn-bg);color:var(--warn)}
+.trow .stat.resolved{background:var(--ok-bg);color:var(--ok)}
+.trow .stat.closed{background:var(--bdr);color:var(--t2)}
+.trow .age-col{font-size:11.5px;color:var(--t2);font-variant-numeric:tabular-nums}
+.trow .age-col.warn{color:var(--warn);font-weight:600}
+.trow .age-col.err{color:var(--err);font-weight:600}
+.trow .acts{display:flex;gap:4px;justify-content:flex-end}
+.trow .acts a{font-size:11px;padding:3px 7px;border-radius:4px;background:var(--brand-l);color:var(--brand);text-decoration:none;font-weight:600}
+.trow .acts a:hover{background:var(--brand);color:#fff}
+
+.pag{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-top:1px solid var(--bdr);font-size:12px;color:var(--t2);background:var(--bg)}
+
+.ann{background:var(--nav);color:rgba(255,255,255,.7);padding:14px 24px;font-size:11px;display:flex;align-items:center;gap:14px;margin-top:24px;border-radius:8px}
+.ann .label{color:#fff;font-weight:600;display:flex;align-items:center;gap:6px}
+.ann .label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--brand-mid)}
+
+@media (max-width:1100px){.thead,.trow{grid-template-columns:90px 2fr 1fr 90px 80px 80px}.thead .col-status,.trow .stat-col{display:none}}
+@media (max-width:760px){.shell{flex-direction:column}.sidebar{width:100%;height:auto;position:relative;top:auto}.summary{grid-template-columns:repeat(2,1fr)}.main{padding:16px}}
+
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="right">
+    <span class="role-pill"><span class="dot"></span>Owner — full access</span>
+    <span class="user"><span class="av">QH</span>Qadir Hussain</span>
+  </div>
+</div>
+
+<div class="shell">
+
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_prototype_09b_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html" class="active"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_prototype_05_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+
+    <h1 class="h1">
+      <span>Incidents</span>
+      <span class="crumb">5 open · 12 this month</span>
+    </h1>
+    <p class="sub">Patient safety, clinical, and operational incidents across both clinics. Severe incidents auto-write to Monday safety board.</p>
+
+    <!-- Summary strip -->
+    <div class="summary">
+      <div class="stat severe">
+        <div class="lbl">Severe</div>
+        <div class="val">1</div>
+        <div class="delta">Yesterday — Lindsay Dickson</div>
+      </div>
+      <div class="stat moderate">
+        <div class="lbl">Moderate</div>
+        <div class="val">2</div>
+        <div class="delta">In progress</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Mild / informational</div>
+        <div class="val">2</div>
+        <div class="delta">Logged for record</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Resolved this month</div>
+        <div class="val">7</div>
+        <div class="delta">Avg time to resolve: 3.2 days</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Auto-written to Monday</div>
+        <div class="val">1</div>
+        <div class="delta">Of 1 severe (100%)</div>
+      </div>
+    </div>
+
+    <!-- Action bar -->
+    <div class="actionbar">
+      <div class="search">
+        <input type="text" placeholder="Search by patient, INC-ID, type…">
+      </div>
+      <a href="livera_scr_incident_create_manual.html" class="btn primary">+ Create incident</a>
+      <button class="btn">Export CSV</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <span class="fchip active">All <span class="n">12</span></span>
+      <span class="fchip">Open <span class="n">5</span></span>
+      <span class="fchip">Resolved <span class="n">7</span></span>
+      <div class="fdiv"></div>
+      <span class="fchip">Severe <span class="n">1</span></span>
+      <span class="fchip">Moderate <span class="n">2</span></span>
+      <span class="fchip">Mild <span class="n">9</span></span>
+      <div class="fdiv"></div>
+      <span class="fchip">
+        <select>
+          <option>Origin: All</option>
+          <option>Intercom-tagged</option>
+          <option>Manual</option>
+          <option>Auto from clinical workflow</option>
+        </select>
+      </span>
+      <span class="fchip">
+        <select>
+          <option>Clinic: All</option>
+          <option>VSC</option>
+          <option>FeelTru</option>
+        </select>
+      </span>
+      <span class="fchip">
+        <select>
+          <option>Last 30 days</option>
+          <option>Last 7 days</option>
+          <option>Last 90 days</option>
+        </select>
+      </span>
+    </div>
+
+    <!-- TABLE -->
+    <div class="tbl">
+      <div class="thead">
+        <span>ID</span>
+        <span>Title & links</span>
+        <span>Patient</span>
+        <span>Severity</span>
+        <span class="col-status">Status</span>
+        <span>Age</span>
+        <span></span>
+      </div>
+
+      <a href="livera_scr_incident_detail_intercom.html?id=INC-0089" class="trow">
+        <div class="id-col">INC-0089<span class="origin">Intercom</span></div>
+        <div class="what">
+          <div class="title">Severe nausea + vomiting (suspected SE)</div>
+          <div class="links">
+            <a href="livera_prototype_10_order_detail.html?id=ORD-VSC-00339">ORD-VSC-00339</a>
+            <a href="#">Intercom thread #4821</a>
+          </div>
+        </div>
+        <div class="who-col">
+          <div class="pname">Lindsay Dickson</div>
+          <span class="clinic vsc">VSC</span>
+        </div>
+        <span class="sev severe">SEVERE</span>
+        <span class="stat-col"><span class="stat open">Open</span></span>
+        <span class="age-col warn">1d</span>
+
+</span>
+      </a>
+
+      <a href="livera_scr_incident_detail_intercom.html?id=INC-0087" class="trow">
+        <div class="id-col">INC-0087<span class="origin">Intercom</span></div>
+        <div class="what">
+          <div class="title">Allergy disclosure — peanut, post-registration</div>
+          <div class="links">
+            <a href="livera_prototype_09_patient_profile.html?id=PAT-VSC-00131">PAT-VSC-00131</a>
+            <a href="#">Intercom thread #4799</a>
+          </div>
+        </div>
+        <div class="who-col">
+          <div class="pname">Ravi Patel</div>
+          <span class="clinic vsc">VSC</span>
+        </div>
+        <span class="sev mild">MILD</span>
+        <span class="stat-col"><span class="stat resolved">Resolved</span></span>
+        <span class="age-col">3d</span>
+        <span class="acts"><a href="livera_scr_incident_detail_intercom.html?id=INC-0087">Open</a></span>
+      </a>
+
+      <a href="livera_scr_incident_create_manual.html?id=INC-0085" class="trow">
+        <div class="id-col">INC-0085<span class="origin">Manual</span></div>
+        <div class="what">
+          <div class="title">Address mismatch — package returned to depot</div>
+          <div class="links">
+            <a href="livera_prototype_10_order_detail.html?id=ORD-VSC-00329">ORD-VSC-00329</a>
+          </div>
+        </div>
+        <div class="who-col">
+          <div class="pname">Marcus Holloway</div>
+          <span class="clinic vsc">VSC</span>
+        </div>
+        <span class="sev mild">MILD</span>
+        <span class="stat-col"><span class="stat resolved">Resolved</span></span>
+        <span class="age-col">5d</span>
+        <span class="acts"><a href="livera_scr_incident_create_manual.html?id=INC-0085">Open</a></span>
+      </a>
+
+
+</span>
+      </a>
+
+
+</span>
+      </a>
+
+      <div class="pag">
+        <span>Showing 1–8 of 12 incidents</span>
+        <span style="color:var(--t3);font-size:11px">Page 1 of 2</span>
+      </div>
+    </div>
+
+    <div class="ann">
+      <span class="label">Pass 2 build note</span>
+      <span>Incidents List (NEW · 6 May 2026) — connector screen 4 of 5. Closes the loop on the existing Incident Detail screens (Intercom-origin and Manual). Severity colour coding: severe (red filled), moderate (amber filled), mild (info-blue outlined). Origin column distinguishes Intercom-tagged from manually created. Auto-write to Monday safety board only fires for severe.</span>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

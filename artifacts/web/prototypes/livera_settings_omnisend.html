@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Omnisend integration</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --surface:#ffffff; --bg:#f1f0ef; --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --omni:#1a4dff; /* Omnisend brand blue */
+  --omni-bg:#eff3ff;
+  --omni-bdr:#c7d4ff;
+}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#3b5cff 0%,#1a4dff 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff;font-weight:800;letter-spacing:-1px}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info h1 .conn-pill{font-size:10px;font-weight:700;letter-spacing:.4px;background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr);padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+.pg-info h1 .conn-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(16,185,129,0.18)}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+.btn.danger{color:var(--err);border-color:var(--err-bdr)}
+.btn.danger:hover{background:var(--err);color:#fff;border-color:var(--err)}
+
+/* Critical rule banner — Clinical data hard-block */
+.clin-banner{background:linear-gradient(135deg,#fef2f2 0%,#fff7ed 100%);border:1.5px solid #fca5a5;border-radius:10px;padding:16px 18px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
+.clin-banner .ic{width:40px;height:40px;border-radius:10px;background:#dc2626;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;font-weight:800}
+.clin-banner .text{font-size:12.5px;color:#7f1d1d;line-height:1.55}
+.clin-banner .text strong{color:#7f1d1d;font-weight:700;display:block;margin-bottom:3px;font-size:13px}
+.clin-banner .text code{font-family:'SF Mono',Menlo,monospace;background:rgba(220,38,38,0.1);color:#991b1b;padding:1px 6px;border-radius:3px;font-size:11px}
+
+/* Stats grid */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.stat-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px}
+.stat-num{font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1.1}
+.stat-num.warn{color:var(--warn)}
+.stat-num.ok{color:var(--ok)}
+.stat-num.omni{color:var(--omni)}
+.stat-lbl{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+.stat-sub{font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3);display:flex;align-items:center;gap:8px}
+.card-body{padding:18px}
+
+/* Connection card layout */
+.conn-grid{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:flex-start}
+
+/* KV rows */
+.kv-row{display:grid;grid-template-columns:160px 1fr;gap:12px;padding:10px 0;border-bottom:.5px solid var(--bdr);font-size:13px;align-items:center}
+.kv-row:last-child{border-bottom:none}
+.kv-row .k{color:var(--t3);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+.kv-row .v{color:var(--t1)}
+.kv-row .v code{background:var(--brand-l);color:var(--brand-d);padding:2px 7px;border-radius:4px;font-size:11.5px;font-family:'SF Mono',Menlo,monospace;letter-spacing:-.2px}
+.kv-row .v .reveal-btn{margin-left:8px;font-size:10px;color:var(--brand);font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-style:dotted}
+.kv-row .v .reveal-btn:hover{color:var(--brand-d)}
+.kv-row .v input{width:100%;padding:7px 10px;border:0.5px solid var(--bdr-d);border-radius:6px;font-family:inherit;font-size:12.5px;background:var(--bg);color:var(--t1)}
+.kv-row .v input:focus{outline:none;border-color:var(--brand)}
+
+/* Webhook box */
+.webhook-row{padding:12px 14px;background:var(--bg);border:0.5px solid var(--bdr-d);border-radius:6px;margin-bottom:10px;font-size:12px;color:var(--t1);font-family:'SF Mono',Menlo,monospace;display:flex;align-items:center;gap:10px;line-height:1.4}
+.webhook-row .verb{font-weight:700;color:var(--omni);font-size:10.5px;background:var(--omni-bg);padding:2px 7px;border-radius:3px;letter-spacing:.4px}
+.webhook-row .url{flex:1;word-break:break-all;color:var(--t2);font-size:11.5px}
+.webhook-row .meta{font-family:inherit;font-size:11px;color:var(--t3)}
+
+/* Field-level data sync table — the centrepiece */
+.fl-table{font-size:12.5px}
+.fl-row{display:grid;grid-template-columns:200px 200px 1fr 80px 80px;gap:14px;padding:12px 18px;border-bottom:.5px solid var(--bdr);align-items:center}
+.fl-row:last-child{border-bottom:none}
+.fl-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.fl-row.blocked{background:rgba(239,68,68,0.04)}
+.fl-row.blocked .fl-fld{color:var(--err)}
+.fl-cat{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:3px;width:fit-content}
+.fl-cat.identity{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.fl-cat.demographic{background:#faf5ff;color:#a855f7;border:.5px solid #e9d5ff}
+.fl-cat.treatment{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.fl-cat.lifecycle{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.fl-cat.clinical{background:#fef2f2;color:#dc2626;border:.5px solid #fecaca;font-weight:700}
+.fl-fld{font-family:'SF Mono',Menlo,monospace;font-size:11.5px;color:var(--t1);font-weight:600}
+.fl-desc{font-size:11.5px;color:var(--t2);line-height:1.45}
+.fl-omni-fld{font-family:'SF Mono',Menlo,monospace;font-size:10.5px;color:var(--omni);background:var(--omni-bg);padding:2px 6px;border-radius:3px;width:fit-content;border:.5px solid var(--omni-bdr)}
+.fl-toggle{display:flex;justify-content:center}
+.tog{width:36px;height:20px;background:var(--ok);border-radius:999px;position:relative;cursor:pointer;flex-shrink:0;transition:.18s}
+.tog::after{content:'';width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:3px;right:3px;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tog.off{background:var(--t3)}
+.tog.off::after{right:auto;left:3px}
+.tog.locked{background:var(--err);cursor:not-allowed;opacity:.85}
+.tog.locked::after{display:none}
+.tog-locked-icon{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;color:#fff;line-height:1}
+.fl-status{font-size:9.5px;font-weight:700;letter-spacing:.4px;padding:3px 7px;border-radius:3px;width:fit-content;text-align:center}
+.fl-status.synced{background:var(--ok-bg);color:var(--ok)}
+.fl-status.disabled{background:var(--bg);color:var(--t3);border:.5px solid var(--bdr-d)}
+.fl-status.blocked{background:#fef2f2;color:#dc2626;border:.5px solid #fecaca}
+
+/* Audience segments */
+.seg-card{background:var(--bg);border:0.5px solid var(--bdr-d);border-radius:8px;padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:1fr 100px 100px;gap:12px;align-items:center}
+.seg-card:last-child{margin-bottom:0}
+.seg-name{font-weight:600;font-size:13px;color:var(--t1)}
+.seg-rule{font-size:11px;color:var(--t2);margin-top:3px;font-family:'SF Mono',Menlo,monospace;line-height:1.45}
+.seg-count{text-align:right;font-size:18px;font-weight:700;color:var(--omni);font-variant-numeric:tabular-nums;line-height:1.1}
+.seg-count .lbl{font-size:9.5px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;display:block;margin-top:2px}
+.seg-action{text-align:right;font-size:11px;color:var(--brand);text-decoration:none;font-weight:600;cursor:pointer}
+
+/* Recent campaigns */
+.camp-row{display:grid;grid-template-columns:1fr 100px 90px 90px 80px;gap:14px;padding:12px 18px;border-bottom:.5px solid var(--bdr);align-items:center;font-size:12.5px}
+.camp-row:last-child{border-bottom:none}
+.camp-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.camp-name{color:var(--t1);font-weight:600}
+.camp-meta{font-size:10.5px;color:var(--t3);margin-top:2px}
+.camp-num{font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;text-align:right}
+.camp-rate{font-weight:700;color:var(--ok);font-variant-numeric:tabular-nums;text-align:right}
+.camp-status{font-size:9.5px;font-weight:700;letter-spacing:.4px;padding:3px 7px;border-radius:3px;text-align:center;width:fit-content}
+.camp-status.sent{background:var(--ok-bg);color:var(--ok)}
+.camp-status.sched{background:var(--info-bg);color:var(--info)}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+.toast.error{background:var(--err)}
+
+/* Workspace switcher */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <div class="ws"><button class="ws-trigger"><strong>VSC — Quanta Healthcare Ltd</strong><span class="ws-chev">▼</span></button></div>
+  <div class="role"><span>Qadir Hussain</span><span class="role-pill">Owner</span></div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_settings_landing.html">Settings</a>
+      <span class="sep">›</span>
+      <a href="livera_settings_landing.html">Integrations</a>
+      <span class="sep">›</span>
+      <span class="cur">Omnisend</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">O</div>
+      <div class="pg-info">
+        <h1>Omnisend
+          <span class="bld-pill">BLD-INT-OMNI-01</span>
+          <span class="conn-pill"><span class="dot"></span>Connected</span>
+        </h1>
+        <div class="sub">Marketing automation · email + SMS campaigns · audience segmentation built on Livera identity / demographic / treatment / lifecycle fields. Last sync 4 minutes ago · 487 contacts in audience.</div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Stub · would trigger manual sync')">↻ Sync now</button>
+        <button class="btn danger" onclick="if(confirm('Disconnect Omnisend? All field sync will halt. Audit log entry written.'))showToast('Stub · would disconnect Omnisend','error')">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- CRITICAL CLINICAL DATA BANNER -->
+    <div class="clin-banner">
+      <div class="ic">⚠</div>
+      <div class="text">
+        <strong>Clinical data is HARD-BLOCKED at the platform level — clinic admin cannot enable it</strong>
+        Livera enforces a clinical-data exclusion list before any field sync to Omnisend. The list is defined in Livera middleware and cannot be overridden by clinic config or field-level toggles. Excluded fields include: <code>BMI</code>, <code>weight history</code>, <code>side effect log</code>, <code>injection log</code>, <code>medical_conditions</code>, <code>medications</code>, <code>prescription_data</code>, <code>questionnaire responses</code>, <code>incident history</code>. This is enforced server-side regardless of what the field-level toggles below say. See <strong>BLD-INT-OMNI-05</strong> for the GDPR Article 9 field-level audit trail.
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num omni">487</div>
+        <div class="stat-lbl">Audience contacts</div>
+        <div class="stat-sub">Synced from Livera · marketing-consented only</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">62</div>
+        <div class="stat-lbl">Marketing-consented</div>
+        <div class="stat-sub">Of 487 patients · 12.7% opt-in rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num ok">98.4%</div>
+        <div class="stat-lbl">Sync success rate</div>
+        <div class="stat-sub">Last 7d · 4 retries pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">4 min</div>
+        <div class="stat-lbl">Last sync</div>
+        <div class="stat-sub">Auto every 15min · cron-driven</div>
+      </div>
+    </div>
+
+    <!-- Connection details -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🔑 Connection</div>
+        <div class="sub">API credentials and webhook config</div>
+      </div>
+      <div class="card-body">
+        <div class="conn-grid">
+          <div>
+            <div class="kv-row">
+              <div class="k">API Key</div>
+              <div class="v"><code id="api-key">••••••••••••••••••••••<span style="user-select:text">a47f</span></code><span class="reveal-btn" onclick="revealKey()">Reveal</span></div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Account ID</div>
+              <div class="v"><code>acc_VSC_2841_omnisend</code></div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Account email</div>
+              <div class="v">marketing@thevirtualslimmingclinic.co.uk</div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Region</div>
+              <div class="v">EU (Ireland) · GDPR-compliant data residency</div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Connected by</div>
+              <div class="v">Qadir Hussain · 28 Jan 2026 · 14:08</div>
+            </div>
+            <div class="kv-row">
+              <div class="k">Last rotated</div>
+              <div class="v">12 Apr 2026 · 09:14 (28 days ago) <span class="reveal-btn" onclick="showToast('Stub · would rotate API key + write audit entry')">Rotate now</span></div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Inbound webhooks</div>
+            <div class="webhook-row">
+              <span class="verb">POST</span>
+              <div class="url">/webhooks/omnisend/unsubscribe</div>
+            </div>
+            <div style="font-size:10.5px;color:var(--t2);padding:2px 0 10px;line-height:1.45">When a patient unsubscribes in Omnisend → Livera flips <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2,#f8fafc);padding:1px 4px;border-radius:3px;font-size:10px">patient.marketing_consent</code> to false · audit log entry · 6h delivery SLA</div>
+
+            <div class="webhook-row">
+              <span class="verb">POST</span>
+              <div class="url">/webhooks/omnisend/bounce</div>
+            </div>
+            <div style="font-size:10.5px;color:var(--t2);padding:2px 0 10px;line-height:1.45">Hard bounce flips <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2,#f8fafc);padding:1px 4px;border-radius:3px;font-size:10px">patient.email_deliverable</code> to false · prevents future Postmark sends</div>
+
+            <div class="webhook-row">
+              <span class="verb">POST</span>
+              <div class="url">/webhooks/omnisend/campaign-event</div>
+            </div>
+            <div style="font-size:10.5px;color:var(--t2);padding:2px 0 0;line-height:1.45">Campaign open/click events flow back into Livera engagement timeline · admin-visible only</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FIELD-LEVEL DATA SYNC TABLE -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🔀 Field-level data sync</div>
+        <div class="sub">Which Livera fields sync to Omnisend · clinical fields hard-blocked</div>
+        <div class="right"><span class="bld-pill" style="font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px">BLD-INT-OMNI-05</span></div>
+      </div>
+      <div>
+        <div class="fl-row head">
+          <span>Category</span>
+          <span>Livera field</span>
+          <span>Omnisend mapping · purpose</span>
+          <span style="text-align:center">Sync</span>
+          <span style="text-align:center">Status</span>
+        </div>
+
+        <!-- IDENTITY -->
+        <div class="fl-row">
+          <span class="fl-cat identity">Identity</span>
+          <span class="fl-fld">patient.email</span>
+          <div>
+            <div class="fl-desc">Required for any Omnisend contact · marketing emails will not deliver without it.</div>
+            <span class="fl-omni-fld">contact.email</span>
+          </div>
+          <div class="fl-toggle"><div class="tog locked" title="Required field · cannot disable"><span class="tog-locked-icon">🔒</span></div></div>
+          <span class="fl-status synced">REQUIRED</span>
+        </div>
+
+        <div class="fl-row">
+          <span class="fl-cat identity">Identity</span>
+          <span class="fl-fld">patient.first_name</span>
+          <div>
+            <div class="fl-desc">First name only · used for email personalisation. Last name not synced.</div>
+            <span class="fl-omni-fld">contact.firstName</span>
+          </div>
+          <div class="fl-toggle"><div class="tog" onclick="toggleSync(this, 'patient.first_name')"></div></div>
+          <span class="fl-status synced">SYNCED</span>
+        </div>
+
+        <div class="fl-row">
+          <span class="fl-cat identity">Identity</span>
+          <span class="fl-fld">patient.phone</span>
+          <div>
+            <div class="fl-desc">Required only if SMS campaigns enabled. Toggle off if SMS not in use.</div>
+            <span class="fl-omni-fld">contact.phone</span>
+          </div>
+          <div class="fl-toggle"><div class="tog off" onclick="toggleSync(this, 'patient.phone')"></div></div>
+          <span class="fl-status disabled">DISABLED</span>
+        </div>
+
+        <!-- DEMOGRAPHIC -->
+        <div class="fl-row">
+          <span class="fl-cat demographic">Demographic</span>
+          <span class="fl-fld">patient.age_band</span>
+          <div>
+            <div class="fl-desc">Banded (18-29, 30-44, 45-59, 60+) · never raw DOB. Used for age-relevant content segmentation.</div>
+            <span class="fl-omni-fld">contact.tags[age_band]</span>
+          </div>
+          <div class="fl-toggle"><div class="tog" onclick="toggleSync(this, 'patient.age_band')"></div></div>
+          <span class="fl-status synced">SYNCED</span>
+        </div>
+
+        <div class="fl-row">
+          <span class="fl-cat demographic">Demographic</span>
+          <span class="fl-fld">patient.gender</span>
+          <div>
+            <div class="fl-desc">M/F/X · used for clinic-relevant segmentation (e.g. FeelTru women-only audiences).</div>
+            <span class="fl-omni-fld">contact.tags[gender]</span>
+          </div>
+          <div class="fl-toggle"><div class="tog" onclick="toggleSync(this, 'patient.gender')"></div></div>
+          <span class="fl-status synced">SYNCED</span>
+        </div>
+
+        <div class="fl-row">
+          <span class="fl-cat demographic">Demographic</span>
+          <span class="fl-fld">patient.region</span>
+          <div>
+            <div class="fl-desc">UK postcode area only (e.g. "SW1", "M3") · never full postcode. For regional event invitations.</div>
+            <span class="fl-omni-fld">contact.tags[region]</span>
+          </div>
+          <div class="fl-toggle"><div class="tog off" onclick="toggleSync(this, 'patient.region')"></div></div>
+          <span class="fl-status disabled">DISABLED</span>
+        </div>
+
+        <!-- TREATMENT -->
+        <div class="fl-row">
+          <span class="fl-cat treatment">Treatment</span>
+          <span class="fl-fld">patient.product_family</span>
+          <div>
+            <div class="fl-desc">Branded product family ("Mounjaro" / "Wegovy" / "Saxenda") · NOT specific dose. For product-relevant content only.</div>
+            <span class="fl-omni-fld">contact.tags[product]</span>
+          </div>
+          <div class="fl-toggle"><div class="tog" onclick="toggleSync(this, 'patient.product_family')"></div></div>
+          <span class="fl-status synced">SYNCED</span>
+        </div>
+
+        <div class="fl-row">
+          <span class="fl-cat treatment">Treatment</span>
+          <span class="fl-fld">patient.treatment_phase</span>
+          <div>
+            <div class="fl-desc">"new" / "active" / "monitoring" / "lapsed" · drives onboarding and reactivation campaigns. NEVER specific clinical detail.</div>
+            <span class="fl-omni-fld">contact.tags[phase]</span>
+          </div>
+          <div class="fl-toggle"><div class="tog" onclick="toggleSync(this, 'patient.treatment_phase')"></div></div>
+          <span class="fl-status synced">SYNCED</span>
+        </div>
+
+        <!-- LIFECYCLE -->
+        <div class="fl-row">
+          <span class="fl-cat lifecycle">Lifecycle</span>
+          <span class="fl-fld">patient.first_order_date</span>
+          <div>
+            <div class="fl-desc">Date only · used for anniversary campaigns and tenure-based content.</div>
+            <span class="fl-omni-fld">contact.customFields[firstOrderDate]</span>
+          </div>
+          <div class="fl-toggle"><div class="tog" onclick="toggleSync(this, 'patient.first_order_date')"></div></div>
+          <span class="fl-status synced">SYNCED</span>
+        </div>
+
+        <div class="fl-row">
+          <span class="fl-cat lifecycle">Lifecycle</span>
+          <span class="fl-fld">patient.last_active</span>
+          <div>
+            <div class="fl-desc">Last login OR last order · used for re-engagement triggers.</div>
+            <span class="fl-omni-fld">contact.customFields[lastActive]</span>
+          </div>
+          <div class="fl-toggle"><div class="tog" onclick="toggleSync(this, 'patient.last_active')"></div></div>
+          <span class="fl-status synced">SYNCED</span>
+        </div>
+
+        <div class="fl-row">
+          <span class="fl-cat lifecycle">Lifecycle</span>
+          <span class="fl-fld">patient.lapsed_days</span>
+          <div>
+            <div class="fl-desc">Computed: days since last active. Drives "we miss you" reactivation series.</div>
+            <span class="fl-omni-fld">contact.customFields[lapsedDays]</span>
+          </div>
+          <div class="fl-toggle"><div class="tog" onclick="toggleSync(this, 'patient.lapsed_days')"></div></div>
+          <span class="fl-status synced">SYNCED</span>
+        </div>
+
+        <!-- HARD-BLOCKED CLINICAL — visual confirmation only -->
+        <div class="fl-row blocked">
+          <span class="fl-cat clinical">⊘ Clinical</span>
+          <span class="fl-fld">patient.bmi</span>
+          <div>
+            <div class="fl-desc">⊘ <strong>BLOCKED at platform level</strong> — clinical data cannot leave Livera environment. Hard-coded server-side exclusion list per BLD-INT-OMNI-05.</div>
+          </div>
+          <div class="fl-toggle"><div class="tog locked"><span class="tog-locked-icon">⊘</span></div></div>
+          <span class="fl-status blocked">BLOCKED</span>
+        </div>
+
+        <div class="fl-row blocked">
+          <span class="fl-cat clinical">⊘ Clinical</span>
+          <span class="fl-fld">patient.weight_history</span>
+          <div>
+            <div class="fl-desc">⊘ <strong>BLOCKED at platform level</strong> — clinical data cannot leave Livera environment.</div>
+          </div>
+          <div class="fl-toggle"><div class="tog locked"><span class="tog-locked-icon">⊘</span></div></div>
+          <span class="fl-status blocked">BLOCKED</span>
+        </div>
+
+        <div class="fl-row blocked">
+          <span class="fl-cat clinical">⊘ Clinical</span>
+          <span class="fl-fld">patient.side_effects</span>
+          <div>
+            <div class="fl-desc">⊘ <strong>BLOCKED at platform level</strong> — adverse reactions are never marketing data. Reportable via MHRA Yellow Card only.</div>
+          </div>
+          <div class="fl-toggle"><div class="tog locked"><span class="tog-locked-icon">⊘</span></div></div>
+          <span class="fl-status blocked">BLOCKED</span>
+        </div>
+
+        <div class="fl-row blocked">
+          <span class="fl-cat clinical">⊘ Clinical</span>
+          <span class="fl-fld">patient.dose · prescription_history · medical_conditions</span>
+          <div>
+            <div class="fl-desc">⊘ <strong>3 fields BLOCKED</strong> — specific clinical data including dose, full Rx history, and declared medical conditions.</div>
+          </div>
+          <div class="fl-toggle"><div class="tog locked"><span class="tog-locked-icon">⊘</span></div></div>
+          <span class="fl-status blocked">BLOCKED</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- AUDIENCE SEGMENTS -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">👥 Audience segments</div>
+        <div class="sub">Built from Livera fields above · auto-populated and synced</div>
+        <div class="right"><a class="seg-action" onclick="showToast('Stub · would open segment builder')">+ New segment →</a></div>
+      </div>
+      <div class="card-body" style="padding:14px">
+
+        <div class="seg-card">
+          <div>
+            <div class="seg-name">New Mounjaro patients (last 30d)</div>
+            <div class="seg-rule">treatment_phase=new · product_family=Mounjaro · first_order_date >= now() - 30d</div>
+          </div>
+          <div class="seg-count">42<span class="lbl">contacts</span></div>
+          <a class="seg-action" onclick="showToast('Stub · would open segment in Omnisend')">View →</a>
+        </div>
+
+        <div class="seg-card">
+          <div>
+            <div class="seg-name">Active Wegovy women</div>
+            <div class="seg-rule">treatment_phase=active · product_family=Wegovy · gender=F</div>
+          </div>
+          <div class="seg-count">28<span class="lbl">contacts</span></div>
+          <a class="seg-action" onclick="showToast('Stub · would open segment in Omnisend')">View →</a>
+        </div>
+
+        <div class="seg-card">
+          <div>
+            <div class="seg-name">Lapsed re-engagement (30-90d inactive)</div>
+            <div class="seg-rule">lapsed_days BETWEEN 30 AND 90 · marketing_consent=true</div>
+          </div>
+          <div class="seg-count">17<span class="lbl">contacts</span></div>
+          <a class="seg-action" onclick="showToast('Stub · would open segment in Omnisend')">View →</a>
+        </div>
+
+        <div class="seg-card">
+          <div>
+            <div class="seg-name">Year 1 anniversaries</div>
+            <div class="seg-rule">first_order_date BETWEEN now() - 365d - 7d AND now() - 365d + 7d</div>
+          </div>
+          <div class="seg-count">9<span class="lbl">contacts</span></div>
+          <a class="seg-action" onclick="showToast('Stub · would open segment in Omnisend')">View →</a>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RECENT CAMPAIGNS -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📨 Recent campaigns</div>
+        <div class="sub">Sent from Omnisend · engagement events flow back into Livera timeline</div>
+      </div>
+      <div>
+        <div class="camp-row head">
+          <span>Campaign</span>
+          <span style="text-align:right">Recipients</span>
+          <span style="text-align:right">Open rate</span>
+          <span style="text-align:right">Click rate</span>
+          <span style="text-align:center">Status</span>
+        </div>
+
+        <div class="camp-row">
+          <div>
+            <div class="camp-name">May newsletter — sustainable habits beyond GLP-1</div>
+            <div class="camp-meta">Sent 8 May · 09:00 · audience: All marketing-consented (62 contacts)</div>
+          </div>
+          <span class="camp-num">62</span>
+          <span class="camp-rate">48.4%</span>
+          <span class="camp-rate" style="color:var(--info)">12.1%</span>
+          <div style="text-align:center"><span class="camp-status sent">SENT</span></div>
+        </div>
+
+        <div class="camp-row">
+          <div>
+            <div class="camp-name">Reactivation — we miss you</div>
+            <div class="camp-meta">Sent 4 May · 14:30 · audience: Lapsed 30-90d (17 contacts)</div>
+          </div>
+          <span class="camp-num">17</span>
+          <span class="camp-rate">29.4%</span>
+          <span class="camp-rate" style="color:var(--info)">5.9%</span>
+          <div style="text-align:center"><span class="camp-status sent">SENT</span></div>
+        </div>
+
+        <div class="camp-row">
+          <div>
+            <div class="camp-name">Anniversary — 1 year on your journey</div>
+            <div class="camp-meta">Scheduled 14 May · 09:00 · audience: Year 1 anniversaries (9 contacts)</div>
+          </div>
+          <span class="camp-num">9</span>
+          <span class="camp-rate" style="color:var(--t3)">—</span>
+          <span class="camp-rate" style="color:var(--t3)">—</span>
+          <div style="text-align:center"><span class="camp-status sched">SCHED</span></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Omnisend integration</strong> · BLD-INT-OMNI-01 · marketing automation platform for email and SMS campaigns. Data flows are unidirectional Livera → Omnisend except for unsubscribe / bounce / engagement webhooks (Omnisend → Livera). Audience segments auto-rebuild every 15 minutes via cron sync. <strong>Clinical data hard-blocked</strong> at platform level via server-side exclusion list (BLD-INT-OMNI-05) — clinic admin cannot enable these fields. Visible to <code>Owner</code> and <code>RM</code> only · all other roles hidden. Field toggle changes write <code>OMNISEND_FIELD_SYNC_CHANGED</code> audit entries per BLD-INT-OMNI-04.
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg, kind){
+  const t = document.getElementById('toast');
+  t.textContent = (kind === 'error' ? '✕ ' : '✓ ') + msg;
+  t.className = 'toast show' + (kind === 'error' ? ' error' : '');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+let revealed = false;
+function revealKey(){
+  const k = document.getElementById('api-key');
+  revealed = !revealed;
+  if(revealed){
+    k.innerHTML = '<span style="user-select:text">omn_live_t8q2mF7vKsXjPaR4nE9wD3aLb6cZuYhI_a47f</span>';
+    showToast('API key revealed · audit entry logged');
+    // Auto-hide after 8s
+    setTimeout(() => { if(revealed){ k.innerHTML = '••••••••••••••••••••••<span style="user-select:text">a47f</span>'; revealed = false; } }, 8000);
+  } else {
+    k.innerHTML = '••••••••••••••••••••••<span style="user-select:text">a47f</span>';
+  }
+}
+
+function toggleSync(el, field){
+  el.classList.toggle('off');
+  const enabled = !el.classList.contains('off');
+  // Update status pill (next sibling)
+  const statusCell = el.parentElement.parentElement.querySelector('.fl-status');
+  if(statusCell){
+    statusCell.className = 'fl-status ' + (enabled ? 'synced' : 'disabled');
+    statusCell.textContent = enabled ? 'SYNCED' : 'DISABLED';
+  }
+  showToast((enabled ? 'Enabled' : 'Disabled') + ' sync for ' + field + ' · audit entry written (OMNISEND_FIELD_SYNC_CHANGED)');
+}
+</script>
+</body>
+</html>

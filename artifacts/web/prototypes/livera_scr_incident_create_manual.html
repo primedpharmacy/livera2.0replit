@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Manual Incident Creation (BLD-8 extension)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --intercom: #0d6dff; --intercom-bg: #eff6ff;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; }
+  .btn { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn.primary:hover { background: #3730a3; }
+  .btn.danger { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+  .content { flex: 1; overflow-y: auto; padding: 22px 28px 28px; }
+  .page-head { margin-bottom: 18px; }
+  .page-title { font-size: 22px; font-weight: 700; color: var(--text-1); letter-spacing: -0.4px; }
+  .page-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; max-width: 760px; }
+
+  /* Section heading */
+  .sec-head { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 10px; margin-top: 22px; display: flex; align-items: center; gap: 8px; }
+  .sec-head:first-child { margin-top: 0; }
+  .sec-head::after { content:''; flex:1; height:0.5px; background:var(--border); }
+
+  /* Origin entry-point grid */
+  .entry-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .entry-card { padding: 14px 16px; border: 0.5px solid var(--border); border-radius: var(--r-lg); background: var(--surface); position: relative; }
+  .entry-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .entry-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .entry-icon.intercom { background: var(--intercom-bg); color: var(--intercom); }
+  .entry-icon.manual { background: var(--brand-light); color: var(--brand-dark); }
+  .entry-icon.app { background: var(--purple-bg); color: var(--purple); }
+  .entry-icon.system { background: var(--surface-2); color: var(--text-3); }
+  .entry-title { font-size: 13px; font-weight: 700; color: var(--text-1); flex: 1; }
+  .entry-tag { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--text-3); border: 0.5px solid var(--border-strong); text-transform: uppercase; letter-spacing: 0.4px; }
+  .entry-tag.live { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .entry-text { font-size: 12px; color: var(--text-2); line-height: 1.55; min-height: 60px; }
+  .entry-stat { font-size: 11px; color: var(--text-3); margin-top: 8px; padding-top: 8px; border-top: 0.5px dashed var(--border); }
+  .entry-stat strong { color: var(--text-1); font-weight: 600; }
+
+  /* Card */
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); margin-bottom: 14px; overflow: hidden; }
+  .card-head { padding: 12px 18px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; display: flex; align-items: center; gap: 8px; }
+  .card-sub { font-size: 11px; color: var(--text-3); }
+  .card-body { padding: 16px 18px; }
+
+  /* Schema block */
+  .schema-grid { display: grid; grid-template-columns: 200px 1fr; gap: 6px 14px; font-size: 12px; }
+  .schema-key { font-family: ui-monospace,'SF Mono',monospace; color: var(--brand-dark); font-size: 11px; }
+  .schema-val { color: var(--text-2); line-height: 1.5; }
+  .schema-val code { font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; color: var(--text-1); }
+
+  /* Modal demo container */
+  .modal-demo { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-lg); padding: 30px; display: flex; align-items: center; justify-content: center; }
+  .modal-demo-label { position: absolute; top: 8px; left: 14px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: 999px; }
+
+  /* Modal */
+  .modal { background: var(--surface); border-radius: var(--r-lg); width: 100%; max-width: 580px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
+  .modal-head { padding: 14px 18px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .modal-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; background: var(--brand-light); color: var(--brand-dark); }
+  .modal-title { font-size: 14px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .modal-close { background: transparent; border: none; cursor: pointer; font-size: 16px; color: var(--text-3); padding: 4px 8px; border-radius: var(--r-sm); font-family: inherit; }
+  .modal-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; max-height: 540px; overflow-y: auto; }
+  .modal-foot { padding: 12px 18px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--surface-2); }
+
+  .field-group { display: flex; flex-direction: column; gap: 5px; }
+  .field-label { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
+  .field-required { color: var(--red-mid); }
+  .field-help { font-size: 11px; color: var(--text-3); line-height: 1.45; }
+  .field-input, .field-select, .field-textarea { padding: 8px 11px; font-size: 13px; border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); font-family: inherit; background: var(--surface); color: var(--text-1); width: 100%; }
+  .field-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  .field-input:focus, .field-select:focus, .field-textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+
+  /* Channel picker */
+  .channel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .channel-card { padding: 10px 8px; border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); cursor: pointer; transition: all 0.12s; text-align: center; background: var(--surface); }
+  .channel-card.on { border-color: var(--brand); background: var(--brand-light); box-shadow: 0 0 0 1px var(--brand); }
+  .channel-card-icon { font-size: 18px; margin-bottom: 4px; display: block; }
+  .channel-card-name { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .channel-card.on .channel-card-name { color: var(--brand-dark); }
+  .channel-card-sub { font-size: 10px; color: var(--text-3); margin-top: 1px; }
+
+  /* Conditional sub-fields */
+  .conditional { padding: 10px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-sm); display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  .conditional-head { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Severity radio */
+  .sev-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .sev-card { padding: 9px 12px; border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); cursor: pointer; }
+  .sev-card.on.mild { border-color: var(--brand); background: var(--brand-light); box-shadow: 0 0 0 1px var(--brand); }
+  .sev-card.on.moderate { border-color: var(--amber); background: var(--amber-bg); box-shadow: 0 0 0 1px var(--amber); }
+  .sev-card.on.severe { border-color: var(--red-mid); background: var(--red-bg); box-shadow: 0 0 0 1px var(--red-mid); }
+  .sev-name { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .sev-sub { font-size: 10px; color: var(--text-3); margin-top: 1px; line-height: 1.35; }
+
+  /* Patient autocomplete */
+  .auto-wrap { position: relative; }
+  .auto-list { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 0.5px solid var(--border-strong); border-top: none; border-radius: 0 0 var(--r-sm) var(--r-sm); max-height: 180px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.06); display: none; }
+  .auto-list.open { display: block; }
+  .auto-item { padding: 8px 11px; font-size: 12px; cursor: pointer; border-bottom: 0.5px solid var(--border); }
+  .auto-item:hover { background: var(--surface-2); }
+  .auto-item:last-child { border-bottom: none; }
+  .auto-name { font-weight: 500; color: var(--text-1); }
+  .auto-meta { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Severe banner */
+  .severe-banner { padding: 10px 12px; background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: var(--r-sm); font-size: 12px; color: var(--red); line-height: 1.5; display: none; }
+  .severe-banner.show { display: block; }
+  .severe-banner strong { font-weight: 700; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; }
+  .toast.show { display: flex; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html" class="active"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_incidents_list.html">Incidents</a>
+        <span class="sep">/</span>
+        <span class="cur">Create incident · entry points</span>
+      </div>
+      <div class="topbar-right">
+        <button class="btn primary" onclick="openModal()">+ Create incident manually</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="page-head">
+        <div class="page-title">Manual incident creation</div>
+        <div class="page-sub">Incidents reach Livera through four origins. Three of them — Intercom webhook, in-app patient report, and system-generated severe SE — are automatic. The fourth, <strong>manual</strong>, is what staff use when a patient reports something via phone, SMS, email, in-person, or any other channel outside Intercom. The form below captures the contact channel so that the audit trail is honest about how the report arrived.</div>
+      </div>
+
+      <!-- Origin entry-points overview -->
+      <div class="sec-head">Four ways an incident enters Livera</div>
+
+      <div class="entry-grid">
+
+        <div class="entry-card">
+          <div class="entry-card-head">
+            <div class="entry-icon intercom">💬</div>
+            <div class="entry-title">Intercom</div>
+          </div>
+          <div class="entry-text">Auto-created when Intercom AI-classifier flags a patient message as clinical (allergic_symptom, severe_se, safeguarding) above threshold.</div>
+          <div class="entry-stat"><strong>Origin:</strong> <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">intercom</code> · auto · BLD-8.3</div>
+        </div>
+
+        <div class="entry-card" style="border-color:var(--brand);box-shadow:0 0 0 1px var(--brand);">
+          <div class="entry-card-head">
+            <div class="entry-icon manual">📝</div>
+            <div class="entry-title">Manual</div>
+            <span class="entry-tag live">This screen</span>
+          </div>
+          <div class="entry-text">Staff create incidents from phone calls, SMS, email, in-person visits, post, or any channel outside Intercom. Captures the actual contact channel.</div>
+          <div class="entry-stat"><strong>Origin:</strong> <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">manual</code> · staff-initiated</div>
+        </div>
+
+        <div class="entry-card">
+          <div class="entry-card-head">
+            <div class="entry-icon app">📱</div>
+            <div class="entry-title">Patient app</div>
+          </div>
+          <div class="entry-text">Auto-created when patient submits the in-app side effect report form with a moderate or severe symptom flag.</div>
+          <div class="entry-stat"><strong>Origin:</strong> <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">patient_app</code> · auto</div>
+        </div>
+
+        <div class="entry-card">
+          <div class="entry-card-head">
+            <div class="entry-icon system">⚙</div>
+            <div class="entry-title">System</div>
+          </div>
+          <div class="entry-text">Auto-created by Livera rules — e.g. severe SE classifier on AI Care chat, abandoned reorder questionnaire flagging a contraindication.</div>
+          <div class="entry-stat"><strong>Origin:</strong> <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">system</code> · auto · rules engine</div>
+        </div>
+
+      </div>
+
+      <!-- Schema update -->
+      <div class="sec-head">incident entity · schema update</div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">📦 incident_origin enum (extension to BLD-8.1)</div>
+          <div class="card-sub">For Yohan · two new fields for manual-origin incidents</div>
+        </div>
+        <div class="card-body">
+          <div class="schema-grid">
+            <div class="schema-key">incident_origin</div>
+            <div class="schema-val">enum: <code>clinical</code> | <code>manual</code> | <code>patient_app</code> | <code>intercom</code> | <code>system</code> · NOT NULL · default <code>clinical</code> · indexed</div>
+            <div class="schema-key">contact_channel</div>
+            <div class="schema-val">enum: <code>phone</code> | <code>sms</code> | <code>email</code> | <code>in_person</code> | <code>post</code> | <code>other</code> · nullable · only set when origin=<code>manual</code> · captures how the patient actually contacted us</div>
+            <div class="schema-key">contact_reference</div>
+            <div class="schema-val">String · nullable · for the "external" contact identifier — phone number called from, email subject, postal tracking ID, etc · for traceability when the patient calls back</div>
+          </div>
+          <div style="margin-top:12px;padding:10px 12px;background:var(--surface-2);border-radius:var(--r-sm);font-size:11px;color:var(--text-2);line-height:1.5;">
+            <strong style="color:var(--text-1);">Validation rule:</strong> if <code style="font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">incident_origin = 'manual'</code> then <code style="font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">contact_channel</code> is REQUIRED. Conversely, if <code style="font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">incident_origin = 'intercom'</code> then <code style="font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">intercom_conversation_id</code> is REQUIRED. Enforced server-side regardless of client payload.
+          </div>
+        </div>
+      </div>
+
+      <!-- The modal demo -->
+      <div class="sec-head">Manual creation modal</div>
+
+      <div style="position:relative;">
+        <div class="modal-demo">
+          <div class="modal" style="position:static;">
+            <div class="modal-head">
+              <div class="modal-icon">📝</div>
+              <div class="modal-title">Create incident manually</div>
+              <button class="modal-close" onclick="alert('Closed')">✕</button>
+            </div>
+            <div class="modal-body">
+
+              <!-- Patient -->
+              <div class="field-group">
+                <div class="field-label">Patient <span class="field-required">*</span></div>
+                <div class="auto-wrap">
+                  <input class="field-input" type="text" id="patient-search" placeholder="Type patient name, email, or order ID…" oninput="searchPatient(this)" autocomplete="off">
+                  <div class="auto-list" id="patient-list">
+                    <div class="auto-item" onclick="pickPatient('Sarah Cookland')">
+                      <div class="auto-name">Sarah Cookland</div>
+                      <div class="auto-meta">50y · F · ORD-00441 active · Mounjaro 5mg</div>
+                    </div>
+                    <div class="auto-item" onclick="pickPatient('Sarah Mitchell')">
+                      <div class="auto-name">Sarah Mitchell</div>
+                      <div class="auto-meta">42y · F · ORD-00428 active · Wegovy 1mg</div>
+                    </div>
+                    <div class="auto-item" onclick="pickPatient('Sara Wilson')">
+                      <div class="auto-name">Sara Wilson</div>
+                      <div class="auto-meta">38y · F · no active order · last order 12 Mar</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field-help">Required · search by name, email, phone, or order reference</div>
+              </div>
+
+              <!-- Contact channel -->
+              <div class="field-group">
+                <div class="field-label">How did the patient contact us? <span class="field-required">*</span></div>
+                <div class="channel-grid">
+                  <div class="channel-card on" onclick="setChannel(this,'phone')">
+                    <span class="channel-card-icon">📞</span>
+                    <div class="channel-card-name">Phone</div>
+                    <div class="channel-card-sub">Inbound or outbound call</div>
+                  </div>
+                  <div class="channel-card" onclick="setChannel(this,'sms')">
+                    <span class="channel-card-icon">💬</span>
+                    <div class="channel-card-name">SMS</div>
+                    <div class="channel-card-sub">Text message</div>
+                  </div>
+                  <div class="channel-card" onclick="setChannel(this,'email')">
+                    <span class="channel-card-icon">✉️</span>
+                    <div class="channel-card-name">Email</div>
+                    <div class="channel-card-sub">care@feeltru.com</div>
+                  </div>
+                  <div class="channel-card" onclick="setChannel(this,'in_person')">
+                    <span class="channel-card-icon">🤝</span>
+                    <div class="channel-card-name">In-person</div>
+                    <div class="channel-card-sub">Visit / consultation</div>
+                  </div>
+                  <div class="channel-card" onclick="setChannel(this,'post')">
+                    <span class="channel-card-icon">📮</span>
+                    <div class="channel-card-name">Post</div>
+                    <div class="channel-card-sub">Letter received</div>
+                  </div>
+                  <div class="channel-card" onclick="setChannel(this,'other')">
+                    <span class="channel-card-icon">⋯</span>
+                    <div class="channel-card-name">Other</div>
+                    <div class="channel-card-sub">Specify below</div>
+                  </div>
+                </div>
+                <div class="field-help">Required · sets <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 5px;border-radius:3px;">incident.contact_channel</code> · used for governance reporting on contact-channel breakdown</div>
+              </div>
+
+              <!-- Conditional sub-fields per channel -->
+              <div class="conditional" id="cond-phone">
+                <div class="conditional-head">Phone call details</div>
+                <div class="field-group">
+                  <div class="field-label">Direction</div>
+                  <select class="field-select">
+                    <option>Inbound — patient called us</option>
+                    <option>Outbound — we called the patient</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <div class="field-label">Number called from / called</div>
+                  <input class="field-input" type="text" placeholder="+44 …" value="+44 7700 900821">
+                  <div class="field-help">Stored on <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface);padding:1px 5px;border-radius:3px;">incident.contact_reference</code></div>
+                </div>
+                <div class="field-group">
+                  <div class="field-label">Call duration</div>
+                  <input class="field-input" type="text" placeholder="mm:ss" value="04:18">
+                </div>
+              </div>
+
+              <!-- Type -->
+              <div class="field-group">
+                <div class="field-label">Incident type <span class="field-required">*</span></div>
+                <select class="field-select">
+                  <option value="">Select type…</option>
+                  <option selected>Side effect — moderate</option>
+                  <option>Side effect — severe</option>
+                  <option>Allergy / adverse reaction</option>
+                  <option>Medication error</option>
+                  <option>Dosing concern</option>
+                  <option>Pregnancy disclosed</option>
+                  <option>Safeguarding</option>
+                  <option>Complaint (becomes BLD-9)</option>
+                  <option>Other clinical</option>
+                </select>
+                <div class="field-help">Determines downstream routing — severe types page on-call prescriber immediately</div>
+              </div>
+
+              <!-- Severity -->
+              <div class="field-group">
+                <div class="field-label">Severity <span class="field-required">*</span></div>
+                <div class="sev-row">
+                  <div class="sev-card mild" onclick="setSev(this,'mild')">
+                    <div class="sev-name">Mild</div>
+                    <div class="sev-sub">Log only · review at next encounter</div>
+                  </div>
+                  <div class="sev-card moderate on" onclick="setSev(this,'moderate')">
+                    <div class="sev-name">Moderate</div>
+                    <div class="sev-sub">Prescriber review within 24h</div>
+                  </div>
+                  <div class="sev-card severe" onclick="setSev(this,'severe')">
+                    <div class="sev-name">Severe</div>
+                    <div class="sev-sub">Immediate clinical action · pages prescriber</div>
+                  </div>
+                </div>
+                <div class="severe-banner" id="severe-banner">
+                  <strong>⚠ Severe selected.</strong> On save, this will fire the on-call prescriber pager via Firebase + Twilio voice call, write a high-priority entry to the Monday incident board (per AUD-04), and lock the patient's order to <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">intervention</code> if active. Use only when the symptom warrants it.
+                </div>
+              </div>
+
+              <!-- Linked order -->
+              <div class="field-group">
+                <div class="field-label">Linked order</div>
+                <select class="field-select">
+                  <option>ORD-00441 — Mounjaro 5mg · approved 30 Apr (most recent)</option>
+                  <option>ORD-00408 — Mounjaro 5mg · delivered 18 Apr</option>
+                  <option>(No specific order)</option>
+                </select>
+                <div class="field-help">Optional · if symptoms relate to a specific dose/order, link it here</div>
+              </div>
+
+              <!-- Description -->
+              <div class="field-group">
+                <div class="field-label">What did the patient report? <span class="field-required">*</span></div>
+                <textarea class="field-textarea" placeholder="Patient's own words preferred. Include time, symptoms, what they've already tried, and any relevant context.">Patient called at 14:18 today. Reports nausea since this morning's injection (Mounjaro 5mg, 30 Apr). Mild — has eaten breakfast and lunch but feeling queasy. No vomiting, no abdominal pain, no other symptoms. Asked about whether to take next dose on schedule. Advised to monitor for next 24h, hydrate, and contact us if worsens or if vomiting/severe pain develops. Reassured this is a known side effect at dose escalation.</textarea>
+                <div class="field-help">Required · stored on <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 5px;border-radius:3px;">incident.description</code> · 5000 char max</div>
+              </div>
+
+              <!-- Actions taken -->
+              <div class="field-group">
+                <div class="field-label">Action taken on the call</div>
+                <textarea class="field-textarea" placeholder="What did you advise / do during the contact?">Advised hydration and to monitor symptoms for 24h. Confirmed she should still take next scheduled dose unless vomiting persists. Patient agreed to call back if symptoms worsen.</textarea>
+                <div class="field-help">Optional · stored as the first activity log entry on the incident</div>
+              </div>
+
+              <!-- Prescriber follow-up -->
+              <div class="field-group">
+                <div class="field-label">Prescriber follow-up needed?</div>
+                <select class="field-select">
+                  <option>Yes — within 24h (standard moderate-SE routing)</option>
+                  <option>Yes — within 48h</option>
+                  <option>Yes — at next scheduled review</option>
+                  <option>No — handled on call, no follow-up required</option>
+                </select>
+                <div class="field-help">Determines the SLA timer set on the new incident · standard moderate = 24h</div>
+              </div>
+
+            </div>
+            <div class="modal-foot">
+              <button class="btn">Cancel</button>
+              <button class="btn primary" onclick="createIncident()">Create incident</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save handler reference -->
+      <div class="sec-head">Save handler · what happens on submit</div>
+
+      <div class="card">
+        <div class="card-body" style="font-size:12px;color:var(--text-2);line-height:1.7;">
+          <strong style="color:var(--text-1);">For Yohan:</strong> on submit, the save handler does the following sequentially —
+          <ol style="margin-top:10px;margin-left:18px;">
+            <li>Validate: <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">contact_channel</code> required when origin=manual; if channel=other, sub-field "specify channel" required.</li>
+            <li>Resolve patient by ID; verify same workspace_id (tenant isolation).</li>
+            <li>Write incident: <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">incident_origin = 'manual'</code> · <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">contact_channel</code> set · <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">contact_reference</code> set if provided · <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">created_by_user_id</code> = staff user · <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">created_by_system</code> = NULL (this is staff-initiated, not system).</li>
+            <li>Write the "Action taken on call" text as the first entry in the incident's activity log (type=<code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">staff_note</code>).</li>
+            <li>If linked_order is set, transition order to <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">intervention</code> only when severity=severe; otherwise leave the order untouched (incident sits alongside).</li>
+            <li>Notify prescriber per follow-up SLA: severe → page on-call + Monday board write-through · moderate 24h → email digest + Firebase push · mild → log only.</li>
+            <li>Write AUD-04 audit event with the full payload + staff user ID.</li>
+            <li>Redirect to the new incident's detail page.</li>
+          </ol>
+          <div style="margin-top:12px;padding:10px 12px;background:var(--blue-bg);border-left:3px solid var(--blue);border-radius:var(--r-sm);font-size:12px;color:#1e3a8a;">
+            <strong>Note:</strong> manual incidents do <em>not</em> have an Intercom conversation lock (BLD-8.4 only applies to <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:rgba(255,255,255,0.5);padding:1px 4px;border-radius:3px;">origin = 'intercom'</code>). They follow standard incident lifecycle: open → on hold ↔ open → resolved → closed.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>BLD-8 extension · manual incident creation modal · captures the actual contact channel for incidents reported outside Intercom</span>
+      <span class="at">BLD-8.1+</span>
+      <span>incident_origin enum extended with 'manual' · 2 new fields: contact_channel (phone/sms/email/in_person/post/other) and contact_reference</span>
+      <span class="at">Validation</span>
+      <span>contact_channel REQUIRED when origin=manual · enforced server-side · severity=severe triggers on-call pager + Monday board write</span>
+      <span class="at">Audit</span>
+      <span>created_by_user_id captures the staff member who logged the incident · AUD-04 event written with full payload</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  function searchPatient(input) {
+    const list = document.getElementById('patient-list');
+    list.classList.toggle('open', input.value.length >= 1);
+  }
+  function pickPatient(name) {
+    document.getElementById('patient-search').value = name;
+    document.getElementById('patient-list').classList.remove('open');
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.auto-wrap')) {
+      document.getElementById('patient-list').classList.remove('open');
+    }
+  });
+
+  function setChannel(el, ch) {
+    document.querySelectorAll('.channel-card').forEach(c => c.classList.remove('on'));
+    el.classList.add('on');
+    // Could swap conditional sub-fields based on selected channel
+    const cond = document.getElementById('cond-phone');
+    cond.style.display = (ch === 'phone') ? '' : 'none';
+  }
+
+  function setSev(el, sev) {
+    document.querySelectorAll('.sev-card').forEach(c => c.classList.remove('on'));
+    el.classList.add('on');
+    document.getElementById('severe-banner').classList.toggle('show', sev === 'severe');
+  }
+
+  function createIncident() {
+    const t = document.getElementById('toast');
+    t.innerHTML = '✓ Incident INC-00348 created · origin=manual · channel=phone · prescriber notified';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  function openModal() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.getElementById('toast').innerHTML = '👇 Modal preview rendered inline below';
+    document.getElementById('toast').classList.add('show');
+    setTimeout(() => document.getElementById('toast').classList.remove('show'), 2000);
+  }
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

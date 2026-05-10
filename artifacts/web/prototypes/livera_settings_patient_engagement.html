@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Patient Engagement</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4;--gov:#a855f7;--gov-bg:#faf5ff;--gov-bdr:#e9d5ff}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1180px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}.crumb .cur{color:var(--t1);font-weight:600}
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#fef3c7 0%,#f59e0b 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+.card-body{padding:18px}
+
+/* Toggle pattern (canonical) */
+.tog{width:42px;height:24px;background:var(--ok);border-radius:999px;position:relative;cursor:pointer;flex-shrink:0;transition:.18s}
+.tog::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;right:3px;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tog.off{background:var(--t3)}
+.tog.off::after{right:auto;left:3px}
+
+/* Nudge fields */
+.field-row{display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--bdr)}
+.field-row:last-child{border-bottom:none}
+.field-row .k{font-size:13px;font-weight:600;color:var(--t1)}
+.field-row .k .meta{font-size:11px;font-weight:500;color:var(--t3);font-family:'SF Mono',Menlo,monospace;margin-top:3px;line-height:1.3;display:inline-block;background:var(--bg);padding:1px 5px;border-radius:3px}
+.field-row .k .desc{font-size:11.5px;font-weight:500;color:var(--t2);margin-top:4px;line-height:1.4}
+.field-row .v{font-size:13px;color:var(--t1)}
+.field-row input[type="number"],.field-row input[type="text"],.field-row textarea,.field-row select{font-family:inherit;font-size:13px;padding:8px 12px;border:1px solid var(--bdr-d);border-radius:6px;color:var(--t1);background:var(--surface);width:100%}
+.field-row textarea{resize:vertical;min-height:78px;line-height:1.5}
+.field-row .help{font-size:11px;color:var(--t2);margin-top:6px;line-height:1.5}
+.field-row .help code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+/* Channel chips */
+.chan-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chan-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--bdr-d);border-radius:999px;font-size:11.5px;font-weight:600;color:var(--t2);background:var(--surface);cursor:pointer;transition:.12s}
+.chan-chip.on{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-bdr)}
+.chan-chip.off{opacity:.55}
+.chan-chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* Live preview phone mockup */
+.preview-frame{background:linear-gradient(135deg,#9697E8 0%,#C09ED0 50%,#F08E5F 100%);padding:14px;border-radius:18px;max-width:300px;margin:0 auto}
+.preview-screen{background:#fff;border-radius:12px;overflow:hidden;font-family:'Poppins','Segoe UI',sans-serif}
+.preview-status{font-size:9px;color:#94a3b8;padding:8px 14px 4px;display:flex;justify-content:space-between}
+.preview-content{padding:18px 16px}
+.preview-eyebrow{font-size:10px;font-weight:700;color:#9697E8;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.preview-title{font-size:16px;font-weight:700;color:#1e1b4b;letter-spacing:-.3px;line-height:1.25;margin-bottom:6px}
+.preview-body{font-size:12px;color:#475569;line-height:1.55;margin-bottom:14px}
+.preview-cta{display:block;background:linear-gradient(135deg,#9697E8 0%,#4B5BA3 100%);color:#fff;padding:10px 16px;text-align:center;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none}
+.preview-meta{font-size:10px;color:#94a3b8;text-align:center;margin-top:10px;padding-top:10px;border-top:.5px solid #e2e8f0}
+
+.banner{background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:flex-start;gap:12px}
+.banner .ic{width:32px;height:32px;border-radius:8px;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.banner .text{font-size:12px;color:var(--info);line-height:1.5}
+.banner .text strong{color:var(--t1);font-weight:600;display:block;margin-bottom:2px}
+
+.audit-row{display:grid;grid-template-columns:130px 1fr;gap:14px;padding:8px 18px;border-bottom:1px dashed var(--bdr);font-size:11.5px;align-items:start}
+.audit-row:last-child{border-bottom:none}
+.audit-row .when{color:var(--t3);font-variant-numeric:tabular-nums}
+.audit-row .what{color:var(--t1)}
+.audit-row .what code{font-family:'SF Mono',Menlo,monospace;font-size:10.5px;background:var(--bg);padding:1px 4px;border-radius:3px;color:var(--t2)}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Workspace switcher (canonical) */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;max-width:400px;width:92%;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.ws-confirm-head{padding:14px 18px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:30px;height:30px;border-radius:6px;background:#fef3c7;color:#d97706;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.ws-confirm-head h3{font-size:14px;color:#0f172a;font-weight:700}
+.ws-confirm-body{padding:14px 18px;font-size:12.5px;color:#475569;line-height:1.5}
+.ws-confirm-body p{margin-bottom:8px}
+.ws-confirm-foot{padding:10px 14px;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{font-size:12px;font-weight:600;padding:7px 14px;border-radius:6px;border:0.5px solid #d1d5db;background:#fff;color:#475569;cursor:pointer;font-family:inherit}
+.ws-confirm-foot button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+</style>
+</head>
+<body>
+
+<!-- TOPNAV -->
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <div class="ws">
+    <button class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-haspopup="true" aria-expanded="false">
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▼</span>
+    </button>
+    <div class="ws-popover" id="ws-popover">
+      <div class="wsp-section">
+        <div class="wsp-label">Current workspace</div>
+        <div class="wsp-current">
+          <div class="wsp-mark">VS</div>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · Pharmacist Independent Prescriber model</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <div class="wsp-mark alt">FT</div>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role">
+    <span>Qadir Hussain</span>
+    <span class="role-pill">Owner</span>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_settings_landing.html">Settings</a>
+      <span class="sep">›</span>
+      <span class="cur">Patient engagement</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">📅</div>
+      <div class="pg-info">
+        <h1>Patient engagement <span class="bld-pill">BLD-DAY19-01</span></h1>
+        <div class="sub">Configurable patient nudges sent at specific points in the treatment cycle. Each nudge is independently togglable, configurable per clinic, and can target one or more delivery channels (push notification, email, SMS).</div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Stub · would open Postmark to edit email template')">↗ Manage email templates</button>
+        <button class="btn primary" onclick="showToast('All nudge configurations saved')">Save changes</button>
+      </div>
+    </div>
+
+    <div class="banner">
+      <div class="ic">i</div>
+      <div class="text">
+        <strong>DEC-30 locked: Day-X nudge configurable per clinic</strong>
+        Nudges are admin-configurable, not platform-fixed. Each clinic chooses which nudges to enable, what day they fire on, what copy patients see, and which channels they go through. Store as <code style="font-family:'SF Mono',Menlo,monospace;background:var(--info-bg);padding:1px 5px;border-radius:3px;font-size:10.5px">clinic_config.day_X_nudge</code> object array; one entry per nudge.
+      </div>
+    </div>
+
+    <!-- Day 19 check-in nudge — primary nudge for V1 -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📅 Day-X check-in nudge</div>
+        <div class="sub">Reminds patient to book a Calendly check-in call before reorder window opens</div>
+        <div class="right">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--ok);"><span style="width:8px;height:8px;border-radius:50%;background:var(--ok);"></span>Active</span>
+        </div>
+      </div>
+      <div class="card-body">
+
+        <div class="field-row">
+          <div class="k">Enable nudge
+            <div class="desc">Master switch · OFF disables the entire nudge regardless of other settings</div>
+          </div>
+          <div class="v" style="display:flex;align-items:center;gap:14px;">
+            <div class="tog" id="tog-day19" onclick="toggleNudge(this, 'day19')"></div>
+            <div style="font-size:13px;font-weight:600;color:var(--ok);" id="state-day19">Enabled</div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="k">Trigger day
+            <div class="meta">trigger_day</div>
+            <div class="desc">Days after first dispatch when nudge fires · default 19 · range 1–60</div>
+          </div>
+          <div class="v">
+            <input type="number" id="trigger-day" value="19" min="1" max="60" onchange="updatePreview()">
+            <div class="help">For a 28-day Mounjaro cycle, day 19 is ~9 days before reorder window opens — gives the patient time to book a check-in call ahead of next dose. For weekly Wegovy schedules, consider 5–7 days.</div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="k">Calendly booking link
+            <div class="meta">calendly_url</div>
+            <div class="desc">URL the nudge CTA opens · pulled from Calendly integration by default</div>
+          </div>
+          <div class="v">
+            <input type="text" id="calendly-url" value="https://calendly.com/quanta-healthcare/check-in-vsc" onchange="updatePreview()">
+            <div class="help">Default uses the workspace-level Calendly account (<a href="livera_settings_calendly.html" style="color:var(--brand);text-decoration:none;font-weight:600">configure →</a>). Override here if this nudge should route to a different event type (e.g. a specific clinician's calendar).</div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="k">Push notification copy
+            <div class="meta">push_copy</div>
+            <div class="desc">Shown in app push notification · keep under 100 chars for iOS/Android render</div>
+          </div>
+          <div class="v">
+            <textarea id="push-copy" maxlength="100" onkeyup="updatePreview();updateCharCount('push',100)">Time for your check-in. Book a quick call before your next dose.</textarea>
+            <div class="help"><span id="push-count">63</span>/100 characters · variables supported: <code>{first_name}</code>, <code>{clinic_name}</code>, <code>{next_dose_date}</code></div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="k">In-app copy
+            <div class="meta">in_app_copy</div>
+            <div class="desc">Shown on the home screen card when nudge fires · richer than push</div>
+          </div>
+          <div class="v">
+            <textarea id="in-app-copy" maxlength="240" onkeyup="updatePreview();updateCharCount('inapp',240)">Your next dose is coming up on {next_dose_date}. A quick check-in with our team helps us tailor your treatment and answer any questions before reorder.</textarea>
+            <div class="help"><span id="inapp-count">163</span>/240 characters · variables: <code>{first_name}</code>, <code>{clinic_name}</code>, <code>{next_dose_date}</code>, <code>{current_dose}</code></div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="k">Email subject line
+            <div class="meta">email_subject</div>
+            <div class="desc">Postmark email subject · only used when email channel is enabled</div>
+          </div>
+          <div class="v">
+            <input type="text" id="email-subject" value="Time for your VSC check-in, {first_name}" maxlength="80" onkeyup="updatePreview();updateCharCount('subj',80)">
+            <div class="help"><span id="subj-count">42</span>/80 characters</div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="k">CTA button label
+            <div class="meta">cta_label</div>
+            <div class="desc">Button text on the home screen card · keep under 24 chars</div>
+          </div>
+          <div class="v">
+            <input type="text" id="cta-label" value="Book check-in" maxlength="24" onkeyup="updatePreview()">
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="k">Delivery channels
+            <div class="meta">channels[]</div>
+            <div class="desc">Where the nudge is delivered · select one or more</div>
+          </div>
+          <div class="v">
+            <div class="chan-row">
+              <div class="chan-chip on" onclick="toggleChan(this)" data-chan="push"><span class="dot"></span>📱 Push (FCM)</div>
+              <div class="chan-chip on" onclick="toggleChan(this)" data-chan="email"><span class="dot"></span>✉ Email (Postmark)</div>
+              <div class="chan-chip off" onclick="toggleChan(this)" data-chan="sms"><span class="dot"></span>💬 SMS (Omnisend) <span style="font-size:9px;font-weight:700;color:var(--warn);background:var(--warn-bg);padding:1px 5px;border-radius:3px;margin-left:4px;">PASS 2</span></div>
+              <div class="chan-chip off" onclick="toggleChan(this)" data-chan="inapp"><span class="dot"></span>🏠 Home screen card</div>
+            </div>
+            <div class="help" style="margin-top:10px;">Push + email is the recommended combination — push for immediacy, email for the bookable link. SMS requires Omnisend integration (Pass 2).</div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="k">Suppression rules
+            <div class="meta">suppress_when[]</div>
+            <div class="desc">Don't fire if any of these conditions match</div>
+          </div>
+          <div class="v">
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--t1);cursor:pointer;">
+                <input type="checkbox" checked> Patient already has a Calendly booking in the last 14 days
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--t1);cursor:pointer;">
+                <input type="checkbox" checked> Patient has an open severe-SE incident
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--t1);cursor:pointer;">
+                <input type="checkbox" checked> Patient has opted out of marketing nudges (treatment nudges still fire)
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--t1);cursor:pointer;">
+                <input type="checkbox"> Order is on hold or in intervention
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live preview -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📱 Live preview · how patients see this nudge</div>
+        <div class="sub">Updates in real-time as you edit copy above</div>
+      </div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 320px;gap:32px;align-items:flex-start;">
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:10px;">Push notification (lock screen)</div>
+            <div style="background:#000;border-radius:14px;padding:14px;max-width:340px;">
+              <div style="background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);border-radius:10px;padding:12px 14px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                  <div style="width:18px;height:18px;border-radius:4px;background:linear-gradient(135deg,#9697E8,#4B5BA3);"></div>
+                  <div style="font-size:11px;font-weight:600;color:#1f2937;">VSC</div>
+                  <div style="font-size:10px;color:#6b7280;margin-left:auto;">now</div>
+                </div>
+                <div style="font-size:13px;font-weight:600;color:#0f172a;line-height:1.3;margin-bottom:2px;" id="preview-push-title">Time for your check-in</div>
+                <div style="font-size:12px;color:#475569;line-height:1.4;" id="preview-push-body">Time for your check-in. Book a quick call before your next dose.</div>
+              </div>
+            </div>
+
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin:24px 0 10px;">Email (Postmark)</div>
+            <div style="background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:14px 16px;max-width:340px;">
+              <div style="font-size:11px;color:var(--t3);margin-bottom:4px;">From: VSC Care Team &lt;care@thevirtualslimmingclinic.co.uk&gt;</div>
+              <div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:12px;" id="preview-email-subj">Time for your VSC check-in, Sarah</div>
+              <div style="font-size:12px;color:var(--t2);line-height:1.55;margin-bottom:12px;" id="preview-email-body">Your next dose is coming up on 28 May 2026. A quick check-in with our team helps us tailor your treatment and answer any questions before reorder.</div>
+              <a style="display:inline-block;background:#9697E8;color:#fff;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;" id="preview-email-cta">Book check-in</a>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:10px;">Patient app · home screen card</div>
+            <div class="preview-frame">
+              <div class="preview-screen">
+                <div class="preview-status">
+                  <span>09:41</span>
+                  <span>📶 100%</span>
+                </div>
+                <div class="preview-content">
+                  <div class="preview-eyebrow">Day <span id="preview-day">19</span> check-in</div>
+                  <div class="preview-title" id="preview-card-title">Time for your check-in</div>
+                  <div class="preview-body" id="preview-card-body">Your next dose is coming up on 28 May 2026. A quick check-in with our team helps us tailor your treatment and answer any questions before reorder.</div>
+                  <a class="preview-cta" id="preview-card-cta">Book check-in</a>
+                  <div class="preview-meta" id="preview-card-meta">Triggered Day 19 · 28 May 2026 · 09:00</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Future nudges (placeholders) -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🚧 Additional nudges</div>
+        <div class="sub">Pass 2 · same configuration model</div>
+        <div class="right">3 planned</div>
+      </div>
+      <div style="padding:0;">
+        <div style="display:grid;grid-template-columns:1fr 100px 80px;gap:14px;padding:14px 18px;border-bottom:1px solid var(--bdr);align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--t1);">First-dispatch coaching invite</div>
+            <div style="font-size:11.5px;color:var(--t2);margin-top:2px;line-height:1.45;">Triggered on first parcel dispatch · invites patient to self-book a coaching call (FeelTru) or a welcome call (VSC)</div>
+          </div>
+          <div style="font-size:11px;color:var(--t3);">Day 0</div>
+          <span style="font-size:9px;font-weight:700;color:var(--warn);background:var(--warn-bg);padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.4px;border:.5px solid var(--warn-bdr);">PASS 2</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 100px 80px;gap:14px;padding:14px 18px;border-bottom:1px solid var(--bdr);align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--t1);">Reorder window opening</div>
+            <div style="font-size:11.5px;color:var(--t2);margin-top:2px;line-height:1.45;">Reminds patient that reorder is now open · drives reorder velocity · soft-revenue nudge</div>
+          </div>
+          <div style="font-size:11px;color:var(--t3);">Day 24</div>
+          <span style="font-size:9px;font-weight:700;color:var(--warn);background:var(--warn-bg);padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.4px;border:.5px solid var(--warn-bdr);">PASS 2</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 100px 80px;gap:14px;padding:14px 18px;align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--t1);">Treatment lapse warning</div>
+            <div style="font-size:11.5px;color:var(--t2);margin-top:2px;line-height:1.45;">Fires if no reorder + no contact since Day 28 · prompts re-engagement before clinical lapse</div>
+          </div>
+          <div style="font-size:11px;color:var(--t3);">Day 32</div>
+          <span style="font-size:9px;font-weight:700;color:var(--warn);background:var(--warn-bg);padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.4px;border:.5px solid var(--warn-bdr);">PASS 2</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent activity -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📊 Recent nudge activity</div>
+        <div class="sub">Last 7 days · Day-X check-in nudge</div>
+        <div class="right"><a href="livera_audit_log.html" style="color:var(--brand);text-decoration:none;font-weight:600;font-size:11px;">View audit log →</a></div>
+      </div>
+      <div style="padding:18px;display:grid;grid-template-columns:repeat(4, 1fr);gap:14px;">
+        <div style="text-align:center;padding:14px 8px;background:var(--bg);border-radius:6px;">
+          <div style="font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;">147</div>
+          <div style="font-size:10.5px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px;">Sent</div>
+        </div>
+        <div style="text-align:center;padding:14px 8px;background:var(--bg);border-radius:6px;">
+          <div style="font-size:24px;font-weight:700;color:var(--ok);font-variant-numeric:tabular-nums;">68</div>
+          <div style="font-size:10.5px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px;">Booked</div>
+        </div>
+        <div style="text-align:center;padding:14px 8px;background:var(--bg);border-radius:6px;">
+          <div style="font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;">46.3%</div>
+          <div style="font-size:10.5px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px;">Conv. rate</div>
+        </div>
+        <div style="text-align:center;padding:14px 8px;background:var(--bg);border-radius:6px;">
+          <div style="font-size:24px;font-weight:700;color:var(--t3);font-variant-numeric:tabular-nums;">12</div>
+          <div style="font-size:10.5px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px;">Suppressed</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audit log -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📜 Recent configuration changes</div>
+        <div class="sub">Audit-logged · Owner + RM only</div>
+      </div>
+      <div style="padding:0;">
+        <div class="audit-row" style="background:var(--brand-l);">
+          <span class="when">10 May · 16:42</span>
+          <span class="what"><strong>System</strong> deployed Patient Engagement settings screen · default <code>day_19_nudge</code> created · per DEC-30</span>
+        </div>
+        <div class="audit-row">
+          <span class="when">02 May · 14:08</span>
+          <span class="what"><strong>Mobeen Alam (RM)</strong> changed <code>trigger_day</code> from <code>21</code> → <code>19</code> · earlier check-in alignment</span>
+        </div>
+        <div class="audit-row">
+          <span class="when">28 Apr · 10:14</span>
+          <span class="what"><strong>Qadir Hussain (Owner)</strong> updated push copy · A/B test variant B → control</span>
+        </div>
+        <div class="audit-row">
+          <span class="when">14 Apr · 09:30</span>
+          <span class="what"><strong>System</strong> initial <code>day_19_nudge</code> deployed for clinic-001-vsc</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Patient engagement</strong> · BLD-DAY19-01 (DEC-30) · clinic-configurable patient nudges across the treatment lifecycle. Each nudge is independently togglable, per-clinic configurable, and audit-logged. Stored as <code>clinic_config.day_X_nudge</code> object array — one entry per active nudge. Patient app reads on session start; updates take effect on next nudge fire window. Visible to <code>Owner</code> and <code>RM</code> · all other roles see read-only · Coach role sees coaching-related nudges only. Nudge dispatch goes via Postmark (email), FCM (push), and Omnisend (SMS, Pass 2). Suppression rules and conversion stats refresh hourly.
+    </div>
+
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+
+function toggleNudge(el, key){
+  el.classList.toggle('off');
+  var on = !el.classList.contains('off');
+  document.getElementById('state-'+key).textContent = on ? 'Enabled' : 'Disabled';
+  document.getElementById('state-'+key).style.color = on ? 'var(--ok)' : 'var(--t3)';
+  showToast('Day-X nudge ' + (on ? 'enabled' : 'disabled'));
+}
+
+function toggleChan(el){
+  el.classList.toggle('on');
+  el.classList.toggle('off');
+  showToast('Channel updated');
+}
+
+function updateCharCount(key, max){
+  var src = key === 'push' ? document.getElementById('push-copy')
+          : key === 'inapp' ? document.getElementById('in-app-copy')
+          : document.getElementById('email-subject');
+  var counter = document.getElementById(key+'-count');
+  if(src && counter) counter.textContent = src.value.length;
+}
+
+function updatePreview(){
+  var triggerDay = document.getElementById('trigger-day').value;
+  var pushCopy = document.getElementById('push-copy').value || 'Time for your check-in';
+  var inAppCopy = document.getElementById('in-app-copy').value || 'Your next dose is coming up.';
+  var subj = document.getElementById('email-subject').value || 'Time for your VSC check-in';
+  var cta = document.getElementById('cta-label').value || 'Book check-in';
+
+  // Resolve {first_name} → Sarah, {next_dose_date} → 28 May 2026 in preview
+  var resolve = function(s){
+    return s.replace(/\{first_name\}/g, 'Sarah')
+            .replace(/\{clinic_name\}/g, 'VSC')
+            .replace(/\{next_dose_date\}/g, '28 May 2026')
+            .replace(/\{current_dose\}/g, '7.5mg');
+  };
+
+  document.getElementById('preview-day').textContent = triggerDay;
+  document.getElementById('preview-push-title').textContent = resolve(pushCopy.split('.')[0] || 'Time for your check-in');
+  document.getElementById('preview-push-body').textContent = resolve(pushCopy);
+  document.getElementById('preview-email-subj').textContent = resolve(subj);
+  document.getElementById('preview-email-body').textContent = resolve(inAppCopy);
+  document.getElementById('preview-email-cta').textContent = cta;
+  document.getElementById('preview-card-title').textContent = resolve(pushCopy.split('.')[0] || 'Time for your check-in');
+  document.getElementById('preview-card-body').textContent = resolve(inAppCopy);
+  document.getElementById('preview-card-cta').textContent = cta;
+  document.getElementById('preview-card-meta').textContent = 'Triggered Day ' + triggerDay + ' · 28 May 2026 · 09:00';
+}
+
+// Workspace switcher
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

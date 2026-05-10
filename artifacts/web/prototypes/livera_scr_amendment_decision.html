@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Amendment Decision</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+/* Patient context strip */
+.ctx-strip{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 18px;margin-bottom:18px;display:grid;grid-template-columns:200px repeat(5, 1fr);gap:18px;align-items:center}
+.ctx-strip .pt-id{display:flex;flex-direction:column}
+.ctx-strip .pt-name{font-size:15px;font-weight:700;color:var(--t1);letter-spacing:-.2px}
+.ctx-strip .pt-meta{font-size:11px;color:var(--t3);font-family:'SF Mono',Menlo,monospace;margin-top:2px}
+.ctx-strip .pt-link{font-size:11px;color:var(--brand);text-decoration:none;font-weight:600;margin-top:4px}
+.ctx-strip .pt-link:hover{text-decoration:underline}
+.ctx-strip .ctx-cell{display:flex;flex-direction:column;gap:2px;border-left:1px solid var(--bdr);padding-left:14px}
+.ctx-strip .ctx-lbl{font-size:9.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px}
+.ctx-strip .ctx-val{font-size:13px;font-weight:600;color:var(--t1);font-variant-numeric:tabular-nums}
+.ctx-strip .ctx-sub{font-size:10.5px;color:var(--t2);margin-top:1px}
+.ctx-strip .ctx-val.ok{color:var(--ok)}
+.ctx-strip .ctx-val.warn{color:var(--warn)}
+
+/* 2-column grid: amendment summary | decision panel */
+.grid{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:flex-start}
+
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+.card-body{padding:18px}
+
+/* Amendment summary card */
+.amend-summary{background:linear-gradient(135deg,#fef3c7 0%,#fffbeb 60%,#fff 100%);border:1px solid #fde68a;border-radius:10px;padding:20px 22px;margin-bottom:14px}
+.amend-summary .as-eyebrow{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#92400e;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.amend-summary .as-eyebrow .pill{font-size:9px;font-weight:700;background:#92400e;color:#fff;padding:2px 7px;border-radius:3px}
+.amend-summary h2{font-size:18px;font-weight:700;color:var(--t1);letter-spacing:-.3px;margin-bottom:8px}
+.amend-summary .as-meta{font-size:12px;color:var(--t2)}
+
+.transition{display:flex;align-items:center;gap:18px;padding:18px 0;margin:14px 0;border-top:1px solid #fde68a;border-bottom:1px solid #fde68a}
+.transition .leg{flex:1;text-align:center}
+.transition .leg-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);margin-bottom:4px}
+.transition .leg-val{font-size:18px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+.transition .leg-sub{font-size:11px;color:var(--t2);margin-top:2px}
+.transition .arrow-big{font-size:24px;color:var(--brand);font-weight:700}
+
+.kv-list{display:grid;grid-template-columns:160px 1fr;gap:8px 14px;font-size:12.5px;margin-top:8px}
+.kv-list .k{color:var(--t3);font-weight:600}
+.kv-list .v{color:var(--t1)}
+.kv-list .v code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11px}
+.kv-list .v.ok{color:var(--ok);font-weight:600}
+.kv-list .v.warn{color:var(--warn);font-weight:600}
+
+/* Patient request quote */
+.pt-quote{background:var(--bg);border-left:3px solid var(--brand);padding:12px 16px;border-radius:0 6px 6px 0;margin-top:14px;font-size:12.5px;color:var(--t2);line-height:1.6;font-style:italic}
+.pt-quote::before{content:'❝';color:var(--brand);font-size:18px;margin-right:6px;font-weight:700}
+.pt-quote .src{display:block;font-size:10.5px;font-style:normal;color:var(--t3);margin-top:6px;font-weight:500}
+
+/* Eligibility checklist */
+.elig-list{display:flex;flex-direction:column;gap:8px}
+.elig-item{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:10px 12px;background:var(--bg);border-radius:6px;align-items:flex-start}
+.elig-item .ico{font-size:14px;line-height:1.3}
+.elig-item.pass{background:var(--ok-bg);border:.5px solid var(--ok-bdr)}
+.elig-item.pass .ico{color:var(--ok)}
+.elig-item.warn{background:var(--warn-bg);border:.5px solid var(--warn-bdr)}
+.elig-item.warn .ico{color:var(--warn)}
+.elig-item .nm{font-size:12.5px;font-weight:600;color:var(--t1)}
+.elig-item .desc{font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4}
+.elig-item .desc code{font-family:'SF Mono',Menlo,monospace;background:rgba(255,255,255,0.6);padding:1px 4px;border-radius:3px;font-size:10.5px}
+
+/* Decision panel */
+.decision-panel{position:sticky;top:54px}
+.dec-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.dec-card-head{padding:12px 16px;background:var(--brand);color:#fff}
+.dec-card-head .ttl{font-size:13px;font-weight:700;letter-spacing:-.2px}
+.dec-card-head .sub{font-size:11px;opacity:.85;margin-top:2px}
+.dec-card-body{padding:16px}
+
+.dec-actions{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.dec-btn{padding:11px 14px;font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;font-family:inherit;border:1px solid;display:flex;align-items:center;gap:10px;transition:.12s;text-align:left;background:var(--surface)}
+.dec-btn .icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.dec-btn .ttl{font-weight:700;font-size:13px}
+.dec-btn .desc{font-size:10.5px;font-weight:500;opacity:.8;margin-top:2px;line-height:1.3}
+.dec-btn.approve{border-color:var(--ok);color:var(--ok)}
+.dec-btn.approve:hover{background:var(--ok);color:#fff}
+.dec-btn.approve:hover .icon{background:rgba(255,255,255,.2)}
+.dec-btn.approve .icon{background:var(--ok-bg);color:var(--ok)}
+.dec-btn.reject{border-color:var(--err);color:var(--err)}
+.dec-btn.reject:hover{background:var(--err);color:#fff}
+.dec-btn.reject:hover .icon{background:rgba(255,255,255,.2)}
+.dec-btn.reject .icon{background:var(--err-bg);color:var(--err)}
+.dec-btn.info{border-color:var(--info);color:var(--info)}
+.dec-btn.info:hover{background:var(--info);color:#fff}
+.dec-btn.info:hover .icon{background:rgba(255,255,255,.2)}
+.dec-btn.info .icon{background:var(--info-bg);color:var(--info)}
+
+.dec-side-info{font-size:11px;color:var(--t2);line-height:1.5;padding:10px 12px;background:var(--bg);border-radius:6px;margin-top:12px}
+.dec-side-info strong{color:var(--t1)}
+.dec-side-info code{font-family:'SF Mono',Menlo,monospace;background:var(--surface);padding:1px 4px;border-radius:3px;font-size:10.5px}
+
+/* Amendment audit trail */
+.audit-trail{display:flex;flex-direction:column}
+.at-item{display:grid;grid-template-columns:120px 1fr 100px;gap:14px;padding:12px 16px;border-bottom:1px solid var(--bdr);align-items:center;font-size:12px}
+.at-item:last-child{border-bottom:none}
+.at-when{color:var(--t3);font-size:11px;font-variant-numeric:tabular-nums}
+.at-what{color:var(--t1);line-height:1.4}
+.at-what strong{font-weight:600}
+.at-what code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px}
+.at-outcome{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:3px;text-align:center;letter-spacing:.3px}
+.at-outcome.applied{background:var(--ok-bg);color:var(--ok)}
+.at-outcome.held{background:var(--warn-bg);color:var(--warn)}
+.at-outcome.approved{background:var(--ok-bg);color:var(--ok)}
+.at-outcome.rejected{background:var(--err-bg);color:var(--err)}
+.at-outcome.pending{background:var(--info-bg);color:var(--info)}
+
+.banner{background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:flex-start;gap:12px}
+.banner .ic{width:32px;height:32px;border-radius:8px;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.banner .text{font-size:12px;color:var(--info);line-height:1.5}
+.banner .text strong{color:var(--t1);font-weight:600;display:block;margin-bottom:2px}
+.banner .text code{font-family:'SF Mono',Menlo,monospace;background:rgba(59,130,246,0.1);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Decision modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:400;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:10px;max-width:540px;width:100%;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.modal-head{padding:14px 18px;border-bottom:.5px solid var(--bdr);display:flex;align-items:center;gap:12px}
+.modal-head .ico-lg{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff}
+.modal-head .ico-lg.approve{background:var(--ok)}
+.modal-head .ico-lg.reject{background:var(--err)}
+.modal-head .ico-lg.info{background:var(--info)}
+.modal-head h3{font-size:15px;color:var(--t1);font-weight:700;letter-spacing:-.2px}
+.modal-head .sub{font-size:11px;color:var(--t3);margin-top:2px}
+.modal-body{padding:18px;font-size:13px;color:var(--t1);line-height:1.55}
+.modal-body p{margin-bottom:10px}
+.modal-body label{display:block;font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;margin-top:10px}
+.modal-body textarea{width:100%;padding:9px 12px;font-family:inherit;font-size:13px;border:1px solid var(--bdr-d);border-radius:6px;color:var(--t1);min-height:90px;resize:vertical}
+.modal-body textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+.modal-body .server-note{margin-top:10px;padding:10px 12px;background:var(--bg);border:.5px dashed var(--bdr-d);border-radius:6px;font-size:11px;color:var(--t2);line-height:1.5}
+.modal-body .server-note code{font-family:'SF Mono',Menlo,monospace;background:var(--surface);padding:1px 4px;border-radius:3px;font-size:10.5px}
+.modal-foot{padding:10px 14px;background:var(--bg);display:flex;gap:8px;justify-content:flex-end}
+.modal-foot button{font-size:12px;font-weight:600;padding:8px 16px;border-radius:6px;border:.5px solid var(--bdr-d);background:var(--surface);color:var(--t2);cursor:pointer;font-family:inherit}
+.modal-foot button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.modal-foot button.danger{background:var(--err);color:#fff;border-color:var(--err)}
+.modal-foot button.success{background:var(--ok);color:#fff;border-color:var(--ok)}
+
+/* Workspace switcher */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <div class="ws">
+    <button class="ws-trigger" onclick="toggleWsSwitcher(event)">
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▼</span>
+    </button>
+    <div class="ws-popover" id="ws-popover">
+      <div class="wsp-section">
+        <div class="wsp-label">Current workspace</div>
+        <div class="wsp-current">
+          <div class="wsp-mark">VS</div>
+          <div><div class="wsp-name">VSC — Quanta Healthcare Ltd</div><div class="wsp-sub">Clinic 001</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Claire Moynehan</span><span class="role-pill">Prescriber</span></div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html" class="active"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_scr_amendment_queue.html">Amendments</a>
+      <span class="sep">›</span>
+      <span class="cur">AMD-00091 · Sarah Cookland · Dose increase</span>
+    </div>
+
+    <!-- Patient context strip -->
+    <div class="ctx-strip">
+      <div class="pt-id">
+        <div class="pt-name">Sarah Cookland</div>
+        <div class="pt-meta">PT-00198 · F · 47</div>
+        <a href="livera_prototype_09_patient_profile.html" class="pt-link">View patient →</a>
+      </div>
+      <div class="ctx-cell">
+        <div class="ctx-lbl">Current dose</div>
+        <div class="ctx-val">5.0mg</div>
+        <div class="ctx-sub">Mounjaro · Wk 6</div>
+      </div>
+      <div class="ctx-cell">
+        <div class="ctx-lbl">Last weight</div>
+        <div class="ctx-val">82.4 kg</div>
+        <div class="ctx-sub">↓ 4.6kg in 6w</div>
+      </div>
+      <div class="ctx-cell">
+        <div class="ctx-lbl">Side effects</div>
+        <div class="ctx-val ok">None</div>
+        <div class="ctx-sub">Last reorder Q2 = "None"</div>
+      </div>
+      <div class="ctx-cell">
+        <div class="ctx-lbl">GP consent</div>
+        <div class="ctx-val ok">✓ On record</div>
+        <div class="ctx-sub">28 Jan 2026</div>
+      </div>
+      <div class="ctx-cell">
+        <div class="ctx-lbl">Order state</div>
+        <div class="ctx-val warn">HOLD</div>
+        <div class="ctx-sub">Pending decision</div>
+      </div>
+    </div>
+
+    <div class="banner">
+      <div class="ic">i</div>
+      <div class="text">
+        <strong>Server-side enforcement is the rule</strong>
+        Every action below calls a Livera amendment endpoint. The screen displays "Server-side validation pending…" before showing the result, so you can see the rule lives on the server, not in the UI. Endpoint: <code>POST /amendments/AMD-00091/decide</code>. Validation: <code>amendment_window=pre_dispensed</code> (DEC-01) · order.status ∈ [clinical-check, intervention, approved, in-dispensing] · dose_increase eligibility ≥4w on current dose.
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT: Amendment summary + audit trail -->
+      <div>
+        <!-- Amendment summary -->
+        <div class="amend-summary">
+          <div class="as-eyebrow">
+            <span class="pill">AMD-00091</span>
+            ↑ DOSE INCREASE
+            <span style="margin-left:auto;font-size:11px;color:var(--t2);font-weight:500;text-transform:none;letter-spacing:0;">Submitted 10 May · 11:08 (3h 22m ago)</span>
+          </div>
+          <h2>Mounjaro 5mg → 7.5mg dose step-up</h2>
+          <div class="as-meta">Order ORD-00441 · in-dispensing · payment delta <strong>+£30.00</strong> capture pending</div>
+
+          <div class="transition">
+            <div class="leg">
+              <div class="leg-lbl">Current</div>
+              <div class="leg-val">5.0 mg</div>
+              <div class="leg-sub">6 weeks on dose</div>
+            </div>
+            <div class="arrow-big">→</div>
+            <div class="leg">
+              <div class="leg-lbl">Requested</div>
+              <div class="leg-val">7.5 mg</div>
+              <div class="leg-sub">Next step in schedule</div>
+            </div>
+            <div class="arrow-big">·</div>
+            <div class="leg">
+              <div class="leg-lbl">Price delta</div>
+              <div class="leg-val" style="color:var(--warn)">+£30</div>
+              <div class="leg-sub">Capture on approve</div>
+            </div>
+          </div>
+
+          <div class="kv-list">
+            <div class="k">Eligibility window</div>
+            <div class="v ok">✓ Open · order.status=in-dispensing · DEC-01 pre_dispensed</div>
+            <div class="k">Patient self-attested</div>
+            <div class="v">No new SE · no new medications · last reorder questionnaire 5 May</div>
+            <div class="k">Server validation</div>
+            <div class="v"><code>POST /amendments/AMD-00091/eligibility</code> → <code>200 eligible</code></div>
+            <div class="k">Will trigger</div>
+            <div class="v">Ryft capture £30 · Primed cancel + resubmit (pre_dispensed) · GP letter (consent on) · patient FCM #6</div>
+          </div>
+
+          <div class="pt-quote">
+            Plateau on current dose, would like to discuss step up. Have been on 5mg for 6 weeks. No side effects to note. Weight loss has been steady but feels like it's slowing in the last 2 weeks.
+            <span class="src">— Sarah Cookland · submitted via app · 10 May 11:08</span>
+          </div>
+        </div>
+
+        <!-- Eligibility checklist -->
+        <div class="card">
+          <div class="card-head">
+            <div class="ttl">✓ Eligibility checks</div>
+            <div class="sub">Server-side rules · all must pass before approve enables</div>
+          </div>
+          <div class="card-body">
+            <div class="elig-list">
+              <div class="elig-item pass">
+                <div class="ico">✓</div>
+                <div>
+                  <div class="nm">Amendment window open</div>
+                  <div class="desc">Order is in-dispensing · <code>amendment_window=pre_dispensed</code> permits amendments until Primed dispatch event. DEC-01 locked.</div>
+                </div>
+              </div>
+              <div class="elig-item pass">
+                <div class="ico">✓</div>
+                <div>
+                  <div class="nm">Time on current dose ≥ 4 weeks</div>
+                  <div class="desc">Patient on 5mg since 28 March 2026 · <strong>6 weeks elapsed</strong> · meets dose-increase eligibility threshold.</div>
+                </div>
+              </div>
+              <div class="elig-item pass">
+                <div class="ico">✓</div>
+                <div>
+                  <div class="nm">No active severe SE flag</div>
+                  <div class="desc">Last reorder questionnaire (Q2 side effects): <code>"None of these"</code> · no open severe-SE incidents on patient record.</div>
+                </div>
+              </div>
+              <div class="elig-item pass">
+                <div class="ico">✓</div>
+                <div>
+                  <div class="nm">Payment method valid</div>
+                  <div class="desc">Ryft auth-not-capture on file · expires 12/2027 · capture +£30 will succeed on approve.</div>
+                </div>
+              </div>
+              <div class="elig-item warn">
+                <div class="ico">!</div>
+                <div>
+                  <div class="nm">BMI snapshot is 18 days old</div>
+                  <div class="desc">Last verified BMI: 28.4 (5 May) · within tolerance but consider asking patient for a fresh weight reading on 7.5mg start.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Amendment audit trail (this order's history) -->
+        <div class="card">
+          <div class="card-head">
+            <div class="ttl">📜 Amendment history · ORD-00441</div>
+            <div class="sub">All amendments on this order in chronological order</div>
+            <div class="right">3 entries</div>
+          </div>
+          <div class="audit-trail">
+            <div class="at-item">
+              <div class="at-when">10 May · 11:08</div>
+              <div class="at-what"><strong>Patient submitted</strong> dose increase 5mg → 7.5mg · payment delta +£30 captured pending · this amendment <code>AMD-00091</code></div>
+              <div><span class="at-outcome held">HELD</span></div>
+            </div>
+            <div class="at-item">
+              <div class="at-when">04 May · 14:38</div>
+              <div class="at-what"><strong>Patient submitted</strong> supply increase 1mo → 3mo on this order · payment delta +£250 · captured immediately (no review)</div>
+              <div><span class="at-outcome applied">APPLIED</span></div>
+            </div>
+            <div class="at-item">
+              <div class="at-when">02 May · 09:14</div>
+              <div class="at-what"><strong>Order placed</strong> · ORD-00441 · Mounjaro 5mg · 1 month supply · authorised Ryft AUTH-7782341</div>
+              <div><span class="at-outcome applied">CREATED</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT: Decision panel -->
+      <div class="decision-panel">
+        <div class="dec-card">
+          <div class="dec-card-head">
+            <div class="ttl">🩺 Prescriber decision</div>
+            <div class="sub">Required action · 24h SLA · 20h 38m remaining</div>
+          </div>
+          <div class="dec-card-body">
+            <div class="dec-actions">
+              <button class="dec-btn approve" onclick="openModal('approve')">
+                <div class="icon">✓</div>
+                <div>
+                  <div class="ttl">Approve</div>
+                  <div class="desc">Capture £30 · update Rx · trigger GP letter · patient FCM</div>
+                </div>
+              </button>
+              <button class="dec-btn reject" onclick="openModal('reject')">
+                <div class="icon">✕</div>
+                <div>
+                  <div class="ttl">Reject</div>
+                  <div class="desc">Return order to prior state · void capture · patient FCM</div>
+                </div>
+              </button>
+              <button class="dec-btn info" onclick="openModal('info')">
+                <div class="icon">?</div>
+                <div>
+                  <div class="ttl">Request more info</div>
+                  <div class="desc">Open Intercom ticket · order stays held</div>
+                </div>
+              </button>
+            </div>
+
+            <div class="dec-side-info">
+              <strong>Server-side rule</strong>
+              All actions invoke <code>POST /amendments/AMD-00091/decide</code>. Livera middleware validates the amendment window before the handler runs. Audit log entry fires on every outcome including 403 blocks.
+            </div>
+          </div>
+        </div>
+
+        <div class="dec-card">
+          <div class="dec-card-head" style="background:var(--bdr-d);color:var(--t1)">
+            <div class="ttl" style="color:var(--t1)">⓵ What happens on approve</div>
+            <div class="sub" style="color:var(--t2)">Pre-flight summary</div>
+          </div>
+          <div class="dec-card-body" style="padding:14px 16px;font-size:11.5px;color:var(--t2);line-height:1.6">
+            <div style="margin-bottom:6px">1. Ryft capture <code style="font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px">£30.00</code></div>
+            <div style="margin-bottom:6px">2. Original Rx voided · new Rx generated for 7.5mg</div>
+            <div style="margin-bottom:6px">3. Original invoice voided · new invoice issued</div>
+            <div style="margin-bottom:6px">4. Primed order resubmitted (pre_dispensed cancel-and-resubmit)</div>
+            <div style="margin-bottom:6px">5. GP letter triggered · 48h SLA from approval</div>
+            <div style="margin-bottom:6px">6. Patient FCM #6 sent · "Your dose has been updated"</div>
+            <div>7. Audit log entry: <code style="font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 4px;border-radius:3px;font-size:10.5px">AMENDMENT_APPROVED</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Amendment decision</strong> · BLD-AMEND-02 (DEC-36 / spec §10) · prescriber-facing single-amendment view. All decisions invoke server-side endpoints; UI never enforces clinical rules. SLA: 24h to decision. Audit log writes <code>AMENDMENT_APPROVED</code> / <code>AMENDMENT_REJECTED</code> / <code>AMENDMENT_INFO_REQUESTED</code> per BLD-AMEND-06. Visible to <code>Owner</code>, <code>RM</code>, <code>Prescriber</code> · all other roles hidden. Cross-tenant access returns 404.
+    </div>
+
+  </main>
+</div>
+
+<!-- DECISION MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="ico-lg" id="modal-icon">✓</span>
+      <div>
+        <h3 id="modal-title">Approve amendment</h3>
+        <div class="sub" id="modal-sub">Server-side validation will run before the action commits</div>
+      </div>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <p id="modal-prompt">Approving Sarah Cookland's dose increase from <strong>5mg → 7.5mg</strong>. This will capture <strong>£30.00</strong>, generate a new prescription, void the prior invoice, and trigger a GP letter (consent on file).</p>
+      <label id="modal-label">Clinical note (saved to patient record)</label>
+      <textarea id="modal-note" placeholder="e.g. Patient on 5mg for 6 weeks, no SE, weight trajectory good. Approving 7.5mg step-up per dose schedule."></textarea>
+      <div class="server-note">
+        <strong>Server call:</strong> <code id="modal-endpoint">POST /amendments/AMD-00091/decide</code><br>
+        <strong>Audit entry:</strong> <code id="modal-audit">AMENDMENT_APPROVED</code><br>
+        <strong>Patient FCM:</strong> Trigger #6 — "Your dose has been updated to 7.5mg"
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button onclick="closeModal()">Cancel</button>
+      <button id="modal-confirm" class="primary success" onclick="confirmDecision()">Confirm approve</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+
+let pendingDecision = null;
+
+function openModal(type){
+  pendingDecision = type;
+  const ico = document.getElementById('modal-icon');
+  const title = document.getElementById('modal-title');
+  const sub = document.getElementById('modal-sub');
+  const prompt = document.getElementById('modal-prompt');
+  const label = document.getElementById('modal-label');
+  const note = document.getElementById('modal-note');
+  const audit = document.getElementById('modal-audit');
+  const confirmBtn = document.getElementById('modal-confirm');
+
+  if(type === 'approve'){
+    ico.textContent = '✓'; ico.className = 'ico-lg approve';
+    title.textContent = 'Approve amendment';
+    sub.textContent = 'Capture £30 · generate new Rx · trigger GP letter';
+    prompt.innerHTML = 'Approving Sarah Cookland\'s dose increase from <strong>5mg → 7.5mg</strong>. This will capture <strong>£30.00</strong>, generate a new prescription, void the prior invoice, and trigger a GP letter (consent on file).';
+    label.textContent = 'Clinical note (saved to patient record)';
+    note.placeholder = 'e.g. Patient on 5mg for 6 weeks, no SE, weight trajectory good. Approving 7.5mg step-up per dose schedule.';
+    audit.textContent = 'AMENDMENT_APPROVED';
+    confirmBtn.className = 'primary success';
+    confirmBtn.textContent = 'Confirm approve';
+  } else if(type === 'reject'){
+    ico.textContent = '✕'; ico.className = 'ico-lg reject';
+    title.textContent = 'Reject amendment';
+    sub.textContent = 'Void capture · return order to prior state · patient FCM';
+    prompt.innerHTML = 'Rejecting Sarah Cookland\'s dose increase request. The order will return to its prior state (in-dispensing on 5mg). The £30 capture pending will be voided · no charge to patient.';
+    label.textContent = 'Reason for rejection (mandatory · sent to patient)';
+    note.placeholder = 'e.g. Recommend continuing 5mg for another 2 weeks based on current weight trajectory and recent fatigue notes. Will reassess at next reorder.';
+    audit.textContent = 'AMENDMENT_REJECTED';
+    confirmBtn.className = 'primary danger';
+    confirmBtn.textContent = 'Confirm reject';
+  } else if(type === 'info'){
+    ico.textContent = '?'; ico.className = 'ico-lg info';
+    title.textContent = 'Request more info';
+    sub.textContent = 'Open Intercom ticket · order stays held';
+    prompt.innerHTML = 'Requesting additional info from Sarah Cookland before deciding. The amendment stays held; an Intercom ticket will be created tagged <code>amendment_question</code>. Patient receives an in-app prompt and email.';
+    label.textContent = 'What would you like to ask the patient?';
+    note.placeholder = 'e.g. Could you describe the plateau in more detail — has weight loss stopped completely or just slowed? Any new lifestyle changes or stress factors?';
+    audit.textContent = 'AMENDMENT_INFO_REQUESTED';
+    confirmBtn.className = 'primary';
+    confirmBtn.textContent = 'Send to patient';
+  }
+
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(()=>note.focus(), 100);
+}
+
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+  pendingDecision = null;
+}
+
+function confirmDecision(){
+  const note = document.getElementById('modal-note').value.trim();
+  if((pendingDecision === 'reject' || pendingDecision === 'info') && !note){
+    showToast('Note required for ' + pendingDecision);
+    return;
+  }
+  const messages = {
+    approve: 'Approved · Ryft captured £30 · Rx 7.5mg generated · GP letter queued · audit AMENDMENT_APPROVED logged',
+    reject: 'Rejected · Ryft auth voided · order returned to in-dispensing 5mg · patient notified · audit AMENDMENT_REJECTED logged',
+    info: 'Intercom ticket created · patient prompted · order remains held · audit AMENDMENT_INFO_REQUESTED logged'
+  };
+  showToast(messages[pendingDecision]);
+  closeModal();
+  setTimeout(()=>{
+    if(pendingDecision === 'approve' || pendingDecision === 'reject'){
+      window.location.href = 'livera_scr_amendment_queue.html';
+    }
+  }, 1600);
+}
+
+// Workspace switcher
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover'); if(!p) return;
+  p.classList.toggle('open');
+}
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+  }
+});
+</script>
+</body>
+</html>

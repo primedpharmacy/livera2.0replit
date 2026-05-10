@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — GP letter compose (full)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4;--gov:#a855f7;--gov-bg:#faf5ff;--gov-bdr:#e9d5ff}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+.main{flex:1;padding:24px 30px;max-width:1320px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}.crumb .cur{color:var(--t1);font-weight:600}
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:18px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#dbeafe 0%,#3b82f6 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+
+/* Banner */
+.banner{background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:flex-start;gap:12px}
+.banner .ic{width:32px;height:32px;border-radius:8px;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.banner .text{font-size:12px;color:var(--info);line-height:1.5}
+.banner .text strong{color:var(--t1);font-weight:600;display:block;margin-bottom:2px}
+
+/* Patient summary card */
+.pat-summary{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.pat-summary .av{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#fbcfe8,#db2777);color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:-.3px;flex-shrink:0}
+.pat-summary .info{flex:1;min-width:0}
+.pat-summary .info .nm{font-size:14px;font-weight:600;color:var(--t1)}
+.pat-summary .info .meta{font-size:11.5px;color:var(--t2);margin-top:2px;line-height:1.45}
+.pat-summary .info .meta code{font-family:'SF Mono',monospace;font-size:11px;color:var(--t2);background:var(--bg);padding:1px 5px;border-radius:3px}
+.pat-summary .consent{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-bdr);padding:6px 10px;border-radius:6px}
+.pat-summary .consent::before{content:'✓';font-size:13px}
+
+/* Two-pane layout */
+.compose-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+
+/* Card */
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;overflow:hidden}
+.card-head{padding:12px 16px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card-head .ttl{font-size:13px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px}
+.card-head .ttl .channel-pill{font-size:9px;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:3px;text-transform:uppercase}
+.card-head .ttl .channel-pill.email{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.card-head .ttl .channel-pill.pdf{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+/* Tabs */
+.tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--bdr);padding:0 16px}
+.tab{padding:10px 14px;font-size:12px;font-weight:600;color:var(--t2);background:transparent;border:none;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;display:inline-flex;align-items:center;gap:6px;transition:all .12s}
+.tab:hover{color:var(--brand-d)}
+.tab.active{color:var(--brand);border-bottom-color:var(--brand);background:var(--surface)}
+.tab .tab-pill{font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;letter-spacing:.3px}
+.tab.active .tab-pill{background:var(--brand-l);color:var(--brand-d)}
+.tab:not(.active) .tab-pill{background:var(--bg);color:var(--t3)}
+
+/* Form fields */
+.field{padding:10px 16px;border-bottom:1px solid var(--bdr)}
+.field:last-child{border-bottom:none}
+.field-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:5px;display:block}
+.field input[type="text"],.field input[type="email"],.field select{font-family:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--bdr-d);border-radius:5px;width:100%;color:var(--t1);background:var(--surface)}
+.field input:focus,.field select:focus{outline:none;border-color:var(--brand)}
+.field textarea{font-family:inherit;font-size:13px;padding:10px;border:1px solid var(--bdr-d);border-radius:5px;width:100%;color:var(--t1);background:var(--surface);min-height:280px;resize:vertical;line-height:1.55}
+.field textarea:focus{outline:none;border-color:var(--brand)}
+.field textarea.pdf-body{min-height:340px;font-family:Georgia,'Times New Roman',serif;font-size:13px;line-height:1.65}
+.field .meta{font-size:10.5px;color:var(--t3);margin-top:4px}
+
+/* Template variable chips */
+.vars-bar{padding:8px 16px;background:var(--bg);border-top:1px solid var(--bdr);display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.vars-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-right:4px}
+.var-chip{font-family:'SF Mono',monospace;font-size:10.5px;padding:2px 7px;background:var(--brand-l);color:var(--brand-d);border-radius:3px;cursor:pointer;border:.5px solid var(--brand-mid);transition:all .12s;font-weight:500}
+.var-chip:hover{background:var(--brand);color:#fff}
+
+/* Preview */
+.preview-block{background:var(--bg);padding:14px;border-radius:6px;font-size:12.5px;color:var(--t1);line-height:1.6;margin:12px;border:1px solid var(--bdr)}
+.preview-block.email-preview{background:#fff}
+.preview-block.email-preview .em-from{font-size:11px;color:var(--t3);margin-bottom:4px}
+.preview-block.email-preview .em-from strong{color:var(--t1)}
+.preview-block.email-preview .em-subj{font-size:13.5px;font-weight:600;color:var(--t1);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bdr)}
+.preview-block.pdf-preview{background:#fff;font-family:Georgia,'Times New Roman',serif;line-height:1.7;padding:22px}
+.preview-block.pdf-preview .letterhead{padding-bottom:14px;border-bottom:2px solid var(--brand-d);margin-bottom:18px}
+.preview-block.pdf-preview .letterhead .clinic-name{font-size:14px;font-weight:700;color:var(--brand-d);font-family:-apple-system,sans-serif;letter-spacing:-.2px}
+.preview-block.pdf-preview .letterhead .clinic-meta{font-size:10.5px;color:var(--t3);margin-top:3px;font-family:-apple-system,sans-serif}
+.preview-block.pdf-preview .gp-block{font-size:11.5px;margin-bottom:14px}
+.preview-block.pdf-preview .gp-block strong{display:block;font-weight:600}
+.preview-block.pdf-preview .date-line{font-size:11.5px;margin-bottom:14px;color:var(--t2)}
+.preview-block.pdf-preview .body{font-size:12px;color:var(--t1)}
+.preview-block.pdf-preview .body p{margin-bottom:10px}
+.preview-block.pdf-preview .signature{margin-top:18px;padding-top:14px;border-top:1px solid var(--bdr);font-size:11.5px;color:var(--t2)}
+.preview-block.pdf-preview .signature strong{font-size:12px;color:var(--t1);display:block}
+
+/* Toggle row */
+.tog-row{display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--bdr)}
+.tog-row:last-child{border-bottom:none}
+.tog-row .info{flex:1}
+.tog-row .info .ttl{font-size:12.5px;color:var(--t1);font-weight:600}
+.tog-row .info .desc{font-size:11px;color:var(--t2);margin-top:2px;line-height:1.45}
+.tog{position:relative;width:34px;height:20px;background:var(--bdr-d);border-radius:999px;cursor:pointer;flex-shrink:0;transition:background .15s}
+.tog::after{content:'';position:absolute;left:2px;top:2px;width:16px;height:16px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s}
+.tog.on{background:var(--ok)}.tog.on::after{left:16px}
+
+/* Action footer */
+.action-footer{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.action-footer .summary{flex:1;font-size:12px;color:var(--t2)}
+.action-footer .summary strong{color:var(--t1);font-weight:600}
+.action-footer .summary .channels{display:inline-flex;gap:6px;margin-left:8px}
+.action-footer .summary .channel{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.3px}
+.action-footer .summary .channel.email{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.action-footer .summary .channel.pdf{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:12px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Charlotte Williams · Prescriber</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html" class="active"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Dashboard</a><span class="sep">›</span>
+      <a href="livera_prototype_14_gp_letters.html">GP Letters</a><span class="sep">›</span>
+      <span class="cur">Compose · ORD-00441 (full)</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">📑</div>
+      <div class="pg-info">
+        <h1>Compose GP letter <span class="bld-pill">BLD-7.5 · full</span></h1>
+        <div class="sub">Two-template approach: <strong>email body</strong> via Postmark + <strong>PDF letter</strong> attached. GPs receive both. Edit either independently · live preview · template variables auto-filled from order context.</div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Stub · saved as draft, finishable from GP Letters list')">💾 Save draft</button>
+        <a class="btn" href="livera_prototype_14_gp_letters.html">← Cancel</a>
+      </div>
+    </div>
+
+    <!-- Patient summary -->
+    <div class="pat-summary">
+      <div class="av">SC</div>
+      <div class="info">
+        <div class="nm">Sarah Cookland · <code>PT-00198</code></div>
+        <div class="meta">F · 38 · Mounjaro 5mg → 7.5mg · order <code>ORD-00441</code> approved 14:42 today by Charlotte Williams · BMI 31.4</div>
+      </div>
+      <div class="consent">GP letter consent given on registration</div>
+    </div>
+
+    <!-- Patient context strip -->
+    <div class="banner">
+      <div class="ic">i</div>
+      <div class="text">
+        <strong>The GP receives an email summary plus a formal PDF letter for filing.</strong>
+        Both can be edited independently. Pull in a saved template (right side of the email body) to start from a clinic-approved layout, or compose freely.
+      </div>
+    </div>
+
+    <!-- GP recipient -->
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head">
+        <div class="ttl">📮 Recipient</div>
+        <div class="sub">Auto-populated from patient record · editable if GP details have changed</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;padding:0">
+        <div class="field" style="border-right:1px solid var(--bdr)">
+          <label class="field-label">GP name</label>
+          <input type="text" value="Dr Helen Marsden">
+          <div class="meta">Patient's registered GP</div>
+        </div>
+        <div class="field">
+          <label class="field-label">Surgery</label>
+          <input type="text" value="Whitethorne Surgery, Crouch End">
+          <div class="meta">From NHS ODS lookup · ODS code N87024</div>
+        </div>
+        <div class="field" style="border-right:1px solid var(--bdr);border-top:1px solid var(--bdr)">
+          <label class="field-label">GP email</label>
+          <input type="email" value="admin@whitethornesurgery.nhs.uk">
+          <div class="meta">Postmark delivery webhook will confirm receipt</div>
+        </div>
+        <div class="field" style="border-top:1px solid var(--bdr)">
+          <label class="field-label">Workflow trigger</label>
+          <input type="text" value="Order ORD-00441 approved · 14:42 today" readonly style="background:#f9fafb;">
+          <div class="meta">Sent because patient consented to GP letter at registration. <a href="livera_settings_gp_letter_templates.html" style="color:var(--brand);text-decoration:none;font-weight:600">Manage templates →</a></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two-template compose -->
+    <div class="compose-grid">
+
+      <!-- LEFT: Email body -->
+      <div class="card">
+        <div class="card-head">
+          <div class="ttl">✉ Email body <span class="channel-pill email">EMAIL</span></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
+            <select id="email-template-picker" onchange="pullEmailTemplate(this.value)" style="padding:5px 8px;border:0.5px solid var(--bdr-d);border-radius:5px;font-family:inherit;font-size:11.5px;background:#fff;color:var(--t2);cursor:pointer;">
+              <option value="">📑 Pull from template…</option>
+              <option value="tpl-001">First prescription — Mounjaro initiation</option>
+              <option value="tpl-002">First prescription — Wegovy initiation</option>
+              <option value="tpl-003">Dose escalation notification</option>
+              <option value="tpl-004">Treatment discontinuation</option>
+              <option value="tpl-005">Safeguarding referral</option>
+            </select>
+          <div class="right">~ 80 words · plain text</div>
+        </div>
+        <div class="tabs">
+          <button class="tab active" onclick="swapEmail(this,'edit')">✏ Edit <span class="tab-pill">DRAFT</span></button>
+          <button class="tab" onclick="swapEmail(this,'preview')">👁 Preview <span class="tab-pill">FILLED</span></button>
+        </div>
+
+        <div id="email-edit">
+          <div class="field">
+            <label class="field-label">Subject</label>
+            <input type="text" value="Notification of weight management treatment for {{patient_name}}">
+          </div>
+          <div class="field">
+            <label class="field-label">Body</label>
+            <textarea>Dear {{gp_name}},
+
+I am writing to inform you that your patient {{patient_name}} (DOB {{patient_dob}}) has been prescribed {{treatment_name}} {{treatment_dose}} for weight management as part of a private clinical service.
+
+The patient has provided consent for this notification. Full clinical details are attached as a PDF letter.
+
+Please contact the clinic if you have any questions or concerns about this prescription.
+
+Kind regards,
+{{prescriber_name}}
+{{prescriber_role}}
+{{clinic_name}}</textarea>
+          </div>
+        </div>
+
+        <div id="email-preview" style="display:none">
+          <div class="preview-block email-preview">
+            <div class="em-from"><strong>From:</strong> Charlotte Williams &lt;charlotte@thevirtualslimmingclinic.co.uk&gt;</div>
+            <div class="em-from"><strong>To:</strong> admin@whitethornesurgery.nhs.uk</div>
+            <div class="em-subj">Notification of weight management treatment for Sarah Cookland</div>
+            <p>Dear Dr Helen Marsden,</p>
+            <p>I am writing to inform you that your patient <strong>Sarah Cookland</strong> (DOB 14 Mar 1988) has been prescribed <strong>Mounjaro 7.5mg</strong> for weight management as part of a private clinical service.</p>
+            <p>The patient has provided consent for this notification. Full clinical details are attached as a PDF letter.</p>
+            <p>Please contact the clinic if you have any questions or concerns about this prescription.</p>
+            <p style="margin-top:14px">Kind regards,<br><strong>Charlotte Williams</strong><br>Pharmacist Independent Prescriber<br>Virtual Slimming Clinic</p>
+          </div>
+        </div>
+
+        <div class="vars-bar">
+          <span class="vars-label">Insert</span>
+          <span class="var-chip" onclick="showToast('Inserted into email')">{{patient_name}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{patient_dob}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{gp_name}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{treatment_name}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{treatment_dose}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{prescriber_name}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{clinic_name}}</span>
+        </div>
+      </div>
+
+      <!-- RIGHT: PDF letter -->
+      <div class="card">
+        <div class="card-head">
+          <div class="ttl">📄 PDF letter <span class="channel-pill pdf">ATTACHMENT</span></div>
+          <div class="right">~ 280 words · letterhead + signature</div>
+        </div>
+        <div class="tabs">
+          <button class="tab active" onclick="swapPdf(this,'edit')">✏ Edit <span class="tab-pill">DRAFT</span></button>
+          <button class="tab" onclick="swapPdf(this,'preview')">👁 Preview <span class="tab-pill">FILLED</span></button>
+        </div>
+
+        <div id="pdf-edit">
+          <div class="field">
+            <label class="field-label">Letter body (will render with letterhead and signature)</label>
+            <textarea class="pdf-body">{{date_today}}
+
+{{gp_name}}
+{{gp_surgery}}
+
+Dear {{gp_name}},
+
+Re: {{patient_name}}, DOB {{patient_dob}}, NHS no. {{patient_nhs}}
+
+I am writing to inform you that the above patient has been prescribed {{treatment_name}} {{treatment_dose}} as part of a private weight management programme delivered by {{clinic_name}}.
+
+Clinical details:
+• Indication: weight management (BMI {{patient_bmi}})
+• Treatment: {{treatment_name}} {{treatment_dose}} weekly subcutaneous injection
+• Start date: {{treatment_start}}
+• Prescriber: {{prescriber_name}}, {{prescriber_role}} ({{prescriber_reg}})
+• Pharmacy: Primed Pharmacy, GPhC reg 1039469
+
+The patient has been informed of the indications, mode of action, side effects, and interactions of this medication. They have provided written consent for treatment and for this notification.
+
+Should you require further information or wish to discuss this prescription, please contact the clinic on the details below. We will continue to monitor the patient's progress and notify you of any significant changes to their treatment plan.
+
+Yours sincerely,</textarea>
+            <div class="meta">Letterhead, address block, and signature auto-render around this body in the final PDF</div>
+          </div>
+        </div>
+
+        <div id="pdf-preview" style="display:none">
+          <div class="preview-block pdf-preview">
+            <div class="letterhead">
+              <div class="clinic-name">Virtual Slimming Clinic</div>
+              <div class="clinic-meta">Quanta Healthcare Ltd · 12 Crossley Street, Halifax HX1 2RE · support@thevirtualslimmingclinic.co.uk</div>
+            </div>
+            <div class="date-line">7 May 2026</div>
+            <div class="gp-block">
+              <strong>Dr Helen Marsden</strong>
+              Whitethorne Surgery<br>
+              Crouch End, London
+            </div>
+            <div class="body">
+              <p><strong>Dear Dr Marsden,</strong></p>
+              <p><strong>Re: Sarah Cookland, DOB 14 Mar 1988, NHS no. 943 476 5919</strong></p>
+              <p>I am writing to inform you that the above patient has been prescribed Mounjaro 7.5mg as part of a private weight management programme delivered by Virtual Slimming Clinic.</p>
+              <p><strong>Clinical details:</strong></p>
+              <p style="margin-left:14px">
+                • Indication: weight management (BMI 31.4)<br>
+                • Treatment: Mounjaro 7.5mg weekly subcutaneous injection<br>
+                • Start date: 7 May 2026<br>
+                • Prescriber: Charlotte Williams, Pharmacist Independent Prescriber (GPhC 2078491)<br>
+                • Pharmacy: Primed Pharmacy, GPhC reg 1039469
+              </p>
+              <p>The patient has been informed of the indications, mode of action, side effects, and interactions of this medication. They have provided written consent for treatment and for this notification.</p>
+              <p>Should you require further information or wish to discuss this prescription, please contact the clinic on the details below. We will continue to monitor the patient's progress and notify you of any significant changes to their treatment plan.</p>
+              <p style="margin-top:14px">Yours sincerely,</p>
+            </div>
+            <div class="signature">
+              <strong>Charlotte Williams</strong>
+              Pharmacist Independent Prescriber · GPhC 2078491<br>
+              Virtual Slimming Clinic
+            </div>
+          </div>
+        </div>
+
+        <div class="vars-bar">
+          <span class="vars-label">Insert</span>
+          <span class="var-chip" onclick="showToast('Inserted into PDF')">{{patient_name}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{patient_dob}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{patient_nhs}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{patient_bmi}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{treatment_start}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{prescriber_reg}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{date_today}}</span>
+          <span class="var-chip" onclick="showToast('Inserted')">{{gp_surgery}}</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Send options -->
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head">
+        <div class="ttl">⚙ Send options</div>
+        <div class="sub">Per-letter overrides · do not change clinic-wide defaults</div>
+      </div>
+      <div>
+        <div class="tog-row">
+          <div class="info">
+            <div class="ttl">CC patient on email</div>
+            <div class="desc">Patient receives a copy of the email body (not the PDF) · default ON when patient consent given</div>
+          </div>
+          <div class="tog on" onclick="this.classList.toggle('on');showToast('Saved')"></div>
+        </div>
+        
+        <div class="tog-row">
+          <div class="info">
+            <div class="ttl">Request read receipt</div>
+            <div class="desc">Postmark tracks open events and feeds back to GP Letters list · used for SLA compliance reporting</div>
+          </div>
+          <div class="tog on" onclick="this.classList.toggle('on');showToast('Saved')"></div>
+        </div>
+        <div class="tog-row">
+          <div class="info">
+            <div class="ttl">Add to patient timeline</div>
+            <div class="desc">Letter appears in <a href="livera_scr_notes_timeline.html" style="color:var(--brand);text-decoration:none;font-weight:600">patient timeline</a> as a clinical event · default ON</div>
+          </div>
+          <div class="tog on" onclick="this.classList.toggle('on');showToast('Saved')"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action footer -->
+    <div class="action-footer">
+      <div class="summary">
+        <strong>Ready to send</strong> · GP letter to <strong>Dr Helen Marsden</strong> for Sarah Cookland
+        <span class="channels">
+          <span class="channel email">EMAIL</span>
+          <span class="channel pdf">PDF</span>
+        </span>
+      </div>
+      <button class="btn" onclick="showToast('Stub · saved as draft')">💾 Save draft</button>
+      <button class="btn" onclick="showToast('Stub · would test-send to current user')">📤 Test send to me</button>
+      <button class="btn primary" onclick="confirmSend()">✓ Send GP letter</button>
+    </div>
+
+    <!-- Footer -->
+    <div class="perm-note">
+      <strong>GP letter compose (full)</strong> · BLD-7.5 · two-template approach. Email body and PDF letter are independently editable but share template variables. Both go to GP simultaneously: email via Postmark, PDF as attachment. Sending requires explicit patient consent (visible top-right). Audit-logged with prescriber identity, content hash, and Postmark delivery receipt. Visible to <code>Owner</code>, <code>RM</code>, <code>Prescriber</code>. SLA: <code>sla.gp_letter_hours = 48h</code> from approval (configurable in <a href="livera_settings_sla_values.html" style="color:var(--brand);text-decoration:none;font-weight:600">SLA values</a>).
+    </div>
+
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+function swapEmail(btn,which){
+  document.querySelectorAll('.compose-grid > .card:first-of-type .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('email-edit').style.display = which==='edit' ? 'block':'none';
+  document.getElementById('email-preview').style.display = which==='preview' ? 'block':'none';
+}
+function swapPdf(btn,which){
+  document.querySelectorAll('.compose-grid > .card:nth-of-type(2) .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('pdf-edit').style.display = which==='edit' ? 'block':'none';
+  document.getElementById('pdf-preview').style.display = which==='preview' ? 'block':'none';
+}
+</script>
+
+<!-- Confirmation modal for send -->
+<div id="send-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:12px; padding:24px; width:520px; max-width:90vw;">
+    <h3 style="font-size:16px; font-weight:700; margin-bottom:8px;">Send GP letter?</h3>
+    <p style="font-size:13px; color:var(--t2); margin-bottom:14px;">This will send the email + PDF letter to <strong>Dr Helen Marsden</strong> at <code style="font-size:12px;background:#f3f4f6;padding:1px 5px;border-radius:3px;">admin@whitethornesurgery.nhs.uk</code> via Postmark. <strong>This cannot be unsent.</strong></p>
+    <ul style="font-size:12px; color:var(--t2); margin:12px 0 16px 16px; line-height:1.7;">
+      <li>Patient: Sarah Cookland · PT-00198</li>
+      <li>Both email and PDF letter will be delivered</li>
+      <li>Letter copied to patient timeline</li>
+      <li>Read receipt requested via Postmark</li>
+      <li>Action logged in audit trail</li>
+    </ul>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
+      <button class="btn" onclick="closeSendModal()">Cancel</button>
+      <button class="btn primary" onclick="reallySend()">✓ Confirm — send now</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TEMPLATE_BODIES = {
+  'tpl-001': {
+    email: 'Dear Dr Marsden,\n\nI am writing to inform you that your patient Sarah Cookland (DOB 14 Mar 1974) has commenced treatment with Mounjaro 5mg for weight management at Virtual Slimming Clinic.\n\nTreatment was initiated on [order date] following a comprehensive assessment.\n\nBest regards,\nCharlotte Williams · PIP\nVirtual Slimming Clinic',
+    pdf: 'Dear Dr Marsden,\n\nI am writing to inform you that your patient Sarah Cookland (DOB 14 Mar 1974) has commenced treatment with Mounjaro 5mg for weight management at Virtual Slimming Clinic.\n\n[Full clinical detail to follow when pulled into the live editor]\n\nYours sincerely,\nCharlotte Williams · PIP · NMC ____\nVirtual Slimming Clinic',
+  },
+  'tpl-002': { email: '[Wegovy initiation email content — pulled from template tpl-002]', pdf: '[Wegovy initiation PDF content — pulled from template tpl-002]' },
+  'tpl-003': { email: '[Dose escalation email content — pulled from template tpl-003]', pdf: '[Dose escalation PDF content — pulled from template tpl-003]' },
+  'tpl-004': { email: '[Discontinuation email content — pulled from template tpl-004]', pdf: '[Discontinuation PDF content — pulled from template tpl-004]' },
+  'tpl-005': { email: '[Safeguarding email content — pulled from template tpl-005]', pdf: '[Safeguarding PDF content — pulled from template tpl-005]' },
+};
+
+function pullEmailTemplate(id) {
+  if (!id) return;
+  const tpl = TEMPLATE_BODIES[id];
+  if (!tpl) return;
+  // Find the email editor textarea (the first one in the Edit DRAFT tab on the email side)
+  const editors = document.querySelectorAll('textarea, [contenteditable="true"], .editor-area');
+  if (editors.length > 0) {
+    if (editors[0].tagName === 'TEXTAREA') editors[0].value = tpl.email;
+    else editors[0].innerText = tpl.email;
+  }
+  showToast('✓ Email template pulled — edit as needed before sending');
+  // Reset picker
+  document.getElementById('email-template-picker').value = '';
+}
+
+function pullPdfTemplate(id) {
+  if (!id) return;
+  const tpl = TEMPLATE_BODIES[id];
+  if (!tpl) return;
+  const editors = document.querySelectorAll('textarea, [contenteditable="true"], .editor-area');
+  if (editors.length > 1) {
+    if (editors[1].tagName === 'TEXTAREA') editors[1].value = tpl.pdf;
+    else editors[1].innerText = tpl.pdf;
+  }
+  showToast('✓ PDF template pulled — edit as needed before sending');
+  document.getElementById('pdf-template-picker').value = '';
+}
+
+function confirmSend() {
+  document.getElementById('send-modal').style.display = 'flex';
+}
+function closeSendModal() {
+  document.getElementById('send-modal').style.display = 'none';
+}
+function reallySend() {
+  closeSendModal();
+  showToast('✓ GP letter sent — logged in audit trail');
+  setTimeout(() => { window.location.href = 'livera_prototype_14_gp_letters.html'; }, 1200);
+}
+</script>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

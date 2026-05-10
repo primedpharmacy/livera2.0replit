@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Schedule</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --surface:#ffffff; --bg:#f1f0ef; --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --coach:#a855f7; --coach-bg:#faf5ff; --coach-bdr:#e9d5ff;
+  --welcome:#0ea5e9; --welcome-bg:#f0f9ff; --welcome-bdr:#bae6fd;
+  --clinical:#dc2626; --clinical-bg:#fef2f2; --clinical-bdr:#fecaca;
+}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.sidebar .badge.new{background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1400px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:18px}
+.pg-icon{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#4338ca);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;color:#fff}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-info .sub a{color:var(--brand);text-decoration:none;font-weight:600}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 13px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:.12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);color:#fff}
+
+.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.nav-group{display:inline-flex;align-items:center;gap:0;border:1px solid var(--bdr-d);border-radius:6px;background:#fff;overflow:hidden}
+.nav-group button{background:#fff;border:none;padding:7px 11px;cursor:pointer;font:inherit;color:var(--t2);font-size:12px;font-weight:600;border-right:1px solid var(--bdr)}
+.nav-group button:last-child{border-right:none}
+.nav-group button:hover{background:var(--brand-l);color:var(--brand)}
+.week-label{font-size:14px;font-weight:700;color:var(--t1);min-width:240px;display:inline-flex;align-items:center;gap:8px}
+.week-label .sub{font-size:11px;font-weight:500;color:var(--t3)}
+.view-toggle{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--bdr-d);border-radius:6px;overflow:hidden}
+.view-toggle button{background:#fff;border:none;padding:7px 14px;cursor:pointer;font:inherit;color:var(--t2);font-size:12px;font-weight:600;border-right:1px solid var(--bdr)}
+.view-toggle button:last-child{border-right:none}
+.view-toggle button.on{background:var(--brand);color:#fff}
+
+.filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--bdr)}
+.filters .lbl{font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-right:4px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;background:#fff;border:1px solid var(--bdr-d);border-radius:999px;font-size:12px;font-weight:500;color:var(--t2);cursor:pointer;transition:.12s}
+.chip:hover{border-color:var(--brand);color:var(--brand)}
+.chip.on{background:var(--brand-l);border-color:var(--brand);color:var(--brand-d);font-weight:600}
+.chip .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.chip.coach .dot{background:var(--coach)}
+.chip.welcome .dot{background:var(--welcome)}
+.chip.clinical .dot{background:var(--clinical)}
+
+.pane{display:grid;grid-template-columns:1fr 280px;gap:18px;align-items:start}
+
+.cal-card{background:var(--surface);border:1px solid var(--bdr);border-radius:10px;overflow:hidden}
+.cal-grid{display:grid;grid-template-columns:60px repeat(5,1fr);background:var(--bdr);gap:1px}
+.cal-cell{background:#fff;min-height:36px}
+.cal-day-head{background:#fafafa;padding:9px 10px;text-align:center;position:sticky;top:0;z-index:2}
+.cal-day-head .dow{font-size:10px;text-transform:uppercase;letter-spacing:.6px;font-weight:700;color:var(--t3)}
+.cal-day-head .dom{font-size:18px;font-weight:700;color:var(--t1);margin-top:2px;line-height:1}
+.cal-day-head.today .dom{color:var(--brand)}
+.cal-day-head.today{background:var(--brand-l)}
+.cal-time-col{background:#fafafa}
+.cal-time-cell{height:54px;padding:4px 8px;font-size:10px;color:var(--t3);text-align:right;font-weight:500;font-family:'SF Mono',Menlo,monospace}
+.cal-day-col{position:relative;background:#fff}
+.cal-day-col .hour-line{height:54px;border-bottom:1px dashed #f1f5f9}
+
+.evt{position:absolute;left:4px;right:4px;border-radius:6px;padding:6px 8px;cursor:pointer;font-size:11px;font-weight:500;line-height:1.3;border:1px solid transparent;transition:.12s;z-index:3;overflow:hidden}
+.evt:hover{transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,0,0,0.08)}
+.evt.coach{background:var(--coach-bg);border-color:var(--coach-bdr);color:#6b21a8}
+.evt.coach .evt-bar{background:var(--coach)}
+.evt.welcome{background:var(--welcome-bg);border-color:var(--welcome-bdr);color:#075985}
+.evt.welcome .evt-bar{background:var(--welcome)}
+.evt.clinical{background:var(--clinical-bg);border-color:var(--clinical-bdr);color:#991b1b}
+.evt.clinical .evt-bar{background:var(--clinical)}
+.evt-bar{position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:6px 0 0 6px}
+.evt-time{font-size:10px;font-weight:600;letter-spacing:.2px;opacity:.85;font-family:'SF Mono',Menlo,monospace}
+.evt-title{font-weight:700;margin-top:1px;display:flex;align-items:center;gap:4px}
+.evt-icon{font-size:10px;flex-shrink:0}
+.evt-meta{font-size:10px;opacity:.78;margin-top:1px}
+.evt.cancelled{background:#fafafa;border-color:var(--bdr-d);color:var(--t3);text-decoration:line-through;text-decoration-thickness:1px}
+.evt.no-show{background:var(--err-bg);border-color:var(--err-bdr);color:var(--err)}
+.evt.no-show::after{content:'NO SHOW';position:absolute;bottom:3px;right:5px;font-size:8px;font-weight:800;letter-spacing:.5px;background:var(--err);color:#fff;padding:1px 4px;border-radius:2px}
+
+.rail{display:flex;flex-direction:column;gap:14px}
+.rail-card{background:var(--surface);border:1px solid var(--bdr);border-radius:10px;padding:14px 16px}
+.rail-card h3{font-size:12px;font-weight:700;color:var(--t1);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px}
+.rail-stat-row{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--bdr)}
+.rail-stat-row:last-child{border-bottom:none}
+.rail-stat-row .lbl{font-size:11.5px;color:var(--t2)}
+.rail-stat-row .v{font-size:14px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+.rail-stat-row .v.warn{color:var(--warn)}
+.rail-stat-row .v.err{color:var(--err)}
+.rail-stat-row .v.ok{color:var(--ok)}
+.util-bar{height:8px;background:var(--bg);border-radius:99px;overflow:hidden;margin-top:6px}
+.util-fill{height:100%;background:linear-gradient(90deg,var(--ok) 0%,var(--brand) 70%,var(--warn) 100%);border-radius:99px}
+.util-pct{font-size:18px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+
+.compliance-card{background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:10px;padding:14px 16px;font-size:11.5px;line-height:1.55;color:#1e3a8a}
+.compliance-card h3{color:#1e3a8a;font-size:11px;font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.compliance-card code{font-family:'SF Mono',Menlo,monospace;background:#fff;padding:1px 5px;border-radius:3px;font-size:10.5px;color:var(--info)}
+.compliance-card a{color:var(--info);font-weight:600;text-decoration:none}
+
+.foot-banner{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 18px;font-size:12px;color:var(--t2);line-height:1.55;margin-top:24px}
+.foot-banner code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11px}
+.foot-banner a{color:var(--brand-d);text-decoration:none;font-weight:600}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.5);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:12px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,0.2)}
+.modal-head{padding:18px 22px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px}
+.modal-head .icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;background:var(--coach-bg);color:var(--coach)}
+.modal-head h2{font-size:16px;font-weight:700;color:var(--t1);flex:1}
+.modal-head .close{background:none;border:none;color:var(--t3);font-size:22px;cursor:pointer;padding:0 4px;line-height:1}
+.modal-body{padding:20px 22px}
+.modal-foot{padding:14px 22px;border-top:1px solid var(--bdr);display:flex;gap:8px;justify-content:flex-end;background:#fafafa}
+.modal-section{margin-bottom:18px}
+.modal-section h4{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.modal-kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;font-size:13px}
+.modal-kv .k{color:var(--t3);font-weight:500}
+.modal-kv .v{color:var(--t1)}
+.modal-kv .v code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11.5px;color:var(--t2)}
+.id-verify{padding:12px 14px;background:var(--warn-bg);border:1px solid var(--warn-bdr);border-radius:8px;font-size:12px;color:#78350f;line-height:1.5;margin-bottom:18px}
+.id-verify strong{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:#78350f;margin-bottom:4px}
+.gmeet-card{padding:14px;background:#e8f5e9;border:1px solid #a7d4a8;border-radius:8px;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.gmeet-card .gmeet-logo{width:32px;height:32px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;border:0.5px solid #a7d4a8}
+.gmeet-card .meta{flex:1;font-size:12px;color:#1b5e20;line-height:1.4}
+.gmeet-card .meta strong{color:#1b5e20;font-size:13px;font-weight:700}
+.gmeet-card .join-btn{background:#1976d2;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <button class="ws-trigger"><span>Workspace:</span><strong>FeelTru</strong><span class="ws-chev">▼</span></button>
+  <div class="role"><span>Role:</span><span class="role-pill">Owner</span></div>
+</div>
+
+<div class="layout">
+
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_schedule_calendar.html" class="active"><span class="ico">📅</span>Schedule<span class="badge new">NEW</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Livera</a><span class="sep">›</span>
+      <span class="cur">Schedule</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">📅</div>
+      <div class="pg-info">
+        <h1>Schedule <span class="bld-pill">BLD-CONS-CAL-01</span></h1>
+        <div class="sub">
+          Clinic-wide calendar of all consultations · welcome calls · coaching sessions · clinical consultations · future medical/aesthetics types. Source of truth for scheduling: Calendly. Provider for video V1: Google Meet (Workspace Business Standard). Workspace-isolated · DEC-40.
+        </div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn">Print week</button>
+        <a href="livera_settings_landing.html" class="btn">Configure types</a>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="nav-group">
+        <button title="Previous week">‹</button>
+        <button>Today</button>
+        <button title="Next week">›</button>
+      </div>
+      <div class="week-label">Week of 11 May 2026 <span class="sub">· May W20</span></div>
+      <div style="margin-left:auto;"></div>
+      <div class="view-toggle">
+        <button>Day</button>
+        <button class="on">Week</button>
+        <button>Month</button>
+      </div>
+    </div>
+
+    <div class="filters">
+      <span class="lbl">Show</span>
+      <button class="chip on coach"><span class="dot"></span>Coaching <span style="opacity:.6;margin-left:2px;">14</span></button>
+      <button class="chip on welcome"><span class="dot"></span>Welcome calls <span style="opacity:.6;margin-left:2px;">8</span></button>
+      <button class="chip on clinical"><span class="dot"></span>Clinical consultations <span style="opacity:.6;margin-left:2px;">3</span></button>
+      <span style="width:1px;height:20px;background:var(--bdr);margin:0 4px;"></span>
+      <button class="chip on">All staff</button>
+      <button class="chip">Olwyn (Coach)</button>
+      <button class="chip">Claire (Prescriber)</button>
+      <button class="chip">Punam (Admin)</button>
+      <span style="width:1px;height:20px;background:var(--bdr);margin:0 4px;"></span>
+      <button class="chip on">Scheduled</button>
+      <button class="chip">Cancelled</button>
+      <button class="chip">No-show</button>
+    </div>
+
+    <div class="pane">
+
+      <div class="cal-card">
+        <div class="cal-grid">
+          <div class="cal-cell" style="background:#fafafa;"></div>
+          <div class="cal-cell cal-day-head"><div class="dow">Mon</div><div class="dom">11</div></div>
+          <div class="cal-cell cal-day-head"><div class="dow">Tue</div><div class="dom">12</div></div>
+          <div class="cal-cell cal-day-head"><div class="dow">Wed</div><div class="dom">13</div></div>
+          <div class="cal-cell cal-day-head"><div class="dow">Thu</div><div class="dom">14</div></div>
+          <div class="cal-cell cal-day-head today"><div class="dow">Fri</div><div class="dom">15</div></div>
+        </div>
+
+        <div class="cal-grid">
+          <div class="cal-time-col">
+            <div class="cal-time-cell">09:00</div>
+            <div class="cal-time-cell">10:00</div>
+            <div class="cal-time-cell">11:00</div>
+            <div class="cal-time-cell">12:00</div>
+            <div class="cal-time-cell">13:00</div>
+            <div class="cal-time-cell">14:00</div>
+            <div class="cal-time-cell">15:00</div>
+            <div class="cal-time-cell">16:00</div>
+            <div class="cal-time-cell">17:00</div>
+          </div>
+
+          <div class="cal-day-col">
+            <div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div>
+            <div class="evt welcome" style="top:27px;height:44px;" onclick="openEvt('welcome')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">09:30 – 10:00</div>
+              <div class="evt-title"><span class="evt-icon">📞</span>R Henderson</div>
+              <div class="evt-meta">Welcome · Punam</div>
+            </div>
+            <div class="evt coach" style="top:108px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">11:00 – 11:30</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>S Cookland</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+            <div class="evt coach" style="top:297px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">14:30 – 15:00</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>E Watkins</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+          </div>
+
+          <div class="cal-day-col">
+            <div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div>
+            <div class="evt clinical" style="top:54px;height:64px;" onclick="openEvt('clinical')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">10:00 – 10:45</div>
+              <div class="evt-title"><span class="evt-icon">🩺</span>D Reid</div>
+              <div class="evt-meta">Clinical · Claire · Meet</div>
+            </div>
+            <div class="evt coach" style="top:108px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">11:00 – 11:30</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>B Aldridge</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+            <div class="evt welcome" style="top:270px;height:44px;" onclick="openEvt('welcome')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">14:00 – 14:30</div>
+              <div class="evt-title"><span class="evt-icon">📞</span>J Parker</div>
+              <div class="evt-meta">Welcome · Punam</div>
+            </div>
+            <div class="evt coach" style="top:378px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">16:00 – 16:30</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>K Patel</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+          </div>
+
+          <div class="cal-day-col">
+            <div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div>
+            <div class="evt coach" style="top:0px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">09:00 – 09:30</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>M Thompson</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+            <div class="evt welcome cancelled" style="top:81px;height:44px;" onclick="openEvt('welcome')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">10:30 – 11:00</div>
+              <div class="evt-title"><span class="evt-icon">📞</span>L Bryant</div>
+              <div class="evt-meta">Cancelled</div>
+            </div>
+            <div class="evt coach" style="top:135px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">11:30 – 12:00</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>A Foster</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+            <div class="evt clinical" style="top:270px;height:64px;" onclick="openEvt('clinical')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">14:00 – 14:45</div>
+              <div class="evt-title"><span class="evt-icon">🩺</span>J Turner</div>
+              <div class="evt-meta">Clinical · Claire · Meet</div>
+            </div>
+            <div class="evt coach" style="top:378px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">16:00 – 16:30</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>N Williams</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+          </div>
+
+          <div class="cal-day-col">
+            <div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div>
+            <div class="evt welcome no-show" style="top:27px;height:44px;" onclick="openEvt('welcome')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">09:30 – 10:00</div>
+              <div class="evt-title"><span class="evt-icon">📞</span>P Rodriguez</div>
+            </div>
+            <div class="evt coach" style="top:108px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">11:00 – 11:30</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>R Hassan</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+            <div class="evt coach" style="top:243px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">13:30 – 14:00</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>I Khan</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+            <div class="evt welcome" style="top:324px;height:44px;" onclick="openEvt('welcome')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">15:00 – 15:30</div>
+              <div class="evt-title"><span class="evt-icon">📞</span>T Brooks</div>
+              <div class="evt-meta">Welcome · Punam</div>
+            </div>
+          </div>
+
+          <div class="cal-day-col" style="background:rgba(99,102,241,0.02);">
+            <div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div><div class="hour-line"></div>
+            <div class="evt clinical" style="top:54px;height:64px;" onclick="openEvt('clinical')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">10:00 – 10:45</div>
+              <div class="evt-title"><span class="evt-icon">🩺</span>S Ahmed</div>
+              <div class="evt-meta">Clinical · Claire · Meet</div>
+            </div>
+            <div class="evt coach" style="top:135px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">11:30 – 12:00</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>D Owens</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+            <div class="evt coach" style="top:270px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">14:00 – 14:30</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>F Williams</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+            <div class="evt welcome" style="top:324px;height:44px;" onclick="openEvt('welcome')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">15:00 – 15:30</div>
+              <div class="evt-title"><span class="evt-icon">📞</span>M Costa</div>
+              <div class="evt-meta">Welcome · Punam</div>
+            </div>
+            <div class="evt coach" style="top:405px;height:44px;" onclick="openEvt('coach')">
+              <div class="evt-bar"></div>
+              <div class="evt-time">16:30 – 17:00</div>
+              <div class="evt-title"><span class="evt-icon">🎥</span>H Patel</div>
+              <div class="evt-meta">Coaching · Olwyn · Meet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rail">
+
+        <div class="rail-card">
+          <h3>This week</h3>
+          <div class="rail-stat-row"><span class="lbl">Total scheduled</span><span class="v">25</span></div>
+          <div class="rail-stat-row"><span class="lbl">Coaching</span><span class="v">14</span></div>
+          <div class="rail-stat-row"><span class="lbl">Welcome calls</span><span class="v">8</span></div>
+          <div class="rail-stat-row"><span class="lbl">Clinical consults</span><span class="v">3</span></div>
+          <div class="rail-stat-row"><span class="lbl">Cancelled</span><span class="v warn">1</span></div>
+          <div class="rail-stat-row"><span class="lbl">No-show</span><span class="v err">1</span></div>
+        </div>
+
+        <div class="rail-card">
+          <h3>Coach utilisation · Olwyn</h3>
+          <div class="util-pct">62%</div>
+          <div class="util-bar"><div class="util-fill" style="width:62%;"></div></div>
+          <div class="rail-stat-row" style="margin-top:10px;"><span class="lbl">Booked</span><span class="v">14 / 22.5h</span></div>
+          <div class="rail-stat-row"><span class="lbl">Free slots</span><span class="v ok">14</span></div>
+          <div class="rail-stat-row"><span class="lbl">No-show rate (30d)</span><span class="v">4.3%</span></div>
+        </div>
+
+        <div class="rail-card">
+          <h3>Provider status</h3>
+          <div class="rail-stat-row"><span class="lbl">Google Meet</span><span class="v ok">✓ Live</span></div>
+          <div class="rail-stat-row"><span class="lbl">Calendly sync</span><span class="v ok">✓ 5m ago</span></div>
+          <div class="rail-stat-row"><span class="lbl">Intercom Phone</span><span class="v" style="color:var(--t3);">⏳ Pending</span></div>
+        </div>
+
+        <div class="compliance-card">
+          <h3>🛡 Compliance posture</h3>
+          <div>
+            UK GDPR Art 9(2)(h) lawful basis · Workspace Standard DPA on file · <strong>no recordings in V1</strong> · clinical note is the record · join events to <code>AUD-04</code> · CQC Reg 17 evidence trail.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="foot-banner">
+      <strong>Schedule</strong> · BLD-CONS-CAL-01 · DEC-40. Unified calendar across all consultation types — welcome calls, coaching, clinical consults, future medical/aesthetics types. Scheduling source: Calendly (<a href="livera_settings_calendly.html">settings</a>). Video provider V1: Google Meet (Workspace Business Standard, recordings disabled at admin level). Phone provider V1: Intercom Phone pending eligibility (DISC-INTERCOM-PHONE-01). Workspace-isolated. Visible to <code>Owner</code>, <code>RM</code>, <code>Prescriber</code>, <code>Coach</code> (own bookings), <code>Admin</code> (welcome calls). Companion BLDs in Wave 8: BLD-CONS-DETAIL-01 · BLD-CONS-SETTINGS-01 · BLD-CONS-PROVIDER-01 · BLD-CONS-MIGRATION-01.
+    </div>
+
+  </main>
+</div>
+
+<div class="modal-overlay" id="evt-modal" onclick="if(event.target.id==='evt-modal')closeEvt()">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="icon" id="modal-icon">🎥</div>
+      <h2 id="modal-title">Coaching session — Sarah Cookland</h2>
+      <button class="close" onclick="closeEvt()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="gmeet-card">
+        <div class="gmeet-logo">📹</div>
+        <div class="meta">
+          <strong>Google Meet</strong><br>
+          <code style="font-family:'SF Mono',Menlo,monospace;font-size:11px;background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px;">meet.google.com/abc-defg-hij</code>
+        </div>
+        <a href="#" target="_blank" rel="noopener" class="join-btn">Join meeting</a>
+      </div>
+
+      <div class="id-verify">
+        <strong>🛡 Identity verification at join</strong>
+        Verify patient's name and DOB verbally at start of call. Document confirmation in clinical note. Google Meet does not enforce patient identity — clinician verification is the control.
+      </div>
+
+      <div class="modal-section">
+        <h4>Consultation</h4>
+        <div class="modal-kv">
+          <div class="k">Patient</div><div class="v"><a href="livera_prototype_09_patient_profile.html" style="color:var(--brand-d);text-decoration:none;font-weight:600;">Sarah Cookland</a> · PT-00198</div>
+          <div class="k">Type</div><div class="v">Coaching session · 30 min</div>
+          <div class="k">Modality</div><div class="v">Video (Google Meet)</div>
+          <div class="k">Scheduled</div><div class="v">Mon 11 May 2026 · 11:00 – 11:30 BST</div>
+          <div class="k">Status</div><div class="v" style="color:var(--ok);font-weight:600;">Scheduled</div>
+          <div class="k">Clinician</div><div class="v">Olwyn Sutcliffe (Coach)</div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <h4>Provider metadata</h4>
+        <div class="modal-kv">
+          <div class="k">Provider</div><div class="v">Calendly + Google Meet</div>
+          <div class="k">Calendly event</div><div class="v"><code>evt_8a3f72e1</code></div>
+          <div class="k">Meet space</div><div class="v"><code>spc_meet_4kjf2nr</code></div>
+          <div class="k">Link expires</div><div class="v">11 May · 12:00 BST (30 min after end)</div>
+          <div class="k">Booked at</div><div class="v">03 May 2026 · 14:18 · self-booked by patient</div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <h4>Recording &amp; transcription</h4>
+        <div class="modal-kv">
+          <div class="k">Recording</div><div class="v" style="color:var(--t3);">Disabled (V1 policy · DEC-40)</div>
+          <div class="k">Transcription</div><div class="v" style="color:var(--t3);">Disabled (Phase 2)</div>
+          <div class="k">Clinical record</div><div class="v">Coach writes log entry post-call · linked to this consultation</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <a href="livera_prototype_09_patient_profile.html" class="btn">Patient profile →</a>
+      <a href="livera_scr_consultation_detail.html" class="btn">Full detail →</a>
+      <button class="btn primary">Reschedule</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const eventTypeMeta = {
+    coach: {icon:'🎥', title:'Coaching session — Sarah Cookland'},
+    welcome: {icon:'📞', title:'Welcome call — Sarah Cookland'},
+    clinical: {icon:'🩺', title:'Clinical consultation — Sarah Cookland'}
+  };
+  function openEvt(type){
+    const m = eventTypeMeta[type] || eventTypeMeta.coach;
+    document.getElementById('modal-icon').textContent = m.icon;
+    document.getElementById('modal-title').textContent = m.title;
+    document.getElementById('evt-modal').classList.add('show');
+  }
+  function closeEvt(){
+    document.getElementById('evt-modal').classList.remove('show');
+  }
+</script>
+</body>
+</html>

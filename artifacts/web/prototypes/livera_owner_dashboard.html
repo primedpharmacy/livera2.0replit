@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Owner Dashboard (Pass 2)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --nav-2:#312e81;
+  --surface:#ffffff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa;
+  --gov:#a855f7; --gov-bg:#faf5ff; --gov-bdr:#e9d5ff;
+}
+
+/* TOP NAV */
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws-name{color:#fff;font-weight:600}
+.topnav .ws select{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:2px 6px;font-size:11px;font-family:inherit;cursor:pointer}
+.topnav .ws select option{background:var(--nav);color:#fff}
+.topnav .right{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:rgba(255,255,255,.08);border-radius:999px;border:1px solid rgba(255,255,255,.12)}
+.topnav .role-pill .dot{width:5px;height:5px;border-radius:50%;background:var(--ok)}
+.topnav .user{display:flex;align-items:center;gap:6px}
+.topnav .user .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--brand-mid),var(--brand-d));display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff}
+
+/* SHELL */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+
+/* SIDEBAR --- 218px width per canonical spec */
+.sidebar{width:218px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);font-weight:700;padding:0 8px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:9px;padding:7px 9px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:background .12s,color .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:6px;bottom:6px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+.sidebar a .badge{margin-left:auto;font-size:10px;font-weight:700;background:var(--brand);color:#fff;padding:1px 6px;border-radius:999px;min-width:18px;text-align:center}
+.sidebar a .badge.warn{background:var(--warn)}
+.sidebar a .badge.err{background:var(--err)}
+.sidebar a .badge.muted{background:var(--bdr-d);color:var(--t2)}
+
+/* MAIN */
+.main{flex:1;padding:24px 32px 64px;min-width:0}
+.h1{font-size:24px;font-weight:700;color:var(--t1);letter-spacing:-.5px;margin-bottom:2px;display:flex;align-items:baseline;gap:14px}
+.h1 .greet{color:var(--t1)}
+.h1 .name{color:var(--brand)}
+.h1 .meta{font-size:13px;color:var(--t2);font-weight:500;letter-spacing:0}
+.sub{font-size:12.5px;color:var(--t2);margin-bottom:20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sub .mood{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;background:var(--ok-bg);color:var(--ok);font-weight:600;border:1px solid var(--ok-bdr);border-radius:999px;font-size:11px}
+.sub .mood.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-bdr)}
+.sub .mood.err{background:var(--err-bg);color:var(--err);border-color:var(--err-bdr)}
+.sub .mood::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* TOP STRIP --- daily ops at-a-glance */
+.strip{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--bdr);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;margin-bottom:24px}
+.strip .stat{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:background .12s}
+.strip .stat:hover{background:var(--brand-l)}
+.strip .stat .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t2)}
+.strip .stat .val{font-size:24px;font-weight:700;color:var(--t1);line-height:1;letter-spacing:-.5px;display:flex;align-items:baseline;gap:4px}
+.strip .stat .val .unit{font-size:11px;font-weight:500;color:var(--t3)}
+.strip .stat .delta{font-size:10px;color:var(--t3);font-weight:500;display:flex;align-items:center;gap:4px}
+.strip .stat .delta.up{color:var(--ok)}
+.strip .stat .delta.dn{color:var(--err)}
+.strip .stat .delta.warn{color:var(--warn)}
+
+/* GRID */
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:24px}
+.col{display:flex;flex-direction:column;gap:18px}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;overflow:hidden}
+.card-head{padding:13px 16px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px;background:linear-gradient(180deg,#fafafa 0%,var(--surface) 100%)}
+.card-head h3{font-size:13px;font-weight:700;color:var(--t1);letter-spacing:-.2px;flex:1;display:flex;align-items:center;gap:8px}
+.card-head h3 .pill{font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.4px}
+.card-head h3 .pill.ft{background:var(--gov-bg);color:var(--gov);border:1px solid var(--gov-bdr)}
+.card-head h3 .pill.gr6{background:var(--proto-bg);color:var(--proto);border:1px solid #99f6e4}
+.card-head .more{font-size:11px;color:var(--brand);text-decoration:none;font-weight:600}
+.card-head .more:hover{text-decoration:underline}
+.card-body{padding:0}
+.card-empty{padding:28px 16px;text-align:center;color:var(--t3);font-size:12px}
+
+/* LIST ROWS inside cards */
+.lrow{display:grid;grid-template-columns:1fr auto;gap:10px;padding:11px 16px;border-bottom:1px solid var(--bdr);align-items:center;text-decoration:none;color:inherit;transition:background .12s}
+.lrow:last-child{border-bottom:none}
+.lrow:hover{background:var(--brand-l)}
+.lrow .who{display:flex;align-items:center;gap:10px;min-width:0}
+.lrow .av{width:26px;height:26px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--brand-mid),var(--brand));display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff}
+.lrow .av.ft{background:linear-gradient(135deg,#a855f7,#7c3aed)}
+.lrow .info{min-width:0}
+.lrow .info .name{font-size:12.5px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow .info .where{font-size:11px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lrow .right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:11px;text-align:right}
+.lrow .right .age{color:var(--t2)}
+.lrow .right .age.warn{color:var(--warn);font-weight:600}
+.lrow .right .age.err{color:var(--err);font-weight:600}
+.lrow .right .tag{font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.3px}
+.lrow .right .tag.ok{background:var(--ok-bg);color:var(--ok)}
+.lrow .right .tag.warn{background:var(--warn-bg);color:var(--warn)}
+.lrow .right .tag.err{background:var(--err-bg);color:var(--err)}
+.lrow .right .tag.info{background:var(--info-bg);color:var(--info)}
+.lrow .right .tag.gov{background:var(--gov-bg);color:var(--gov)}
+
+/* QUICK ACTIONS */
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px 16px}
+.quick a{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border:1px solid var(--bdr);border-radius:7px;color:var(--t2);text-decoration:none;font-size:11px;font-weight:600;text-align:center;transition:all .12s}
+.quick a:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-l)}
+.quick a .ico{width:28px;height:28px;border-radius:7px;background:var(--brand-l);color:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+
+/* GROUP 6 — flag dashboard preview */
+.flag-preview{padding:14px 16px}
+.flag-preview .row{display:flex;align-items:center;gap:8px;font-size:11.5px;padding:6px 0;border-bottom:1px dashed var(--bdr)}
+.flag-preview .row:last-child{border-bottom:none}
+.flag-preview .row .lab{flex:1;color:var(--t2);font-weight:500}
+.flag-preview .row .v{font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+.flag-preview .row .v.good{color:var(--ok)}
+.flag-preview .row .v.bad{color:var(--err)}
+.flag-preview .headline{margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr);display:flex;align-items:baseline;gap:10px}
+.flag-preview .headline .lab{font-size:11px;color:var(--t2);font-weight:600;flex:1}
+.flag-preview .headline .v{font-size:22px;font-weight:700;color:var(--proto);letter-spacing:-.5px}
+
+/* ACTIVITY FEED */
+.feed{padding:0}
+.feed .e{display:grid;grid-template-columns:60px 1fr;gap:12px;padding:10px 16px;border-bottom:1px solid var(--bdr);font-size:12px;align-items:start}
+.feed .e:last-child{border-bottom:none}
+.feed .t{font-size:10px;color:var(--t3);font-weight:600;font-variant-numeric:tabular-nums;padding-top:1px}
+.feed .body{color:var(--t2);line-height:1.45}
+.feed .body strong{color:var(--t1);font-weight:600}
+.feed .body a{color:var(--brand);text-decoration:none;font-weight:600}
+.feed .body a:hover{text-decoration:underline}
+.feed .body .actor{color:var(--brand-d);font-weight:600}
+.feed .body .clinic{font-size:10px;background:var(--brand-l);color:var(--brand);padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:700;letter-spacing:.3px}
+.feed .body .clinic.ft{background:var(--gov-bg);color:var(--gov)}
+
+/* AUDIT FOOTER pill */
+.ann{background:var(--nav);color:rgba(255,255,255,.7);padding:14px 24px;font-size:11px;display:flex;align-items:center;gap:14px;margin-top:32px;border-radius:8px}
+.ann .label{color:#fff;font-weight:600;display:flex;align-items:center;gap:6px}
+.ann .label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--brand-mid)}
+
+@media (max-width:1100px){.grid{grid-template-columns:1fr 1fr}.strip{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px){.shell{flex-direction:column}.sidebar{width:100%;height:auto;position:relative;top:auto}.grid{grid-template-columns:1fr}.strip{grid-template-columns:repeat(2,1fr)}.main{padding:16px}}
+
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<div class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="right">
+    <span class="role-pill"><span class="dot"></span>Owner — full access</span>
+    <span class="user"><span class="av">QH</span>Qadir Hussain</span>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- SIDEBAR --- this is the canonical sidebar to be replicated across all screens in Pass 2 -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html" class="active"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients</a>
+    <a href="livera_prototype_09b_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <a href="livera_scr_schedule_calendar.html"><span class="ico">📅</span>Schedule<span class="badge" style="background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr)">NEW</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_prototype_05_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+
+    <!-- HEADER -->
+    <h1 class="h1">
+      <span class="greet">Good afternoon,</span>
+      <span class="name">Qadir</span>
+      <span class="meta">· Wednesday, 6 May 2026 · 14:32</span>
+    </h1>
+    <p class="sub">
+      <span class="mood warn">2 items need your attention</span>
+      <span>1 SLA-breached order · 2 open complaints overdue acknowledgement</span>
+    </p>
+
+    <!-- TOP STRIP — daily ops -->
+    <div class="strip">
+      <a href="livera_prototype_02_clinical_check_queue.html" class="stat" style="text-decoration:none;color:inherit">
+        <span class="lbl">Clinical Check Queue</span>
+        <span class="val">7 <span class="unit">orders</span></span>
+        <span class="delta warn">⚠ 1 over 4h SLA</span>
+      </a>
+      <a href="livera_prototype_09b_orders_list.html?status=approved" class="stat" style="text-decoration:none;color:inherit">
+        <span class="lbl">Approved today</span>
+        <span class="val">12 <span class="unit">orders</span></span>
+        <span class="delta up">↑ 3 vs yesterday</span>
+      </a>
+      <a href="livera_prototype_09b_orders_list.html?status=dispatched" class="stat" style="text-decoration:none;color:inherit">
+        <span class="lbl">Dispatched today</span>
+        <span class="val">9 <span class="unit">parcels</span></span>
+        <span class="delta">£1,743 captured</span>
+      </a>
+      <a href="livera_scr_tasks_list.html?owner=me" class="stat" style="text-decoration:none;color:inherit">
+        <span class="lbl">My tasks</span>
+        <span class="val">4 <span class="unit">open</span></span>
+        <span class="delta warn">2 due today</span>
+      </a>
+      <a href="livera_scr_complaints.html" class="stat" style="text-decoration:none;color:inherit">
+        <span class="lbl">Open complaints</span>
+        <span class="val">2 <span class="unit">cases</span></span>
+        <span class="delta dn">1 overdue ack</span>
+      </a>
+      <a href="livera_g6_flag_dashboard.html" class="stat" style="text-decoration:none;color:inherit">
+        <span class="lbl">Primed flag rate</span>
+        <span class="val">14 <span class="unit">% of orders</span></span>
+        <span class="delta">G6 · this month</span>
+      </a>
+    </div>
+
+    <!-- GRID --- 3 cols of operational cards -->
+    <div class="grid">
+
+      <!-- COL 1 ============================ -->
+      <div class="col">
+
+        <!-- Quick actions -->
+        <div class="card">
+          <div class="card-head"><h3>Quick actions</h3></div>
+          <div class="quick">
+            <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check</a>
+            <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>New task</a>
+            <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP letter</a>
+            <a href="livera_scr_incident_create_manual.html"><span class="ico">🚨</span>Log incident</a>
+          </div>
+        </div>
+
+        <!-- Sync failures alert (DEC-25/DEC-28) -->
+        <div class="card" style="border-color:#fecaca;">
+          <div class="card-head" style="background:linear-gradient(180deg,#fef2f2 0%,#fff 100%);border-bottom-color:#fecaca;">
+            <h3 style="color:#991b1b;">⚠ Primed sync failures <span class="pill" style="background:#b91c1c;color:#fff;">3 OPEN</span></h3>
+            <a href="livera_sync_failures.html" class="more" style="color:#b91c1c;">View all →</a>
+          </div>
+          <div class="card-body">
+            <a href="livera_sync_failures.html" class="lrow">
+              <div class="who">
+                <span class="av">SC</span>
+                <div class="info">
+                  <div class="name">Sarah Cookland</div>
+                  <div class="where">📍 Address · 409 Conflict · order locked</div>
+                </div>
+              </div>
+              <div class="right">
+                <div class="age err">3h ago</div>
+              </div>
+            </a>
+            <a href="livera_sync_failures.html" class="lrow">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#0d9488,#14b8a6);">BN</span>
+                <div class="info">
+                  <div class="name">Beth Newman</div>
+                  <div class="where">🆔 NHS number · 422 validation</div>
+                </div>
+              </div>
+              <div class="right">
+                <div class="age err">19h ago</div>
+              </div>
+            </a>
+            <a href="livera_sync_failures.html" class="lrow">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6);">MK</span>
+                <div class="info">
+                  <div class="name">Maria Kowalski</div>
+                  <div class="where">📞 Phone · 401 token expired</div>
+                </div>
+              </div>
+              <div class="right">
+                <div class="age err">2d ago</div>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <!-- Today's clinical work -->
+        <div class="card">
+          <div class="card-head">
+            <h3>Today's clinical work</h3>
+            <a href="livera_prototype_02_clinical_check_queue.html" class="more">View queue →</a>
+          </div>
+          <div class="card-body">
+            <a href="livera_prototype_10_order_detail.html?id=ORD-VSC-00342" class="lrow">
+              <div class="who">
+                <span class="av">LD</span>
+                <div class="info">
+                  <div class="name">Lindsay Dickson <span style="font-size:10px;background:var(--brand-l);color:var(--brand);padding:1px 5px;border-radius:3px;margin-left:3px;font-weight:700">VSC</span></div>
+                  <div class="where">ORD-VSC-00342 · Mounjaro 5mg reorder</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age warn">18h queue</span>
+                <span class="tag warn">B4 flag</span>
+              </div>
+            </a>
+            <a href="livera_prototype_10_order_detail.html?id=ORD-VSC-00339" class="lrow">
+              <div class="who">
+                <span class="av">JM</span>
+                <div class="info">
+                  <div class="name">Jacob Mensah <span style="font-size:10px;background:var(--brand-l);color:var(--brand);padding:1px 5px;border-radius:3px;margin-left:3px;font-weight:700">VSC</span></div>
+                  <div class="where">ORD-VSC-00339 · Wegovy 0.5mg reorder</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">3h queue</span>
+                <span class="tag info">Awaiting BMI</span>
+              </div>
+            </a>
+<a href="livera_prototype_10_order_detail.html?id=ORD-VSC-00337" class="lrow">
+              <div class="who">
+                <span class="av">RP</span>
+                <div class="info">
+                  <div class="name">Ravi Patel <span style="font-size:10px;background:var(--brand-l);color:var(--brand);padding:1px 5px;border-radius:3px;margin-left:3px;font-weight:700">VSC</span></div>
+                  <div class="where">ORD-VSC-00337 · Wegovy 1.0mg dose escalation</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">2h queue</span>
+                <span class="tag warn">C2 flag</span>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <!-- My tasks -->
+        <div class="card">
+          <div class="card-head">
+            <h3>My tasks</h3>
+            <a href="livera_scr_tasks_list.html" class="more">All tasks →</a>
+          </div>
+          <div class="card-body">
+            <a href="livera_scr_task_detail.html?id=TSK-0042" class="lrow">
+              <div class="who">
+                <div class="info">
+                  <div class="name">Sign off AI prompt v2.3 for clinical decline notes</div>
+                  <div class="where">TSK-0042 · linked: AI Prompt Sign-off · DEC-07</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age err">Due today</span>
+                <span class="tag err">High</span>
+              </div>
+            </a>
+            <a href="livera_scr_task_detail.html?id=TSK-0048" class="lrow">
+              <div class="who">
+                <div class="info">
+                  <div class="name">Review Lindsay Dickson's B4 flag — proactive note draft</div>
+                  <div class="where">TSK-0048 · linked: ORD-VSC-00342</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age warn">Due today</span>
+                <span class="tag warn">Medium</span>
+              </div>
+            </a>
+            <a href="livera_scr_task_detail.html?id=TSK-0045" class="lrow">
+              <div class="who">
+                <div class="info">
+                  <div class="name">Approve May governance pack for Mobeen review</div>
+                  <div class="where">TSK-0045 · linked: AUD-08 Governance Pack</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">Due Fri</span>
+                <span class="tag info">Low</span>
+              </div>
+            </a>
+            <a href="livera_scr_task_detail.html?id=TSK-0043" class="lrow">
+              <div class="who">
+                <div class="info">
+                  <div class="name">Schedule Mobeen + Yohan call · Permissions Matrix reconciliation</div>
+                  <div class="where">TSK-0043 · linked: BLD-16.7 · DEC-21</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">Due Fri</span>
+                <span class="tag gov">Governance</span>
+              </div>
+            </a>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COL 2 ============================ -->
+      <div class="col">
+
+        <!-- Risk surfaces -->
+        <div class="card">
+          <div class="card-head">
+            <h3>Open complaints</h3>
+            <a href="livera_scr_complaints.html" class="more">All complaints →</a>
+          </div>
+          <div class="card-body">
+            <a href="livera_scr_complaints.html?id=CMP-0017" class="lrow">
+              <div class="who">
+                <span class="av">AS</span>
+                <div class="info">
+                  <div class="name">Andrea Spencer <span style="font-size:10px;background:var(--brand-l);color:var(--brand);padding:1px 5px;border-radius:3px;margin-left:3px;font-weight:700">VSC</span></div>
+                  <div class="where">CMP-0017 · "Wrong dose dispensed by pharmacy"</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age err">SLA-breach 4d</span>
+                <span class="tag err">Acknowledge overdue</span>
+              </div>
+            </a>
+</div>
+        </div>
+
+        <!-- Welcome calls -->
+        <div class="card">
+          <div class="card-head">
+            <h3>Welcome calls due</h3>
+            <a href="livera_scr_welcome_call_queue.html" class="more">All calls →</a>
+          </div>
+          <div class="card-body">
+<a href="livera_scr_welcome_call_queue.html?id=WC-0090" class="lrow">
+              <div class="who">
+                <span class="av">JT</span>
+                <div class="info">
+                  <div class="name">Jonathan Tate <span style="font-size:10px;background:var(--brand-l);color:var(--brand);padding:1px 5px;border-radius:3px;margin-left:3px;font-weight:700">VSC</span></div>
+                  <div class="where">First-Rx welcome · post-dispatch</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">Due Fri</span>
+                <span class="tag info">Welcome</span>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <!-- Recent incidents -->
+        <div class="card">
+          <div class="card-head">
+            <h3>Recent incidents</h3>
+            <a href="livera_incidents_list.html" class="more">All incidents →</a>
+          </div>
+          <div class="card-body">
+            <a href="livera_scr_incident_detail_intercom.html?id=INC-0089" class="lrow">
+              <div class="who">
+                <div class="info">
+                  <div class="name">Severe nausea + vomiting (suspected SE)</div>
+                  <div class="where">INC-0089 · Lindsay Dickson · ORD-VSC-00339</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">Yesterday</span>
+                <span class="tag err">Severe</span>
+              </div>
+            </a>
+            <a href="livera_scr_incident_detail_intercom.html?id=INC-0088" class="lrow">
+              <div class="who">
+                <div class="info">
+                  <div class="name">Patient reports persistent injection-site reaction</div>
+                  <div class="where">INC-0088 · Sophia Kapoor · ORD-FT-00078</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">2d ago</span>
+                <span class="tag warn">Moderate</span>
+              </div>
+            </a>
+            <a href="livera_scr_incident_detail_intercom.html?id=INC-0087" class="lrow">
+              <div class="who">
+                <div class="info">
+                  <div class="name">Allergy disclosure — peanut, post-registration</div>
+                  <div class="where">INC-0087 · Ravi Patel · clinical follow-up done</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">3d ago · resolved</span>
+                <span class="tag ok">Resolved</span>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <!-- BLD-RX-EXPIRY-01 — Prescription expiry watchlist (spec §6) -->
+        <div class="card" style="border-color:#fde68a;">
+          <div class="card-head" style="background:linear-gradient(180deg,#fffbeb 0%,#fff 100%);border-bottom-color:#fde68a;">
+            <h3 style="color:#92400e;">⏳ Rx expiring next 14 days <span class="pill" style="background:#d97706;color:#fff;">5 PATIENTS</span> <span style="font-size:9px;font-weight:700;background:#f0fdfa;color:#0d9488;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.4px;border:.5px solid #99f6e4;">BLD-RX-EXPIRY-01</span></h3>
+            <a href="livera_patient_list.html?filter=rx_expiring_14d" class="more" style="color:#92400e;">View all →</a>
+          </div>
+          <div class="card-body">
+
+            <!-- 2 days left — most urgent -->
+            <a href="livera_prototype_09_patient_profile.html" class="lrow" style="background:rgba(239,68,68,0.04);">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#fca5a5,#dc2626);">RH</span>
+                <div class="info">
+                  <div class="name">Robert Henderson</div>
+                  <div class="where">PT-00121 · Wegovy 1.7mg · last Rx 28 Mar · expires 12 May</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age err">2d left</span>
+                <span class="tag err">Reorder nudge sent</span>
+              </div>
+            </a>
+
+            <!-- 4 days left -->
+            <a href="livera_prototype_09_patient_profile.html" class="lrow" style="background:rgba(245,158,11,0.04);">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#fde68a,#d97706);">EW</span>
+                <div class="info">
+                  <div class="name">Emily Watkins</div>
+                  <div class="where">PT-00204 · Mounjaro 7.5mg · last Rx 30 Mar · expires 14 May</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age" style="background:var(--warn-bg, #fffbeb);color:var(--warn, #f59e0b);border:.5px solid var(--warn-bdr, #fde68a);">4d left</span>
+                <span class="tag" style="background:var(--warn-bg, #fffbeb);color:var(--warn, #f59e0b);border:.5px solid var(--warn-bdr, #fde68a);">Reorder pending</span>
+              </div>
+            </a>
+
+            <!-- 7 days -->
+            <a href="livera_prototype_09_patient_profile.html" class="lrow">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#a5b4fc,#4338ca);">DR</span>
+                <div class="info">
+                  <div class="name">David Reid</div>
+                  <div class="where">PT-00142 · Mounjaro 10mg · last Rx 02 Apr · expires 17 May</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">7d left</span>
+                <span class="tag" style="background:var(--surface-2, #f8fafc);color:var(--t3, #94a3b8);">FCM #12 sent</span>
+              </div>
+            </a>
+
+            <!-- 11 days -->
+            <a href="livera_prototype_09_patient_profile.html" class="lrow">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#bbf7d0,#15803d);">BA</span>
+                <div class="info">
+                  <div class="name">Beth Aldridge</div>
+                  <div class="where">PT-00187 · Wegovy 0.5mg · last Rx 06 Apr · expires 21 May</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">11d left</span>
+              </div>
+            </a>
+
+            <!-- 13 days -->
+            <a href="livera_prototype_09_patient_profile.html" class="lrow">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6);">JT</span>
+                <div class="info">
+                  <div class="name">James Turner</div>
+                  <div class="where">PT-00163 · Mounjaro 5mg · last Rx 08 Apr · expires 23 May</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="age">13d left</span>
+              </div>
+            </a>
+
+            <!-- Footer rule explainer -->
+            <div style="padding:9px 16px 4px;font-size:10.5px;color:var(--t3);line-height:1.45;border-top:.5px dashed var(--bdr);">
+              <strong style="color:var(--t2);">FCM #12 (always-on)</strong> auto-fires 14 days before expiry per spec §15. Patients without a reorder by day 7 get FCM #12 again. Day 0 → order auto-moves to <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2, #f8fafc);padding:1px 4px;border-radius:3px;font-size:10px;">monitoring</code> state.
+            </div>
+
+          </div>
+        </div>
+
+        <!-- BLD-INT-MHRA-03 — MHRA gov.uk alerts rollup card (DEC-39) -->
+        <div class="card" style="border-color:#94a3b8;">
+          <div class="card-head" style="background:linear-gradient(180deg,#f8fafc 0%,#fff 100%);border-bottom-color:#cbd5e1;">
+            <h3 style="color:#0f172a;">🟡 MHRA alerts last 30 days <span class="pill" style="background:#0b0c0c;color:#fff;font-family:-apple-system,sans-serif;letter-spacing:-0.3px;">3 ROUTED</span> <span style="font-size:9px;font-weight:700;background:#f0fdfa;color:#0d9488;padding:1px 5px;border-radius:3px;margin-left:6px;letter-spacing:.4px;border:.5px solid #99f6e4;">BLD-INT-MHRA-03</span></h3>
+            <a href="livera_settings_mhra_alerts.html#pane-log" class="more">View all →</a>
+          </div>
+          <div class="card-body">
+
+            <!-- Most recent alert — DSU on GLP-1 vision changes (10 May) -->
+            <a href="livera_settings_mhra_alerts.html#pane-log" class="lrow" style="background:rgba(245,158,11,0.04);">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#fde68a,#d97706);font-size:10px;font-weight:800;letter-spacing:-0.3px;">DSU</span>
+                <div class="info">
+                  <div class="name">GLP-1 receptor agonists: vision changes</div>
+                  <div class="where">10 May · matches: semaglutide · tirzepatide · liraglutide · 3 watchlist hits</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="tag" style="background:var(--warn-bg, #fffbeb);color:var(--warn, #f59e0b);border:.5px solid var(--warn-bdr, #fde68a);">RM ack pending</span>
+              </div>
+            </a>
+
+            <!-- 02 May — Tirzepatide pancreatitis DSU -->
+            <a href="livera_settings_mhra_alerts.html#pane-log" class="lrow">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#cbd5e1,#475569);font-size:10px;font-weight:800;letter-spacing:-0.3px;">DSU</span>
+                <div class="info">
+                  <div class="name">Tirzepatide: severe pancreatitis cases</div>
+                  <div class="where">02 May · matches: Mounjaro / tirzepatide · prescribers cascaded</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="tag" style="background:#ecfdf5;color:#10b981;border:.5px solid #a7f3d0;">RM ack 03 May</span>
+              </div>
+            </a>
+
+            <!-- 28 Apr — FlexPen FSN -->
+            <a href="livera_settings_mhra_alerts.html#pane-log" class="lrow">
+              <div class="who">
+                <span class="av" style="background:linear-gradient(135deg,#bfdbfe,#1e40af);font-size:10px;font-weight:800;letter-spacing:-0.3px;">FSN</span>
+                <div class="info">
+                  <div class="name">FlexPen needle attachment guidance</div>
+                  <div class="where">28 Apr · Class 4 caution · device watchlist match</div>
+                </div>
+              </div>
+              <div class="right">
+                <span class="tag" style="background:#ecfdf5;color:#10b981;border:.5px solid #a7f3d0;">Resolved</span>
+              </div>
+            </a>
+
+            <!-- Footer: source + skip count -->
+            <div style="padding:9px 16px 4px;font-size:10.5px;color:var(--t3);line-height:1.45;border-top:.5px dashed var(--bdr);">
+              <strong style="color:var(--t2);">Source:</strong> daily poll of <a href="https://www.gov.uk/drug-device-alerts" target="_blank" style="color:var(--t2);text-decoration:none;font-weight:600;">gov.uk/drug-device-alerts</a> · 14 alerts processed (30d) · 11 skipped (no watchlist match) · last poll 10 May 04:01 BST · <a href="livera_settings_mhra_alerts.html" style="color:var(--brand-d);font-weight:600;text-decoration:none;">configure ↗</a>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COL 3 ============================ -->
+      <div class="col">
+
+        <!-- Coaching status (FT only) -->
+<!-- Group 6 — flag dashboard preview -->
+        <div class="card" style="border-color:#99f6e4">
+          <div class="card-head" style="background:linear-gradient(180deg,var(--proto-bg) 0%,var(--surface) 100%)">
+            <h3>Primed flag dashboard <span class="pill gr6">G6</span></h3>
+            <a href="livera_g6_flag_dashboard.html" class="more">Full view →</a>
+          </div>
+          <div class="card-body flag-preview">
+            <div class="row"><span class="lab">Total orders flagged this month</span><span class="v">47 of 332</span></div>
+            <div class="row"><span class="lab">Proactive notes attached</span><span class="v good">42 (89%)</span></div>
+            <div class="row"><span class="lab">Primed-initiated queries</span><span class="v">5 (10.6%)</span></div>
+            <div class="row"><span class="lab">Primed rejections</span><span class="v good">0</span></div>
+            <div class="headline">
+              <span class="lab">Proactive disclosure effectiveness</span>
+              <span class="v">89%</span>
+            </div>
+            <div style="font-size:10px;color:var(--t3);margin-top:8px;text-align:center">The number Mobeen takes to GPhC inspections</div>
+          </div>
+        </div>
+
+        <!-- Audit clock -->
+        <div class="card">
+          <div class="card-head">
+            <h3>Audit programme</h3>
+            <a href="livera_scr_audits_settings.html" class="more">All audits →</a>
+          </div>
+          <div class="card-body">
+            <a href="livera_scr_aud01_prescribing.html" class="lrow">
+              <div class="who"><div class="info"><div class="name">AUD-01 Prescribing Compliance</div><div class="where">Sample 8 of 30 · evidence assembling</div></div></div>
+              <div class="right"><span class="age">Due 30 Jun</span><span class="tag ok">On track</span></div>
+            </a>
+            <a href="livera_scr_aud02_consent_cancellation.html" class="lrow">
+              <div class="who"><div class="info"><div class="name">AUD-02 Consent &amp; Cancellation</div><div class="where">Sample 12 of 25 · evidence assembling</div></div></div>
+              <div class="right"><span class="age">Due 30 Jun</span><span class="tag ok">On track</span></div>
+            </a>
+            <a href="livera_scr_audits_settings.html" class="lrow">
+              <div class="who"><div class="info"><div class="name">AUD-03 to AUD-08</div><div class="where">6 audits · Q3 2026 hard deadline</div></div></div>
+              <div class="right"><span class="age">Due 30 Sep</span><span class="tag warn">Not started</span></div>
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ACTIVITY FEED --- full width -->
+    <div class="card">
+      <div class="card-head">
+        <h3>Recent activity</h3>
+        <a href="#" class="more">View all activity →</a>
+      </div>
+      <div class="card-body feed">
+        <div class="e">
+          <span class="t">14:28</span>
+          <div class="body"><span class="actor">Charlotte Williams</span> approved <a href="livera_prototype_10_order_detail.html?id=ORD-VSC-00340">ORD-VSC-00340</a> for <strong>Marcus Holloway</strong> — Mounjaro 5mg reorder.<span class="clinic">VSC</span></div>
+        </div>
+<div class="e">
+          <span class="t">13:22</span>
+          <div class="body"><span class="actor">Charlotte Williams</span> raised intervention on <a href="livera_prototype_10_order_detail.html?id=ORD-VSC-00342">ORD-VSC-00342</a> — flagged B4 (Low BMI Repeat) — proactive note draft pending sign-off.<span class="clinic">VSC</span></div>
+        </div>
+<div class="e">
+          <span class="t">12:31</span>
+          <div class="body">Pharmacy Comms — Primed responded on intervention <strong>INV-0247</strong> for <a href="livera_prototype_10_order_detail.html?id=ORD-VSC-00338">ORD-VSC-00338</a>: prescription approved, no further info needed.<span class="clinic">VSC</span></div>
+        </div>
+        <div class="e">
+          <span class="t">11:54</span>
+          <div class="body"><span class="actor">Yohan Corera</span> updated SLA configuration in Settings → Other — Welcome Call SLA changed from 7 days to 5 days. <em style="color:var(--t3)">Audit-logged.</em></div>
+        </div>
+        <div class="e">
+          <span class="t">11:18</span>
+          <div class="body"><span class="actor">Charlotte Williams</span> declined <a href="livera_prototype_10_order_detail.html?id=ORD-VSC-00336">ORD-VSC-00336</a> for <strong>Imogen Frost</strong> — pre-existing thyroid condition, GP review required first.<span class="clinic">VSC</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUDIT FOOTER -->
+    <div class="ann">
+      <span class="label">Pass 2 build note</span>
+      <span>Owner Dashboard (NEW · 6 May 2026) — landing page for Owner / RM / Admin roles. First of 5 connector screens for Pass 2 Chunk A. Personas: Lindsay Dickson (VSC), Sophia Kapoor (FT). Today = 6 May 2026 14:32. All sidebar items lead to working destinations or other Pass-2 placeholder screens.</span>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

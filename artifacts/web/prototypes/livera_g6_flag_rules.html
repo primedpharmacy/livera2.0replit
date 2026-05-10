@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Clinical Flag Rules · Group 6</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --brand: #6366f1; --brand-d: #4338ca; --brand-l: #eef2ff; --brand-mid: #818cf8;
+    --nav: #1e1b4b;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --bdr: rgba(0,0,0,0.08); --bdr-s: rgba(0,0,0,0.13);
+    --t1: #0d0d0d; --t2: #5c5c5c; --t3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-bdr: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-bdr: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-bdr: #86efac;
+    --teal: #0d9488; --teal-d: #0f766e; --teal-bg: #f0fdfa; --teal-bdr: #99f6e4;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-bdr: #c4b5fd;
+    --warn: #f59e0b;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--surface-2); color: var(--t1);
+    font-size: 13px; line-height: 1.5;
+    padding-top: 36px;
+  }
+
+  /* Top nav */
+  #livera-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 99999;
+    background: var(--nav); border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex; align-items: center; height: 36px; padding: 0 12px; gap: 4px;
+    overflow-x: auto; scrollbar-width: none; }
+  #livera-nav::-webkit-scrollbar { display: none; }
+  #livera-nav-logo { font-size: 12px; font-weight: 700; color: #818cf8;
+    margin-right: 8px; white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
+  #livera-nav a { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.55);
+    text-decoration: none; padding: 3px 9px; border-radius: 4px;
+    white-space: nowrap; flex-shrink: 0; transition: all .15s; }
+  #livera-nav a:hover { background: rgba(99,102,241,.25); color: #fff; }
+  #livera-nav a.nav-current { background: rgba(99,102,241,.35); color: #c7d2fe; }
+  #livera-nav-sep { color: rgba(255,255,255,.15); font-size: 10px; flex-shrink: 0; }
+
+  /* Layout */
+  .shell { display: flex; min-height: calc(100vh - 36px); }
+
+  /* Sidebar */
+  .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--bdr);
+    padding: 18px 12px; flex-shrink: 0; position: sticky; top: 36px;
+    height: calc(100vh - 36px); overflow-y: auto; }
+  .sidebar .sec { font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--t3); font-weight: 700; padding: 0 8px; margin: 18px 0 6px; }
+  .sidebar .sec:first-child { margin-top: 0; }
+  .sidebar a { display: flex; align-items: center; gap: 9px; padding: 7px 9px;
+    font-size: 13px; font-weight: 500; color: var(--t2); text-decoration: none;
+    border-radius: 6px; margin-bottom: 1px; transition: background .12s, color .12s; }
+  .sidebar a:hover { background: var(--brand-l); color: var(--t1); }
+  .sidebar a.active { background: var(--brand-l); color: var(--brand); font-weight: 600; }
+  .sidebar a .ico { width: 16px; height: 16px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 13px; }
+
+  /* Main */
+  .main { flex: 1; min-width: 0; }
+  .topbar { height: 56px; background: var(--surface); border-bottom: 1px solid var(--bdr);
+    padding: 0 24px; display: flex; align-items: center; gap: 14px; }
+  .breadcrumb { font-size: 12px; color: var(--t3); display: flex; align-items: center; gap: 6px; }
+  .breadcrumb a { color: var(--t2); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--brand-d); }
+  .breadcrumb .sep { color: var(--t3); }
+  .breadcrumb .cur { color: var(--t1); font-weight: 600; }
+
+  .content { padding: 24px; max-width: 1280px; }
+
+  /* Page title */
+  .pt-strip {
+    display: flex; align-items: flex-start; gap: 16px;
+    margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--bdr);
+  }
+  .pt-info h1 {
+    font-size: 22px; font-weight: 700; color: var(--t1);
+    letter-spacing: -0.5px; line-height: 1.2;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .pt-info h1 .g6-pill {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
+    background: var(--teal-bg); color: var(--teal); border: 1px solid var(--teal-bdr);
+    padding: 2px 7px; border-radius: 3px; vertical-align: middle;
+  }
+  .pt-info h1 .perm-pill {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
+    background: var(--purple); color: #fff;
+    padding: 2px 7px; border-radius: 3px; vertical-align: middle;
+  }
+  .pt-info .sub { font-size: 13px; color: var(--t2); margin-top: 4px; }
+  .pt-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    padding: 7px 14px; font-size: 12px; font-weight: 600;
+    background: var(--surface); color: var(--t2);
+    border: 1px solid var(--bdr-s); border-radius: 6px;
+    cursor: pointer; font-family: inherit;
+    display: inline-flex; align-items: center; gap: 6px;
+    text-decoration: none; transition: all .12s;
+  }
+  .btn:hover { border-color: var(--brand); color: var(--brand); }
+  .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .btn.primary:hover { background: var(--brand-d); border-color: var(--brand-d); color: #fff; }
+
+  /* Lock-state notice */
+  .lock-banner {
+    background: var(--amber-bg); border: 1px solid var(--amber-bdr);
+    border-radius: var(--r-md); padding: 12px 16px;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 18px;
+    font-size: 12px; color: var(--amber);
+  }
+  .lock-banner .ico {
+    width: 32px; height: 32px; border-radius: 6px;
+    background: var(--amber); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .lock-banner strong { color: var(--t1); font-weight: 600; }
+
+  /* Section card */
+  .scard {
+    background: var(--surface); border: 1px solid var(--bdr); border-radius: var(--r-md);
+    margin-bottom: 18px; overflow: hidden;
+  }
+  .scard-head {
+    padding: 14px 18px; border-bottom: 1px solid var(--bdr);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .scard-head .ttl {
+    font-size: 14px; font-weight: 600; color: var(--t1);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .scard-head .sub { font-size: 11px; color: var(--t3); margin-left: 4px; }
+
+  /* Rules table */
+  .rule-head {
+    background: var(--surface-2);
+    display: grid;
+    grid-template-columns: 24px 70px 1fr 110px 130px 90px 90px 24px;
+    gap: 0; padding: 9px 18px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--t3);
+    border-bottom: 1px solid var(--bdr);
+    align-items: center;
+  }
+  .rule-row {
+    display: grid;
+    grid-template-columns: 24px 70px 1fr 110px 130px 90px 90px 24px;
+    gap: 0; padding: 12px 18px;
+    border-bottom: 1px solid var(--bdr);
+    align-items: center; font-size: 12px;
+    cursor: pointer; transition: background .12s;
+  }
+  .rule-row:last-child { border-bottom: none; }
+  .rule-row:hover { background: var(--brand-l); }
+  .rule-row.expanded { background: var(--brand-l); }
+  .rule-row.locked { background: var(--amber-bg); cursor: default; }
+  .rule-row.locked:hover { background: var(--amber-bg); }
+
+  .rule-row .toggle { color: var(--t3); transition: transform .15s; font-size: 10px; }
+  .rule-row.expanded .toggle { transform: rotate(90deg); color: var(--brand); }
+  .rule-row.locked .toggle { visibility: hidden; }
+
+  .rule-code {
+    font-size: 11px; font-weight: 700;
+    padding: 3px 9px; border-radius: 4px; letter-spacing: 0.3px;
+    width: fit-content;
+  }
+  .rule-code.crit { background: #7f1d1d; color: #fff; }
+  .rule-code.high { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-bdr); }
+  .rule-code.med  { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-bdr); }
+
+  .rule-name { color: var(--t1); }
+  .rule-name .nm { font-weight: 600; }
+  .rule-name .desc { font-size: 11px; color: var(--t3); margin-top: 2px; line-height: 1.3; }
+
+  .rule-sev {
+    font-size: 10px; font-weight: 700; padding: 3px 8px;
+    border-radius: 3px; letter-spacing: 0.3px; width: fit-content;
+  }
+  .rule-sev.crit { background: #7f1d1d; color: #fff; }
+  .rule-sev.high { background: var(--red-mid); color: #fff; }
+  .rule-sev.med  { background: var(--warn); color: #fff; }
+
+  .rule-thresh {
+    font-family: 'SF Mono', Menlo, monospace; font-size: 11px;
+    color: var(--t1); font-weight: 600;
+    padding: 2px 7px; background: var(--brand-l); border-radius: 3px;
+    width: fit-content; letter-spacing: -0.2px;
+  }
+
+  .rule-toggle-pill {
+    font-size: 10px; font-weight: 700; padding: 3px 9px;
+    border-radius: 999px; letter-spacing: 0.3px;
+    display: inline-flex; align-items: center; gap: 5px;
+    width: fit-content;
+  }
+  .rule-toggle-pill::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+  }
+  .rule-toggle-pill.on { background: var(--green-bg); color: var(--green); }
+  .rule-toggle-pill.off { background: var(--surface-2); color: var(--t3); }
+
+  .rule-90d { color: var(--t1); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rule-90d .meta { font-size: 9.5px; color: var(--t3); font-weight: 400; }
+
+  .rule-lock-ico {
+    font-size: 13px; color: var(--amber); text-align: center;
+  }
+
+  /* Expansion panel */
+  .rule-expand {
+    display: none;
+    padding: 18px 18px 18px 42px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--bdr);
+  }
+  .rule-row.expanded + .rule-expand { display: block; }
+  /* DEC-27: source / category / Primed alignment pills */
+  .src-pill { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:3px; font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; border:0.5px solid; }
+  .src-pill.questionnaire { background:#eef2ff; color:#4338ca; border-color:#c7d2fe; }
+  .src-pill.manual { background:#f0fdfa; color:#0f766e; border-color:#99f6e4; }
+  .src-pill.system { background:#fef3c7; color:#92400e; border-color:#fde68a; }
+  .cat-pill { display:inline-flex; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:600; }
+  .cat-pill.safeguarding { background:#fee2e2; color:#991b1b; }
+  .cat-pill.clinical_safety { background:#fed7aa; color:#9a3412; }
+  .cat-pill.data_quality { background:#dbeafe; color:#1e40af; }
+  .cat-pill.operational { background:#e5e7eb; color:#374151; }
+  .primed-align-pill { display:inline-flex; gap:4px; padding:2px 7px; border-radius:3px; font-size:10px; font-weight:700; background:#f5f3ff; color:#5b21b6; border:0.5px solid #c4b5fd; }
+  .primed-align-pill .label { font-weight:500; opacity:.7; }
+  .primed-align-pill .code { font-weight:700; }
+  .no-align { color:var(--t3); font-size:11px; font-style:italic; }
+  .linked-q-block { background:#eef2ff; border:0.5px solid #c7d2fe; border-radius:5px; padding:10px 12px; margin-top:8px; font-size:11px; color:#3730a3; }
+  .linked-q-block .lq-head { font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:#4338ca; margin-bottom:4px; }
+  .linked-q-block code { background:#fff; padding:1px 5px; border-radius:3px; border:0.5px solid #c7d2fe; font-size:10px; }
+  .reason-field { background:#fefce8; border:0.5px solid #fde047; border-radius:5px; padding:10px 12px; margin-top:10px; }
+  .reason-field-label { display:block; font-size:11px; font-weight:700; color:#854d0e; margin-bottom:4px; }
+  .reason-field-required { color:#b91c1c; margin-left:3px; }
+  .reason-field-input { width:100%; padding:7px 9px; border:0.5px solid #d4d4d8; border-radius:4px; font-family:inherit; font-size:12px; min-height:55px; resize:vertical; box-sizing:border-box; }
+  .reason-field-help { font-size:10px; color:#854d0e; margin-top:4px; opacity:.85; }
+  .version-line { font-size:10px; color:var(--t3); margin-top:4px; }
+
+  .rule-expand-grid {
+    display: grid; grid-template-columns: 1fr 1.4fr; gap: 18px;
+  }
+  .rule-edit-block { display: flex; flex-direction: column; gap: 14px; }
+  .rule-field-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--t3); margin-bottom: 5px;
+    display: block;
+  }
+  .rule-field-input {
+    width: 100%; padding: 7px 10px; font-size: 12px;
+    border: 1px solid var(--bdr-s); border-radius: 5px;
+    font-family: inherit; color: var(--t1);
+  }
+  .rule-field-input:focus { outline: none; border-color: var(--brand); }
+  .rule-field-input.code {
+    font-family: 'SF Mono', Menlo, monospace; font-size: 11.5px;
+    background: var(--surface-2);
+  }
+  .rule-template {
+    background: var(--surface-2); border: 1px solid var(--bdr);
+    border-radius: 6px; padding: 12px;
+  }
+  .rule-template-text {
+    font-size: 12px; color: var(--t1); line-height: 1.55;
+    background: var(--surface); border: 1px solid var(--bdr-s);
+    border-radius: 4px; padding: 10px 12px; min-height: 90px;
+    font-family: inherit;
+    width: 100%; resize: vertical;
+  }
+  .rule-vars {
+    display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px;
+  }
+  .rule-vars .var {
+    font-family: 'SF Mono', Menlo, monospace; font-size: 10px;
+    padding: 2px 6px; background: var(--brand-l); color: var(--brand-d);
+    border-radius: 3px; cursor: pointer; transition: all .12s;
+  }
+  .rule-vars .var:hover { background: var(--brand); color: #fff; }
+
+  .rule-foot {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid var(--bdr);
+  }
+  .rule-foot .audit-note {
+    font-size: 10.5px; color: var(--t3); flex: 1;
+  }
+  .rule-foot .audit-note strong { color: var(--t2); font-weight: 600; }
+
+  .audit-trail {
+    background: var(--surface-2); border: 1px solid var(--bdr);
+    border-radius: 6px; padding: 12px;
+  }
+  .audit-trail .at-ttl {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--t3); margin-bottom: 8px;
+  }
+  .audit-trail .at-row {
+    display: grid; grid-template-columns: 100px 1fr;
+    gap: 10px; padding: 6px 0;
+    border-bottom: 1px dashed var(--bdr);
+    font-size: 11px; align-items: start;
+  }
+  .audit-trail .at-row:last-child { border-bottom: none; }
+  .audit-trail .at-when { color: var(--t3); font-variant-numeric: tabular-nums; }
+  .audit-trail .at-what strong { color: var(--t1); font-weight: 600; }
+
+  /* Footer */
+  .perm-note {
+    font-size: 11px; color: var(--t2);
+    padding: 12px 16px; background: var(--surface-2);
+    border: 1px dashed var(--bdr-s); border-radius: 6px;
+    line-height: 1.55;
+  }
+  .perm-note strong { color: var(--t1); font-weight: 600; }
+  .perm-note code { background: var(--brand-l); color: var(--brand-d); padding: 1px 5px; border-radius: 3px; font-size: 10.5px; }
+
+  /* Annotation */
+  .ann {
+    display: flex; gap: 8px; padding: 12px 16px; margin-top: 22px;
+    background: var(--surface); border: 1px dashed var(--bdr-s); border-radius: 6px;
+    font-size: 11px; color: var(--t2); flex-wrap: wrap; align-items: center;
+  }
+  .ann .al { font-weight: 700; color: var(--brand-d); }
+  .ann .at { font-weight: 600; color: var(--t1); margin-left: 14px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #1f2937; color: #fff;
+    font-size: 12px; font-weight: 500; padding: 10px 16px;
+    border-radius: 999px; z-index: 300;
+    display: none; align-items: center; gap: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+  }
+  .toast.show { display: flex; }
+
+/* CANONICAL TOPNAV (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<!-- Top nav -->
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html" class="active"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto,#0d9488);background:var(--proto-bg,#f0fdfa);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="breadcrumb">
+        <a href="livera_settings_landing.html">Settings</a>
+        <span class="sep">›</span>
+        <a href="livera_settings_landing.html#compliance">Compliance &amp; audits</a>
+        <span class="sep">›</span>
+        <span class="cur">Clinical Flag Rules</span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Page title -->
+      <div class="pt-strip">
+        <div class="pt-info">
+          <h1>Clinical Flag Rules <span class="g6-pill">G6 · BLD-16.5</span> <span class="perm-pill">🔒 OWNER + RM ONLY</span></h1>
+          <div class="sub">
+            Clinic-owned flag rules per DEC-24/DEC-27. Trigger source can be questionnaire-driven, manually raised, or system-evaluated. Primed alignment is an optional property — flags work without it. All edits create a new rule version with mandatory reason field. Owner / RM only.
+          </div>
+        </div>
+        <div class="pt-actions">
+          <a class="btn" href="livera_g6_flag_dashboard.html">📊 View dashboard →</a>
+          <button class="btn" onclick="showToast('Stub · diff against last sync · highlights any drift from Primed-side thresholds')">🔄 Sync check vs Primed</button>
+        </div>
+      </div>
+
+      <!-- Lock banner -->
+      <div class="lock-banner">
+        <span class="ico">🔒</span>
+        <span>
+          <strong>Locked rules cannot be edited from this UI.</strong>
+          E2 (Treatment Conflict) is locked because critical-severity flags require code-level changes and Mobeen Alam (RM) sign-off per Permissions Matrix. Other rule edits propagate to BLD-16.4 modal templates within 5 minutes.
+        </span>
+      </div>
+
+      <!-- Rules table -->
+      <div class="scard">
+        <div class="scard-head">
+          <div class="ttl">📋 9 mirrored Annex E flag rules</div>
+          <div class="sub">Click any row to edit threshold, severity, or proactive note template · changes logged with editor identity</div>
+        </div>
+
+        <div class="rule-head">
+          <span></span>
+          <span>Source</span>
+          <span>Flag name + trigger</span>
+          <span>Severity</span>
+          <span>Primed alignment</span>
+          <span>Status</span>
+          <span>90d fires</span>
+          <span></span>
+        </div>
+
+        <!-- FLAG-001 Eating disorder history disclosed -->
+        <div class="rule-row" onclick="toggleRule(0)" id="row-0">
+          <span class="toggle">▶</span>
+          <span><span class="src-pill questionnaire">questionnaire</span></span>
+          <span class="rule-name">
+            <div class="nm">Eating disorder history disclosed <span style="font-family:monospace;font-size:10px;color:var(--t3);font-weight:500;margin-left:4px;">FLAG-001</span></div>
+            <div class="desc">Patient self-reports active or historical eating disorder during registration questionnaire</div>
+            <div style="margin-top:4px;"><span class="cat-pill safeguarding">safeguarding</span></div>
+          </span>
+          <span><span class="rule-sev crit">CRITICAL</span></span>
+          <span><span class="no-align">—</span></span>
+          <span><span class="rule-toggle-pill on">ON</span></span>
+          <a href="livera_flag_detail.html" class="rule-90d" style="text-decoration:none;color:inherit;display:inline-block;cursor:pointer;" title="View fired flag instances (DEC-27 snapshot at fire time)" onclick="event.stopPropagation();">4 <span class="meta">100% prv</span></a>
+          <span></span>
+        </div>
+        <div class="rule-expand" id="exp-0">
+          <div class="rule-expand-grid">
+            <div class="rule-edit-block">
+              <div>
+                <label class="rule-field-label">Trigger condition</label>
+                <input class="rule-field-input code" type="text" value='q_017_eating_disorder = "yes"'>
+              </div>
+              <div>
+                <label class="rule-field-label">Severity</label>
+                <select class="rule-field-input">
+                  <option selected>CRITICAL</option>
+                  <option >HIGH</option>
+                  <option >MEDIUM</option>
+                  <option >LOW</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Status</label>
+                <select class="rule-field-input">
+                  <option selected>ON</option>
+                  <option >OFF (suppress firing)</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Primed alignment (optional)</label>
+                <input class="rule-field-input" type="text" placeholder="No Primed code aligned. Add if this clinic flag aligns with a Primed Annex E code." style="font-style:italic;color:var(--t3);">
+              </div>
+            </div>
+            <div>
+              <label class="rule-field-label">Proactive note template (BLD-16.4 — when fired, prompt prescriber with this draft)</label>
+              <div class="rule-template">
+                <textarea class="rule-template-text">Patient {{patient_name}} disclosed eating disorder history on registration ({{q_response}}). Per safeguarding protocol, prescribing requires senior clinician sign-off. Reviewing prescriber confirms: (1) clinical contraindications considered, (2) safeguarding lead notified, (3) GP correspondence triggered. Rationale: {{rationale}}.</textarea>
+                <div class="rule-vars">
+                  <span class="var" onclick="event.stopPropagation();showToast('Variable {{patient_name}} inserted')">{{patient_name}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{q_response}} inserted')">{{q_response}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{rationale}} inserted')">{{rationale}}</span>
+                </div>
+              </div>
+              
+            <div class="linked-q-block">
+              <div class="lq-head">⚭ Linked questionnaire question</div>
+              <div><strong>Initial Registration v3.2</strong></div>
+              <div style="margin-top:3px;"><code>Q017 — "Have you been diagnosed with or treated for an eating disorder?"</code></div>
+              <div style="margin-top:6px; opacity:.85;">Per DEC-27 Pattern C, this rule is also visible inline on the questionnaire builder when editing this question.</div>
+            </div>
+              <div class="reason-field">
+                <label class="reason-field-label">Reason for change<span class="reason-field-required">*</span></label>
+                <textarea class="reason-field-input" placeholder="Required per DEC-27. Why is this rule being changed? Cite source if applicable (NICE update, MHRA notice, internal incident, RM directive, etc.)"></textarea>
+                <div class="reason-field-help">Saving without a reason is blocked. The reason is logged with the new version and visible in the audit trail.</div>
+              </div>
+            </div>
+          </div>
+          <div class="rule-foot">
+            <span class="audit-note">
+              <strong>Current version:</strong> v2 · <strong>Last edited:</strong> 02 May 2026 · 11:08 by Qadir Hussain (Owner) · severity raised HIGH→CRITICAL · Reason: "MHRA Yellow Card 2025 update — eating disorder is now a contraindication for GLP-1, not a relative caution"
+              <div class="version-line">Per DEC-27 Sub-decision B, saving creates v3. Already-fired flags reference v2 and are NOT re-evaluated.</div>
+            </span>
+            <button class="btn" onclick="event.stopPropagation();toggleRule(0)">Cancel</button>
+            <button class="btn primary" onclick="event.stopPropagation();showToast('FLAG-001 saved as new version · audit-logged with reason · template propagating to BLD-16.4')">Save changes</button>
+          </div>
+        </div>
+
+        <!-- FLAG-002 BMI below threshold (initial order) -->
+        <div class="rule-row" onclick="toggleRule(1)" id="row-1">
+          <span class="toggle">▶</span>
+          <span><span class="src-pill system">system</span></span>
+          <span class="rule-name">
+            <div class="nm">BMI below threshold (initial order) <span style="font-family:monospace;font-size:10px;color:var(--t3);font-weight:500;margin-left:4px;">FLAG-002</span></div>
+            <div class="desc">Patient BMI <27 on first prescription submission — outside NICE eligibility</div>
+            <div style="margin-top:4px;"><span class="cat-pill clinical_safety">clinical safety</span></div>
+          </span>
+          <span><span class="rule-sev high">HIGH</span></span>
+          <span><span class="primed-align-pill"><span class="label">Primed:</span><span class="code">B3</span></span></span>
+          <span><span class="rule-toggle-pill on">ON</span></span>
+          <a href="livera_flag_detail.html" class="rule-90d" style="text-decoration:none;color:inherit;display:inline-block;cursor:pointer;" title="View fired flag instances (DEC-27 snapshot at fire time)" onclick="event.stopPropagation();">18 <span class="meta">83% prv</span></a>
+          <span></span>
+        </div>
+        <div class="rule-expand" id="exp-1">
+          <div class="rule-expand-grid">
+            <div class="rule-edit-block">
+              <div>
+                <label class="rule-field-label">Trigger condition</label>
+                <input class="rule-field-input code" type="text" value='patient.bmi < 27 AND order.is_first = true'>
+              </div>
+              <div>
+                <label class="rule-field-label">Severity</label>
+                <select class="rule-field-input">
+                  <option >CRITICAL</option>
+                  <option selected>HIGH</option>
+                  <option >MEDIUM</option>
+                  <option >LOW</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Status</label>
+                <select class="rule-field-input">
+                  <option selected>ON</option>
+                  <option >OFF (suppress firing)</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Primed alignment code (optional property)</label>
+                <input class="rule-field-input code" type="text" value="B3 — Low BMI Initial" readonly style="background:#f5f3ff;color:#5b21b6;">
+              </div>
+            </div>
+            <div>
+              <label class="rule-field-label">Proactive note template (BLD-16.4 — when fired, prompt prescriber with this draft)</label>
+              <div class="rule-template">
+                <textarea class="rule-template-text">Patient {{patient_name}} has calculated BMI of {{bmi}} on first prescription, below the NICE CG189 threshold of 27. Reviewing prescriber confirms: (1) registration data verified by photo evidence, (2) clinical case for treatment outside NICE band documented, (3) patient understands off-label nature. Rationale: {{rationale}}.</textarea>
+                <div class="rule-vars">
+                  <span class="var" onclick="event.stopPropagation();showToast('Variable {{patient_name}} inserted')">{{patient_name}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{bmi}} inserted')">{{bmi}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{rationale}} inserted')">{{rationale}}</span>
+                </div>
+              </div>
+              
+              <div class="reason-field">
+                <label class="reason-field-label">Reason for change<span class="reason-field-required">*</span></label>
+                <textarea class="reason-field-input" placeholder="Required per DEC-27. Why is this rule being changed? Cite source if applicable (NICE update, MHRA notice, internal incident, RM directive, etc.)"></textarea>
+                <div class="reason-field-help">Saving without a reason is blocked. The reason is logged with the new version and visible in the audit trail.</div>
+              </div>
+            </div>
+          </div>
+          <div class="rule-foot">
+            <span class="audit-note">
+              <strong>Current version:</strong> v4 · <strong>Last edited:</strong> 03 May 2026 · 14:22 by Qadir Hussain (Owner) · changed threshold from BMI<28 → BMI<27 · Reason: "Aligned to NICE CG189 update Feb 2026"
+              <div class="version-line">Per DEC-27 Sub-decision B, saving creates v5. Already-fired flags reference v4 and are NOT re-evaluated.</div>
+            </span>
+            <button class="btn" onclick="event.stopPropagation();toggleRule(1)">Cancel</button>
+            <button class="btn primary" onclick="event.stopPropagation();showToast('FLAG-002 saved as new version · audit-logged with reason · template propagating to BLD-16.4')">Save changes</button>
+          </div>
+        </div>
+
+        <!-- FLAG-003 Active or planned pregnancy -->
+        <div class="rule-row" onclick="toggleRule(2)" id="row-2">
+          <span class="toggle">▶</span>
+          <span><span class="src-pill questionnaire">questionnaire</span></span>
+          <span class="rule-name">
+            <div class="nm">Active or planned pregnancy <span style="font-family:monospace;font-size:10px;color:var(--t3);font-weight:500;margin-left:4px;">FLAG-003</span></div>
+            <div class="desc">Patient indicates current pregnancy, planning conception within 12 months, or breastfeeding</div>
+            <div style="margin-top:4px;"><span class="cat-pill safeguarding">safeguarding</span></div>
+          </span>
+          <span><span class="rule-sev crit">CRITICAL</span></span>
+          <span><span class="no-align">—</span></span>
+          <span><span class="rule-toggle-pill on">ON</span></span>
+          <a href="livera_flag_detail.html" class="rule-90d" style="text-decoration:none;color:inherit;display:inline-block;cursor:pointer;" title="View fired flag instances (DEC-27 snapshot at fire time)" onclick="event.stopPropagation();">7 <span class="meta">100% prv</span></a>
+          <span></span>
+        </div>
+        <div class="rule-expand" id="exp-2">
+          <div class="rule-expand-grid">
+            <div class="rule-edit-block">
+              <div>
+                <label class="rule-field-label">Trigger condition</label>
+                <input class="rule-field-input code" type="text" value='q_022_pregnancy IN ("currently_pregnant", "planning_conception", "breastfeeding")'>
+              </div>
+              <div>
+                <label class="rule-field-label">Severity</label>
+                <select class="rule-field-input">
+                  <option selected>CRITICAL</option>
+                  <option >HIGH</option>
+                  <option >MEDIUM</option>
+                  <option >LOW</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Status</label>
+                <select class="rule-field-input">
+                  <option selected>ON</option>
+                  <option >OFF (suppress firing)</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Primed alignment (optional)</label>
+                <input class="rule-field-input" type="text" placeholder="No Primed code aligned. Add if this clinic flag aligns with a Primed Annex E code." style="font-style:italic;color:var(--t3);">
+              </div>
+            </div>
+            <div>
+              <label class="rule-field-label">Proactive note template (BLD-16.4 — when fired, prompt prescriber with this draft)</label>
+              <div class="rule-template">
+                <textarea class="rule-template-text">Patient {{patient_name}} disclosed pregnancy/conception status: {{q_response}}. GLP-1 is contraindicated in pregnancy and during conception planning per BNF and SmPC. Order has been declined per the safeguarding protocol. Patient redirected to GP for alternative care pathway.</textarea>
+                <div class="rule-vars">
+                  <span class="var" onclick="event.stopPropagation();showToast('Variable {{patient_name}} inserted')">{{patient_name}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{q_response}} inserted')">{{q_response}}</span>
+                </div>
+              </div>
+              
+            <div class="linked-q-block">
+              <div class="lq-head">⚭ Linked questionnaire question</div>
+              <div><strong>Initial Registration v3.2</strong></div>
+              <div style="margin-top:3px;"><code>Q022 — "Are you currently pregnant, planning conception in the next 12 months, or breastfeeding?"</code></div>
+              <div style="margin-top:6px; opacity:.85;">Per DEC-27 Pattern C, this rule is also visible inline on the questionnaire builder when editing this question.</div>
+            </div>
+              <div class="reason-field">
+                <label class="reason-field-label">Reason for change<span class="reason-field-required">*</span></label>
+                <textarea class="reason-field-input" placeholder="Required per DEC-27. Why is this rule being changed? Cite source if applicable (NICE update, MHRA notice, internal incident, RM directive, etc.)"></textarea>
+                <div class="reason-field-help">Saving without a reason is blocked. The reason is logged with the new version and visible in the audit trail.</div>
+              </div>
+            </div>
+          </div>
+          <div class="rule-foot">
+            <span class="audit-note">
+              <strong>Current version:</strong> v1 · <strong>Last edited:</strong> 24 April 2026 · 09:14 by Qadir Hussain (Owner) · rule created · Reason: "Initial issue — addresses GAP-3.4 from Spec V1.1"
+              <div class="version-line">Per DEC-27 Sub-decision B, saving creates v2. Already-fired flags reference v1 and are NOT re-evaluated.</div>
+            </span>
+            <button class="btn" onclick="event.stopPropagation();toggleRule(2)">Cancel</button>
+            <button class="btn primary" onclick="event.stopPropagation();showToast('FLAG-003 saved as new version · audit-logged with reason · template propagating to BLD-16.4')">Save changes</button>
+          </div>
+        </div>
+
+        <!-- FLAG-004 Welcome call — clinical concern raised -->
+        <div class="rule-row" onclick="toggleRule(3)" id="row-3">
+          <span class="toggle">▶</span>
+          <span><span class="src-pill manual">manual</span></span>
+          <span class="rule-name">
+            <div class="nm">Welcome call — clinical concern raised <span style="font-family:monospace;font-size:10px;color:var(--t3);font-weight:500;margin-left:4px;">FLAG-004</span></div>
+            <div class="desc">Coach or clinician identifies clinical concern during welcome / check-in call (manual raise)</div>
+            <div style="margin-top:4px;"><span class="cat-pill operational">operational</span></div>
+          </span>
+          <span><span class="rule-sev med">MEDIUM</span></span>
+          <span><span class="no-align">—</span></span>
+          <span><span class="rule-toggle-pill on">ON</span></span>
+          <a href="livera_flag_detail.html" class="rule-90d" style="text-decoration:none;color:inherit;display:inline-block;cursor:pointer;" title="View fired flag instances (DEC-27 snapshot at fire time)" onclick="event.stopPropagation();">11 <span class="meta">64% prv</span></a>
+          <span></span>
+        </div>
+        <div class="rule-expand" id="exp-3">
+          <div class="rule-expand-grid">
+            <div class="rule-edit-block">
+              <div>
+                <label class="rule-field-label">Trigger condition</label>
+                <input class="rule-field-input code" type="text" value='Manual raise — see Patient Profile / Order Detail "Raise flag" action'>
+              </div>
+              <div>
+                <label class="rule-field-label">Severity</label>
+                <select class="rule-field-input">
+                  <option >CRITICAL</option>
+                  <option >HIGH</option>
+                  <option selected>MEDIUM</option>
+                  <option >LOW</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Status</label>
+                <select class="rule-field-input">
+                  <option selected>ON</option>
+                  <option >OFF (suppress firing)</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Primed alignment (optional)</label>
+                <input class="rule-field-input" type="text" placeholder="No Primed code aligned. Add if this clinic flag aligns with a Primed Annex E code." style="font-style:italic;color:var(--t3);">
+              </div>
+            </div>
+            <div>
+              <label class="rule-field-label">Proactive note template (BLD-16.4 — when fired, prompt prescriber with this draft)</label>
+              <div class="rule-template">
+                <textarea class="rule-template-text">Manual flag raised by {{raised_by}} during {{interaction_type}} with patient {{patient_name}}. Concern noted: {{concern_text}}. Reviewing prescriber has cross-checked: (1) interaction record on file, (2) clinical impact assessed, (3) follow-up action determined. Decision: {{rationale}}.</textarea>
+                <div class="rule-vars">
+                  <span class="var" onclick="event.stopPropagation();showToast('Variable {{raised_by}} inserted')">{{raised_by}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{interaction_type}} inserted')">{{interaction_type}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{patient_name}} inserted')">{{patient_name}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{concern_text}} inserted')">{{concern_text}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{rationale}} inserted')">{{rationale}}</span>
+                </div>
+              </div>
+              
+              <div class="reason-field">
+                <label class="reason-field-label">Reason for change<span class="reason-field-required">*</span></label>
+                <textarea class="reason-field-input" placeholder="Required per DEC-27. Why is this rule being changed? Cite source if applicable (NICE update, MHRA notice, internal incident, RM directive, etc.)"></textarea>
+                <div class="reason-field-help">Saving without a reason is blocked. The reason is logged with the new version and visible in the audit trail.</div>
+              </div>
+            </div>
+          </div>
+          <div class="rule-foot">
+            <span class="audit-note">
+              <strong>Current version:</strong> v1 · <strong>Last edited:</strong> 01 May 2026 · 16:42 by Qadir Hussain (Owner) · rule created · Reason: "Welcome call program launching — needed structured way for Olwyn/Charlotte to raise concerns from calls into the prescriber review flow"
+              <div class="version-line">Per DEC-27 Sub-decision B, saving creates v2. Already-fired flags reference v1 and are NOT re-evaluated.</div>
+            </span>
+            <button class="btn" onclick="event.stopPropagation();toggleRule(3)">Cancel</button>
+            <button class="btn primary" onclick="event.stopPropagation();showToast('FLAG-004 saved as new version · audit-logged with reason · template propagating to BLD-16.4')">Save changes</button>
+          </div>
+        </div>
+
+        <!-- FLAG-005 Dose escalation above schedule -->
+        <div class="rule-row" onclick="toggleRule(4)" id="row-4">
+          <span class="toggle">▶</span>
+          <span><span class="src-pill system">system</span></span>
+          <span class="rule-name">
+            <div class="nm">Dose escalation above schedule <span style="font-family:monospace;font-size:10px;color:var(--t3);font-weight:500;margin-left:4px;">FLAG-005</span></div>
+            <div class="desc">Patient requests dose increase that exceeds standard escalation schedule (e.g. skipping 5mg→10mg directly)</div>
+            <div style="margin-top:4px;"><span class="cat-pill clinical_safety">clinical safety</span></div>
+          </span>
+          <span><span class="rule-sev high">HIGH</span></span>
+          <span><span class="primed-align-pill"><span class="label">Primed:</span><span class="code">C2</span></span></span>
+          <span><span class="rule-toggle-pill on">ON</span></span>
+          <a href="livera_flag_detail.html" class="rule-90d" style="text-decoration:none;color:inherit;display:inline-block;cursor:pointer;" title="View fired flag instances (DEC-27 snapshot at fire time)" onclick="event.stopPropagation();">23 <span class="meta">78% prv</span></a>
+          <span></span>
+        </div>
+        <div class="rule-expand" id="exp-4">
+          <div class="rule-expand-grid">
+            <div class="rule-edit-block">
+              <div>
+                <label class="rule-field-label">Trigger condition</label>
+                <input class="rule-field-input code" type="text" value='requested_dose > current_dose + max_step_per_clinic_config'>
+              </div>
+              <div>
+                <label class="rule-field-label">Severity</label>
+                <select class="rule-field-input">
+                  <option >CRITICAL</option>
+                  <option selected>HIGH</option>
+                  <option >MEDIUM</option>
+                  <option >LOW</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Status</label>
+                <select class="rule-field-input">
+                  <option selected>ON</option>
+                  <option >OFF (suppress firing)</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Primed alignment code (optional property)</label>
+                <input class="rule-field-input code" type="text" value="C2 — Excessive Dose Increase" readonly style="background:#f5f3ff;color:#5b21b6;">
+              </div>
+            </div>
+            <div>
+              <label class="rule-field-label">Proactive note template (BLD-16.4 — when fired, prompt prescriber with this draft)</label>
+              <div class="rule-template">
+                <textarea class="rule-template-text">Patient {{patient_name}} on {{current_dose}} requesting escalation to {{requested_dose}}, exceeding maximum step of {{max_step}} per clinic config. Reviewing prescriber confirms: (1) tolerance to current dose verified, (2) clinical justification for accelerated escalation, (3) patient counselled on increased side-effect risk. Rationale: {{rationale}}.</textarea>
+                <div class="rule-vars">
+                  <span class="var" onclick="event.stopPropagation();showToast('Variable {{patient_name}} inserted')">{{patient_name}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{current_dose}} inserted')">{{current_dose}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{requested_dose}} inserted')">{{requested_dose}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{max_step}} inserted')">{{max_step}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{rationale}} inserted')">{{rationale}}</span>
+                </div>
+              </div>
+              
+              <div class="reason-field">
+                <label class="reason-field-label">Reason for change<span class="reason-field-required">*</span></label>
+                <textarea class="reason-field-input" placeholder="Required per DEC-27. Why is this rule being changed? Cite source if applicable (NICE update, MHRA notice, internal incident, RM directive, etc.)"></textarea>
+                <div class="reason-field-help">Saving without a reason is blocked. The reason is logged with the new version and visible in the audit trail.</div>
+              </div>
+            </div>
+          </div>
+          <div class="rule-foot">
+            <span class="audit-note">
+              <strong>Current version:</strong> v3 · <strong>Last edited:</strong> 05 May 2026 · 10:18 by Qadir Hussain (Owner) · max_step lowered for FeelTru only · Reason: "FeelTru patient cohort more sensitive — Mobeen requested tighter escalation gate after 2 reported side-effect cases"
+              <div class="version-line">Per DEC-27 Sub-decision B, saving creates v4. Already-fired flags reference v3 and are NOT re-evaluated.</div>
+            </span>
+            <button class="btn" onclick="event.stopPropagation();toggleRule(4)">Cancel</button>
+            <button class="btn primary" onclick="event.stopPropagation();showToast('FLAG-005 saved as new version · audit-logged with reason · template propagating to BLD-16.4')">Save changes</button>
+          </div>
+        </div>
+
+        <!-- FLAG-006 NHS number missing on patient record -->
+        <div class="rule-row" onclick="toggleRule(5)" id="row-5">
+          <span class="toggle">▶</span>
+          <span><span class="src-pill system">system</span></span>
+          <span class="rule-name">
+            <div class="nm">NHS number missing on patient record <span style="font-family:monospace;font-size:10px;color:var(--t3);font-weight:500;margin-left:4px;">FLAG-006</span></div>
+            <div class="desc">Patient has been treated 30+ days but no NHS number captured (data quality gap)</div>
+            <div style="margin-top:4px;"><span class="cat-pill data_quality">data quality</span></div>
+          </span>
+          <span><span class="rule-sev low">LOW</span></span>
+          <span><span class="no-align">—</span></span>
+          <span><span class="rule-toggle-pill on">ON</span></span>
+          <a href="livera_flag_detail.html" class="rule-90d" style="text-decoration:none;color:inherit;display:inline-block;cursor:pointer;" title="View fired flag instances (DEC-27 snapshot at fire time)" onclick="event.stopPropagation();">9 <span class="meta">admin task</span></a>
+          <span></span>
+        </div>
+        <div class="rule-expand" id="exp-5">
+          <div class="rule-expand-grid">
+            <div class="rule-edit-block">
+              <div>
+                <label class="rule-field-label">Trigger condition</label>
+                <input class="rule-field-input code" type="text" value='patient.nhs_number = null AND patient.first_dispatch < (today - 30 days)'>
+              </div>
+              <div>
+                <label class="rule-field-label">Severity</label>
+                <select class="rule-field-input">
+                  <option >CRITICAL</option>
+                  <option >HIGH</option>
+                  <option >MEDIUM</option>
+                  <option selected>LOW</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Status</label>
+                <select class="rule-field-input">
+                  <option selected>ON</option>
+                  <option >OFF (suppress firing)</option>
+                </select>
+              </div>
+              <div>
+                <label class="rule-field-label">Primed alignment (optional)</label>
+                <input class="rule-field-input" type="text" placeholder="No Primed code aligned. Add if this clinic flag aligns with a Primed Annex E code." style="font-style:italic;color:var(--t3);">
+              </div>
+            </div>
+            <div>
+              <label class="rule-field-label">Proactive note template (BLD-16.4 — when fired, prompt prescriber with this draft)</label>
+              <div class="rule-template">
+                <textarea class="rule-template-text">Patient {{patient_name}} has been on treatment {{days_since_first_dispatch}} days without NHS number on record. Per data quality protocol, patient contacted via {{contact_method}} requesting NHS number for: (1) GP letter accuracy, (2) safeguarding cross-checks, (3) compliance with regulatory data minimisation. Status: {{status}}.</textarea>
+                <div class="rule-vars">
+                  <span class="var" onclick="event.stopPropagation();showToast('Variable {{patient_name}} inserted')">{{patient_name}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{days_since_first_dispatch}} inserted')">{{days_since_first_dispatch}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{contact_method}} inserted')">{{contact_method}}</span> <span class="var" onclick="event.stopPropagation();showToast('Variable {{status}} inserted')">{{status}}</span>
+                </div>
+              </div>
+              
+              <div class="reason-field">
+                <label class="reason-field-label">Reason for change<span class="reason-field-required">*</span></label>
+                <textarea class="reason-field-input" placeholder="Required per DEC-27. Why is this rule being changed? Cite source if applicable (NICE update, MHRA notice, internal incident, RM directive, etc.)"></textarea>
+                <div class="reason-field-help">Saving without a reason is blocked. The reason is logged with the new version and visible in the audit trail.</div>
+              </div>
+            </div>
+          </div>
+          <div class="rule-foot">
+            <span class="audit-note">
+              <strong>Current version:</strong> v1 · <strong>Last edited:</strong> 28 April 2026 · 10:36 by Qadir Hussain (Owner) · rule created · Reason: "GP letter accuracy review identified ~9% of patients lacking NHS number — needed structured backfill flag"
+              <div class="version-line">Per DEC-27 Sub-decision B, saving creates v2. Already-fired flags reference v1 and are NOT re-evaluated.</div>
+            </span>
+            <button class="btn" onclick="event.stopPropagation();toggleRule(5)">Cancel</button>
+            <button class="btn primary" onclick="event.stopPropagation();showToast('FLAG-006 saved as new version · audit-logged with reason · template propagating to BLD-16.4')">Save changes</button>
+          </div>
+        </div>
+
+      
+
+      </div>
+
+      <!-- Recent audit trail -->
+      <div class="scard">
+        <div class="scard-head">
+          <div class="ttl">📜 Recent rule changes</div>
+          <div class="sub">All changes audit-logged · last 60 days · cross-referenced to Primed governance log · <a href="livera_audit_log.html" style="color:var(--brand);text-decoration:none;font-weight:600;">View in full audit log →</a></div>
+        </div>
+        <div style="padding:14px 18px;">
+          <div class="audit-trail">
+            <div class="at-row">
+              <span class="at-when">05 May · 10:18</span>
+              <span class="at-what"><strong>Qadir Hussain (Owner)</strong> created <strong>FLAG-005 v3</strong> — lowered max_step for FeelTru only · <em>Reason:</em> "FeelTru patient cohort more sensitive — Mobeen requested tighter escalation gate after 2 reported side-effect cases" · <span style="color:var(--t3);">23 fired flags reference v2 and remain unchanged per DEC-27</span></span>
+            </div>
+            <div class="at-row">
+              <span class="at-when">03 May · 14:22</span>
+              <span class="at-what"><strong>Qadir Hussain (Owner)</strong> created <strong>FLAG-002 v4</strong> — changed BMI threshold from <code style="font-family:'SF Mono',monospace;background:var(--surface);padding:1px 4px;border-radius:3px;">&lt; 28</code> to <code style="font-family:'SF Mono',monospace;background:var(--surface);padding:1px 4px;border-radius:3px;">&lt; 27</code> · <em>Reason:</em> "Aligned to NICE CG189 update Feb 2026" · <span style="color:var(--t3);">18 fired flags reference v3 and remain unchanged</span></span>
+            </div>
+            <div class="at-row">
+              <span class="at-when">02 May · 11:08</span>
+              <span class="at-what"><strong>Qadir Hussain (Owner)</strong> created <strong>FLAG-001 v2</strong> — severity raised <code style="background:var(--surface);padding:1px 4px;border-radius:3px;">HIGH</code> → <code style="background:#fef2f2;color:#991b1b;padding:1px 4px;border-radius:3px;">CRITICAL</code> · <em>Reason:</em> "MHRA Yellow Card 2025 update — eating disorder is now a contraindication for GLP-1, not a relative caution"</span>
+            </div>
+            <div class="at-row">
+              <span class="at-when">01 May · 16:42</span>
+              <span class="at-what"><strong>Qadir Hussain (Owner)</strong> created <strong>FLAG-004 v1</strong> — manual-source rule for welcome call concerns · <em>Reason:</em> "Welcome call program launching — needed structured way for Olwyn/Charlotte to raise concerns from calls into the prescriber review flow"</span>
+            </div>
+            <div class="at-row">
+              <span class="at-when">28 Apr · 10:36</span>
+              <span class="at-what"><strong>Qadir Hussain (Owner)</strong> created <strong>FLAG-006 v1</strong> — NHS number data quality flag · <em>Reason:</em> "GP letter accuracy review identified ~9% of patients lacking NHS number — needed structured backfill flag"</span>
+            </div>
+            <div class="at-row">
+              <span class="at-when">24 Apr · 09:14</span>
+              <span class="at-what"><strong>Qadir Hussain (Owner)</strong> created <strong>FLAG-003 v1</strong> + <strong>FLAG-001 v1</strong> + <strong>FLAG-002 v1</strong> · initial questionnaire-driven safeguarding flag set</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="perm-note">
+        <strong>Clinical Flag Rules</strong> · Group 6 / BLD-16.5 (V1.2 §10.5, reframed by DEC-24/DEC-27 8 May 2026). Visible to <code>Owner</code> and <code>RM</code>; all other roles hidden. All edits create a new rule version with <strong>mandatory reason field</strong> (per DEC-27 Sub-decision C). Already-fired flags reference the rule version they fired against and are <strong>not re-evaluated</strong> when rules change (per DEC-27 Sub-decision B). <strong>No locked tier exists</strong> — every rule editable from Settings; the audit trail is the safety control. Saved changes propagate to BLD-16.4 approval modal templates within 5 minutes. Rule firing data on this screen is real-time from the engine; mismatch with the <a href="livera_g6_flag_dashboard.html" style="color:var(--brand);text-decoration:none;font-weight:600;">Flag Dashboard</a> indicates a deployment lag (refresh).
+      </div>
+
+      <!-- Annotation -->
+      <div class="ann">
+        <span class="al">UX notes</span>
+        <span>BLD-16.5 · Settings → Other → Clinical Flag Rules · canonical Library per DEC-27 Pattern C</span>
+        <span class="at">Permissions</span>
+        <span>Owner + RM read-write · all others hidden</span>
+        <span class="at">Edit model</span>
+        <span>Every edit creates a new version with mandatory reason field. No locked tier (DEC-27).</span>
+        <span class="at">Inline view</span>
+        <span>Questionnaire builder shows linked rules per question (DEC-27 courtesy view).</span>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  function toggleRule(idx) {
+    const row = document.getElementById('row-' + idx);
+    const exp = document.getElementById('exp-' + idx);
+    if (!row || !exp) return;
+    // DEC-27: no locked tier — all rules toggleable
+    const isOpen = row.classList.contains('expanded');
+    // Close all others
+    document.querySelectorAll('.rule-row.expanded').forEach(r => r.classList.remove('expanded'));
+    document.querySelectorAll('.rule-expand').forEach(e => e.style.display = 'none');
+    // Open this one if it was closed
+    if (!isOpen) {
+      row.classList.add('expanded');
+      exp.style.display = 'block';
+    }
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = '✓ ' + msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+</script>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

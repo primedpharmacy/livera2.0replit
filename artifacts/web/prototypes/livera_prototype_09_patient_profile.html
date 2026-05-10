@@ -1,0 +1,2521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Patient Profile (SCR-008)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-logo { padding: 15px 17px; border-bottom: 0.5px solid var(--border); font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .logo-mk { width: 24px; height: 24px; border-radius: 6px; background: var(--brand); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row:hover { background: var(--surface-2); }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  /* Topbar */
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc a:hover { color: var(--text-1); }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: flex; align-items: center; gap: 5px; }
+  .btn-sm:hover { background: var(--surface-2); }
+  .btn-sm.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn-sm.primary:hover { background: #3730a3; }
+
+  /* Profile content */
+  .profile-content { flex: 1; display: flex; overflow: hidden; }
+
+  /* Left column — patient identity */
+  .patient-col { width: 280px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+
+  /* Patient hero */
+  .patient-hero { padding: 20px; border-bottom: 0.5px solid var(--border); }
+  .patient-avatar-wrap { position: relative; margin-bottom: 12px; }
+  .patient-avatar { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #4338ca); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+  .app-state-badge { position: absolute; bottom: -2px; right: -2px; background: var(--green); color: #fff; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 999px; border: 2px solid var(--surface); white-space: nowrap; }
+  .app-state-badge.review { background: var(--amber); }
+  .app-state-badge.monitoring { background: var(--blue); }
+  .patient-name { font-size: 17px; font-weight: 700; color: var(--text-1); letter-spacing: -0.3px; }
+  .patient-meta { font-size: 12px; color: var(--text-2); margin-top: 3px; }
+  .patient-pills { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+  .pill { display: inline-flex; font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 999px; border: 0.5px solid; }
+  .p-bl { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .p-gr { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .p-am { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .p-rd { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .p-pu { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+
+  /* Quick actions */
+  .quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 14px; border-bottom: 0.5px solid var(--border); }
+  .qa-btn { padding: 8px 6px; border-radius: var(--r-md); border: 0.5px solid var(--border-strong); background: var(--surface-2); font-size: 11px; font-weight: 500; color: var(--text-2); cursor: pointer; text-align: center; font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .qa-btn:hover { background: var(--brand-light); color: var(--brand-dark); border-color: var(--brand-mid); }
+  .qa-icon { font-size: 16px; }
+
+  /* Data sections */
+  .psec { padding: 12px 14px; border-bottom: 0.5px solid var(--border); }
+  .psec-t { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .psec-edit { font-size: 10px; color: var(--brand-dark); font-weight: 600; cursor: pointer; text-transform: none; letter-spacing: 0; }
+  .dr { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+  .dk { font-size: 12px; color: var(--text-2); }
+  .dv { font-size: 12px; font-weight: 500; color: var(--text-1); text-align: right; }
+  .dv.g { color: var(--green); }
+  .dv.a { color: var(--amber); }
+  .dv.r { color: var(--red-mid); }
+  .gp-warn { margin-top: 6px; padding: 6px 8px; background: var(--amber-bg); border: 0.5px solid var(--amber-border); border-radius: var(--r-sm); font-size: 11px; color: var(--amber); display: flex; align-items: center; gap: 5px; }
+
+  /* App state indicator */
+  .app-state-panel { padding: 12px 14px; border-bottom: 0.5px solid var(--border); }
+  .app-state-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-md); border: 0.5px solid var(--green-border); background: var(--green-bg); }
+  .app-state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  .app-state-label { font-size: 12px; font-weight: 600; color: var(--green); }
+  .app-state-sub { font-size: 11px; color: #14532d; margin-top: 1px; }
+
+  /* Right column — tabs + content */
+  .right-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  /* Tabs */
+  .tabs { display: flex; background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 24px; flex-shrink: 0; overflow-x: auto; }
+  .tab { padding: 11px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; white-space: nowrap; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .tab:hover { color: var(--text-1); }
+  .tab.on { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 500; }
+  .tab-ct { background: var(--surface-2); color: var(--text-3); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; border: 0.5px solid var(--border-strong); }
+  .tab-ct.red { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .tab-ct.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+
+  /* Tab panels */
+  .tab-panel { display: none; flex: 1; overflow-y: auto; padding: 20px 24px; }
+  .tab-panel.on { display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── JOURNEY TAB ── */
+  .journey-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+  .journey-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .journey-sub { font-size: 12px; color: var(--text-3); }
+
+  /* Journey timeline */
+  .timeline { display: flex; flex-direction: column; position: relative; }
+  .timeline::before { content:''; position: absolute; left: 19px; top: 24px; bottom: 24px; width: 1.5px; background: var(--border); }
+  .tl-item { display: flex; align-items: flex-start; gap: 14px; padding: 10px 0; position: relative; }
+  .tl-node { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 2px solid; z-index: 1; }
+  .tl-node.done { background: var(--green); border-color: var(--green); color: #fff; }
+  .tl-node.active { background: var(--brand); border-color: var(--brand); color: #fff; animation: pulse 2s infinite; }
+  .tl-node.upcoming { background: var(--surface); border-color: var(--border-strong); color: var(--text-3); }
+  .tl-node.warn { background: var(--amber); border-color: var(--amber); color: #fff; }
+  .tl-content { flex: 1; padding-top: 8px; }
+  .tl-label { font-size: 13px; font-weight: 600; color: var(--text-1); display: flex; align-items: center; gap: 6px; }
+  .tl-label.done { color: var(--green); }
+  .tl-label.active { color: var(--brand-dark); }
+  .tl-label.upcoming { color: var(--text-3); }
+  .tl-label.warn { color: var(--amber); }
+  .tl-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .tl-detail { margin-top: 6px; padding: 8px 10px; background: var(--surface-2); border-radius: var(--r-md); border: 0.5px solid var(--border); font-size: 12px; color: var(--text-2); line-height: 1.5; }
+  .tl-detail.active { background: var(--brand-light); border-color: rgba(99,102,241,0.2); color: var(--brand-dark); }
+  .tl-detail.warn { background: var(--amber-bg); border-color: var(--amber-border); color: var(--amber); }
+
+  /* ── OVERVIEW TAB ── */
+  .overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ov-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); padding: 14px; }
+  .ov-card-title { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+  .ov-stat { font-size: 24px; font-weight: 700; color: var(--text-1); line-height: 1; letter-spacing: -0.5px; }
+  .ov-stat span { font-size: 13px; font-weight: 400; color: var(--text-3); }
+  .ov-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+  .ov-trend { display: inline-flex; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; margin-top: 5px; }
+  .trend-up { background: var(--green-bg); color: var(--green); }
+  .trend-down { background: var(--red-bg); color: var(--red-mid); }
+  .weight-bars { display: flex; align-items: flex-end; gap: 3px; height: 32px; margin-top: 8px; }
+  .wb { border-radius: 2px 2px 0 0; flex: 1; }
+
+  /* Order history table */
+  .order-table { width: 100%; border-collapse: collapse; }
+  .order-table th { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; padding: 6px 10px; text-align: left; border-bottom: 0.5px solid var(--border); }
+  .order-table td { padding: 9px 10px; font-size: 12px; color: var(--text-1); border-bottom: 0.5px solid var(--border); }
+  .order-table tr:last-child td { border-bottom: none; }
+  .order-table tr:hover td { background: var(--surface-2); cursor: pointer; }
+  .status-chip { display: inline-flex; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 0.5px solid; }
+  .sc-ap { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .sc-cc { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .sc-sh { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .sc-de { background: var(--surface-2); color: var(--text-2); border-color: var(--border-strong); }
+  .sc-ca { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+
+  /* Incidents */
+  .inc-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 0.5px solid var(--border); }
+  .inc-row:last-child { border-bottom: none; }
+  .inc-sev { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; border: 0.5px solid; white-space: nowrap; }
+  .is-mild { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .is-mod { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .is-sev { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .inc-name { font-size: 12px; color: var(--text-1); flex: 1; }
+  .inc-date { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .inc-status-chip { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px; }
+  .is-open { background: var(--amber-bg); color: var(--amber); }
+  .is-res { background: var(--green-bg); color: var(--green); }
+
+  /* Notes */
+  .note-item { padding: 10px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); margin-bottom: 8px; }
+  .note-meta { font-size: 10px; color: var(--text-3); margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .note-text { font-size: 12px; color: var(--text-1); line-height: 1.5; }
+  .note-input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 13px; font-family: inherit; color: var(--text-1); outline: none; resize: none; background: var(--surface); min-height: 60px; }
+  .note-input:focus { border-color: var(--brand); }
+  .note-input::placeholder { color: var(--text-3); }
+
+  /* Compliance tab */
+  .comp-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); border: 0.5px solid; margin-bottom: 7px; }
+  .comp-item.pa { background: var(--green-bg); border-color: var(--green-border); }
+  .comp-item.wa { background: var(--amber-bg); border-color: var(--amber-border); }
+  .comp-ico { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .comp-item.pa .comp-ico { background: var(--green); color: #fff; }
+  .comp-item.wa .comp-ico { background: var(--amber); color: #fff; }
+  .comp-name { font-size: 12px; font-weight: 600; }
+  .comp-item.pa .comp-name { color: var(--green); }
+  .comp-item.wa .comp-name { color: var(--amber); }
+  .comp-detail { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Section card */
+  .scard { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .scard-head { padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .scard-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .scard-sub { font-size: 11px; color: var(--text-3); margin-left: auto; }
+  .scard-body { padding: 12px 16px; }
+
+  /* ── FAB ── */
+  .fab-wrap { position: fixed; bottom: 28px; right: 28px; z-index: 100; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .fab-main { width: 52px; height: 52px; border-radius: 50%; background: var(--brand-dark); color: #fff; border: none; cursor: pointer; font-size: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(67,56,202,0.4); transition: all 0.2s; font-family: inherit; }
+  .fab-main:hover { background: #3730a3; box-shadow: 0 6px 24px rgba(67,56,202,0.5); transform: scale(1.05); }
+  .fab-main.open { background: #374151; box-shadow: 0 4px 20px rgba(0,0,0,0.25); transform: rotate(45deg); }
+  .fab-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; opacity: 0; pointer-events: none; transform: translateY(10px); transition: all 0.2s ease; }
+  .fab-actions.open { opacity: 1; pointer-events: all; transform: translateY(0); }
+  .fab-action { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .fab-action-label { background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.2); opacity: 0; transform: translateX(8px); transition: all 0.15s ease; }
+  .fab-actions.open .fab-action-label { opacity: 1; transform: translateX(0); }
+  .fab-actions.open .fab-action:nth-child(1) .fab-action-label { transition-delay: 0.05s; }
+  .fab-actions.open .fab-action:nth-child(2) .fab-action-label { transition-delay: 0.08s; }
+  .fab-actions.open .fab-action:nth-child(3) .fab-action-label { transition-delay: 0.11s; }
+  .fab-actions.open .fab-action:nth-child(4) .fab-action-label { transition-delay: 0.14s; }
+  .fab-actions.open .fab-action:nth-child(5) .fab-action-label { transition-delay: 0.17s; }
+  .fab-actions.open .fab-action:nth-child(6) .fab-action-label { transition-delay: 0.20s; }
+  .fab-icon-btn { width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15); transition: transform 0.15s; flex-shrink: 0; }
+  .fab-icon-btn:hover { transform: scale(1.1); }
+  .fab-icon-btn.green { background: #16a34a; }
+  .fab-icon-btn.amber { background: #d97706; }
+  .fab-icon-btn.blue { background: #2563eb; }
+  .fab-icon-btn.purple { background: #7c3aed; }
+  .fab-icon-btn.teal { background: #0891b2; }
+  .fab-icon-btn.red { background: #dc2626; }
+  .fab-icon-btn.brand { background: #6366f1; }
+  /* 7-action transition delay for new coaching action */
+  .fab-actions.open .fab-action:nth-child(7) .fab-action-label { transition-delay: 0.23s; }
+
+  /* FAB modal overlay */
+  .fab-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .fab-modal-overlay.show { display: flex; }
+  .fab-modal { background: var(--surface); border-radius: var(--r-xl); width: 440px; max-width: 95vw; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: modalIn 0.2s ease; }
+  @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:none; } }
+  .fab-modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .fab-modal-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .fab-modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .fab-modal-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+  .fab-modal-close:hover { background: var(--surface-3); }
+  .fab-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+  .fab-modal-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .fab-input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 13px; font-family: inherit; color: var(--text-1); outline: none; }
+  .fab-input:focus { border-color: var(--brand); }
+  .fab-input::placeholder { color: var(--text-3); }
+  .fab-select { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 13px; font-family: inherit; color: var(--text-1); outline: none; background: var(--surface); }
+  .fab-select:focus { border-color: var(--brand); }
+  .fab-textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 13px; font-family: inherit; color: var(--text-1); outline: none; resize: none; min-height: 72px; line-height: 1.5; }
+  .fab-textarea:focus { border-color: var(--brand); }
+  .fab-textarea::placeholder { color: var(--text-3); }
+  .fab-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: -4px; }
+  .fab-field { display: flex; flex-direction: column; gap: 5px; }
+  .fab-btn { padding: 8px 16px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .fab-btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .fab-btn.primary:hover { background: #3730a3; }
+  .fab-toast { position: fixed; bottom: 90px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 300; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); animation: toastIn 0.2s ease; }
+  @keyframes toastIn { from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;} }
+  .fab-toast.show { display: flex; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* ── Workspace switcher ──────────────────────────────────── */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border,rgba(0,0,0,0.08)); transition:background .12s; position:relative; }
+  .ws-switcher:hover { background:var(--surface-2,#f9f9f9); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1,#0d0d0d); letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ws-sub  { font-size:10px; color:var(--text-3,#9ca3af); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3,#9ca3af); flex-shrink:0; }
+  .ws-menu { display:none; position:absolute; top:54px; left:8px; right:8px; background:var(--surface,#fff); border:0.5px solid var(--border-strong,rgba(0,0,0,0.13)); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:500; overflow:hidden; }
+  .ws-menu.open { display:block; }
+  .ws-menu-item { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; transition:background .1s; }
+  .ws-menu-item:hover { background:var(--surface-2,#f9f9f9); }
+  .ws-menu-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ws-menu-name { font-size:12px; font-weight:600; color:var(--text-1,#0d0d0d); }
+  .ws-menu-sub  { font-size:10px; color:var(--text-3,#9ca3af); margin-top:1px; }
+  .ws-menu-check { font-size:12px; color:#4338ca; font-weight:700; flex-shrink:0; }
+  [data-coaching].ws-hidden { display:none !important; }
+
+  /* BLD-2.6 — Coaching Log tab + FAB action gating (FeelTru only) */
+  [data-workspace="vsc"] .coach-only { display: none !important; }
+  /* Coaching log entry styling */
+  .clog-item { padding: 12px 14px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); margin-bottom: 10px; }
+  .clog-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .clog-author { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .clog-time { font-size: 11px; color: var(--text-3); margin-left: auto; }
+  .clog-type { display: inline-flex; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 0.5px solid; }
+  .clog-type.routine { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .clog-type.welcome { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .clog-type.adhoc { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+  .clog-type.missed { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .clog-summary { font-size: 12px; color: var(--text-1); line-height: 1.5; margin: 4px 0 8px; }
+  .clog-chips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+  .clog-chip { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: var(--surface); border: 0.5px solid var(--border); color: var(--text-2); }
+  .clog-chip strong { color: var(--text-1); font-weight: 600; }
+  .clog-action { margin-top: 8px; padding: 7px 9px; background: var(--brand-light); border: 0.5px solid rgba(99,102,241,0.2); border-radius: var(--r-sm); font-size: 11px; color: var(--brand-dark); display: flex; align-items: center; gap: 6px; }
+  .clog-flag { margin-top: 6px; padding: 7px 9px; background: var(--amber-bg); border: 0.5px solid var(--amber-border); border-radius: var(--r-sm); font-size: 11px; color: var(--amber); display: flex; align-items: center; gap: 6px; }
+
+  /* ── BLD-Amendments: Cross-link flag pills (Group 5) ───────── */
+  .flag-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; padding: 0 4px; justify-content: center; }
+  .flag-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 600; cursor: pointer; border: 0.5px solid; transition: all 0.1s; text-decoration: none; line-height: 1.4; }
+  .flag-pill:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+  .flag-pill .fp-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .flag-pill .fp-count { font-weight: 700; padding: 0 2px; }
+  .flag-pill.complaint { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .flag-pill.complaint .fp-dot { background: var(--red-mid); }
+  .flag-pill.task { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .flag-pill.task .fp-dot { background: var(--amber); }
+  .flag-pill.welcome-awaiting { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .flag-pill.welcome-completed { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .flag-pill.welcome-unreachable { background: var(--surface-2); color: var(--text-2); border-color: var(--border-strong); }
+  .flag-pill.welcome-declined { background: var(--surface-2); color: var(--text-3); border-color: var(--border-strong); }
+  .flag-pill.gp-yes { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .flag-pill.gp-yes .fp-dot { background: var(--green); }
+  .flag-pill.gp-no { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .flag-pill.gp-no .fp-dot { background: var(--red-mid); }
+
+  /* ── BLD-Amendments: Treatment Status panel ────────────────── */
+  .ts-panel { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); padding: 12px 14px; margin-top: 10px; }
+  .ts-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .ts-title { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; }
+  .ts-edit { margin-left: auto; font-size: 11px; color: var(--brand-dark); cursor: pointer; font-weight: 500; }
+  .ts-edit:hover { text-decoration: underline; }
+  .ts-state-row { display: flex; align-items: center; gap: 9px; }
+  .ts-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(0,0,0,0.04); }
+  .ts-dot.active { background: var(--green); box-shadow: 0 0 0 3px var(--green-bg); }
+  .ts-dot.monitoring { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-bg); }
+  .ts-dot.stopped { background: var(--text-3); box-shadow: 0 0 0 3px var(--surface-2); }
+  .ts-state { font-size: 13px; font-weight: 700; color: var(--text-1); letter-spacing: -0.2px; }
+  .ts-state.active { color: var(--green); }
+  .ts-state.monitoring { color: var(--amber); }
+  .ts-state.stopped { color: var(--text-2); }
+  .ts-meta { font-size: 11px; color: var(--text-3); margin-top: 6px; line-height: 1.5; }
+  .ts-meta .lbl { color: var(--text-3); font-weight: 500; }
+  .ts-meta .val { color: var(--text-1); font-weight: 500; }
+  .ts-row { display: flex; gap: 8px; align-items: baseline; }
+  .ts-reason-chip { display: inline-flex; padding: 2px 7px; background: var(--brand-light); color: var(--brand-dark); border: 0.5px solid var(--brand-mid); border-radius: 4px; font-size: 10px; font-weight: 600; margin-top: 6px; }
+
+  /* ── BLD-Amendments: GP-letter consent inline guard ────────── */
+  .qa-btn[data-gp-consent="no"] { opacity: 0.55; cursor: not-allowed; }
+  .qa-btn[data-gp-consent="no"]:hover { background: var(--surface); border-color: var(--border-strong); transform: none; }
+  .qa-consent-state { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: 4px; letter-spacing: 0.3px; text-transform: uppercase; }
+  .qa-consent-state.yes { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-border); }
+  .qa-consent-state.no { background: var(--red-bg); color: var(--red-mid); border: 0.5px solid var(--red-border); }
+
+  /* ── BLD-Amendments: Questionnaire link inline ─────────────── */
+  .q-link { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--brand-dark); cursor: pointer; padding: 1px 6px; background: var(--brand-light); border: 0.5px solid var(--brand-mid); border-radius: 4px; font-weight: 500; line-height: 1.4; text-decoration: none; }
+  .q-link:hover { background: var(--brand); color: #fff; }
+
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+
+  /* DEC-25: Patient address edit + Primed sync */
+  .pa-edit-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 8800; align-items: center; justify-content: center; }
+  .pa-edit-modal-overlay.open { display: flex; }
+  .pa-modal { background: #fff; border-radius: 10px; width: 540px; max-width: 92vw; max-height: 88vh; box-shadow: 0 16px 48px rgba(0,0,0,.25); overflow: hidden; display: flex; flex-direction: column; font-family: inherit; color: var(--text-1); }
+  .pa-modal-head { padding: 16px 22px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .pa-modal-head .ico { width: 30px; height: 30px; border-radius: 7px; background: #eef2ff; color: #4338ca; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .pa-modal-head h3 { margin: 0; font-size: 14px; font-weight: 700; }
+  .pa-modal-head .sub { font-size: 11px; color: var(--text-3); margin-top: 2px; line-height: 1.4; }
+  .pa-modal-body { padding: 16px 22px; overflow-y: auto; flex: 1; }
+  .pa-field-group { margin-bottom: 14px; }
+  .pa-field-label { display: block; font-size: 11px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
+  .pa-field-input { width: 100%; padding: 8px 10px; border: 0.5px solid var(--border-strong); border-radius: 5px; font-family: inherit; font-size: 12.5px; box-sizing: border-box; }
+  .pa-field-input:focus { outline: 2px solid #c7d2fe; outline-offset: -1px; border-color: #6366f1; }
+  .pa-old-value { background: #f9fafb; padding: 8px 10px; border: 0.5px solid var(--border); border-radius: 5px; font-size: 12.5px; color: var(--text-2); font-family: monospace; }
+  .pa-required-marker { color: #b91c1c; margin-left: 3px; font-weight: 700; }
+  .pa-reason-field { background: #fefce8; border: 0.5px solid #fde047; border-radius: 6px; padding: 10px 12px; }
+  .pa-reason-help { font-size: 10.5px; color: #854d0e; margin-top: 5px; line-height: 1.4; }
+  .pa-modal-foot { padding: 12px 22px; background: #fafafa; border-top: 0.5px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+  .pa-btn { padding: 7px 14px; border-radius: 5px; font-size: 12px; font-weight: 600; border: 0.5px solid var(--border-strong); background: #fff; color: var(--text-1); cursor: pointer; font-family: inherit; }
+  .pa-btn:hover { background: #f3f4f6; }
+  .pa-btn.primary { background: #1e1b4b; color: #fff; border-color: #1e1b4b; }
+  .pa-btn.primary:hover { background: #312e81; }
+  .pa-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* Sync indicator on the address line */
+  .pa-sync-pill { display: inline-flex; align-items: center; gap: 3px; font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 3px; letter-spacing: 0.3px; text-transform: uppercase; margin-left: 6px; vertical-align: middle; }
+  .pa-sync-pill.synced { background: #f0fdf4; color: #166534; border: 0.5px solid #86efac; }
+  .pa-sync-pill.pending { background: #fffbeb; color: #92400e; border: 0.5px solid #fde68a; }
+  .pa-sync-pill.failed { background: #fef2f2; color: #991b1b; border: 0.5px solid #fecaca; }
+
+  /* Delivery address panel — sub-rows */
+  .pa-addr-block { font-size: 12px; line-height: 1.55; color: var(--text-1); }
+  .pa-addr-line { display: block; }
+
+  /* Summary modal — wider, lists orders */
+  .pa-summary-modal { width: 620px; }
+  .pa-summary-section { margin-bottom: 14px; }
+  .pa-summary-section:last-child { margin-bottom: 0; }
+  .pa-summary-label { font-size: 10.5px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .pa-order-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 6px; margin-bottom: 5px; font-size: 12px; }
+  .pa-order-row.auto { background: #f0fdf4; border: 0.5px solid #86efac; }
+  .pa-order-row.locked { background: #fef2f2; border: 0.5px solid #fecaca; }
+  .pa-order-row .o-id { font-family: monospace; font-weight: 700; color: var(--text-1); min-width: 78px; }
+  .pa-order-row .o-state { color: var(--text-2); flex: 1; font-size: 11.5px; }
+  .pa-order-row .o-status-pill { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+  .pa-order-row .o-status-pill.auto { background: #166534; color: #fff; }
+  .pa-order-row .o-status-pill.locked { background: #b91c1c; color: #fff; }
+  .pa-summary-foot-help { font-size: 11px; color: var(--text-3); margin-top: 8px; line-height: 1.5; padding: 8px 10px; background: #f9fafb; border-radius: 5px; border-left: 2px solid #6366f1; }
+  .pa-summary-foot-help strong { color: var(--text-1); }
+
+  /* Inline 'Edit' affordance for the address panel */
+  .pa-addr-edit-row { padding: 4px 0 0 0; }
+  .pa-addr-edit-row a { font-size: 10.5px; color: var(--brand-dark); font-weight: 600; text-decoration: none; cursor: pointer; }
+  .pa-addr-edit-row a:hover { text-decoration: underline; }
+
+  
+  /* DEC-25/DEC-28: Sync failed banner */
+  .sf-banner { background: linear-gradient(180deg, #fef2f2 0%, #fff 100%); border: 1px solid #fecaca; border-left: 3px solid #b91c1c; border-radius: 7px; padding: 11px 14px; margin: 10px 18px 0 18px; display: flex; align-items: center; gap: 12px; }
+  .sf-banner .sf-ico { width: 28px; height: 28px; border-radius: 6px; background: #b91c1c; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+  .sf-banner .sf-msg { flex: 1; font-size: 12px; color: #1f2937; line-height: 1.5; }
+  .sf-banner .sf-msg strong { color: #991b1b; font-weight: 700; }
+  .sf-banner .sf-msg code { font-family: 'SF Mono', monospace; font-size: 10.5px; background: #fef3c7; color: #78350f; padding: 1px 5px; border-radius: 3px; }
+  .sf-banner .sf-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .sf-banner .sf-btn { font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 4px; border: 0.5px solid #d1d5db; background: #fff; color: #374151; cursor: pointer; font-family: inherit; }
+  .sf-banner .sf-btn.primary { background: #b91c1c; color: #fff; border-color: #b91c1c; }
+  .sf-banner .sf-btn.primary:hover { background: #991b1b; }
+  .sf-banner .sf-btn:hover { background: #f3f4f6; }
+
+  /* DEC-24/DEC-27: Manual flag raise modal (shared pattern) */
+  .rf-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 8800; align-items: center; justify-content: center; }
+  .rf-overlay.open { display: flex; }
+  .rf-modal { background: #fff; border-radius: 10px; width: 580px; max-width: 92vw; max-height: 88vh; box-shadow: 0 16px 48px rgba(0,0,0,.25); overflow: hidden; display: flex; flex-direction: column; font-family: inherit; color: #1f2937; }
+  .rf-head { padding: 16px 22px; border-bottom: 0.5px solid #e5e7eb; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .rf-head .ico { width: 32px; height: 32px; border-radius: 7px; background: #fef2f2; color: #b91c1c; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .rf-head h3 { margin: 0; font-size: 14px; font-weight: 700; color: #1f2937; }
+  .rf-head .sub { font-size: 11px; color: #6b7280; margin-top: 2px; line-height: 1.4; }
+  .rf-body { padding: 16px 22px; overflow-y: auto; flex: 1; }
+  .rf-section-label { font-size: 10.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin: 12px 0 6px 0; }
+  .rf-section-label:first-child { margin-top: 0; }
+  .rf-rule-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 0.5px solid #e5e7eb; border-radius: 6px; cursor: pointer; margin-bottom: 5px; font-size: 12px; }
+  .rf-rule-row:hover { background: #fef2f2; border-color: #fecaca; }
+  .rf-rule-row.selected { background: #eff6ff; border-color: #6366f1; box-shadow: 0 0 0 2px #c7d2fe; }
+  .rf-rule-row .rf-rule-name { flex: 1; }
+  .rf-rule-row .rf-rule-name strong { font-weight: 600; color: #1f2937; }
+  .rf-rule-row .rf-flag-id { font-family: 'SF Mono', monospace; font-size: 10px; color: #6b7280; background: #f3f4f6; padding: 1px 5px; border-radius: 3px; margin-left: 6px; }
+  .rf-rule-row .rf-rule-meta { font-size: 10.5px; color: #6b7280; margin-top: 2px; }
+  .rf-pill { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .rf-pill.crit { background: #fef2f2; color: #991b1b; }
+  .rf-pill.high { background: #fed7aa; color: #9a3412; }
+  .rf-pill.med  { background: #fef3c7; color: #92400e; }
+  .rf-pill.low  { background: #dbeafe; color: #1e40af; }
+  .rf-pill.manual { background: #f0fdfa; color: #0f766e; border: 0.5px solid #99f6e4; }
+  .rf-pill.questionnaire { background: #eef2ff; color: #4338ca; border: 0.5px solid #c7d2fe; opacity: 0.6; }
+  .rf-pill.system { background: #fef3c7; color: #92400e; border: 0.5px solid #fde68a; opacity: 0.6; }
+  .rf-rule-row.disabled { opacity: 0.45; cursor: not-allowed; background: #fafafa; }
+  .rf-rule-row.disabled:hover { background: #fafafa; border-color: #e5e7eb; }
+  .rf-rule-row.disabled .rf-disabled-note { font-size: 10px; color: #9ca3af; font-style: italic; margin-top: 3px; }
+  .rf-reason-field { background: #fefce8; border: 0.5px solid #fde047; border-radius: 6px; padding: 10px 12px; margin-top: 14px; }
+  .rf-reason-label { display: block; font-size: 11px; font-weight: 700; color: #854d0e; margin-bottom: 5px; }
+  .rf-reason-required { color: #b91c1c; margin-left: 3px; font-weight: 700; }
+  .rf-reason-input { width: 100%; padding: 8px 10px; border: 0.5px solid #fde68a; border-radius: 5px; font-family: inherit; font-size: 12.5px; min-height: 70px; resize: vertical; box-sizing: border-box; background: #fff; }
+  .rf-reason-input:focus { outline: 2px solid #fde047; outline-offset: -1px; border-color: #f59e0b; }
+  .rf-reason-help { font-size: 10.5px; color: #854d0e; margin-top: 5px; line-height: 1.4; }
+  .rf-foot { padding: 12px 22px; background: #fafafa; border-top: 0.5px solid #e5e7eb; display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  .rf-foot .signed-as { font-size: 11px; color: #6b7280; margin-right: auto; }
+  .rf-btn { padding: 7px 14px; border-radius: 5px; font-size: 12px; font-weight: 600; border: 0.5px solid #d1d5db; background: #fff; color: #1f2937; cursor: pointer; font-family: inherit; }
+  .rf-btn:hover { background: #f3f4f6; }
+  .rf-btn.primary { background: #b91c1c; color: #fff; border-color: #b91c1c; }
+  .rf-btn.primary:hover { background: #991b1b; }
+  .rf-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .rf-btn.primary:disabled:hover { background: #b91c1c; }
+
+  /* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html" class="active"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <!-- DEC-25/DEC-28: Sync failed banner (visible when patient has open sync failures) -->
+    <div class="sf-banner" id="pa-sync-banner">
+      <div class="sf-ico">⚠</div>
+      <div class="sf-msg">
+        <strong>1 Primed sync failure on this patient.</strong> Address change to <code>14 New Lane, LS18 4FJ</code> failed for ORD-00439 — Primed has clinically checked this order. Per DEC-28 the address is locked from auto-sync; resolve via Pharmacy Comms or mark resolved manually.
+      </div>
+      <div class="sf-actions">
+        <button class="sf-btn primary" onclick="window.location.href='livera_pharmacy_comms_thread.html#PCM-PT-0042'">📨 Open comms thread</button>
+        <button class="sf-btn" onclick="window.location.href='livera_sync_failures.html'">View all failures →</button>
+      </div>
+    </div>
+
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_patient_list.html">Patients</a>
+        <span class="sep">/</span>
+        <span class="cur">Sarah Cookland</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn-sm">📋 Create note</button>
+        <button class="btn-sm" onclick="openRaiseFlagModal()" title="Raise a clinical flag against this patient. Per DEC-24/DEC-27 hybrid sources — clinician-initiated.">🚩 Raise flag</button>
+        <button class="btn-sm">⚠ Log incident</button>
+        <button class="btn-sm">📅 Schedule consultation</button>
+        <button class="btn-sm" onclick="openOutboundComposeModal()" title="Start a patient-anchored Pharmacy Comms thread (cross-order). E.g. address change, profile update, pharmacy query about this patient.">📨 Message Primed</button>
+        <button class="btn-sm primary">Review order →</button>
+      </div>
+    </div>
+
+    <div class="profile-content">
+
+      <!-- Left column -->
+      <div class="patient-col">
+
+        <!-- Hero -->
+        <div class="patient-hero">
+          <div class="patient-avatar-wrap">
+            <div class="patient-avatar">SC</div>
+            <div class="app-state-badge">● Active</div>
+          </div>
+          <div class="patient-name">Sarah Cookland</div>
+          <div class="patient-meta">Female · 50 · DOB 14 Mar 1974</div>
+          <div class="patient-meta" style="margin-top:2px;">LS18 4FJ · Leeds</div>
+          <div class="patient-pills" style="margin-top:8px;">
+            <div class="pill p-bl">Mounjaro 5mg</div>
+            <div class="pill p-gr">Order 6</div>
+            <div class="pill p-am">Week 18</div>
+          </div>
+
+          <!-- Cross-link flag pills (BLD-Amendments) -->
+          <div class="flag-pills">
+            <a href="livera_scr_complaints.html" class="flag-pill complaint" title="1 open complaint — click to view">
+              <span class="fp-dot"></span> ⚖ <span class="fp-count">1</span> complaint
+            </a>
+            <a href="livera_scr_tasks_list.html" class="flag-pill task" title="2 open tasks — click to view">
+              <span class="fp-dot"></span> ✓ <span class="fp-count">2</span> tasks
+            </a>
+            <a href="livera_scr_welcome_call_queue.html" class="flag-pill welcome-completed" title="Welcome call completed">
+              📞 Welcome call ✓
+            </a>
+            <span class="flag-pill gp-yes" title="GP letter consent on record — given 28 Jan 2026">
+              <span class="fp-dot"></span> ✉ GP consent ✓
+            </span>
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="quick-actions">
+          <button class="qa-btn"><span class="qa-icon">🔍</span>Review order</button>
+          <button class="qa-btn"><span class="qa-icon">📋</span>Add note</button>
+          <button class="qa-btn" data-gp-consent="yes" onclick="openGPLetterGuarded(this)" title="GP consent on record · letter can be sent"><span class="qa-icon">✉</span>GP letter <span class="qa-consent-state yes">✓ consent</span></button>
+          <button class="qa-btn"><span class="qa-icon">⚠</span>Incident</button>
+        </div>
+
+        <!-- App state -->
+        <div class="app-state-panel">
+          <div class="psec-t" style="margin-bottom:7px;">App state (VSC)</div>
+          <div class="app-state-row">
+            <div class="app-state-dot"></div>
+            <div>
+              <div class="app-state-label">Active</div>
+              <div class="app-state-sub">Order 6 in progress · last login 2h ago</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Treatment Status (BLD-Amendments) -->
+        <div class="ts-panel">
+          <div class="ts-head">
+            <div class="ts-title">Treatment status</div>
+            <span class="ts-edit" onclick="showToast('✎ Edit treatment status — opens decline-with-reason / discontinuation modal')">Update</span>
+          </div>
+          <div class="ts-state-row">
+            <div class="ts-dot active"></div>
+            <div>
+              <div class="ts-state active">Active</div>
+            </div>
+          </div>
+          <div class="ts-meta">
+            <div class="ts-row"><span class="lbl">Started</span> · <span class="val">28 Jan 2026</span></div>
+            <div class="ts-row"><span class="lbl">Service</span> · <span class="val">Weight loss</span></div>
+            <div class="ts-row"><span class="lbl">Last review</span> · <span class="val">29 Apr 2026 (Order 6)</span></div>
+          </div>
+          <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;">
+            <span class="flag-pill welcome-completed" style="cursor:default;">⊕ 4 reviews completed</span>
+          </div>
+        </div>
+
+        <!-- Clinical -->
+        <div class="psec">
+          <div class="psec-t">Clinical <span class="psec-edit">Edit</span></div>
+          <div class="dr"><span class="dk">Height</span><span class="dv">163cm</span></div>
+          <div class="dr"><span class="dk">Starting weight</span><span class="dv">88.9kg</span></div>
+          <div class="dr"><span class="dk">Current weight</span><span class="dv">85.3kg</span></div>
+          <div class="dr"><span class="dk">BMI (current)</span><span class="dv">32.1</span></div>
+          <div class="dr"><span class="dk">Weight lost</span><span class="dv g">3.6kg (4.1%)</span></div>
+          <div class="dr"><span class="dk">NICE target</span><span class="dv a">≥5% — below</span></div>
+          <div class="dr"><span class="dk">Treatment</span><span class="dv">Mounjaro 5mg</span></div>
+          <div class="dr"><span class="dk">Programme start</span><span class="dv">28 Jan 2026</span></div>
+        </div>
+
+        <!-- Identity -->
+        <div class="psec">
+          <div class="psec-t">Identity &amp; Consent</div>
+          <div class="dr"><span class="dk">SumSub</span><span class="dv g">✓ Verified</span></div>
+          <div class="dr"><span class="dk">Document</span><span class="dv">UK Driving Licence</span></div>
+          <div class="dr"><span class="dk">BMI verified</span><span class="dv g">✓ AI photo</span></div>
+          <div class="dr"><span class="dk">Consent version</span><span class="dv">v2.1</span></div>
+          <div class="dr"><span class="dk">Consent date</span><span class="dv">28 Jan 2026</span></div>
+        </div>
+
+        <!-- Delivery address (DEC-25 / BLD-PT-EDIT) -->
+        <div class="psec">
+          <div class="psec-t">Delivery address <span class="psec-edit" onclick="openAddressEditModal()">Edit</span></div>
+          <div class="pa-addr-block" id="pa-addr-display">
+            <span class="pa-addr-line">14 New Lane</span>
+            <span class="pa-addr-line">Pudsey</span>
+            <span class="pa-addr-line">Leeds</span>
+            <span class="pa-addr-line"><strong>LS18 4FJ</strong></span>
+          </div>
+          <div class="dr" style="margin-top:6px;">
+            <span class="dk">Synced to Primed</span>
+            <span class="dv g" id="pa-sync-status">✓ Synced 06 May · 11:14</span>
+          </div>
+          <div class="dr">
+            <span class="dk">Last updated</span>
+            <span class="dv">06 May 2026 by Mobeen</span>
+          </div>
+        </div>
+
+        <!-- GP -->
+        <div class="psec">
+          <div class="psec-t">GP Details <span class="psec-edit">Edit</span></div>
+          <div class="dr"><span class="dk">Surgery</span><span class="dv">Robin Lane H&amp;W</span></div>
+          <div class="dr"><span class="dk">Postcode</span><span class="dv">LS28 7DE</span></div>
+          <div class="dr"><span class="dk">Communication consent</span><span class="dv g">✓ Yes (28 Jan 2026)</span></div>
+          <div class="dr"><span class="dk">GP letter</span><span class="dv g">✓ Sent 28 Jan</span></div>
+        </div>
+
+        <!-- Contact -->
+        <div class="psec">
+          <div class="psec-t">Contact <span class="psec-edit">Edit</span></div>
+          <div class="dr"><span class="dk">Email</span><span class="dv" style="font-size:11px;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="6a194409050501060b040e2a0d070b030644090507">[email&#160;protected]</a></span></div>
+          <div class="dr"><span class="dk">Phone</span><span class="dv">07911 234567</span></div>
+        </div>
+
+        <!-- BLD-INT-OMNI-03: Marketing consent panel -->
+        <div class="psec" style="border:1px solid #c7d4ff;background:linear-gradient(180deg,#fafbff 0%,#eff3ff 100%);border-radius:var(--r-md);padding:10px 12px;margin:8px 0;">
+          <div class="psec-t" style="display:flex;align-items:center;gap:8px;">
+            Marketing consent
+            <span style="font-size:9px;font-weight:700;letter-spacing:.4px;background:#1a4dff;color:#fff;padding:2px 6px;border-radius:3px;">OMNISEND</span>
+            <span style="margin-left:auto;font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--green-bg);color:var(--green);padding:2px 7px;border-radius:999px;border:.5px solid var(--green-border);display:inline-flex;align-items:center;gap:4px;"><span style="width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 0 2px rgba(16,185,129,0.18);"></span>OPT-IN</span>
+          </div>
+          <div class="dr"><span class="dk">Email marketing</span><span class="dv g">✓ Opted in (28 Jan 2026)</span></div>
+          <div class="dr"><span class="dk">SMS marketing</span><span class="dv" style="color:var(--text-3);">— Not opted in</span></div>
+          <div class="dr"><span class="dk">Source</span><span class="dv">Registration form · "Yes, send updates"</span></div>
+          <div class="dr"><span class="dk">In Omnisend audience</span><span class="dv g">✓ Synced · 12 min ago</span></div>
+          <div class="dr"><span class="dk">Last campaign</span><span class="dv" style="font-size:11px;">May newsletter · opened 8 May</span></div>
+          <div class="dr"><span class="dk">Lifetime engagement</span><span class="dv">4 opens · 1 click · 0 unsubscribes</span></div>
+          <div style="display:flex;gap:6px;margin-top:8px;">
+            <button class="psec-edit" style="background:var(--surface);border:.5px solid var(--border-strong);padding:5px 9px;border-radius:4px;color:var(--text-2);font-size:11px;cursor:pointer;font-weight:600;font-family:inherit;flex:1;text-align:center;" onclick="showToast('Stub · would open Omnisend campaign history filtered by this contact')">View campaigns</button>
+            <button class="psec-edit" style="background:var(--surface);border:.5px solid var(--red-border);padding:5px 9px;border-radius:4px;color:var(--red-mid);font-size:11px;cursor:pointer;font-weight:600;font-family:inherit;flex:1;text-align:center;" onclick="if(confirm('Withdraw marketing consent for this patient?\n\nLivera will:\n• Set patient.marketing_consent=false immediately\n• Trigger Omnisend remove-from-audience webhook\n• Write OMNISEND_CONSENT_WITHDRAWN audit entry (BLD-INT-OMNI-04)\n\nThis cannot be undone except by patient re-opting in via the app.'))showToast('Stub · would withdraw marketing consent + audit')">Withdraw consent</button>
+          </div>
+        </div>
+
+        <!-- Flags -->
+        <div class="psec">
+          <div class="psec-t">Clinical flags</div>
+          <div style="padding:7px 9px;background:var(--amber-bg);border:0.5px solid var(--amber-border);border-radius:var(--r-md);margin-bottom:5px;">
+            <div style="font-size:11px;font-weight:600;color:var(--amber);">⚠ Cardiac history</div>
+            <div style="font-size:11px;color:#92400e;margin-top:2px;">SVT catheter ablation ~3yr ago · reviewed</div>
+          </div>
+          <div style="padding:7px 9px;background:var(--amber-bg);border:0.5px solid var(--amber-border);border-radius:var(--r-md);">
+            <div style="font-size:11px;font-weight:600;color:var(--amber);">⚠ BMI below NICE threshold</div>
+            <div style="font-size:11px;color:#92400e;margin-top:2px;">BMI 29.5 · comorbidity documented</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right column -->
+      <div class="right-col">
+        <div class="tabs">
+          <div class="tab on" onclick="showTab('journey',this)">Journey <span class="tab-ct">Order 6</span></div>
+          <div class="tab" onclick="showTab('overview',this)">Overview</div>
+          <div class="tab" onclick="showTab('orders',this)">Orders <span class="tab-ct">6</span></div>
+          <div class="tab" onclick="showTab('incidents',this)">Incidents <span class="tab-ct amber">1 open</span></div>
+          <div class="tab" onclick="showTab('compliance',this)">Compliance <span class="tab-ct amber">2 warnings</span></div>
+          <div class="tab" onclick="showTab('notes',this)">Notes <span class="tab-ct">3</span></div>
+          <div class="tab coach-only" onclick="showTab('coaching',this)">Coaching Log <span class="tab-ct">3</span></div>
+          <div class="tab" onclick="showTab('pharmacy-comms',this)">Pharmacy Comms <span class="tab-ct">2</span></div>
+          <div class="tab" onclick="showTab('intercom',this)">Intercom</div>
+        </div>
+
+        <!-- ── JOURNEY TAB ── -->
+        <div class="tab-panel on" id="tab-journey">
+          <div class="scard">
+            <div class="scard-head">
+              <div class="scard-title">Service journey — Mounjaro 5mg · Order 6</div>
+              <div class="scard-sub">Week 18 of programme · 6 of 12 planned orders</div>
+            </div>
+            <div class="scard-body">
+              <div class="timeline">
+
+                <div class="tl-item">
+                  <div class="tl-node done">✓</div>
+                  <div class="tl-content">
+                    <div class="tl-label done">Registration &amp; Identity</div>
+                    <div class="tl-meta">Completed · 28 Jan 2026 · SumSub verified</div>
+                    <div class="tl-detail">UK Driving Licence · 94% AI confidence · Consent v2.1 signed · all 4 consent types confirmed</div>
+                  </div>
+                </div>
+
+                <div class="tl-item">
+                  <div class="tl-node done">✓</div>
+                  <div class="tl-content">
+                    <div class="tl-label done">Health Questionnaire</div>
+                    <div class="tl-meta">Completed · 28 Jan 2026 · 14 questions · 2 flags</div>
+                    <div class="tl-detail">Cardiac history (SVT) — reviewed. BMI 29.5 — comorbidity (hypertension) documented. All other questions clear.</div>
+                  </div>
+                </div>
+
+                <div class="tl-item">
+                  <div class="tl-node done">✓</div>
+                  <div class="tl-content">
+                    <div class="tl-label done">BMI Verification</div>
+                    <div class="tl-meta">Completed · 28 Jan 2026 · AI photo assessment</div>
+                    <div class="tl-detail">BMI result: 29.5 · Confidence: 94% · Model v2.1 · Independently verified before first Rx</div>
+                  </div>
+                </div>
+
+                <div class="tl-item">
+                  <div class="tl-node done">✓</div>
+                  <div class="tl-content">
+                    <div class="tl-label done">Payment</div>
+                    <div class="tl-meta">Subscription active · £169/month · Ryft</div>
+                    <div class="tl-detail">Monthly subscription started 28 Jan 2026 · 6 payments taken · next payment 08 May 2026</div>
+                  </div>
+
+                <!-- DEC-25/DEC-28: address change audit entry (latest) -->
+                <div class="tl-item" id="tl-address-change">
+                  <div class="tl-node done" style="background:#eef2ff;color:#4338ca;">📍</div>
+                  <div class="tl-content">
+                    <div class="tl-label done">Address updated</div>
+                    <div class="tl-meta">06 May 2026 · 11:14 · Mobeen Alam · synced to Primed</div>
+                    <div class="tl-detail">
+                      Old: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-size:11px;">3 Old Road, LS6</code> → New: <code style="background:#eff6ff;color:#1e40af;padding:1px 5px;border-radius:3px;font-size:11px;">14 New Lane, LS18 4FJ</code><br>
+                      <strong>Reason:</strong> "Patient called — moved house Friday"<br>
+                      <strong>In-flight order sync (DEC-28):</strong> ORD-00441 auto-updated · ORD-00440 auto-updated · ORD-00439 <strong style="color:#b91c1c;">locked</strong> (Primed clinically checked) — comms thread <a href="livera_pharmacy_comms_thread.html#PCM-PT-0042" style="color:#4338ca;font-weight:600;">PCM-PT-0042 →</a> sent.<br>
+                      <a href="livera_audit_log.html" style="color:#4338ca;font-weight:600;font-size:11px;">View in audit log →</a>
+                    </div>
+                  </div>
+                </div>
+                </div>
+
+                <div class="tl-item">
+                  <div class="tl-node done">✓</div>
+                  <div class="tl-content">
+                    <div class="tl-label done">Clinical Assessment — Orders 1–5</div>
+                    <div class="tl-meta">All approved · Claire Moynehan · NMC 1234567</div>
+                    <div class="tl-detail">Orders 1–5 approved without intervention. Dose maintained at 5mg throughout. Weight trajectory: 88.9kg → 85.3kg.</div>
+                  </div>
+                </div>
+
+                <div class="tl-item">
+                  <div class="tl-node done">✓</div>
+                  <div class="tl-content">
+                    <div class="tl-label done">GP Notification</div>
+                    <div class="tl-meta">Sent · 28 Jan 2026 · Robin Lane H&amp;W</div>
+                    <div class="tl-detail">Clinical letter sent within 7 days of first prescription. Copy on patient record.</div>
+                  </div>
+                </div>
+
+                <div class="tl-item">
+                  <div class="tl-node warn">!</div>
+                  <div class="tl-content">
+                    <div class="tl-label warn">Clinical Assessment — Order 6</div>
+                    <div class="tl-meta">In Clinical Check · submitted 07 Apr 2026 · 26h waiting</div>
+                    <div class="tl-detail warn">Weight loss 4.1% at week 14 — below NICE ≥5% target. Comorbidity pathway active. Prescriber review required before dispatch.</div>
+                  </div>
+                </div>
+
+                <div class="tl-item">
+                  <div class="tl-node upcoming">7</div>
+                  <div class="tl-content">
+                    <div class="tl-label upcoming">Prescription Generation</div>
+                    <div class="tl-meta">Pending clinical approval</div>
+                  </div>
+                </div>
+
+                <div class="tl-item">
+                  <div class="tl-node upcoming">8</div>
+                  <div class="tl-content">
+                    <div class="tl-label upcoming">Primed Dispatch</div>
+                    <div class="tl-meta">Pending · cold-chain · next-day target</div>
+                  </div>
+                </div>
+
+                <div class="tl-item">
+                  <div class="tl-node upcoming">9</div>
+                  <div class="tl-content">
+                    <div class="tl-label upcoming">Monitoring Check-In</div>
+                    <div class="tl-meta">Due 08 May 2026 · monthly · gates Order 7</div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── OVERVIEW TAB ── -->
+        <div class="tab-panel" id="tab-overview">
+          <div class="overview-grid">
+            <div class="ov-card">
+              <div class="ov-card-title">Weight lost</div>
+              <div class="ov-stat">3.6<span>kg</span></div>
+              <div class="ov-sub">4.1% of starting weight</div>
+              <div class="ov-trend trend-up">↓ Consistent downward</div>
+              <div class="weight-bars">
+                <div class="wb" style="height:80%;background:#9ca3af;border-radius:2px 2px 0 0;"></div>
+                <div class="wb" style="height:60%;background:#818cf8;"></div>
+                <div class="wb" style="height:50%;background:#818cf8;"></div>
+                <div class="wb" style="height:42%;background:#818cf8;"></div>
+                <div class="wb" style="height:35%;background:#818cf8;"></div>
+                <div class="wb" style="height:28%;background:#6366f1;"></div>
+                <div class="wb" style="height:22%;background:#6366f1;"></div>
+                <div class="wb" style="height:17%;background:#4338ca;"></div>
+              </div>
+            </div>
+            <div class="ov-card">
+              <div class="ov-card-title">Programme duration</div>
+              <div class="ov-stat">71<span>days</span></div>
+              <div class="ov-sub">18 weeks · 6 orders completed</div>
+              <div class="ov-trend trend-up" style="background:var(--blue-bg);color:var(--blue);">Order 6 in review</div>
+            </div>
+            <div class="ov-card">
+              <div class="ov-card-title">Check-in adherence</div>
+              <div class="ov-stat">100<span>%</span></div>
+              <div class="ov-sub">6 of 6 check-ins completed</div>
+              <div class="ov-trend trend-up">All on time</div>
+            </div>
+            <div class="ov-card">
+              <div class="ov-card-title">Total spend</div>
+              <div class="ov-stat">£<span style="font-size:24px;font-weight:700;color:var(--text-1);">1,014</span></div>
+              <div class="ov-sub">6 months · £169/month</div>
+              <div class="ov-trend trend-up" style="background:var(--purple-bg);color:var(--purple);">Active subscriber</div>
+            </div>
+          </div>
+
+          <div class="scard">
+            <div class="scard-head">
+              <div class="scard-title">Side effects history</div>
+              <div class="scard-sub">All orders</div>
+            </div>
+            <div class="scard-body">
+              <div class="inc-row">
+                <div class="inc-sev is-mild">Mild</div>
+                <div class="inc-name">Nausea — weeks 2–4 · resolved</div>
+                <div class="inc-date">Feb 2026</div>
+                <div class="inc-status-chip is-res">Resolved</div>
+              </div>
+              <div class="inc-row">
+                <div class="inc-sev is-mild">Mild</div>
+                <div class="inc-name">Injection site bruising · resolved</div>
+                <div class="inc-date">Mar 2026</div>
+                <div class="inc-status-chip is-res">Resolved</div>
+              </div>
+              <div style="padding:8px 0;font-size:12px;color:var(--text-3);">No moderate or severe side effects on record.</div>
+            </div>
+          </div>
+
+          <!-- ─────────────────────────────────────────────── -->
+          <!-- BMI Verification History — Group 6 / BLD-16.2  -->
+          <!-- Longitudinal record of every BMI assessment    -->
+          <!-- with source, value, delta, and Annex E status. -->
+          <!-- ─────────────────────────────────────────────── -->
+          <div class="scard" style="border-color:#99f6e4;">
+            <div class="scard-head" style="background:linear-gradient(135deg,#f0fdfa 0%,var(--surface) 100%);border-bottom-color:#99f6e4;">
+              <div class="scard-title" style="display:flex;align-items:center;gap:8px;">
+                📷 BMI Verification History
+                <span style="font-size:9px;font-weight:700;background:#f0fdfa;color:#0d9488;border:0.5px solid #99f6e4;padding:2px 7px;border-radius:3px;letter-spacing:0.4px;">G6 · BLD-16.2</span>
+              </div>
+              <div class="scard-sub">Every BMI assessment across all orders · source · delta · Annex E status</div>
+              <a href="livera_patient_bmi_history.html?from=patient" style="margin-left:auto;font-size:11px;font-weight:600;color:#0d9488;text-decoration:none;padding:5px 10px;background:#f0fdfa;border:0.5px solid #99f6e4;border-radius:4px;display:inline-flex;align-items:center;gap:5px;">
+                View full BMI timeline →
+              </a>
+            </div>
+            <div class="scard-body" style="padding:0;">
+              <div style="display:grid;grid-template-columns:90px 1fr 1.1fr 1.1fr 80px 90px;gap:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-3);padding:9px 14px;background:var(--surface-2);border-bottom:0.5px solid var(--border);">
+                <span>Date</span>
+                <span>Source</span>
+                <span>Patient reported</span>
+                <span>AI extracted</span>
+                <span>Δ</span>
+                <span>Status</span>
+              </div>
+
+              <!-- Row 1 — Initial registration -->
+              <div style="display:grid;grid-template-columns:90px 1fr 1.1fr 1.1fr 80px 90px;gap:0;font-size:11.5px;padding:10px 14px;border-bottom:0.5px solid var(--border);align-items:center;">
+                <span style="color:var(--text-2);font-variant-numeric:tabular-nums;">16 Jan 2026</span>
+                <span style="color:var(--text-1);">Registration questionnaire</span>
+                <span style="color:var(--text-1);font-weight:600;">34.9 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">(88.9kg)</span></span>
+                <span style="color:var(--text-1);font-weight:600;">34.9 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">96% conf.</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:3px;">0.0</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:2px 7px;border-radius:3px;letter-spacing:0.3px;">OK</span></span>
+              </div>
+
+              <!-- Row 2 — Wk 2 -->
+              <div style="display:grid;grid-template-columns:90px 1fr 1.1fr 1.1fr 80px 90px;gap:0;font-size:11.5px;padding:10px 14px;border-bottom:0.5px solid var(--border);align-items:center;">
+                <span style="color:var(--text-2);font-variant-numeric:tabular-nums;">30 Jan 2026</span>
+                <span style="color:var(--text-1);">Reorder Q3 (Wk 2)</span>
+                <span style="color:var(--text-1);font-weight:600;">34.3 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">(87.4kg)</span></span>
+                <span style="color:var(--text-1);font-weight:600;">34.3 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">95% conf.</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:3px;">0.0</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:2px 7px;border-radius:3px;letter-spacing:0.3px;">OK</span></span>
+              </div>
+
+              <!-- Row 3 — Wk 4 small AI uncertainty -->
+              <div style="display:grid;grid-template-columns:90px 1fr 1.1fr 1.1fr 80px 90px;gap:0;font-size:11.5px;padding:10px 14px;border-bottom:0.5px solid var(--border);align-items:center;">
+                <span style="color:var(--text-2);font-variant-numeric:tabular-nums;">13 Feb 2026</span>
+                <span style="color:var(--text-1);">Reorder Q3 (Wk 4)</span>
+                <span style="color:var(--text-1);font-weight:600;">33.8 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">(86.1kg)</span></span>
+                <span style="color:var(--text-1);font-weight:600;">33.9 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">82% conf.</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:3px;">+0.1</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:2px 7px;border-radius:3px;letter-spacing:0.3px;">OK</span></span>
+              </div>
+
+              <!-- Row 4 — Wk 6 -->
+              <div style="display:grid;grid-template-columns:90px 1fr 1.1fr 1.1fr 80px 90px;gap:0;font-size:11.5px;padding:10px 14px;border-bottom:0.5px solid var(--border);align-items:center;">
+                <span style="color:var(--text-2);font-variant-numeric:tabular-nums;">27 Feb 2026</span>
+                <span style="color:var(--text-1);">Reorder Q3 (Wk 6)</span>
+                <span style="color:var(--text-1);font-weight:600;">33.6 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">(85.6kg)</span></span>
+                <span style="color:var(--text-1);font-weight:600;">33.6 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">94% conf.</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:3px;">0.0</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:2px 7px;border-radius:3px;letter-spacing:0.3px;">OK</span></span>
+              </div>
+
+              <!-- Row 5 — Wk 8 -->
+              <div style="display:grid;grid-template-columns:90px 1fr 1.1fr 1.1fr 80px 90px;gap:0;font-size:11.5px;padding:10px 14px;border-bottom:0.5px solid var(--border);align-items:center;">
+                <span style="color:var(--text-2);font-variant-numeric:tabular-nums;">13 Mar 2026</span>
+                <span style="color:var(--text-1);">Reorder Q3 (Wk 8)</span>
+                <span style="color:var(--text-1);font-weight:600;">33.5 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">(85.3kg)</span></span>
+                <span style="color:var(--text-1);font-weight:600;">33.5 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">95% conf.</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:3px;">0.0</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:2px 7px;border-radius:3px;letter-spacing:0.3px;">OK</span></span>
+              </div>
+
+              <!-- Row 6 — Wk 10 DIVERGENCE -->
+              <div style="display:grid;grid-template-columns:90px 1fr 1.1fr 1.1fr 80px 90px;gap:0;font-size:11.5px;padding:10px 14px;border-bottom:0.5px solid var(--border);align-items:center;background:var(--amber-bg);">
+                <span style="color:var(--amber);font-variant-numeric:tabular-nums;font-weight:600;">27 Mar 2026</span>
+                <span style="color:var(--text-1);">Reorder Q3 (Wk 10) <span style="font-size:9px;font-weight:700;background:var(--amber);color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;letter-spacing:0.3px;">⚠ DIVERGENCE</span></span>
+                <span style="color:var(--text-1);font-weight:600;">33.4 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">(85.0kg)</span></span>
+                <span style="color:var(--amber);font-weight:600;">34.0 kg/m² <span style="font-size:10px;color:var(--amber);font-weight:400;">76% conf.</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--amber);color:#fff;padding:1px 6px;border-radius:3px;">+0.6</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--amber);color:#fff;padding:2px 7px;border-radius:3px;letter-spacing:0.3px;">B-FLAG</span></span>
+              </div>
+
+              <!-- Row 7 — Wk 12 -->
+              <div style="display:grid;grid-template-columns:90px 1fr 1.1fr 1.1fr 80px 90px;gap:0;font-size:11.5px;padding:10px 14px;border-bottom:0.5px solid var(--border);align-items:center;">
+                <span style="color:var(--text-2);font-variant-numeric:tabular-nums;">10 Apr 2026</span>
+                <span style="color:var(--text-1);">Reorder Q3 (Wk 12)</span>
+                <span style="color:var(--text-1);font-weight:600;">33.2 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">(84.6kg)</span></span>
+                <span style="color:var(--text-1);font-weight:600;">33.2 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">93% conf.</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:3px;">0.0</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:2px 7px;border-radius:3px;letter-spacing:0.3px;">OK</span></span>
+              </div>
+
+              <!-- Row 8 — current -->
+              <div style="display:grid;grid-template-columns:90px 1fr 1.1fr 1.1fr 80px 90px;gap:0;font-size:11.5px;padding:10px 14px;align-items:center;background:var(--brand-light);">
+                <span style="color:var(--brand-dark);font-variant-numeric:tabular-nums;font-weight:600;">04 May 2026</span>
+                <span style="color:var(--text-1);font-weight:600;">Reorder Q3 (current) <span style="font-size:9px;font-weight:700;background:var(--brand);color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;letter-spacing:0.3px;">CURRENT</span></span>
+                <span style="color:var(--text-1);font-weight:600;">29.5 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">(85.3kg)</span></span>
+                <span style="color:var(--text-1);font-weight:600;">29.5 kg/m² <span style="font-size:10px;color:var(--text-3);font-weight:400;">94% conf.</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:3px;">0.0</span></span>
+                <span><span style="font-size:9px;font-weight:700;background:var(--amber-bg);color:var(--amber);padding:2px 7px;border-radius:3px;letter-spacing:0.3px;border:0.5px solid var(--amber-border);">B4</span></span>
+              </div>
+
+              <div style="padding:10px 14px;font-size:11px;color:var(--text-3);background:var(--surface-2);border-top:0.5px solid var(--border);line-height:1.45;">
+                <strong style="color:var(--text-2);">Status legend:</strong> OK (sources agree, no Primed flag) · B-FLAG (general BMI concern) · B1 BMI Missing · B2 BMI Outdated · B3 Low BMI Initial · B4 Low BMI Repeat. Per Annex E. Photos for each row open inline (consent permitting).
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ORDERS TAB ── -->
+        <div class="tab-panel" id="tab-orders">
+          <div class="scard" style="background: var(--brand-light); border-color: var(--brand-mid);">
+            <div class="scard-head" style="border-bottom: 0.5px solid rgba(99,102,241,0.18);">
+              <div class="scard-title" style="color: var(--brand-dark);">📋 Patient questionnaire responses</div>
+              <div class="scard-sub" style="color: var(--brand-dark);">Reorder check-in v3 · last submitted 07 Apr 2026</div>
+            </div>
+            <div style="padding: 12px 16px; font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <span>Patient saw v3 of the Reorder questionnaire when placing Order 6.</span>
+              <a href="livera_scr_questionnaire_builder.html" class="q-link">📋 View questionnaire structure</a>
+              <span style="color: var(--text-3);">·</span>
+              <a href="#" class="q-link" onclick="showToast('Opens raw answers for ORD-00441');return false;">▤ View raw answers (Order 6)</a>
+            </div>
+          </div>
+
+          <div class="scard">
+            <div class="scard-head">
+              <div class="scard-title">Order history</div>
+              <div class="scard-sub">6 orders · all Mounjaro 5mg</div>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="order-table">
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Product</th>
+                    <th>Weight in</th>
+                    <th>Loss</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Prescriber</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr onclick="window.location='livera_prototype_01c_order_review_weight_chart.html'">
+                    <td style="font-weight:600;">#ORD-00441</td>
+                    <td>Mounjaro 5mg</td>
+                    <td>85.3kg</td>
+                    <td style="color:var(--amber);font-weight:500;">4.1% ⚠</td>
+                    <td><span class="status-chip sc-cc">Clinical Check</span></td>
+                    <td>07 Apr 2026</td>
+                    <td style="color:var(--text-3);">Pending</td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight:600;">#ORD-00398</td>
+                    <td>Mounjaro 5mg</td>
+                    <td>85.9kg</td>
+                    <td style="color:var(--green);font-weight:500;">↓ 0.6kg</td>
+                    <td><span class="status-chip sc-de">Delivered</span></td>
+                    <td>10 Mar 2026</td>
+                    <td>C. Moynehan</td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight:600;">#ORD-00356</td>
+                    <td>Mounjaro 5mg</td>
+                    <td>86.2kg</td>
+                    <td style="color:var(--green);font-weight:500;">↓ 0.6kg</td>
+                    <td><span class="status-chip sc-de">Delivered</span></td>
+                    <td>10 Feb 2026</td>
+                    <td>C. Moynehan</td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight:600;">#ORD-00312</td>
+                    <td>Mounjaro 5mg</td>
+                    <td>86.8kg</td>
+                    <td style="color:var(--green);font-weight:500;">↓ 0.6kg</td>
+                    <td><span class="status-chip sc-de">Delivered</span></td>
+                    <td>10 Jan 2026</td>
+                    <td>C. Moynehan</td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight:600;">#ORD-00278</td>
+                    <td>Mounjaro 5mg</td>
+                    <td>87.4kg</td>
+                    <td style="color:var(--green);font-weight:500;">↓ 0.7kg</td>
+                    <td><span class="status-chip sc-de">Delivered</span></td>
+                    <td>26 Feb 2026</td>
+                    <td>C. Moynehan</td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight:600;">#ORD-00241</td>
+                    <td>Mounjaro 5mg</td>
+                    <td>88.9kg</td>
+                    <td style="color:var(--text-3);">Baseline</td>
+                    <td><span class="status-chip sc-de">Delivered</span></td>
+                    <td>28 Jan 2026</td>
+                    <td>C. Moynehan</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── INCIDENTS TAB ── -->
+        <div class="tab-panel" id="tab-incidents">
+          <div class="scard">
+            <div class="scard-head">
+              <div class="scard-title">Incidents</div>
+              <div class="scard-sub">1 open · 1 resolved</div>
+            </div>
+            <div class="scard-body" style="padding-top:4px;">
+              <div class="inc-row">
+                <div class="inc-sev is-mild">Mild</div>
+                <div class="inc-name" style="flex:1;">
+                  <div style="font-size:12px;font-weight:500;">Nausea reported — weeks 2–4</div>
+                  <div style="font-size:11px;color:var(--text-3);">INC-0041 · linked to ORD-00278</div>
+                </div>
+                <div class="inc-date">Feb 2026</div>
+                <div class="inc-status-chip is-res" style="margin-left:8px;">Resolved</div>
+              </div>
+              <div class="inc-row">
+                <div class="inc-sev is-mild">Mild</div>
+                <div class="inc-name" style="flex:1;">
+                  <div style="font-size:12px;font-weight:500;">Injection site bruising noted</div>
+                  <div style="font-size:11px;color:var(--text-3);">INC-0044 · linked to ORD-00356</div>
+                </div>
+                <div class="inc-date">Mar 2026</div>
+                <div class="inc-status-chip is-open" style="margin-left:8px;">Open</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:8px 0;">
+            <button class="btn-sm" style="width:100%;justify-content:center;">+ Log new incident</button>
+          </div>
+        </div>
+
+        <!-- ── COMPLIANCE TAB ── -->
+        <div class="tab-panel" id="tab-compliance">
+          <div class="scard">
+            <div class="scard-head">
+              <div class="scard-title">Patient-level compliance record</div>
+              <div class="scard-sub">AUD-01 · 02 · 03 · 04 · 18 · 19</div>
+            </div>
+            <div class="scard-body">
+              <div class="comp-item pa"><div class="comp-ico">✓</div><div><div class="comp-name">Consent complete — AUD-02</div><div class="comp-detail">All 4 types · v2.1 · 28 Jan 2026 · timestamped</div></div></div>
+              <div class="comp-item pa"><div class="comp-ico">✓</div><div><div class="comp-name">Identity verified — AUD-19</div><div class="comp-detail">SumSub · UK Driving Licence · 94% · before first Rx</div></div></div>
+              <div class="comp-item pa"><div class="comp-ico">✓</div><div><div class="comp-name">Remote assessment documented — AUD-18</div><div class="comp-detail">All 6 orders · remote form + digital consent · prescriber notes on file</div></div></div>
+              <div class="comp-item pa"><div class="comp-ico">✓</div><div><div class="comp-name">GP letter sent — AUD-03</div><div class="comp-detail">28 Jan 2026 · Robin Lane H&amp;W · within 7 days of first Rx</div></div></div>
+              <div class="comp-item pa"><div class="comp-ico">✓</div><div><div class="comp-name">Check-in adherence — AUD-04</div><div class="comp-detail">100% · 6 of 6 check-ins completed on time</div></div></div>
+              <div class="comp-item wa"><div class="comp-ico">!</div><div><div class="comp-name">Weight outcome — AUD-04</div><div class="comp-detail">4.1% at week 14 · below NICE ≥5% target · prescriber review pending</div></div></div>
+              <div class="comp-item wa"><div class="comp-ico">!</div><div><div class="comp-name">NICE CG189 eligibility — AUD-01</div><div class="comp-detail">BMI 29.5 · comorbidity (hypertension) documented · clinical note on file</div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── NOTES TAB ── -->
+        <div class="tab-panel" id="tab-notes">
+          <div class="scard">
+            <div class="scard-head">
+              <div class="scard-title">Clinical notes</div>
+            </div>
+            <div class="scard-body">
+              <div class="note-item">
+                <div class="note-meta"><span>Claire Moynehan · Prescriber</span><span>02 Apr 2026 · 11:14</span></div>
+                <div class="note-text">Patient called to discuss weight loss trajectory. Reassured that 4.1% is above the 3% minimum and trajectory is consistent. Advised to continue current dose — will review escalation to 7.5mg at Order 7 if progress plateaus.</div>
+              </div>
+              <div class="note-item">
+                <div class="note-meta"><span>Admin</span><span>10 Mar 2026 · 09:32</span></div>
+                <div class="note-text">Patient queried delivery timing for Order 5. Confirmed dispatched same day as approval. Primed tracking reference SHIP-00812 provided.</div>
+              </div>
+              <div class="note-item">
+                <div class="note-meta"><span>Claire Moynehan · Prescriber</span><span>15 Feb 2026 · 14:45</span></div>
+                <div class="note-text">Reviewed nausea incident INC-0041. Advised patient to inject in the evening and ensure adequate hydration. Nausea resolved by week 6.</div>
+              </div>
+              <div style="margin-top:10px;">
+                <textarea class="note-input" placeholder="Add a clinical note…" rows="3"></textarea>
+                <div style="margin-top:6px;display:flex;justify-content:flex-end;">
+                  <button class="btn-sm primary">Save note</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── COACHING LOG TAB (BLD-2.6 · FeelTru only) ── -->
+        <div class="tab-panel coach-only" id="tab-coaching">
+
+          <!-- BLD-CALENDLY-MIRROR-01: Upcoming Calendly bookings -->
+          <div class="scard" style="border-left:3px solid #006bff;">
+            <div class="scard-head" style="display:flex;align-items:center;">
+              <div style="flex:1;">
+                <div class="scard-title">📅 Upcoming Calendly bookings <span style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;color:#1e40af;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;border:0.5px solid #bfdbfe;margin-left:8px;letter-spacing:0.3px;text-transform:uppercase;">2 scheduled</span></div>
+                <div class="scard-sub">Mirrored from Calendly via webhook · BLD-CALENDLY-MIRROR-01</div>
+              </div>
+              <a href="livera_settings_calendly.html" style="font-size:11px;color:var(--brand-dark);text-decoration:none;font-weight:600;">Webhook config ↗</a>
+            </div>
+            <div class="scard-body" style="padding-top:6px;">
+
+              <!-- Upcoming booking 1 -->
+              <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 14px;background:#eff6ff;border:0.5px solid #bfdbfe;border-radius:8px;margin-bottom:10px;">
+                <div style="background:#006bff;color:#fff;border-radius:8px;padding:9px 13px;text-align:center;flex-shrink:0;font-size:11px;font-weight:600;line-height:1.2;">
+                  <div style="font-size:18px;font-weight:800;line-height:1;">26</div>
+                  <div style="margin-top:3px;text-transform:uppercase;letter-spacing:0.4px;">May</div>
+                </div>
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:600;color:#0d0d0d;">Coaching session · 30-min check-in</div>
+                  <div style="font-size:11px;color:var(--text-2);margin-top:3px;">Mon 26 May · 11:00–11:30 BST · Sarah Wentworth (Coach)</div>
+                  <div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;">
+                    <span style="font-size:10px;font-weight:600;background:#fff;color:#1e40af;padding:2px 7px;border-radius:4px;border:0.5px solid #bfdbfe;">Calendly event · evt_8a3f72e1</span>
+                    <span style="font-size:10px;font-weight:600;background:#fff;color:var(--text-2);padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-strong);">Patient self-booked</span>
+                    <span style="font-size:10px;font-weight:600;background:#fff;color:var(--text-2);padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-strong);">Booked 03 May 14:18</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;">
+                  <a href="#" target="_blank" rel="noopener" style="font-size:11px;color:#006bff;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:3px;">↗ Join Calendly link</a>
+                  <span style="font-size:10px;color:var(--text-3);">16d away</span>
+                </div>
+              </div>
+
+              <!-- Upcoming booking 2 -->
+              <div style="display:flex;align-items:flex-start;gap:14px;padding:12px 14px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:8px;margin-bottom:6px;">
+                <div style="background:#94a3b8;color:#fff;border-radius:8px;padding:9px 13px;text-align:center;flex-shrink:0;font-size:11px;font-weight:600;line-height:1.2;">
+                  <div style="font-size:18px;font-weight:800;line-height:1;">23</div>
+                  <div style="margin-top:3px;text-transform:uppercase;letter-spacing:0.4px;">Jun</div>
+                </div>
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:600;color:#0d0d0d;">Coaching session · 30-min check-in</div>
+                  <div style="font-size:11px;color:var(--text-2);margin-top:3px;">Mon 23 Jun · 11:00–11:30 BST · Sarah Wentworth (Coach)</div>
+                  <div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;">
+                    <span style="font-size:10px;font-weight:600;background:#fff;color:var(--text-2);padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-strong);">Calendly event · evt_9c2d18f4</span>
+                    <span style="font-size:10px;font-weight:600;background:#fff;color:var(--text-2);padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-strong);">Patient self-booked</span>
+                    <span style="font-size:10px;font-weight:600;background:#fff;color:var(--text-2);padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-strong);">Booked 28 Apr 09:42</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;">
+                  <span style="font-size:10px;color:var(--text-3);">44d away</span>
+                </div>
+              </div>
+
+              <!-- Webhook footer explainer -->
+              <div style="margin-top:10px;padding:8px 12px;font-size:10.5px;color:var(--text-3);line-height:1.5;border-top:0.5px dashed var(--border);">
+                Bookings synced live via Calendly webhook events: <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2);padding:1px 4px;border-radius:3px;font-size:10px;">invitee.created</code> · <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2);padding:1px 4px;border-radius:3px;font-size:10px;">invitee.canceled</code> · <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2);padding:1px 4px;border-radius:3px;font-size:10px;">invitee_no_show.created</code>. Cancellations and no-shows automatically update this list. Coach writes a log entry below after each completed session.
+              </div>
+
+            </div>
+          </div>
+          <!-- /BLD-CALENDLY-MIRROR-01 -->
+
+          <div class="scard">
+            <div class="scard-head">
+              <div class="scard-title">Coaching log entries</div>
+              <div class="scard-sub">3 entries · last 90 days</div>
+            </div>
+            <div class="scard-body">
+
+              <!-- Entry 1: routine check-in (latest, no flag) -->
+              <div class="clog-item">
+                <div class="clog-meta">
+                  <span class="clog-type routine">Routine check-in</span>
+                  <span class="clog-author">Sarah Wentworth · Coach</span>
+                  <span class="clog-time">28 Apr 2026 · 11:20</span>
+                  <span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;background:#eff6ff;color:#1e40af;padding:2px 7px;border-radius:4px;border:0.5px solid #bfdbfe;font-family:'SF Mono',Menlo,monospace;">📅 evt_71d49a82</span>
+                </div>
+                <div class="clog-summary">Patient reports feeling motivated. Weight loss on track at week 18. Discussed strategies for managing weekend meals out. No side effects this cycle. Patient happy to continue current dose.</div>
+                <div class="clog-chips">
+                  <span class="clog-chip">Mood: <strong>Positive</strong></span>
+                  <span class="clog-chip">Adherence: <strong>Excellent</strong></span>
+                  <span class="clog-chip">Side effects: <strong>None</strong></span>
+                  <span class="clog-chip">Weight: <strong>85.3kg</strong></span>
+                  <span class="clog-chip">Duration: <strong>22 min</strong></span>
+                </div>
+                <div class="clog-action">📅 Next check-in scheduled: 26 May 2026</div>
+              </div>
+
+              <!-- Entry 2: routine check-in with escalation flag -->
+              <div class="clog-item">
+                <div class="clog-meta">
+                  <span class="clog-type routine">Routine check-in</span>
+                  <span class="clog-author">Sarah Wentworth · Coach</span>
+                  <span class="clog-time">31 Mar 2026 · 14:45</span>
+                </div>
+                <div class="clog-summary">Patient queried weight loss trajectory — concerned 4.1% feels slow. Reassured patient that progress is above the 3% NICE minimum and consistent with expected curve. Patient also asked about potential dose escalation at Order 7 if progress plateaus.</div>
+                <div class="clog-chips">
+                  <span class="clog-chip">Mood: <strong>Concerned</strong></span>
+                  <span class="clog-chip">Adherence: <strong>Good</strong></span>
+                  <span class="clog-chip">Side effects: <strong>None</strong></span>
+                  <span class="clog-chip">Weight: <strong>85.9kg</strong></span>
+                  <span class="clog-chip">Duration: <strong>28 min</strong></span>
+                </div>
+                <div class="clog-flag">⚠ Clinical escalation raised → Claire Moynehan · resolved 02 Apr 2026 (within 24h SLA)</div>
+              </div>
+
+              <!-- Entry 3: missed attempt -->
+              <div class="clog-item">
+                <div class="clog-meta">
+                  <span class="clog-type missed">Missed attempt</span>
+                  <span class="clog-author">Sarah Wentworth · Coach</span>
+                  <span class="clog-time">28 Feb 2026 · 09:30</span>
+                </div>
+                <div class="clog-summary">Attempted scheduled check-in call. No answer. Voicemail left and follow-up SMS sent. Patient responded later same day to reschedule for the following week.</div>
+                <div class="clog-chips">
+                  <span class="clog-chip">Outcome: <strong>Rescheduled</strong></span>
+                  <span class="clog-chip">Duration: <strong>—</strong></span>
+                </div>
+                <div class="clog-action">📅 Rescheduled to: 03 Mar 2026 (completed)</div>
+              </div>
+
+              <div style="margin-top:12px;">
+                <button class="btn-sm primary" style="width:100%;justify-content:center;" onclick="openModal('coaching')">+ Log coaching check-in</button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ── INTERCOM TAB ── -->
+        <!-- ── PHARMACY COMMS TAB (BLD-16.9, patient-anchored) ── -->
+        <div class="tab-panel" id="tab-pharmacy-comms">
+          <div class="scard">
+            <div class="scard-head" style="display:flex; align-items:flex-start; gap:12px;">
+              <div>
+                <div class="scard-title">Pharmacy Comms — patient-anchored threads</div>
+                <div class="scard-sub">Cross-order conversations with Primed about this patient · audit-grade record</div>
+              </div>
+              <button class="btn-sm" style="margin-left:auto;" onclick="openOutboundComposeModal()">📨 New thread</button>
+            </div>
+            <div class="scard-body" style="padding:0;">
+
+              <!-- Thread 1 — outbound, patient-level address change -->
+              <div style="border-bottom:0.5px solid var(--border); padding:14px 18px;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                  <span style="font-family:monospace; font-size:11px; color:var(--text-3);">PCM-PT-0042</span>
+                  <span style="font-size:11px; color:var(--text-2);">Outbound · Address change</span>
+                  <span style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; background:#fffbeb; color:#b45309; border:0.5px solid #fde68a; margin-left:auto;">Awaiting Primed response · SLA 24h</span>
+                </div>
+                <div style="font-size:13px; color:var(--text-1); margin-bottom:8px; line-height:1.5;">
+                  "Patient has moved address. New address: <strong>14 New Lane, LS18 4FJ, Leeds</strong>. Please use new address on all in-flight and future orders. Old address (3 Old Road, LS6) is no longer valid."
+                </div>
+                <div style="font-size:11px; color:var(--text-3); display:flex; gap:12px;">
+                  <span>Sent by Charlotte Williams · Prescriber</span>
+                  <span>06 May 2026 · 11:14</span>
+                  <a href="livera_pharmacy_comms_thread.html#PCM-PT-0042" style="margin-left:auto;color:var(--brand);font-weight:600;text-decoration:none;font-size:11px;">View full thread →</a>
+                </div>
+              </div>
+
+              <!-- Thread 2 — inbound from Primed, patient-level query -->
+              <div style="border-bottom:0.5px solid var(--border); padding:14px 18px;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                  <span style="font-family:monospace; font-size:11px; color:var(--text-3);">PCM-PT-0038</span>
+                  <span style="font-size:11px; color:var(--text-2);">Inbound from Primed · CD note</span>
+                  <span style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; background:#f0fdf4; color:#166534; border:0.5px solid #86efac; margin-left:auto;">Resolved</span>
+                </div>
+                <div style="font-size:13px; color:var(--text-1); margin-bottom:8px; line-height:1.5;">
+                  Hassan Patel (RP, Primed): "Patient identified as CD-controlled drug recipient. Confirming we have correct ID record on file for collection. No action required."
+                </div>
+                <div style="font-size:11px; color:var(--text-3); display:flex; gap:12px;">
+                  <span>From Hassan Patel, Responsible Pharmacist</span>
+                  <span>28 Apr 2026 · 09:42</span>
+                  <a href="livera_pharmacy_comms_thread.html#PCM-PT-0038" style="margin-left:auto;color:var(--brand);font-weight:600;text-decoration:none;font-size:11px;">View full thread →</a>
+                </div>
+              </div>
+
+              <!-- Empty state placeholder if no more -->
+              <div style="padding:18px; text-align:center; color:var(--text-3); font-size:12px; background:var(--surface-2);">
+                Order-specific threads (about a specific order rather than the patient overall) live on the relevant Order Detail page → Pharmacy Comms tab.
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="tab-intercom">
+          <div class="scard">
+            <div class="scard-head">
+              <div class="scard-title">Intercom conversations</div>
+              <div class="scard-sub">Live feed · 📎 indicates patient-sent photo evidence</div>
+            </div>
+            <div class="scard-body" style="padding-top:4px;">
+              <!-- BLD-INTERCOM-PHOTO-01: photo-bearing conversation rows are clickable -->
+              <div class="inc-row" onclick="openPhotoModal('CONV-00812')" style="cursor:pointer;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
+                <div style="flex:1;">
+                  <div style="font-size:12px;font-weight:500;">#CONV-00812 — Delivery query</div>
+                  <div style="font-size:11px;color:var(--text-3);">When will my order arrive? · Closed · Admin</div>
+                </div>
+                <div class="inc-date">10 Mar 2026</div>
+                <div class="inc-status-chip is-res" style="margin-left:8px;">Closed</div>
+              </div>
+              <div class="inc-row" onclick="openPhotoModal('CONV-00824')" style="cursor:pointer;background:#fffbeb;border-left:3px solid #f59e0b;padding-left:10px;" onmouseover="this.style.background='#fef3c7'" onmouseout="this.style.background='#fffbeb'">
+                <div style="flex:1;">
+                  <div style="font-size:12px;font-weight:500;">#CONV-00824 — Injection site reaction <span style="display:inline-flex;align-items:center;gap:3px;background:#f59e0b;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:6px;text-transform:uppercase;letter-spacing:0.4px;">📎 2 photos</span></div>
+                  <div style="font-size:11px;color:var(--text-3);">Patient sent photos of injection site swelling · Open · Claire M</div>
+                </div>
+                <div class="inc-date">04 May 2026</div>
+                <div class="inc-status-chip is-open" style="margin-left:8px;">Open</div>
+              </div>
+              <div class="inc-row" onclick="openPhotoModal('CONV-00798')" style="cursor:pointer;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
+                <div style="flex:1;">
+                  <div style="font-size:12px;font-weight:500;">#CONV-00798 — Weight evidence <span style="display:inline-flex;align-items:center;gap:3px;background:#0d6dff;color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:6px;text-transform:uppercase;letter-spacing:0.4px;">📎 photo · attached as evidence</span></div>
+                  <div style="font-size:11px;color:var(--text-3);">Scale photo for monthly check-in · Closed · Admin</div>
+                </div>
+                <div class="inc-date">28 Apr 2026</div>
+                <div class="inc-status-chip is-res" style="margin-left:8px;">Closed</div>
+              </div>
+              <div class="inc-row">
+                <div style="flex:1;">
+                  <div style="font-size:12px;font-weight:500;">#CONV-00743 — Side effect query</div>
+                  <div style="font-size:11px;color:var(--text-3);">Feeling nauseous, is this normal? · Closed · Claire M</div>
+                </div>
+                <div class="inc-date">14 Feb 2026</div>
+                <div class="inc-status-chip is-res" style="margin-left:8px;">Closed</div>
+              </div>
+              <div class="inc-row">
+                <div style="flex:1;">
+                  <div style="font-size:12px;font-weight:500;">#CONV-00698 — Dose question</div>
+                  <div style="font-size:11px;color:var(--text-3);">Can I increase my dose? · Closed · Claire M</div>
+                </div>
+                <div class="inc-date">20 Jan 2026</div>
+                <div class="inc-status-chip is-res" style="margin-left:8px;">Closed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  <!-- ── FAB ── -->
+  <div class="fab-wrap">
+    <div class="fab-actions" id="fab-actions">
+      <div class="fab-action" onclick="openModal('note')">
+        <div class="fab-action-label">Create clinical note</div>
+        <button class="fab-icon-btn green">📋</button>
+      </div>
+      <div class="fab-action coach-only" onclick="openModal('coaching')">
+        <div class="fab-action-label">Log coaching check-in</div>
+        <button class="fab-icon-btn brand">💬</button>
+      </div>
+      <div class="fab-action" onclick="openModal('incident')">
+        <div class="fab-action-label">Log incident</div>
+        <button class="fab-icon-btn amber">⚠</button>
+      </div>
+      <div class="fab-action" onclick="openModal('consult')">
+        <div class="fab-action-label">Schedule consultation</div>
+        <button class="fab-icon-btn blue">📅</button>
+      </div>
+      <div class="fab-action" onclick="openModal('gpletter')">
+        <div class="fab-action-label">Send GP letter</div>
+        <button class="fab-icon-btn purple">✉</button>
+      </div>
+      <div class="fab-action" onclick="openModal('review')">
+        <div class="fab-action-label">Review current order</div>
+        <button class="fab-icon-btn teal">🔍</button>
+      </div>
+      <div class="fab-action" onclick="openModal('impersonate')">
+        <div class="fab-action-label">Impersonate patient</div>
+        <button class="fab-icon-btn red">👤</button>
+      </div>
+    </div>
+    <button class="fab-main" id="fab-main" onclick="toggleFAB()">+</button>
+  </div>
+
+  <!-- FAB Toast -->
+  <div class="fab-toast" id="fab-toast"></div>
+
+  <!-- BLD-INTERCOM-PHOTO-01: Intercom photo viewer + attach-to-evidence modal -->
+  <div class="fab-modal-overlay" id="modal-intercom-photo" onclick="closeModalOutside(event,'modal-intercom-photo')">
+    <div class="fab-modal" style="max-width:720px;width:92%;">
+      <div class="fab-modal-head">
+        <div class="fab-modal-icon" style="background:#fffbeb;">📎</div>
+        <div class="fab-modal-title">Intercom photo · <span id="photo-conv-id" style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;color:var(--text-2);">CONV-00824</span></div>
+        <button class="fab-modal-close" onclick="closeModal('intercom-photo')">✕</button>
+      </div>
+      <div class="fab-modal-body" style="padding:0;">
+
+        <!-- Source banner -->
+        <div style="padding:10px 16px;background:#eff6ff;border-bottom:0.5px solid #bfdbfe;font-size:11px;color:#1e40af;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:14px;">💬</span>
+          <span>Source: Intercom · photo retained on Intercom side · Livera stores reference + clinical context only.</span>
+        </div>
+
+        <!-- Photo strip + meta side by side -->
+        <div style="display:grid;grid-template-columns:1fr 280px;gap:0;align-items:stretch;">
+
+          <!-- Photo viewer -->
+          <div style="background:#0d0d0d;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;min-height:340px;position:relative;">
+            <!-- Placeholder image (representative — not a real photo) -->
+            <svg viewBox="0 0 320 280" style="max-width:100%;height:auto;border-radius:8px;background:#fef3c7;" xmlns="http://www.w3.org/2000/svg">
+              <rect width="320" height="280" fill="#fef3c7"/>
+              <ellipse cx="160" cy="150" rx="92" ry="78" fill="#fde68a"/>
+              <ellipse cx="160" cy="150" rx="64" ry="52" fill="#fbbf24" opacity="0.55"/>
+              <circle cx="160" cy="150" r="32" fill="#dc2626" opacity="0.45"/>
+              <circle cx="160" cy="150" r="14" fill="#dc2626"/>
+              <text x="160" y="248" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" fill="#92400e" font-weight="600">[ Patient-sent photo · injection site ]</text>
+            </svg>
+            <div style="margin-top:14px;display:flex;gap:8px;align-items:center;">
+              <button onclick="cyclePhoto(-1)" style="background:rgba(255,255,255,0.1);border:0.5px solid rgba(255,255,255,0.2);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;">← Previous</button>
+              <span style="color:rgba(255,255,255,0.7);font-size:12px;font-family:ui-monospace,'SF Mono',monospace;"><span id="photo-idx">1</span> / 2</span>
+              <button onclick="cyclePhoto(1)" style="background:rgba(255,255,255,0.1);border:0.5px solid rgba(255,255,255,0.2);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;">Next →</button>
+            </div>
+          </div>
+
+          <!-- Meta + actions -->
+          <div style="background:var(--surface);padding:18px;display:flex;flex-direction:column;gap:14px;border-left:0.5px solid var(--border);">
+
+            <!-- Conversation context -->
+            <div>
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-3);font-weight:600;margin-bottom:6px;">Conversation</div>
+              <div style="font-size:13px;font-weight:600;color:var(--text-1);">Injection site reaction</div>
+              <div style="font-size:11px;color:var(--text-2);margin-top:3px;">Started by Sarah Cookland · 04 May 2026 · 16:42 BST</div>
+              <div style="font-size:11px;color:var(--text-2);">Assigned: Claire Moynehan</div>
+            </div>
+
+            <!-- Photo metadata -->
+            <div style="border-top:0.5px solid var(--border);padding-top:12px;">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-3);font-weight:600;margin-bottom:6px;">Photo metadata</div>
+              <div style="display:grid;grid-template-columns:80px 1fr;gap:5px 10px;font-size:11px;">
+                <div style="color:var(--text-3);">Sent</div><div style="color:var(--text-1);">04 May · 16:43</div>
+                <div style="color:var(--text-3);">Format</div><div style="color:var(--text-1);">JPEG · 1.8 MB</div>
+                <div style="color:var(--text-3);">Filename</div><div style="color:var(--text-1);font-family:ui-monospace,'SF Mono',monospace;font-size:10px;">IMG_3847.jpeg</div>
+                <div style="color:var(--text-3);">Asset ID</div><div style="color:var(--text-1);font-family:ui-monospace,'SF Mono',monospace;font-size:10px;">ic_asset_b3f8a1e</div>
+              </div>
+            </div>
+
+            <!-- Existing evidence status -->
+            <div id="evidence-status-not" style="border-top:0.5px solid var(--border);padding-top:12px;">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-3);font-weight:600;margin-bottom:6px;">Evidence status</div>
+              <div style="font-size:12px;color:var(--text-2);padding:8px 10px;background:var(--surface-2);border-radius:6px;">Not yet attached as clinical evidence.</div>
+            </div>
+            <div id="evidence-status-yes" style="display:none;border-top:0.5px solid var(--border);padding-top:12px;">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#166534;font-weight:600;margin-bottom:6px;">✓ Attached as evidence</div>
+              <div style="font-size:11px;color:var(--text-2);padding:8px 10px;background:#f0fdf4;border:0.5px solid #86efac;border-radius:6px;line-height:1.5;">
+                Reference written to Notes timeline · attribution: <strong>Claire Moynehan · NMC 1234567</strong> · timestamp <strong id="att-time">10 May 14:32</strong>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Attach-to-evidence form -->
+        <div style="padding:16px 18px;border-top:0.5px solid var(--border);background:#fafaf9;">
+          <div style="font-size:12px;font-weight:600;color:var(--text-1);margin-bottom:10px;">Attach to evidence</div>
+          <div style="display:grid;grid-template-columns:140px 1fr;gap:10px 12px;align-items:center;font-size:12px;">
+
+            <div style="color:var(--text-2);font-weight:500;">Evidence type</div>
+            <select style="padding:7px 10px;border:0.5px solid var(--border-strong);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+              <option>Injection site evidence</option>
+              <option>Weight evidence (scale photo)</option>
+              <option>Side effect evidence</option>
+              <option>Identity evidence</option>
+              <option>Other clinical evidence</option>
+            </select>
+
+            <div style="color:var(--text-2);font-weight:500;">Link to</div>
+            <select style="padding:7px 10px;border:0.5px solid var(--border-strong);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;">
+              <option>ORD-00441 · Mounjaro 5mg · current</option>
+              <option>INC-00347 · Suspected allergic reaction</option>
+              <option>(no link · standalone)</option>
+            </select>
+
+            <div style="color:var(--text-2);font-weight:500;align-self:start;padding-top:7px;">Clinical note</div>
+            <textarea placeholder="Brief context — what does this photo show, what action is required..." style="padding:8px 10px;border:0.5px solid var(--border-strong);border-radius:6px;font-size:12px;font-family:inherit;line-height:1.5;background:#fff;resize:vertical;min-height:60px;"></textarea>
+
+          </div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:10px;line-height:1.5;">
+            Attaching writes a structured Note entry referencing this Intercom asset. Photo file remains in Intercom — Livera stores the reference, evidence type, link target, and your note. Action audited to AUD-04.
+          </div>
+        </div>
+      </div>
+      <div class="fab-modal-foot">
+        <button class="fab-btn" onclick="closeModal('intercom-photo')">Cancel</button>
+        <a href="#" target="_blank" rel="noopener" class="fab-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">↗ Open in Intercom</a>
+        <button class="fab-btn primary" onclick="attachAsEvidence()">Attach as evidence</button>
+      </div>
+    </div>
+  </div>
+  <!-- /BLD-INTERCOM-PHOTO-01 -->
+
+  <!-- Modal: Clinical Note -->
+  <div class="fab-modal-overlay" id="modal-note" onclick="closeModalOutside(event,'modal-note')">
+    <div class="fab-modal">
+      <div class="fab-modal-head">
+        <div class="fab-modal-icon" style="background:var(--green-bg);">📋</div>
+        <div class="fab-modal-title">Create clinical note — Sarah Cookland</div>
+        <button class="fab-modal-close" onclick="closeModal('note')">✕</button>
+      </div>
+      <div class="fab-modal-body">
+        <div class="fab-field">
+          <div class="fab-label">Note type</div>
+          <select class="fab-select">
+            <option>Clinical observation</option>
+            <option>Patient communication</option>
+            <option>Prescribing decision</option>
+            <option>Incident follow-up</option>
+            <option>General</option>
+          </select>
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Note</div>
+          <textarea class="fab-textarea" placeholder="Document your clinical observation or communication with the patient…" rows="4"></textarea>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);padding:6px 10px;background:var(--surface-2);border-radius:var(--r-sm);">Note will be timestamped and attributed to Claire Moynehan · NMC 1234567 · stored permanently on patient record.</div>
+      </div>
+      <div class="fab-modal-foot">
+        <button class="fab-btn" onclick="closeModal('note')">Cancel</button>
+        <button class="fab-btn primary" onclick="submitModal('note','Clinical note saved')">Save note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Incident -->
+  <div class="fab-modal-overlay" id="modal-incident" onclick="closeModalOutside(event,'modal-incident')">
+    <div class="fab-modal">
+      <div class="fab-modal-head">
+        <div class="fab-modal-icon" style="background:var(--amber-bg);">⚠</div>
+        <div class="fab-modal-title">Log incident — Sarah Cookland</div>
+        <button class="fab-modal-close" onclick="closeModal('incident')">✕</button>
+      </div>
+      <div class="fab-modal-body">
+        <div class="fab-field">
+          <div class="fab-label">Incident type</div>
+          <select class="fab-select">
+            <option>Side effect — mild</option>
+            <option>Side effect — moderate</option>
+            <option>Side effect — severe</option>
+            <option>Medication error</option>
+            <option>Safeguarding concern</option>
+            <option>Allergic reaction</option>
+            <option>Near miss</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Linked order (optional)</div>
+          <select class="fab-select">
+            <option>ORD-00441 — current order</option>
+            <option>ORD-00398 — March 2026</option>
+            <option>ORD-00356 — February 2026</option>
+            <option>Not linked to an order</option>
+          </select>
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Description</div>
+          <textarea class="fab-textarea" placeholder="Describe the incident, what happened, and any immediate actions taken…" rows="3"></textarea>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--red-bg);border:0.5px solid var(--red-border);border-radius:var(--r-sm);">
+          <input type="checkbox" id="mhra-flag" style="accent-color:#dc2626;width:14px;height:14px;">
+          <label for="mhra-flag" style="font-size:12px;color:var(--red-mid);font-weight:500;cursor:pointer;">Flag for MHRA Yellow Card reporting</label>
+        </div>
+      </div>
+      <div class="fab-modal-foot">
+        <button class="fab-btn" onclick="closeModal('incident')">Cancel</button>
+        <button class="fab-btn primary" style="background:#d97706;border-color:#d97706;" onclick="submitModal('incident','Incident logged — INC-0045 created')">Log incident</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Consultation -->
+  <div class="fab-modal-overlay" id="modal-consult" onclick="closeModalOutside(event,'modal-consult')">
+    <div class="fab-modal">
+      <div class="fab-modal-head">
+        <div class="fab-modal-icon" style="background:var(--blue-bg);">📅</div>
+        <div class="fab-modal-title">Schedule consultation — Sarah Cookland</div>
+        <button class="fab-modal-close" onclick="closeModal('consult')">✕</button>
+      </div>
+      <div class="fab-modal-body">
+        <div class="fab-field">
+          <div class="fab-label">Consultation type</div>
+          <select class="fab-select">
+            <option>Video call (Calendly)</option>
+            <option>Phone call</option>
+            <option>In-person</option>
+          </select>
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Clinician</div>
+          <select class="fab-select">
+            <option>Claire Moynehan (NMC 1234567)</option>
+            <option>Round-robin pool</option>
+          </select>
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Reason</div>
+          <input class="fab-input" type="text" placeholder="e.g. Weight loss review, dose escalation discussion…">
+        </div>
+        <div style="font-size:11px;color:var(--text-3);padding:6px 10px;background:var(--surface-2);border-radius:var(--r-sm);">A Calendly invite will be sent to <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8efda0ede1e1e5e2efe0eacee9e3efe7e2a0ede1e3">[email&#160;protected]</a>. Booking confirmation logged automatically.</div>
+      </div>
+      <div class="fab-modal-foot">
+        <button class="fab-btn" onclick="closeModal('consult')">Cancel</button>
+        <button class="fab-btn primary" onclick="submitModal('consult','Calendly invite sent to patient')">Send invite</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: GP Letter -->
+  <div class="fab-modal-overlay" id="modal-gpletter" onclick="closeModalOutside(event,'modal-gpletter')">
+    <div class="fab-modal">
+      <div class="fab-modal-head">
+        <div class="fab-modal-icon" style="background:var(--purple-bg);">✉</div>
+        <div class="fab-modal-title">Send GP letter — Sarah Cookland</div>
+        <button class="fab-modal-close" onclick="closeModal('gpletter')">✕</button>
+      </div>
+      <div class="fab-modal-body">
+        <div class="fab-field">
+          <div class="fab-label">Template</div>
+          <select class="fab-select">
+            <option>Medication review request</option>
+            <option>First prescription notification</option>
+            <option>Dose escalation notification</option>
+            <option>Treatment completion</option>
+            <option>Incident notification</option>
+            <option>Custom letter</option>
+          </select>
+        </div>
+        <div style="padding:10px 12px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:var(--r-md);font-size:12px;color:var(--text-2);line-height:1.5;">
+          <strong style="color:var(--text-1);">To:</strong> Robin Lane Health &amp; Wellbeing Centre, LS28 7DE<br>
+          <strong style="color:var(--text-1);">Re:</strong> Sarah Cookland · DOB 14 Mar 1974<br>
+          <strong style="color:var(--text-1);">Medication:</strong> Mounjaro (tirzepatide) 5mg monthly
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Additional notes (optional)</div>
+          <textarea class="fab-textarea" placeholder="Any additional clinical context for the GP…" rows="2"></textarea>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);padding:6px 10px;background:var(--surface-2);border-radius:var(--r-sm);">Letter sent via Postmark to GP surgery. Copy saved to patient record automatically.</div>
+      </div>
+      <div class="fab-modal-foot">
+        <button class="fab-btn" onclick="closeModal('gpletter')">Cancel</button>
+        <button class="fab-btn primary" onclick="submitModal('gpletter','GP letter sent — copy saved to patient record')">Send letter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Impersonate -->
+  <div class="fab-modal-overlay" id="modal-impersonate" onclick="closeModalOutside(event,'modal-impersonate')">
+    <div class="fab-modal">
+      <div class="fab-modal-head">
+        <div class="fab-modal-icon" style="background:var(--red-bg);">👤</div>
+        <div class="fab-modal-title">Impersonate patient</div>
+        <button class="fab-modal-close" onclick="closeModal('impersonate')">✕</button>
+      </div>
+      <div class="fab-modal-body">
+        <div style="padding:12px 14px;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--r-md);font-size:13px;color:var(--amber);line-height:1.5;">
+          <strong>Admin only.</strong> You are about to log into the patient portal as Sarah Cookland. All actions taken while impersonating are logged with your admin credentials. This session is for support and debugging only.
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:var(--r-sm);">
+          <input type="checkbox" id="imp-confirm" style="accent-color:var(--brand);width:14px;height:14px;">
+          <label for="imp-confirm" style="font-size:12px;color:var(--text-1);cursor:pointer;">I confirm this is for legitimate support purposes</label>
+        </div>
+      </div>
+      <div class="fab-modal-foot">
+        <button class="fab-btn" onclick="closeModal('impersonate')">Cancel</button>
+        <button class="fab-btn primary" style="background:#dc2626;border-color:#dc2626;" onclick="submitModal('impersonate','Impersonation session started — logged')">Enter patient portal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Coaching Log Entry (BLD-2.5/2.6) -->
+  <div class="fab-modal-overlay" id="modal-coaching" onclick="closeModalOutside(event,'modal-coaching')">
+    <div class="fab-modal" style="width:520px;">
+      <div class="fab-modal-head">
+        <div class="fab-modal-icon" style="background:var(--brand-light);">💬</div>
+        <div class="fab-modal-title">Log coaching check-in — Sarah Cookland</div>
+        <button class="fab-modal-close" onclick="closeModal('coaching')">✕</button>
+      </div>
+      <div class="fab-modal-body">
+        <div class="fab-field">
+          <div class="fab-label">Entry type</div>
+          <select class="fab-select">
+            <option value="routine_check_in">Routine check-in</option>
+            <option value="welcome_call">Welcome call</option>
+            <option value="initial_call">Initial call</option>
+            <option value="ad_hoc">Ad-hoc contact</option>
+            <option value="missed_attempt">Missed attempt</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="fab-field">
+            <div class="fab-label">Mood</div>
+            <select class="fab-select">
+              <option>Positive</option>
+              <option>Neutral</option>
+              <option>Concerned</option>
+              <option>Distressed</option>
+              <option>Not assessed</option>
+            </select>
+          </div>
+          <div class="fab-field">
+            <div class="fab-label">Adherence</div>
+            <select class="fab-select">
+              <option>Excellent</option>
+              <option>Good</option>
+              <option>Some missed doses</option>
+              <option>Significant non-adherence</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="fab-field">
+            <div class="fab-label">Side effects</div>
+            <select class="fab-select">
+              <option>None</option>
+              <option>Mild — tolerable</option>
+              <option>Moderate</option>
+              <option>Severe</option>
+            </select>
+          </div>
+          <div class="fab-field">
+            <div class="fab-label">Duration (minutes)</div>
+            <input class="fab-input" type="number" value="20" min="1" max="120">
+          </div>
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Summary</div>
+          <textarea class="fab-textarea" placeholder="Summarise the conversation, key concerns, motivation level, and any agreed actions…" rows="4"></textarea>
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Next action / scheduled date</div>
+          <input class="fab-input" type="text" placeholder="e.g. Next check-in scheduled for 26 May 2026">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--amber-bg);border:0.5px solid var(--amber-border);border-radius:var(--r-sm);">
+          <input type="checkbox" id="esc-flag" style="accent-color:#b45309;width:14px;height:14px;">
+          <label for="esc-flag" style="font-size:12px;color:var(--amber);font-weight:500;cursor:pointer;">Raise clinical escalation flag (24h prescriber SLA)</label>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);padding:6px 10px;background:var(--surface-2);border-radius:var(--r-sm);">Logged by Sarah Wentworth · Coach · timestamped to coaching_log entity. Visible to clinicians on Patient Profile.</div>
+      </div>
+      <div class="fab-modal-foot">
+        <button class="fab-btn" onclick="closeModal('coaching')">Cancel</button>
+        <button class="fab-btn primary" onclick="submitModal('coaching','Coaching check-in logged')">Save check-in</button>
+      </div>
+    </div>
+  </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-008 — Patient Profile + Journey Tab · 8 tabs (8th = Coaching Log, FeelTru-only)</span>
+      <span class="at">BLD-2.6</span>
+      <span>Coaching Log tab + FAB action gated via [data-workspace="vsc"] .coach-only</span>
+      <span class="at">BLD-Amendments</span>
+      <span>Cross-link flag pills (complaint · task · welcome call · GP consent) · Treatment Status panel · GP letter consent guard · Questionnaire view link in Orders tab</span>
+      <span class="at">V1.2 Group 5</span>
+      <span>Pills link to Tasks · Welcome calls · Complaints · Questionnaire builder — single source of truth across the platform</span>
+    </div>
+  </div>
+</div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+  function showTab(id, el) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('on'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+    document.getElementById('tab-' + id).classList.add('on');
+    el.classList.add('on');
+  }
+
+  // FAB
+  let fabOpen = false;
+  function toggleFAB() {
+    fabOpen = !fabOpen;
+    document.getElementById('fab-main').classList.toggle('open', fabOpen);
+    document.getElementById('fab-actions').classList.toggle('open', fabOpen);
+  }
+  function closeFAB() { fabOpen = false; document.getElementById('fab-main').classList.remove('open'); document.getElementById('fab-actions').classList.remove('open'); }
+
+  // Modals
+  const modalMap = { note:'modal-note', incident:'modal-incident', consult:'modal-consult', gpletter:'modal-gpletter', review:null, impersonate:'modal-impersonate', coaching:'modal-coaching', 'intercom-photo':'modal-intercom-photo' };
+  function openModal(key) {
+    closeFAB();
+    if (key === 'review') { window.location = 'livera_prototype_01c_order_review_weight_chart.html'; return; }
+    const id = modalMap[key];
+    if (id) document.getElementById(id).classList.add('show');
+  }
+  function closeModal(key) { const id = modalMap[key]; if (id) document.getElementById(id).classList.remove('show'); }
+  function closeModalOutside(e, id) { if (e.target.id === id) document.getElementById(id).classList.remove('show'); }
+  function submitModal(key, msg) {
+    closeModal(key);
+    const toast = document.getElementById('fab-toast');
+    toast.innerHTML = '<span style="color:#10b981;">✓</span> ' + msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  // BLD-INTERCOM-PHOTO-01 handlers
+  let photoIdx = 1;
+  function openPhotoModal(convId) {
+    document.getElementById('photo-conv-id').textContent = convId;
+    photoIdx = 1;
+    document.getElementById('photo-idx').textContent = photoIdx;
+    // Pre-attached state for CONV-00798 (already in evidence per row indicator)
+    const isPreAttached = (convId === 'CONV-00798');
+    document.getElementById('evidence-status-not').style.display = isPreAttached ? 'none' : 'block';
+    document.getElementById('evidence-status-yes').style.display = isPreAttached ? 'block' : 'none';
+    document.getElementById('modal-intercom-photo').classList.add('show');
+  }
+  function cyclePhoto(delta) {
+    photoIdx = Math.max(1, Math.min(2, photoIdx + delta));
+    document.getElementById('photo-idx').textContent = photoIdx;
+  }
+  function attachAsEvidence() {
+    closeModal('intercom-photo');
+    const toast = document.getElementById('fab-toast');
+    toast.innerHTML = '<span style="color:#10b981;">✓</span> Photo attached as evidence · written to Notes timeline · audited to AUD-04';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
+  // Standalone toast helper (used by amendment components — treatment status, questionnaire link, GP guard)
+  function showToast(msg, isError) {
+    const toast = document.getElementById('fab-toast');
+    if (!toast) return;
+    const icon = isError ? '<span style="color:#f87171;">✕</span>' : '<span style="color:#10b981;">✓</span>';
+    toast.innerHTML = icon + ' ' + msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  // GP letter consent guard (BLD-Amendments) — checks button data-gp-consent before opening the modal
+  function openGPLetterGuarded(btn) {
+    const consent = btn.getAttribute('data-gp-consent');
+    if (consent === 'no') {
+      showToast('GP letter blocked — patient has not consented to GP communication', true);
+      return;
+    }
+    openModal('gpletter');
+  }
+
+  // Workspace switcher
+  function toggleWSMenu() {
+    document.getElementById('wsMenu').classList.toggle('open');
+  }
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#wsSwitcher') && !e.target.closest('#wsMenu')) {
+      document.getElementById('wsMenu').classList.remove('open');
+    }
+  });
+  function setWorkspace(ws) {
+    document.body.setAttribute('data-workspace', ws);
+    document.getElementById('wsMenu').classList.remove('open');
+    if (ws === 'feeltru') {
+      document.getElementById('wsName').textContent = 'FeelTru';
+      document.getElementById('check-feeltru').style.opacity = '1';
+      document.getElementById('check-vsc').style.opacity = '0';
+    } else {
+      document.getElementById('wsName').textContent = 'VSC';
+      document.getElementById('check-feeltru').style.opacity = '0';
+      document.getElementById('check-vsc').style.opacity = '1';
+    }
+  }
+  // Default to FeelTru on load (so Coaching Log tab is visible by default)
+  document.body.setAttribute('data-workspace', 'feeltru');
+</script>
+
+<!-- BLD-16.9: Outbound Pharmacy Comms compose modal (patient-anchored) -->
+<div id="outbound-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:300; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:12px; padding:0; width:560px; max-width:90vw; max-height:90vh; overflow-y:auto;">
+    <div style="padding:18px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px;">
+      <div style="width:36px; height:36px; border-radius:8px; background:#f0fdfa; border:0.5px solid #99f6e4; display:flex; align-items:center; justify-content:center; font-size:16px;">📨</div>
+      <div>
+        <div style="font-size:15px; font-weight:700; color:var(--text-1);">Message Primed about this patient</div>
+        <div style="font-size:11.5px; color:var(--text-3); margin-top:1px;">Sarah Cookland · PT-00198 · patient-anchored thread (cross-order)</div>
+      </div>
+      <button onclick="closeOutboundComposeModal()" style="margin-left:auto; background:none; border:none; font-size:20px; color:var(--text-3); cursor:pointer; padding:4px 8px;">×</button>
+    </div>
+
+    <div style="padding:18px 24px;">
+      <div style="margin-bottom:14px; padding:10px 12px; background:var(--brand-light); border:0.5px solid var(--brand-mid); border-radius:6px; font-size:12px; color:var(--text-2);">
+        <strong>Patient-anchored thread:</strong> use this for things that span all current and future orders for this patient. For order-specific queries, use the Pharmacy Comms tab on the order detail page.
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:5px;">Topic</label>
+        <select id="ob-topic" style="width:100%; padding:8px 10px; border:0.5px solid var(--border-strong); border-radius:6px; font-family:inherit; font-size:13px; background:#fff; color:var(--text-1); outline:none;">
+          <option value="">— Choose a topic —</option>
+          <option value="address">Patient address change</option>
+          <option value="profile">Patient profile update (name, DOB, NHS number)</option>
+          <option value="cd_record">Controlled drug record query</option>
+          <option value="patient_call">Patient called us about pharmacy matter</option>
+          <option value="discontinue">Treatment discontinuation notice</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:5px;">Priority</label>
+        <div style="display:flex; gap:8px;">
+          <label style="flex:1; display:flex; align-items:center; gap:6px; padding:8px 12px; border:0.5px solid var(--border-strong); border-radius:6px; cursor:pointer; font-size:12.5px; font-weight:500;">
+            <input type="radio" name="ob-priority" value="routine" checked style="margin:0;">
+            <span>Routine</span>
+            <span style="font-size:10px; color:var(--text-3); margin-left:auto;">SLA 24h</span>
+          </label>
+          <label style="flex:1; display:flex; align-items:center; gap:6px; padding:8px 12px; border:0.5px solid #fde68a; background:#fffbeb; border-radius:6px; cursor:pointer; font-size:12.5px; font-weight:500;">
+            <input type="radio" name="ob-priority" value="urgent" style="margin:0;">
+            <span>Urgent</span>
+            <span style="font-size:10px; color:#b45309; margin-left:auto;">SLA 2h</span>
+          </label>
+        </div>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:5px;">Message</label>
+        <textarea id="ob-body" rows="6" placeholder="Write your message to Primed. Be specific — the pharmacist on the other side needs enough context to act without coming back for clarification." style="width:100%; padding:10px 12px; border:0.5px solid var(--border-strong); border-radius:6px; font-family:inherit; font-size:13px; line-height:1.5; resize:vertical; min-height:120px; outline:none;"></textarea>
+        <div style="font-size:11px; color:var(--text-3); margin-top:4px;">Thread will be visible in this patient's Pharmacy Comms tab. Audit-logged.</div>
+      </div>
+    </div>
+
+    <div style="padding:14px 24px; border-top:1px solid var(--border); display:flex; gap:8px; align-items:center;">
+      <span style="font-size:11px; color:var(--text-3); margin-right:auto;">From: Charlotte Williams · Prescriber</span>
+      <button class="btn-sm" onclick="closeOutboundComposeModal()">Cancel</button>
+      <button class="btn-sm primary" onclick="sendOutboundMessage()">📨 Send to Primed →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openOutboundComposeModal() {
+  document.getElementById('outbound-modal').style.display = 'flex';
+  document.getElementById('ob-topic').value = '';
+  document.getElementById('ob-body').value = '';
+}
+function closeOutboundComposeModal() {
+  document.getElementById('outbound-modal').style.display = 'none';
+}
+function sendOutboundMessage() {
+  const topic = document.getElementById('ob-topic').value;
+  const body = document.getElementById('ob-body').value.trim();
+  const priority = document.querySelector('input[name="ob-priority"]:checked').value;
+  if (!topic) { alert('Please select a topic.'); return; }
+  if (!body) { alert('Message body is required.'); return; }
+  alert(`Stub: outbound thread sent to Primed.\n\nPatient: Sarah Cookland · PT-00198\nTopic: ${topic}\nPriority: ${priority}\nLength: ${body.length} chars\n\nThread will appear in Pharmacy Comms tab. Audit logged.`);
+  closeOutboundComposeModal();
+}
+</script>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+
+<!-- DEC-25 / BLD-PT-EDIT — Patient address edit modal -->
+<div class="pa-edit-modal-overlay" id="pa-edit-modal">
+  <div class="pa-modal">
+    <div class="pa-modal-head">
+      <span class="ico">📍</span>
+      <div>
+        <h3>Edit delivery address</h3>
+        <div class="sub">Sarah Cookland · PT-00198 · audit-grade — old + new + reason captured.</div>
+      </div>
+      <button onclick="closeAddressEditModal()" style="margin-left:auto;background:none;border:none;font-size:18px;color:var(--text-3);cursor:pointer;padding:4px 8px;">×</button>
+    </div>
+    <div class="pa-modal-body">
+      <div class="pa-field-group">
+        <label class="pa-field-label">Current address</label>
+        <div class="pa-old-value">
+          14 New Lane<br>
+          Pudsey<br>
+          Leeds<br>
+          LS18 4FJ
+        </div>
+      </div>
+      <div class="pa-field-group">
+        <label class="pa-field-label">New address line 1<span class="pa-required-marker">*</span></label>
+        <input class="pa-field-input" id="pa-new-line1" value="" placeholder="e.g. 22 Henconner Lane">
+      </div>
+      <div class="pa-field-group">
+        <label class="pa-field-label">Address line 2</label>
+        <input class="pa-field-input" id="pa-new-line2" value="" placeholder="optional">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="pa-field-group">
+          <label class="pa-field-label">City<span class="pa-required-marker">*</span></label>
+          <input class="pa-field-input" id="pa-new-city" value="" placeholder="Leeds">
+        </div>
+        <div class="pa-field-group">
+          <label class="pa-field-label">Postcode<span class="pa-required-marker">*</span></label>
+          <input class="pa-field-input" id="pa-new-postcode" value="" placeholder="LS7 2AB" style="text-transform:uppercase;">
+        </div>
+      </div>
+      <div class="pa-field-group" style="margin-bottom:0;">
+        <label class="pa-field-label">Reason for change<span class="pa-required-marker">*</span></label>
+        <div class="pa-reason-field">
+          <textarea class="pa-field-input" id="pa-reason" rows="3" placeholder="Why is this address being updated? e.g. 'Patient called — moved house Friday', 'Postal correction received from Primed', 'Patient updated via portal'." style="background:#fff;border:0.5px solid #fde68a;min-height:60px;resize:vertical;"></textarea>
+          <div class="pa-reason-help">Required per DEC-25. Saved with the audit log entry. Drives the sync rule: in-flight orders Primed has not yet clinically checked are auto-updated; orders Primed has already clinically checked are <strong>locked</strong> — you'll see them listed and need to send a Pharmacy Comms message.</div>
+        </div>
+      </div>
+    </div>
+    <div class="pa-modal-foot">
+      <span style="font-size:11px;color:var(--text-3);margin-right:auto;">Updated by Charlotte Williams · Prescriber</span>
+      <button class="pa-btn" onclick="closeAddressEditModal()">Cancel</button>
+      <button class="pa-btn primary" id="pa-save-btn" onclick="saveAddressEdit()">Save &amp; sync to Primed →</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEC-25 / BLD-PT-EDIT — Post-save summary modal showing what happened to in-flight orders -->
+<div class="pa-edit-modal-overlay" id="pa-summary-modal">
+  <div class="pa-modal pa-summary-modal">
+    <div class="pa-modal-head">
+      <span class="ico" style="background:#f0fdf4;color:#166534;">✓</span>
+      <div>
+        <h3>Address updated · sync complete</h3>
+        <div class="sub">Patient record updated. Here's what happened to in-flight orders:</div>
+      </div>
+      <button onclick="closeSummaryModal()" style="margin-left:auto;background:none;border:none;font-size:18px;color:var(--text-3);cursor:pointer;padding:4px 8px;">×</button>
+    </div>
+    <div class="pa-modal-body">
+      <!-- Auto-updated orders -->
+      <div class="pa-summary-section">
+        <div class="pa-summary-label">✓ Auto-updated to new address (2 orders)</div>
+        <div class="pa-order-row auto">
+          <span class="o-id">ORD-00441</span>
+          <span class="o-state">At Livera · Clinical Check by Charlotte Williams · pre-Primed</span>
+          <span class="o-status-pill auto">Auto-updated</span>
+        </div>
+        <div class="pa-order-row auto">
+          <span class="o-id">ORD-00440</span>
+          <span class="o-state">At Primed · awaiting dispatch · NOT yet clinically checked by Primed</span>
+          <span class="o-status-pill auto">Auto-updated</span>
+        </div>
+      </div>
+
+      <!-- Locked orders -->
+      <div class="pa-summary-section">
+        <div class="pa-summary-label">🔒 Locked — Primed has clinically checked these (1 order)</div>
+        <div class="pa-order-row locked">
+          <span class="o-id">ORD-00439</span>
+          <span class="o-state">At Primed · clinically checked by H. Patel · awaiting CD pickup</span>
+          <span class="o-status-pill locked">Locked</span>
+        </div>
+      </div>
+
+      <div class="pa-summary-foot-help">
+        <strong>Locked orders need a Pharmacy Comms message.</strong> Open the affected order(s) and use <strong>Message Primed about this order</strong> to request the address change. Per DEC-25, Livera does not silently mutate records Primed has already clinically reviewed — those are theirs to update.
+      </div>
+    </div>
+    <div class="pa-modal-foot">
+      <button class="pa-btn primary" onclick="closeSummaryModal()">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// DEC-25 / BLD-PT-EDIT — Address edit logic
+function openAddressEditModal(){
+  // Pre-fill new fields with current values to make small edits easy
+  document.getElementById('pa-new-line1').value = '14 New Lane';
+  document.getElementById('pa-new-line2').value = 'Pudsey';
+  document.getElementById('pa-new-city').value = 'Leeds';
+  document.getElementById('pa-new-postcode').value = 'LS18 4FJ';
+  document.getElementById('pa-reason').value = '';
+  document.getElementById('pa-edit-modal').classList.add('open');
+  setTimeout(() => document.getElementById('pa-new-line1').focus(), 100);
+}
+function closeAddressEditModal(){
+  document.getElementById('pa-edit-modal').classList.remove('open');
+}
+function saveAddressEdit(){
+  const line1 = document.getElementById('pa-new-line1').value.trim();
+  const line2 = document.getElementById('pa-new-line2').value.trim();
+  const city  = document.getElementById('pa-new-city').value.trim();
+  const postcode = document.getElementById('pa-new-postcode').value.trim().toUpperCase();
+  const reason = document.getElementById('pa-reason').value.trim();
+
+  if(!line1 || !city || !postcode){
+    alert('Address line 1, city, and postcode are required.');
+    return;
+  }
+  if(!reason || reason.length < 8){
+    alert('Reason for change is required (minimum 8 characters). This is captured in the audit log.');
+    document.getElementById('pa-reason').focus();
+    return;
+  }
+
+  // Update displayed address
+  const display = document.getElementById('pa-addr-display');
+  display.innerHTML = `
+    <span class="pa-addr-line">${escapeAddrHtml(line1)}</span>
+    ${line2 ? `<span class="pa-addr-line">${escapeAddrHtml(line2)}</span>` : ''}
+    <span class="pa-addr-line">${escapeAddrHtml(city)}</span>
+    <span class="pa-addr-line"><strong>${escapeAddrHtml(postcode)}</strong></span>`;
+
+  // Update sync status
+  const now = new Date();
+  const dt = String(now.getDate()).padStart(2,'0') + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][now.getMonth()] + ' · ' +
+             String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('pa-sync-status').textContent = `✓ Synced ${dt}`;
+
+  closeAddressEditModal();
+
+  // DEC-25 timeline integration — update existing or insert new entry
+  const tlEntry = document.getElementById('tl-address-change');
+  if(tlEntry){
+    const tlMeta = tlEntry.querySelector('.tl-meta');
+    const tlDetail = tlEntry.querySelector('.tl-detail');
+    if(tlMeta) tlMeta.textContent = `${dt} · Charlotte Williams · synced to Primed`;
+    if(tlDetail){
+      tlDetail.innerHTML = `
+        Old: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-size:11px;">14 New Lane, LS18 4FJ</code> → New: <code style="background:#eff6ff;color:#1e40af;padding:1px 5px;border-radius:3px;font-size:11px;">${escapeAddrHtml(line1 + ', ' + postcode)}</code><br>
+        <strong>Reason:</strong> "${escapeAddrHtml(reason)}"<br>
+        <strong>In-flight order sync (DEC-28):</strong> ORD-00441 auto-updated · ORD-00440 auto-updated · ORD-00439 <strong style="color:#b91c1c;">locked</strong> (Primed clinically checked) — comms thread required.<br>
+        <a href="livera_audit_log.html" style="color:#4338ca;font-weight:600;font-size:11px;">View in audit log →</a>`;
+    }
+  }
+
+  // Open summary
+  setTimeout(() => {
+    document.getElementById('pa-summary-modal').classList.add('open');
+  }, 200);
+}
+function closeSummaryModal(){
+  document.getElementById('pa-summary-modal').classList.remove('open');
+}
+function escapeAddrHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// Click outside to close
+document.addEventListener('click', function(e){
+  ['pa-edit-modal', 'pa-summary-modal'].forEach(id => {
+    const overlay = document.getElementById(id);
+    if(overlay && overlay.classList.contains('open') && e.target === overlay){
+      overlay.classList.remove('open');
+    }
+  });
+});
+</script>
+
+
+<!-- DEC-24/DEC-27: Manual flag raise modal -->
+<div class="rf-overlay" id="rf-overlay">
+  <div class="rf-modal">
+    <div class="rf-head">
+      <span class="ico">🚩</span>
+      <div>
+        <h3>Raise a clinical flag</h3>
+        <div class="sub">Sarah Cookland · PT-00198 · patient-anchored</div>
+      </div>
+      <button onclick="closeRaiseFlagModal()" style="margin-left:auto;background:none;border:none;font-size:18px;color:#6b7280;cursor:pointer;padding:4px 8px;">×</button>
+    </div>
+    <div class="rf-body">
+      <div class="rf-section-label">Pick a flag from the Library</div>
+      <div id="rf-rules-list">
+        <!-- Populated by openRaiseFlagModal() -->
+      </div>
+
+      <div class="rf-reason-field">
+        <label class="rf-reason-label">Reason / context for raising this flag<span class="rf-reason-required">*</span></label>
+        <textarea class="rf-reason-input" id="rf-reason" placeholder="Describe what prompted you to raise this flag. Minimum 20 characters. Captured in the fired-flag audit log alongside your identity, timestamp, and the rule version."></textarea>
+        <div class="rf-reason-help">Required per DEC-27. The reason is logged with the fired flag and visible in the Flag Detail screen and audit trail.</div>
+      </div>
+    </div>
+    <div class="rf-foot">
+      <span class="signed-as">Raised by Charlotte Williams · Prescriber</span>
+      <button class="rf-btn" onclick="closeRaiseFlagModal()">Cancel</button>
+      <button class="rf-btn primary" id="rf-save-btn" onclick="saveRaiseFlag()" disabled>🚩 Raise flag</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Shared FLAG_LIBRARY (mirrors Settings → Clinical Flag Rules)
+if(typeof FLAG_LIBRARY === 'undefined'){
+  window.FLAG_LIBRARY = [
+    { flag_id: 'FLAG-001', name: 'Eating disorder history disclosed', source: 'questionnaire', category: 'safeguarding', severity: 'CRITICAL', primed_alignment: null, status: 'on', version: 'v2' },
+    { flag_id: 'FLAG-002', name: 'BMI below threshold (initial order)', source: 'system', category: 'clinical_safety', severity: 'HIGH', primed_alignment: 'B3', status: 'on', version: 'v4' },
+    { flag_id: 'FLAG-003', name: 'Active or planned pregnancy', source: 'questionnaire', category: 'safeguarding', severity: 'CRITICAL', primed_alignment: null, status: 'on', version: 'v1' },
+    { flag_id: 'FLAG-004', name: 'Welcome call — clinical concern raised', source: 'manual', category: 'operational', severity: 'MEDIUM', primed_alignment: null, status: 'on', version: 'v1' },
+    { flag_id: 'FLAG-005', name: 'Dose escalation above schedule', source: 'system', category: 'clinical_safety', severity: 'HIGH', primed_alignment: 'C2', status: 'on', version: 'v3' },
+    { flag_id: 'FLAG-006', name: 'NHS number missing', source: 'system', category: 'data_quality', severity: 'LOW', primed_alignment: null, status: 'on', version: 'v1' }
+  ];
+}
+
+let rfSelectedFlagId = null;
+
+function openRaiseFlagModal(){
+  rfSelectedFlagId = null;
+  document.getElementById('rf-reason').value = '';
+  document.getElementById('rf-save-btn').disabled = true;
+  
+  const list = document.getElementById('rf-rules-list');
+  let html = '';
+  
+  // Manual flags first
+  const manual = FLAG_LIBRARY.filter(r => r.source === 'manual' && r.status === 'on');
+  const questionnaireSource = FLAG_LIBRARY.filter(r => r.source === 'questionnaire' && r.status === 'on');
+  const system = FLAG_LIBRARY.filter(r => r.source === 'system' && r.status === 'on');
+  
+  if(manual.length > 0){
+    manual.forEach(r => { html += renderRfRow(r, false); });
+  }
+  
+  if(questionnaireSource.length > 0){
+    html += '<div class="rf-section-label" style="margin-top:14px;">Also raisable manually (questionnaire-source flags can be fired ad-hoc with reason)</div>';
+    questionnaireSource.forEach(r => { html += renderRfRow(r, false); });
+  }
+  
+  if(system.length > 0){
+    html += '<div class="rf-section-label" style="margin-top:14px;">System-only (cannot be raised manually — fire automatically based on rule conditions)</div>';
+    system.forEach(r => { html += renderRfRow(r, true); });
+  }
+  
+  list.innerHTML = html;
+  
+  // Wire reason field listener for save button enable/disable
+  const reasonInput = document.getElementById('rf-reason');
+  reasonInput.oninput = checkRfSaveEnabled;
+  
+  document.getElementById('rf-overlay').classList.add('open');
+}
+
+function renderRfRow(r, disabled){
+  const sevCls = { CRITICAL: 'crit', HIGH: 'high', MEDIUM: 'med', LOW: 'low' }[r.severity];
+  const onclick = disabled ? '' : `onclick="selectRfRule('${r.flag_id}')"`;
+  const disabledNote = disabled ? '<div class="rf-disabled-note">Auto-fires when rule conditions are met</div>' : '';
+  return `<div class="rf-rule-row ${disabled ? 'disabled' : ''}" id="rf-row-${r.flag_id}" ${onclick}>
+    <div style="flex:1;">
+      <div class="rf-rule-name"><strong>${escapeRfHtml(r.name)}</strong><span class="rf-flag-id">${r.flag_id}</span></div>
+      <div class="rf-rule-meta">
+        <span class="rf-pill ${sevCls}">${r.severity}</span>
+        <span class="rf-pill ${r.source}">${r.source}</span>
+        <span style="color:#6b7280;">${r.category.replace('_',' ')} · v${r.version}${r.primed_alignment ? ' · Primed: ' + r.primed_alignment : ''}</span>
+      </div>
+      ${disabledNote}
+    </div>
+  </div>`;
+}
+
+function selectRfRule(flagId){
+  rfSelectedFlagId = flagId;
+  // Update visual selection
+  document.querySelectorAll('.rf-rule-row').forEach(el => el.classList.remove('selected'));
+  document.getElementById('rf-row-' + flagId).classList.add('selected');
+  checkRfSaveEnabled();
+}
+
+function checkRfSaveEnabled(){
+  const reason = document.getElementById('rf-reason').value.trim();
+  document.getElementById('rf-save-btn').disabled = !(rfSelectedFlagId && reason.length >= 20);
+}
+
+function closeRaiseFlagModal(){
+  document.getElementById('rf-overlay').classList.remove('open');
+}
+
+function saveRaiseFlag(){
+  if(!rfSelectedFlagId){ alert('Select a flag first.'); return; }
+  const reason = document.getElementById('rf-reason').value.trim();
+  if(reason.length < 20){
+    alert('Reason must be at least 20 characters. The reason is captured in the fired-flag audit log.');
+    document.getElementById('rf-reason').focus();
+    return;
+  }
+  const flag = FLAG_LIBRARY.find(r => r.flag_id === rfSelectedFlagId);
+  alert(`Stub: flag raised.\n\nFlag: ${flag.name} (${flag.flag_id})\nSource: manual\nRule version: ${flag.version}\nReason captured (${reason.length} chars).\n\nFired flag created with rule_version_id snapshot. Patient Profile timeline updated. Per DEC-27, this fired flag stays anchored to ${flag.version} even if the rule is later edited.`);
+  closeRaiseFlagModal();
+}
+
+function escapeRfHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// Click outside to close
+document.addEventListener('click', function(e){
+  const overlay = document.getElementById('rf-overlay');
+  if(overlay && overlay.classList.contains('open') && e.target === overlay){
+    closeRaiseFlagModal();
+  }
+});
+</script>
+
+</body>
+</html>

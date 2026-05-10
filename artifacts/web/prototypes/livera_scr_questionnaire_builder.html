@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Questionnaire Builder (BLD-13.4)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row:hover { background: var(--surface-2); }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  /* Topbar with breadcrumb + actions */
+  .topbar { padding: 10px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); flex: 1; min-width: 0; }
+  .bc-clinic { font-weight: 600; color: var(--text-1); }
+  .bc-sep { color: var(--text-3); font-size: 11px; }
+  .bc-q { color: var(--text-1); font-weight: 600; }
+  .bc-version { font-size: 11px; color: var(--text-3); padding: 2px 7px; background: var(--surface-2); border-radius: 999px; border: 0.5px solid var(--border-strong); }
+  .bc-version.draft { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .bc-version.published { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .save-state { font-size: 11px; color: var(--text-3); margin-left: 12px; display: flex; align-items: center; gap: 4px; }
+  .save-state.saving { color: var(--brand-dark); }
+  .save-state.saved { color: var(--green); }
+  .topbar-actions { display: flex; gap: 8px; align-items: center; }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .btn-sm:hover { background: var(--surface-2); }
+  .btn-sm.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn-sm.primary:hover { background: #3730a3; }
+  .btn-sm.ghost { background: transparent; border-color: transparent; }
+  .btn-sm.ghost:hover { background: var(--surface-2); }
+  .btn-xs { padding: 4px 9px; border-radius: var(--r-sm); font-size: 11px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .btn-xs:hover { background: var(--surface-2); border-color: var(--brand-mid); color: var(--brand-dark); }
+  .btn-xs.danger:hover { color: var(--red-mid); border-color: var(--red-border); background: var(--red-bg); }
+
+  /* Q-type selector strip */
+  .qtype-strip { display: flex; gap: 6px; padding: 10px 24px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); flex-shrink: 0; overflow-x: auto; }
+  .qtype-card { background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: var(--r-md); padding: 8px 12px; cursor: pointer; min-width: 180px; flex-shrink: 0; transition: all 0.1s; display: flex; flex-direction: column; gap: 2px; }
+  .qtype-card:hover { border-color: var(--brand-mid); }
+  .qtype-card.on { border-color: var(--brand); background: var(--brand-light); border-width: 1px; padding: 7.5px 11.5px; }
+  .qtype-card.disabled { opacity: 0.55; pointer-events: none; }
+  .qtype-name { font-size: 12px; font-weight: 600; color: var(--text-1); display: flex; align-items: center; gap: 6px; }
+  .qtype-meta { font-size: 10px; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
+  .qtype-status { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; border: 0.5px solid; }
+  .qtype-status.draft { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .qtype-status.published { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .qtype-status.archived { background: var(--surface-2); color: var(--text-3); border-color: var(--border-strong); }
+
+  /* Three-pane builder */
+  .builder { display: grid; grid-template-columns: 280px 1fr 340px; flex: 1; overflow: hidden; min-height: 0; }
+  .pane { background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .pane:last-child { border-right: none; }
+  .pane-head { padding: 10px 14px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; background: var(--surface-2); }
+  .pane-title { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; }
+  .pane-sub { margin-left: auto; font-size: 11px; color: var(--text-3); }
+  .pane-body { flex: 1; overflow-y: auto; }
+
+  /* LEFT: question palette + list */
+  .palette { padding: 10px 12px; border-bottom: 0.5px solid var(--border); }
+  .palette-title { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+  .palette-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .palette-item { background: var(--surface-2); border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); padding: 7px 8px; cursor: pointer; transition: all 0.1s; display: flex; flex-direction: column; gap: 1px; }
+  .palette-item:hover { border-color: var(--brand-mid); background: var(--brand-light); }
+  .palette-icon { font-size: 13px; }
+  .palette-name { font-size: 11px; font-weight: 500; color: var(--text-1); line-height: 1.2; }
+
+  /* Question list */
+  .qlist { padding: 6px 10px 12px; }
+  .qlist-empty { padding: 30px 10px; text-align: center; color: var(--text-3); font-size: 12px; }
+  .qrow { background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: var(--r-md); padding: 9px 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.1s; position: relative; display: flex; flex-direction: column; gap: 4px; }
+  .qrow:hover { border-color: var(--brand-mid); }
+  .qrow.on { border-color: var(--brand); border-width: 1.5px; padding: 8.5px 9.5px; background: var(--brand-light); }
+  .qrow-head { display: flex; align-items: center; gap: 6px; }
+  .qrow-num { font-size: 9px; font-weight: 700; color: var(--text-3); padding: 1px 5px; background: var(--surface-3); border-radius: 3px; min-width: 22px; text-align: center; flex-shrink: 0; }
+  .qrow-type-icon { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+  .qrow-flag-row { display: flex; align-items: center; gap: 4px; flex: 1; justify-content: flex-end; }
+  .qrow-prompt { font-size: 12px; color: var(--text-1); line-height: 1.35; font-weight: 500; padding-left: 28px; min-height: 17px; }
+  .qrow-meta { display: flex; align-items: center; gap: 5px; padding-left: 28px; flex-wrap: wrap; }
+  .qrow-tag { font-size: 9px; padding: 1px 5px; background: var(--surface-2); color: var(--text-3); border-radius: 3px; border: 0.5px solid var(--border); }
+  .qrow-tag.req { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .qrow-tag.branch { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .qrow-tag.severe { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); font-weight: 700; }
+  .qrow-tag.moderate { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .qrow-tag.mild { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .qrow-handle { color: var(--text-3); font-size: 14px; cursor: grab; line-height: 1; }
+  .qrow.dragging { opacity: 0.5; }
+  .qlist-add { padding: 9px 10px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: var(--r-md); font-size: 12px; color: var(--text-3); cursor: pointer; text-align: center; transition: all 0.1s; }
+  .qlist-add:hover { border-color: var(--brand-mid); color: var(--brand-dark); background: var(--brand-light); }
+
+  /* CENTRE: question editor */
+  .editor { padding: 18px 20px 24px; max-width: 700px; margin: 0 auto; width: 100%; }
+  .editor-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-3); font-size: 13px; padding: 40px; text-align: center; flex-direction: column; gap: 10px; }
+  .editor-empty-icon { font-size: 32px; }
+  .ed-section { margin-bottom: 18px; }
+  .ed-section-title { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .ed-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .ed-label { font-size: 11px; font-weight: 600; color: var(--text-2); }
+  .ed-help { font-size: 10px; color: var(--text-3); }
+  .ed-input, .ed-select, .ed-textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--r-md); font-size: 13px; font-family: inherit; color: var(--text-1); outline: none; background: var(--surface); }
+  .ed-input:focus, .ed-select:focus, .ed-textarea:focus { border-color: var(--brand); }
+  .ed-textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+  .ed-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ed-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .ed-toggle-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); margin-bottom: 8px; }
+  .ed-toggle-row input { accent-color: var(--brand); width: 14px; height: 14px; }
+  .ed-toggle-row label { font-size: 12px; color: var(--text-1); cursor: pointer; flex: 1; font-weight: 500; }
+  .ed-toggle-row .help { font-size: 11px; color: var(--text-3); flex: 2; line-height: 1.4; }
+
+  /* Options editor (for single-select / multi-select) */
+  .opts { display: flex; flex-direction: column; gap: 6px; }
+  .opt-row { display: flex; align-items: center; gap: 6px; }
+  .opt-row .ed-input { flex: 1; }
+  .opt-sev { width: 130px; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--r-md); font-size: 11px; font-family: inherit; background: var(--surface); }
+  .opt-sev option[value="severe"] { color: var(--red-mid); }
+  .opt-sev option[value="moderate"] { color: var(--amber); }
+  .opt-sev option[value="mild"] { color: var(--blue); }
+  .opt-del { padding: 6px 8px; border: 0.5px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); cursor: pointer; color: var(--text-3); font-size: 14px; }
+  .opt-del:hover { color: var(--red-mid); border-color: var(--red-border); }
+  .opt-add { font-size: 12px; color: var(--brand-dark); cursor: pointer; padding: 6px 0; font-weight: 500; }
+  .opt-add:hover { text-decoration: underline; }
+
+  /* Branching */
+  .branch-card { background: var(--blue-bg); border: 0.5px solid var(--blue-border); border-radius: var(--r-md); padding: 10px 12px; }
+  .branch-title { font-size: 11px; font-weight: 600; color: var(--blue); margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .branch-rule { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-1); flex-wrap: wrap; }
+  .branch-rule span.kw { color: var(--blue); font-weight: 600; }
+  .branch-rule .ed-select { width: auto; flex-shrink: 0; padding: 5px 8px; font-size: 12px; }
+
+  /* Severity-flag card */
+  .sev-card { background: var(--amber-bg); border: 0.5px solid var(--amber-border); border-radius: var(--r-md); padding: 10px 12px; }
+  .sev-title { font-size: 11px; font-weight: 600; color: var(--amber); margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+  .sev-help { font-size: 11px; color: var(--text-2); line-height: 1.4; margin-bottom: 8px; }
+
+  
+  /* BLD-CHAIN-VIS-01 (DEC-36): Severity Action Chain visualisation panel */
+  .ed-section.safety-chain { background: linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%); border: 1px solid #fecaca; border-radius: 8px; padding: 14px 16px; margin: 14px 18px 6px 18px; }
+  .ed-section.safety-chain .ed-section-title { color: #b91c1c; display: flex; align-items: center; gap: 8px; }
+  .ed-section.safety-chain .ed-section-title:after { content: ' · DEC-36 platform-locked'; font-size: 10px; font-weight: 500; color: #dc2626; opacity: 0.75; letter-spacing: 0; text-transform: none; margin-left: 4px; }
+  .ed-section.safety-chain .sc-intro { font-size: 11px; color: #7c2d12; line-height: 1.5; margin-bottom: 12px; }
+  .ed-section.safety-chain .sc-chain-id { display: inline-block; font-family: 'SF Mono', Menlo, monospace; font-size: 10px; background: #fff7ed; color: #c2410c; padding: 1px 6px; border-radius: 3px; margin-left: 6px; border: 0.5px solid #fed7aa; }
+  .sc-row { display: grid; grid-template-columns: 88px 1fr; gap: 10px; padding: 10px 12px; background: #fff; border: 0.5px solid #fecaca; border-radius: 6px; margin-bottom: 6px; align-items: flex-start; }
+  .sc-row.severe { border-color: #b91c1c; background: #fef2f2; box-shadow: 0 1px 2px rgba(185,28,28,0.08); }
+  .sc-row.moderate { border-color: #fde68a; background: #fffbeb; }
+  .sc-row.mild { border-color: #bfdbfe; background: #eff6ff; }
+  .sc-sev-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 10px; border-radius: 4px; text-align: center; line-height: 1.2; height: fit-content; }
+  .sc-row.severe .sc-sev-label { background: #b91c1c; color: #fff; }
+  .sc-row.moderate .sc-sev-label { background: #d97706; color: #fff; }
+  .sc-row.mild .sc-sev-label { background: #3b82f6; color: #fff; }
+  .sc-actions { display: flex; flex-direction: column; gap: 5px; }
+  .sc-action { display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; color: #1f2937; line-height: 1.45; }
+  .sc-action .ico { font-size: 12px; flex-shrink: 0; line-height: 1.2; }
+  .sc-action code { font-family: 'SF Mono', Menlo, monospace; font-size: 10.5px; background: rgba(0,0,0,0.05); padding: 1px 4px; border-radius: 3px; }
+  .sc-action.lock-note { color: #b91c1c; font-weight: 600; padding-top: 4px; border-top: 0.5px dashed #fecaca; margin-top: 2px; }
+  .sc-locked-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 700; color: #b91c1c; background: #fef2f2; padding: 1px 6px; border-radius: 3px; margin-left: 6px; letter-spacing: 0.4px; border: 0.5px solid #fecaca; vertical-align: middle; }
+  .opt-sev[disabled] { background: #fef2f2; color: #b91c1c; cursor: not-allowed; opacity: 0.85; }
+  .opt-del[disabled] { background: #fef2f2; color: #b91c1c; cursor: not-allowed; opacity: 0.6; }
+
+  /* DEC-27 Pattern C: Linked flag rules section in question editor */
+  .ed-section.linked-flags { background: linear-gradient(180deg, #fafbff 0%, #f4f6ff 100%); border: 0.5px solid #c7d2fe; border-radius: 8px; padding: 14px 16px; margin: 14px 18px 6px 18px; }
+  .ed-section.linked-flags .ed-section-title { color: #4338ca; }
+  .ed-section.linked-flags .ed-section-title:after { content: ' · DEC-27 Pattern C'; font-size: 10px; font-weight: 500; color: #6366f1; opacity: 0.7; letter-spacing: 0; text-transform: none; margin-left: 6px; }
+  .lf-empty { font-size: 11px; color: var(--text-3); padding: 8px 0; font-style: italic; }
+  .lf-rule-card { background: #fff; border: 0.5px solid #c7d2fe; border-radius: 6px; padding: 10px 12px; margin-top: 8px; display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: start; }
+  .lf-rule-card .lf-rule-name { font-weight: 600; font-size: 12.5px; color: var(--text-1); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .lf-rule-card .lf-flag-id { font-family: 'SF Mono', monospace; font-size: 10px; color: var(--text-3); background: #f3f4f6; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+  .lf-rule-card .lf-rule-trigger { font-size: 11px; color: var(--text-2); margin-top: 4px; font-family: 'SF Mono', monospace; }
+  .lf-rule-card .lf-meta { font-size: 11px; color: var(--text-3); margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .lf-rule-card .lf-pills { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+  .lf-rule-card .lf-actions { display: flex; gap: 4px; }
+  .lf-pill { display: inline-flex; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase; }
+  .lf-pill.crit { background: #fef2f2; color: #991b1b; }
+  .lf-pill.high { background: #fed7aa; color: #9a3412; }
+  .lf-pill.med  { background: #fef3c7; color: #92400e; }
+  .lf-pill.low  { background: #dbeafe; color: #1e40af; }
+  .lf-pill.safeguarding { background: #fee2e2; color: #991b1b; }
+  .lf-pill.clinical_safety { background: #fed7aa; color: #9a3412; }
+  .lf-pill.data_quality { background: #dbeafe; color: #1e40af; }
+  .lf-pill.operational { background: #e5e7eb; color: #374151; }
+  .lf-pill.primed { background: #f5f3ff; color: #5b21b6; border: 0.5px solid #c4b5fd; }
+  .lf-pill.no-primed { background: transparent; color: var(--text-3); border: 0.5px dashed #d1d5db; font-style: italic; font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .lf-action-btn { background: none; border: 0.5px solid #c7d2fe; color: #4338ca; padding: 3px 9px; border-radius: 4px; font-family: inherit; font-size: 10.5px; font-weight: 600; cursor: pointer; }
+  .lf-action-btn:hover { background: #eef2ff; }
+  .lf-action-btn.danger { border-color: #fecaca; color: #b91c1c; }
+  .lf-action-btn.danger:hover { background: #fef2f2; }
+  .lf-add-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 10px; margin-top: 10px; background: #fff; border: 1px dashed #c7d2fe; border-radius: 6px; color: #4338ca; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .12s; }
+  .lf-add-btn:hover { background: #eef2ff; border-color: #818cf8; }
+  .lf-canon-link { font-size: 10.5px; color: #6b7280; margin-top: 8px; font-style: italic; }
+  .lf-canon-link a { color: #4338ca; text-decoration: none; font-weight: 600; }
+  .lf-canon-link a:hover { text-decoration: underline; }
+
+  /* Flag picker modal */
+  .fp-overlay { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); z-index: 8500; align-items: center; justify-content: center; }
+  .fp-overlay.open { display: flex; }
+  .fp-modal { background: #fff; border-radius: 10px; width: 580px; max-width: 92vw; max-height: 80vh; box-shadow: 0 16px 48px rgba(0,0,0,.25); overflow: hidden; display: flex; flex-direction: column; }
+  .fp-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .fp-head .ico { width: 28px; height: 28px; border-radius: 6px; background: #eef2ff; color: #4338ca; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .fp-head h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-1); }
+  .fp-head .sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .fp-body { padding: 14px 20px; overflow-y: auto; flex: 1; }
+  .fp-section-label { font-size: 10px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; margin: 8px 0 6px 0; }
+  .fp-section-label:first-child { margin-top: 0; }
+  .fp-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 0.5px solid var(--border); border-radius: 6px; cursor: pointer; margin-bottom: 6px; }
+  .fp-row:hover { background: #eef2ff; border-color: #c7d2fe; }
+  .fp-row .fp-rname { font-size: 12.5px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .fp-row .fp-rmeta { font-size: 10.5px; color: var(--text-3); margin-top: 2px; font-weight: 400; }
+  .fp-row .fp-arrow { color: #6b7280; font-size: 14px; }
+  .fp-create { background: #f0fdf4; border: 0.5px dashed #86efac; color: #166534; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .fp-create:hover { background: #dcfce7; }
+  .fp-foot { padding: 10px 20px; border-top: 0.5px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; background: #fafafa; flex-shrink: 0; }
+  .fp-btn { padding: 6px 12px; border-radius: 5px; font-size: 12px; font-weight: 600; border: 0.5px solid var(--border-strong); background: #fff; cursor: pointer; font-family: inherit; }
+
+  /* Delete question button at bottom of editor */
+  .ed-del { margin-top: 20px; padding-top: 16px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; }
+
+  /* RIGHT: live preview */
+  .preview-wrap { padding: 16px; flex: 1; overflow-y: auto; }
+  .phone { background: #1f2937; border-radius: 28px; padding: 14px 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.18); width: 280px; margin: 0 auto; position: sticky; top: 0; }
+  .phone-screen { background: var(--surface); border-radius: 18px; overflow: hidden; min-height: 480px; max-height: 540px; display: flex; flex-direction: column; }
+  .phone-statusbar { padding: 4px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 9px; font-weight: 600; color: var(--text-1); background: var(--surface); }
+  .phone-header { padding: 10px 14px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .phone-back { color: var(--brand-dark); font-size: 16px; cursor: pointer; }
+  .phone-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; text-align: center; }
+  .phone-progress { display: flex; gap: 3px; padding: 8px 14px 4px; flex-shrink: 0; }
+  .phone-progress-step { flex: 1; height: 3px; background: var(--surface-3); border-radius: 999px; }
+  .phone-progress-step.on { background: var(--brand); }
+  .phone-progress-step.done { background: var(--brand-dark); }
+  .phone-body { flex: 1; padding: 14px; overflow-y: auto; }
+  .phone-q-num { font-size: 10px; font-weight: 700; color: var(--brand); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 5px; }
+  .phone-q-prompt { font-size: 16px; font-weight: 600; color: var(--text-1); line-height: 1.35; margin-bottom: 4px; letter-spacing: -0.2px; }
+  .phone-q-help { font-size: 12px; color: var(--text-3); line-height: 1.4; margin-bottom: 14px; }
+  .phone-opt { padding: 11px 12px; border: 1px solid var(--border-strong); border-radius: 10px; font-size: 13px; color: var(--text-1); margin-bottom: 7px; cursor: pointer; transition: all 0.1s; display: flex; align-items: center; gap: 9px; }
+  .phone-opt:hover { border-color: var(--brand-mid); }
+  .phone-opt.selected { border-color: var(--brand); background: var(--brand-light); border-width: 1.5px; padding: 10.5px 11.5px; }
+  .phone-opt-radio { width: 16px; height: 16px; border: 1.5px solid var(--border-strong); border-radius: 50%; flex-shrink: 0; position: relative; }
+  .phone-opt.selected .phone-opt-radio { border-color: var(--brand); }
+  .phone-opt.selected .phone-opt-radio::after { content: ''; position: absolute; inset: 3px; background: var(--brand); border-radius: 50%; }
+  .phone-opt-cb { width: 16px; height: 16px; border: 1.5px solid var(--border-strong); border-radius: 4px; flex-shrink: 0; }
+  .phone-opt.selected .phone-opt-cb { border-color: var(--brand); background: var(--brand); position: relative; }
+  .phone-opt.selected .phone-opt-cb::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+  .phone-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 10px; font-size: 13px; font-family: inherit; outline: none; }
+  .phone-textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 10px; font-size: 13px; font-family: inherit; resize: none; min-height: 90px; line-height: 1.5; outline: none; }
+  .phone-bmi { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .phone-photo-box { border: 1.5px dashed var(--border-strong); border-radius: 10px; padding: 22px; text-align: center; color: var(--text-3); font-size: 12px; }
+  .phone-photo-icon { font-size: 24px; margin-bottom: 4px; display:block; }
+  .phone-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); display: flex; gap: 8px; flex-shrink: 0; background: var(--surface); }
+  .phone-btn { flex: 1; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; font-family: inherit; }
+  .phone-btn.primary { background: var(--brand-dark); color: #fff; }
+  .phone-btn.secondary { background: var(--surface-2); color: var(--text-2); border: 0.5px solid var(--border-strong); flex: 0 0 80px; }
+  .preview-meta { text-align: center; font-size: 10px; color: var(--text-3); margin-top: 12px; }
+  .preview-controls { display:flex; gap:6px; justify-content: center; margin-top: 8px; }
+  .preview-controls button { padding: 4px 10px; border-radius: var(--r-sm); border: 0.5px solid var(--border-strong); background: var(--surface); font-size: 10px; cursor: pointer; font-family: inherit; color: var(--text-2); }
+  .preview-controls button:hover { background: var(--surface-2); }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* Workspace switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); transition:background .12s; position:relative; }
+  .ws-switcher:hover { background:var(--surface-2); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ws-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); flex-shrink:0; }
+  .ws-menu { display:none; position:absolute; top:54px; left:8px; right:8px; background:var(--surface); border:0.5px solid var(--border-strong); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:500; overflow:hidden; }
+  .ws-menu.open { display:block; }
+  .ws-menu-item { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; transition:background .1s; }
+  .ws-menu-item:hover { background:var(--surface-2); }
+  .ws-menu-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ws-menu-name { font-size:12px; font-weight:600; color:var(--text-1); }
+  .ws-menu-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-menu-check { font-size:12px; color:#4338ca; font-weight:700; flex-shrink:0; }
+
+  /* Modal */
+  .fab-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .fab-modal-overlay.show { display: flex; }
+  .fab-modal { background: var(--surface); border-radius: var(--r-xl); width: 520px; max-width: 95vw; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: modalIn 0.2s ease; max-height: 90vh; display: flex; flex-direction: column; }
+  @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:none; } }
+  .fab-modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .fab-modal-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .fab-modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .fab-modal-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+  .fab-modal-close:hover { background: var(--surface-3); }
+  .fab-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+  .fab-modal-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+  .fab-btn { padding: 8px 16px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .fab-btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .fab-btn.primary:hover { background: #3730a3; }
+  .fab-toast { position: fixed; bottom: 28px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 300; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .fab-toast.show { display: flex; }
+
+  /* Diff list in publish modal */
+  .diff-block { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); padding: 10px 12px; }
+  .diff-row { font-size: 12px; color: var(--text-1); padding: 4px 0; display: flex; align-items: flex-start; gap: 8px; }
+  .diff-icon { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .diff-icon.add { background: var(--green-bg); color: var(--green); }
+  .diff-icon.mod { background: var(--blue-bg); color: var(--blue); }
+  .diff-icon.del { background: var(--red-bg); color: var(--red-mid); }
+  .diff-text { flex: 1; line-height: 1.4; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Topbar with breadcrumb -->
+    <div class="topbar">
+      <div class="bc">
+        <span class="bc-clinic" id="bc-clinic">FeelTru</span>
+        <span class="bc-sep">/</span>
+        <span>Questionnaires</span>
+        <span class="bc-sep">/</span>
+        <span class="bc-q" id="bc-qname">Reorder check-in</span>
+        <span class="bc-version draft" id="bc-version">v3 · Draft</span>
+        <span class="save-state saved" id="save-state">✓ Saved · just now</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn-sm ghost" onclick="duplicateQuestionnaire()">⎘ Duplicate</button>
+        <button class="btn-sm" onclick="openPreview()">▶ Preview as patient</button>
+        <button class="btn-sm primary" onclick="openPublish()">⤴ Publish</button>
+      </div>
+    </div>
+
+    <!-- Questionnaire-type strip -->
+    <div class="qtype-strip" id="qtype-strip"></div>
+
+    <!-- 3-pane builder -->
+    <div class="builder">
+
+      <!-- LEFT: Question palette + question list -->
+      <div class="pane">
+        <div class="palette">
+          <div class="palette-title">+ Add question</div>
+          <div class="palette-grid">
+            <div class="palette-item" onclick="addQuestion('single')">
+              <div class="palette-icon">◉</div>
+              <div class="palette-name">Single-select</div>
+            </div>
+            <div class="palette-item" onclick="addQuestion('multi')">
+              <div class="palette-icon">☑</div>
+              <div class="palette-name">Multi-select</div>
+            </div>
+            <div class="palette-item" onclick="addQuestion('yesno')">
+              <div class="palette-icon">⚖</div>
+              <div class="palette-name">Yes / No</div>
+            </div>
+            <div class="palette-item" onclick="addQuestion('text-short')">
+              <div class="palette-icon">▭</div>
+              <div class="palette-name">Short text</div>
+            </div>
+            <div class="palette-item" onclick="addQuestion('text-long')">
+              <div class="palette-icon">¶</div>
+              <div class="palette-name">Long text</div>
+            </div>
+            <div class="palette-item" onclick="addQuestion('numeric')">
+              <div class="palette-icon">#</div>
+              <div class="palette-name">Numeric</div>
+            </div>
+            <div class="palette-item" onclick="addQuestion('date')">
+              <div class="palette-icon">📅</div>
+              <div class="palette-name">Date</div>
+            </div>
+            <div class="palette-item" onclick="addQuestion('bmi')">
+              <div class="palette-icon">⚕</div>
+              <div class="palette-name">BMI auto-calc</div>
+            </div>
+            <div class="palette-item" onclick="addQuestion('photo')" style="grid-column: 1 / -1;">
+              <div class="palette-icon">📷</div>
+              <div class="palette-name">Photo upload</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane-head">
+          <div class="pane-title">Questions</div>
+          <div class="pane-sub" id="qcount">0</div>
+        </div>
+        <div class="pane-body">
+          <div class="qlist" id="qlist"></div>
+        </div>
+      </div>
+
+      <!-- CENTRE: Question editor -->
+      <div class="pane">
+        <div class="pane-head">
+          <div class="pane-title">Editing</div>
+          <div class="pane-sub" id="editor-q-num"></div>
+        </div>
+        <div class="pane-body">
+          <div class="editor" id="editor"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Live preview -->
+      <div class="pane">
+        <div class="pane-head">
+          <div class="pane-title">Live preview</div>
+          <div class="pane-sub" id="preview-q-num">—</div>
+        </div>
+        <div class="pane-body">
+          <div class="preview-wrap">
+            <div class="phone">
+              <div class="phone-screen">
+                <div class="phone-statusbar">
+                  <span>9:41</span>
+                  <span>● ● ●</span>
+                </div>
+                <div class="phone-header">
+                  <span class="phone-back">‹</span>
+                  <div class="phone-title" id="phone-title">Reorder check-in</div>
+                  <span style="width:10px;"></span>
+                </div>
+                <div class="phone-progress" id="phone-progress"></div>
+                <div class="phone-body" id="phone-body"></div>
+                <div class="phone-foot">
+                  <button class="phone-btn secondary" onclick="prevPreview()">Back</button>
+                  <button class="phone-btn primary" onclick="nextPreview()">Continue</button>
+                </div>
+              </div>
+            </div>
+            <div class="preview-meta" id="preview-meta">Question 1 of 0</div>
+            <div class="preview-controls">
+              <button onclick="resetPreview()">↺ Reset</button>
+              <button onclick="jumpToCurrentQ()">↑ Jump to selected</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Annotation -->
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-Questionnaire-Builder · 4 fixed types per clinic · Drag to reorder · Branching · Severity flagging</span>
+      <span class="at">BLD-13.4</span>
+      <span>Single-service v1 — weight loss only · multi-service deferred to V2</span>
+      <span class="at">V1.2 Critical</span>
+      <span>Severity flag → drives existing severity matrix · Versioning preserves in-flight questionnaires</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- Publish Modal -->
+<div class="fab-modal-overlay" id="modal-publish" onclick="closeModalOutside(event,'modal-publish')">
+  <div class="fab-modal">
+    <div class="fab-modal-head">
+      <div class="fab-modal-icon" style="background:var(--brand-light);color:var(--brand-dark);">⤴</div>
+      <div class="fab-modal-title">Publish questionnaire</div>
+      <button class="fab-modal-close" onclick="closeModal('publish')">✕</button>
+    </div>
+    <div class="fab-modal-body">
+      <div style="font-size:12px;color:var(--text-2);line-height:1.5;">
+        Publishing creates <strong id="pub-version">v4</strong> of the <strong id="pub-qname">Reorder check-in</strong> questionnaire.
+        New patients starting after publish use this version. <strong>In-flight questionnaires keep the old version</strong> so patient experience doesn't break mid-flow.
+      </div>
+
+      <div class="ed-section-title" style="margin-top: 6px;">Changes since v3</div>
+      <div class="diff-block" id="pub-diff"></div>
+
+      <div class="ed-toggle-row">
+        <input type="checkbox" id="pub-notify" checked>
+        <label for="pub-notify">Notify clinical team in Slack</label>
+        <div class="help">Posts a summary of changes to #clinical-changes</div>
+      </div>
+    </div>
+    <div class="fab-modal-foot">
+      <button class="fab-btn" onclick="closeModal('publish')">Cancel</button>
+      <button class="fab-btn primary" onclick="confirmPublish()">Publish v4</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="fab-toast" id="fab-toast"></div>
+
+<script>
+// ────────────────────────────────────────────────────────────────────
+// SAMPLE DATA — questionnaires per clinic, with seeded content
+// ────────────────────────────────────────────────────────────────────
+
+// Question type metadata
+const QTYPE = {
+  single:     { name: 'Single-select', icon: '◉', hasOptions: true,  hasBranching: true,  hasSeverity: true  },
+  multi:      { name: 'Multi-select',  icon: '☑', hasOptions: true,  hasBranching: false, hasSeverity: true  },
+  yesno:      { name: 'Yes / No',      icon: '⚖', hasOptions: false, hasBranching: true,  hasSeverity: true  },
+  'text-short': { name: 'Short text',  icon: '▭', hasOptions: false, hasBranching: false, hasSeverity: false },
+  'text-long':  { name: 'Long text',   icon: '¶', hasOptions: false, hasBranching: false, hasSeverity: false },
+  numeric:    { name: 'Numeric',       icon: '#', hasOptions: false, hasBranching: true,  hasSeverity: true  },
+  date:       { name: 'Date',          icon: '📅', hasOptions: false, hasBranching: false, hasSeverity: false },
+  bmi:        { name: 'BMI auto-calc', icon: '⚕', hasOptions: false, hasBranching: false, hasSeverity: true  },
+  photo:      { name: 'Photo upload',  icon: '📷', hasOptions: false, hasBranching: false, hasSeverity: false }
+};
+
+// ────────────────────────────────────────────────────────────────────
+// FLAG LIBRARY — DEC-27 Pattern C source of truth (mirrors Settings → Clinical Flag Rules)
+// ────────────────────────────────────────────────────────────────────
+// Same 6 rules as livera_g6_flag_rules.html. Rules reference question IDs via
+// trigger.linkedQuestionId. Library is the source of truth (canonical); this inline
+// view in the questionnaire builder is a courtesy surface per DEC-27.
+const FLAG_LIBRARY = [
+  { flag_id: 'FLAG-001', name: 'Eating disorder history disclosed',
+    source: 'questionnaire', category: 'safeguarding', severity: 'CRITICAL',
+    trigger: { linkedQuestionId: 'q_eating_disorder', operator: '=', value: 'yes' },
+    primed_alignment: null, status: 'on', version: 'v2', fires_90d: 4 },
+  { flag_id: 'FLAG-002', name: 'BMI below threshold (initial order)',
+    source: 'system', category: 'clinical_safety', severity: 'HIGH',
+    trigger: { linkedQuestionId: null, condition: 'patient.bmi < 27 AND order.is_first = true' },
+    primed_alignment: 'B3', status: 'on', version: 'v4', fires_90d: 18 },
+  { flag_id: 'FLAG-003', name: 'Active or planned pregnancy',
+    source: 'questionnaire', category: 'safeguarding', severity: 'CRITICAL',
+    trigger: { linkedQuestionId: 'q_pregnancy', operator: 'IN', value: ['currently_pregnant', 'planning_conception', 'breastfeeding'] },
+    primed_alignment: null, status: 'on', version: 'v1', fires_90d: 7 },
+  { flag_id: 'FLAG-004', name: 'Welcome call — clinical concern raised',
+    source: 'manual', category: 'operational', severity: 'MEDIUM',
+    trigger: { linkedQuestionId: null, condition: 'Manual raise via Patient Profile / Order Detail' },
+    primed_alignment: null, status: 'on', version: 'v1', fires_90d: 11 },
+  { flag_id: 'FLAG-005', name: 'Dose escalation above schedule',
+    source: 'system', category: 'clinical_safety', severity: 'HIGH',
+    trigger: { linkedQuestionId: null, condition: 'requested_dose > current_dose + max_step' },
+    primed_alignment: 'C2', status: 'on', version: 'v3', fires_90d: 23 },
+  { flag_id: 'FLAG-006', name: 'NHS number missing',
+    source: 'system', category: 'data_quality', severity: 'LOW',
+    trigger: { linkedQuestionId: null, condition: 'patient.nhs_number = null AND treatment > 30d' },
+    primed_alignment: null, status: 'on', version: 'v1', fires_90d: 9 }
+];
+
+function rulesLinkedToQuestion(qid){
+  return FLAG_LIBRARY.filter(r => r.trigger.linkedQuestionId === qid);
+}
+
+// Seed data — same 4 questionnaires for both clinics
+function seedQuestionnaires(clinic){
+  return {
+    intake: {
+      id: 'intake', name: 'Initial Registration', status: 'published', version: clinic === 'feeltru' ? 5 : 7, lastPublished: '2026-04-12 by Mobeen',
+      questions: [
+        { id: 'q1', type: 'single', prompt: 'What\'s your sex assigned at birth?', help: '', required: true,
+          options: [{ label: 'Female', severity: null }, { label: 'Male', severity: null }, { label: 'Prefer not to say', severity: null }], branching: null },
+        { id: 'q2', type: 'date', prompt: 'What\'s your date of birth?', help: 'We use this to confirm eligibility (18+).', required: true },
+        { id: 'q3', type: 'bmi', prompt: 'Your height and weight', help: 'We use BMI to confirm clinical eligibility (BMI 27.5+).', required: true,
+          severityFlag: { trigger: 'bmi_below', threshold: 18.5, severity: 'severe' } },
+        { id: 'q4', type: 'multi', prompt: 'Do any of these apply to you?', help: 'Tick all that are relevant.', required: true,
+          safety_chain: true, severity_chain_id: 'se_intake_medical',
+          options: [
+            { label: 'Type 2 diabetes', severity: null },
+            { label: 'Currently pregnant or breastfeeding', severity: 'severe', locked: true },
+            { label: 'History of pancreatitis', severity: 'severe', locked: true },
+            { label: 'History of thyroid cancer (medullary)', severity: 'severe', locked: true },
+            { label: 'None of these', severity: null }
+          ], branching: null },
+        { id: 'q_eating_disorder', type: 'yesno', prompt: 'Have you been diagnosed with or treated for an eating disorder?', help: 'This includes anorexia nervosa, bulimia, binge eating disorder, or any related condition treated by a clinician.', required: true, branching: null,
+          safety_chain: true, severity_chain_id: 'se_eating_disorder',
+          severityFlag: { trigger: 'answer_eq', value: 'yes', severity: 'severe', locked: true } },
+        { id: 'q_pregnancy', type: 'single', prompt: 'Are you currently pregnant, planning conception in the next 12 months, or breastfeeding?', help: '', required: true,
+          safety_chain: true, severity_chain_id: 'se_pregnancy',
+          options: [
+            { label: 'Currently pregnant', severity: 'severe', locked: true },
+            { label: 'Planning conception in the next 12 months', severity: 'severe', locked: true },
+            { label: 'Currently breastfeeding', severity: 'severe', locked: true },
+            { label: 'None of these', severity: null }
+          ], branching: null },
+        { id: 'q5', type: 'yesno', prompt: 'Have you taken weight-loss injections before?', help: '', required: true, branching: { type: 'show_next_if', value: 'yes' } },
+        { id: 'q6', type: 'text-long', prompt: 'Which medication and when did you last take it?', help: 'Include dose if known.', required: false },
+        { id: 'q7', type: 'multi', prompt: 'Are you currently taking any of these medications?', help: '', required: true,
+          options: [
+            { label: 'Insulin or sulfonylureas', severity: 'moderate' },
+            { label: 'Warfarin', severity: 'moderate' },
+            { label: 'None of these', severity: null }
+          ], branching: null }
+      ]
+    },
+    reorder: {
+      id: 'reorder', name: 'Reorder check-in', status: 'draft', version: 3, lastPublished: '2026-03-08 by Mobeen',
+      questions: [
+        { id: 'r1', type: 'yesno', prompt: 'Has anything changed in your medical history since your last order?', help: 'New conditions, medications, surgeries, hospital admissions.', required: true,
+          branching: { type: 'show_next_if', value: 'yes' }, severityFlag: { trigger: 'answer_eq', value: 'yes', severity: 'moderate' } },
+        { id: 'r2', type: 'text-long', prompt: 'What\'s changed?', help: 'Brief description — your prescriber will review before approving.', required: false },
+        { id: 'r3', type: 'multi', prompt: 'Have you had any of these side effects?', help: 'Tick all that apply.', required: true,
+          safety_chain: true, severity_chain_id: 'se_reorder_side_effects',
+          options: [
+            { label: 'Severe abdominal pain that doesn\'t go away', severity: 'severe', locked: true },
+            { label: 'Persistent vomiting', severity: 'severe', locked: true },
+            { label: 'Signs of pancreatitis (intense back/stomach pain)', severity: 'severe', locked: true },
+            { label: 'Mild nausea or fatigue', severity: 'mild' },
+            { label: 'None of these', severity: null }
+          ], branching: null },
+        { id: 'r4', type: 'numeric', prompt: 'What\'s your current weight in kg?', help: 'We use this to track your progress.', required: true, min: 30, max: 300, unit: 'kg' },
+        { id: 'r5', type: 'photo', prompt: 'Upload a photo of your scale reading', help: 'Optional — helps us validate your weight if your prescriber asks.', required: false },
+        { id: 'r6', type: 'single', prompt: 'How are you finding the treatment overall?', help: '', required: true,
+          options: [
+            { label: 'Going well — happy with progress', severity: null },
+            { label: 'OK — some side effects but manageable', severity: 'mild' },
+            { label: 'Struggling — would like to speak to my prescriber', severity: 'moderate' }
+          ], branching: null },
+        { id: 'r7', type: 'text-long', prompt: 'Anything else you\'d like your prescriber to know?', help: 'Optional.', required: false }
+      ]
+    },
+    coaching: {
+      id: 'coaching', name: 'Coaching invite — pre-call', status: clinic === 'feeltru' ? 'published' : 'draft', version: clinic === 'feeltru' ? 2 : 1, lastPublished: clinic === 'feeltru' ? '2026-04-20 by Olwyn' : 'Not yet published',
+      questions: [
+        { id: 'c1', type: 'multi', prompt: 'What would you most like to talk about with your coach?', help: 'Your coach will read this before the call.', required: true,
+          options: [
+            { label: 'Hunger and cravings', severity: null },
+            { label: 'Energy and motivation', severity: null },
+            { label: 'Sleep', severity: null },
+            { label: 'Side effects management', severity: null },
+            { label: 'Long-term plan / sustainability', severity: null }
+          ], branching: null },
+        { id: 'c2', type: 'single', prompt: 'How would you describe the past two weeks?', help: '', required: true,
+          options: [
+            { label: 'Really good — feeling on track', severity: null },
+            { label: 'Mixed — some good days, some hard', severity: null },
+            { label: 'Hard — finding it tough', severity: 'mild' }
+          ], branching: null },
+        { id: 'c3', type: 'text-long', prompt: 'What\'s one thing you\'d like to change or improve?', help: '', required: false }
+      ]
+    },
+    discontinuation: {
+      id: 'discontinuation', name: 'Discontinuation — exit survey', status: 'draft', version: 1, lastPublished: 'Not yet published',
+      questions: [
+        { id: 'd1', type: 'single', prompt: 'What\'s the main reason you\'re ending treatment?', help: '', required: true,
+          options: [
+            { label: 'Reached my goal weight', severity: null },
+            { label: 'Side effects', severity: 'moderate' },
+            { label: 'Cost', severity: null },
+            { label: 'Treatment not working for me', severity: null },
+            { label: 'Other', severity: null }
+          ], branching: null },
+        { id: 'd2', type: 'text-long', prompt: 'Anything you\'d like us to know?', help: 'Your feedback helps us improve.', required: false },
+        { id: 'd3', type: 'yesno', prompt: 'Would you like a final coaching call to support transition?', help: '', required: true }
+      ]
+    }
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────
+// STATE
+// ────────────────────────────────────────────────────────────────────
+let currentWS = 'feeltru';
+let DATA = { feeltru: seedQuestionnaires('feeltru'), vsc: seedQuestionnaires('vsc') };
+let activeQType = 'reorder';     // which questionnaire we're editing
+let activeQId   = null;          // which question is selected
+let previewIndex = 0;            // which question is shown in preview
+let saveTimer = null;
+
+function curQ(){ return DATA[currentWS][activeQType]; }
+function findQ(id){ return curQ().questions.find(q => q.id === id); }
+
+// ────────────────────────────────────────────────────────────────────
+// RENDERERS
+// ────────────────────────────────────────────────────────────────────
+
+function renderQTypeStrip(){
+  const types = ['intake', 'reorder', 'coaching', 'discontinuation'];
+  const labels = {
+    intake: 'Initial Registration',
+    reorder: 'Reorder check-in',
+    coaching: 'Coaching invite — pre-call',
+    discontinuation: 'Discontinuation — exit survey'
+  };
+  const strip = document.getElementById('qtype-strip');
+  strip.innerHTML = types.map(t => {
+    const q = DATA[currentWS][t];
+    const isOn = t === activeQType ? 'on' : '';
+    return `
+      <div class="qtype-card ${isOn}" onclick="setActiveQType('${t}')">
+        <div class="qtype-name">${labels[t]}</div>
+        <div class="qtype-meta">
+          <span>v${q.version}</span>
+          <span>·</span>
+          <span>${q.questions.length} questions</span>
+          <span class="qtype-status ${q.status}">${q.status}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderBreadcrumb(){
+  const q = curQ();
+  document.getElementById('bc-clinic').textContent = currentWS === 'feeltru' ? 'FeelTru' : 'VSC';
+  document.getElementById('bc-qname').textContent = q.name;
+  const v = document.getElementById('bc-version');
+  v.textContent = `v${q.version} · ${q.status.charAt(0).toUpperCase() + q.status.slice(1)}`;
+  v.className = `bc-version ${q.status}`;
+}
+
+function renderQList(){
+  const q = curQ();
+  document.getElementById('qcount').textContent = q.questions.length;
+  const list = document.getElementById('qlist');
+
+  if(q.questions.length === 0){
+    list.innerHTML = `<div class="qlist-empty">No questions yet.<br/>Add one from the palette above.</div>`;
+    return;
+  }
+
+  list.innerHTML = q.questions.map((qq, idx) => {
+    const meta = QTYPE[qq.type];
+    const isOn = qq.id === activeQId ? 'on' : '';
+    const tags = [];
+    if(qq.required) tags.push('<span class="qrow-tag req">Req</span>');
+    if(qq.branching) tags.push('<span class="qrow-tag branch">↳ Branches</span>');
+    if(qq.severityFlag) tags.push(`<span class="qrow-tag ${qq.severityFlag.severity}">⚠ ${qq.severityFlag.severity}</span>`);
+    const optsWithSev = (qq.options || []).filter(o => o.severity);
+    if(optsWithSev.length > 0 && !qq.severityFlag){
+      const max = optsWithSev.reduce((a, o) => {
+        const order = { mild: 1, moderate: 2, severe: 3 };
+        return order[o.severity] > order[a] ? o.severity : a;
+      }, 'mild');
+      tags.push(`<span class="qrow-tag ${max}">⚠ ${max}</span>`);
+    }
+    return `
+      <div class="qrow ${isOn}" data-q-id="${qq.id}" draggable="true" onclick="selectQ('${qq.id}')">
+        <div class="qrow-head">
+          <span class="qrow-num">${idx + 1}</span>
+          <span class="qrow-type-icon">${meta.icon}</span>
+          <span style="font-size:10px;color:var(--text-3);">${meta.name}</span>
+          <div class="qrow-flag-row">
+            <span class="qrow-handle" title="Drag to reorder">⋮⋮</span>
+          </div>
+        </div>
+        <div class="qrow-prompt">${qq.prompt || '<span style="color:var(--text-3);font-style:italic;">Untitled question</span>'}</div>
+        ${tags.length > 0 ? `<div class="qrow-meta">${tags.join('')}</div>` : ''}
+      </div>`;
+  }).join('') + `
+    <div class="qlist-add" onclick="document.querySelector('.palette').scrollIntoView({behavior:'smooth'});">
+      + Add question from palette ↑
+    </div>`;
+
+  // Wire drag-and-drop
+  let draggedId = null;
+  document.querySelectorAll('.qrow').forEach(row => {
+    row.addEventListener('dragstart', (e) => {
+      draggedId = row.dataset.qId;
+      row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      draggedId = null;
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const after = (e.clientY - row.getBoundingClientRect().top) > row.offsetHeight / 2;
+      row.style.borderTop = after ? '' : '2px solid var(--brand)';
+      row.style.borderBottom = after ? '2px solid var(--brand)' : '';
+    });
+    row.addEventListener('dragleave', () => {
+      row.style.borderTop = '';
+      row.style.borderBottom = '';
+    });
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      row.style.borderTop = '';
+      row.style.borderBottom = '';
+      if(!draggedId) return;
+      const targetId = row.dataset.qId;
+      if(draggedId === targetId) return;
+      const after = (e.clientY - row.getBoundingClientRect().top) > row.offsetHeight / 2;
+      reorderQ(draggedId, targetId, after);
+    });
+  });
+}
+
+function reorderQ(srcId, tgtId, after){
+  const arr = curQ().questions;
+  const srcIdx = arr.findIndex(q => q.id === srcId);
+  const [item] = arr.splice(srcIdx, 1);
+  let tgtIdx = arr.findIndex(q => q.id === tgtId);
+  if(after) tgtIdx += 1;
+  arr.splice(tgtIdx, 0, item);
+  markDirty();
+  renderQList();
+  renderPreview();
+}
+
+function renderEditor(){
+  const editor = document.getElementById('editor');
+  document.getElementById('editor-q-num').textContent = '';
+  if(!activeQId){
+    editor.innerHTML = `
+      <div class="editor-empty">
+        <div class="editor-empty-icon">✎</div>
+        <div>Select a question on the left to edit it</div>
+        <div style="font-size:11px;">Or add a new question from the palette</div>
+      </div>`;
+    return;
+  }
+  const q = findQ(activeQId);
+  if(!q) return;
+  const meta = QTYPE[q.type];
+  const idx = curQ().questions.findIndex(x => x.id === activeQId);
+  document.getElementById('editor-q-num').textContent = `Q${idx + 1} · ${meta.name}`;
+
+  let html = '';
+
+  // Basic
+  html += `<div class="ed-section">
+    <div class="ed-section-title">Question content</div>
+    <div class="ed-field">
+      <div class="ed-label">Prompt</div>
+      <input class="ed-input" value="${escapeHtml(q.prompt)}" oninput="updateQ('prompt', this.value)" placeholder="What do you want to ask the patient?" />
+    </div>
+    <div class="ed-field">
+      <div class="ed-label">Help text <span class="ed-help">(optional, shown below the prompt)</span></div>
+      <input class="ed-input" value="${escapeHtml(q.help || '')}" oninput="updateQ('help', this.value)" placeholder="Add context or guidance for the patient" />
+    </div>
+    <div class="ed-toggle-row">
+      <input type="checkbox" id="ed-required" ${q.required ? 'checked' : ''} onchange="updateQ('required', this.checked)">
+      <label for="ed-required">Required</label>
+      <div class="help">Patient can't continue until this question is answered</div>
+    </div>
+  </div>`;
+
+  // Type-specific config
+  if(q.type === 'numeric'){
+    html += `<div class="ed-section">
+      <div class="ed-section-title">Numeric constraints</div>
+      <div class="ed-row-3">
+        <div class="ed-field">
+          <div class="ed-label">Min</div>
+          <input class="ed-input" type="number" value="${q.min ?? ''}" oninput="updateQ('min', this.value === '' ? null : Number(this.value))" />
+        </div>
+        <div class="ed-field">
+          <div class="ed-label">Max</div>
+          <input class="ed-input" type="number" value="${q.max ?? ''}" oninput="updateQ('max', this.value === '' ? null : Number(this.value))" />
+        </div>
+        <div class="ed-field">
+          <div class="ed-label">Unit</div>
+          <input class="ed-input" value="${escapeHtml(q.unit || '')}" oninput="updateQ('unit', this.value)" placeholder="e.g. kg, mg" />
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Options
+  if(meta.hasOptions){
+    html += `<div class="ed-section">
+      <div class="ed-section-title">Options · severity flag per option${q.safety_chain ? ' <span class="sc-locked-tag">🔒 SAFETY CHAIN LOCKS APPLY</span>' : ''}</div>
+      <div class="opts" id="opts-list">
+        ${(q.options || []).map((opt, i) => {
+          const isLocked = opt.locked && q.safety_chain;
+          const lockTitle = isLocked ? `title="Severe option locked — part of platform safety chain (${q.severity_chain_id})"` : '';
+          return `
+          <div class="opt-row">
+            <input class="ed-input" value="${escapeHtml(opt.label)}" oninput="updateOpt(${i}, 'label', this.value)" placeholder="Option label" ${isLocked ? `title="Label can be edited for localisation — severity is locked"` : ''} />
+            <select class="opt-sev" ${isLocked ? 'disabled' : ''} ${lockTitle} onchange="updateOpt(${i}, 'severity', this.value === '' ? null : this.value)">
+              <option value="" ${!opt.severity ? 'selected' : ''}>No flag</option>
+              <option value="mild" ${opt.severity === 'mild' ? 'selected' : ''}>⚠ Mild</option>
+              <option value="moderate" ${opt.severity === 'moderate' ? 'selected' : ''}>⚠ Moderate</option>
+              <option value="severe" ${opt.severity === 'severe' ? 'selected' : ''}>${isLocked ? '🔒 ' : '⚠ '}Severe</option>
+            </select>
+            <button class="opt-del" ${isLocked ? 'disabled' : ''} ${lockTitle} onclick="deleteOpt(${i})">${isLocked ? '🔒' : '✕'}</button>
+          </div>
+        `;}).join('')}
+      </div>
+      ${q.safety_chain ? '' : '<div class="opt-add" onclick="addOpt()">+ Add option</div>'}
+      ${q.safety_chain ? '<div style="font-size:11px;color:#7c2d12;margin-top:8px;line-height:1.5;">Locked severe options cannot be deleted or have their severity changed. Labels remain editable for localisation. Adding new options is allowed via Settings → Clinical Flag Rules.</div>' : ''}
+    </div>`;
+  }
+
+  // BLD-CHAIN-VIS-01 (DEC-36): Severity Action Chain visualisation panel
+  // Shows what fires for each severity level — read-only, pulled from canonical platform rules
+  if(q.safety_chain){
+    html += renderSafetyChainPanel(q);
+  }
+
+  // BMI severity flag
+  if(q.type === 'bmi'){
+    html += `<div class="ed-section">
+      <div class="ed-section-title">BMI severity flag</div>
+      <div class="sev-card">
+        <div class="sev-title">⚠ Auto-flag if BMI is below threshold</div>
+        <div class="sev-help">When the calculated BMI is below this value, the question is flagged at the chosen severity level. Drives the platform severity matrix.</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:12px;">Flag if BMI <</span>
+          <input class="ed-input" type="number" step="0.1" style="width:80px;" value="${q.severityFlag?.threshold ?? 18.5}" oninput="updateBMIFlag('threshold', Number(this.value))" />
+          <span style="font-size:12px;">as</span>
+          <select class="opt-sev" style="width:130px;" onchange="updateBMIFlag('severity', this.value)">
+            <option value="mild" ${q.severityFlag?.severity === 'mild' ? 'selected' : ''}>Mild</option>
+            <option value="moderate" ${q.severityFlag?.severity === 'moderate' ? 'selected' : ''}>Moderate</option>
+            <option value="severe" ${(q.severityFlag?.severity || 'severe') === 'severe' ? 'selected' : ''}>Severe</option>
+          </select>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Yes/No severity
+  if(q.type === 'yesno' && meta.hasSeverity){
+    const flagLocked = q.safety_chain && q.severityFlag?.locked;
+    html += `<div class="ed-section">
+      <div class="ed-section-title">Severity flag${flagLocked ? ' <span class="sc-locked-tag">🔒 SAFETY CHAIN LOCKED</span>' : ''}</div>
+      <div class="sev-card">
+        <div class="sev-title">${flagLocked ? '🔒' : '⚠'} Flag answer with severity</div>
+        <div class="sev-help">${flagLocked
+          ? 'This flag is part of the platform safety chain (' + q.severity_chain_id + ') and cannot be edited. Severe answers fire the full safety chain — see the panel above.'
+          : 'If the patient answers a specific way, set severity. Drives the platform severity matrix and prescriber alerts.'}</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:12px;">If answer =</span>
+          <select class="opt-sev" style="width:80px;" ${flagLocked ? 'disabled' : ''} onchange="updateYesNoFlag('value', this.value)">
+            <option value="" ${!q.severityFlag ? 'selected' : ''}>(none)</option>
+            <option value="yes" ${q.severityFlag?.value === 'yes' ? 'selected' : ''}>Yes</option>
+            <option value="no" ${q.severityFlag?.value === 'no' ? 'selected' : ''}>No</option>
+          </select>
+          <span style="font-size:12px;">flag as</span>
+          <select class="opt-sev" style="width:130px;" ${flagLocked ? 'disabled' : ''} onchange="updateYesNoFlag('severity', this.value)">
+            <option value="mild" ${q.severityFlag?.severity === 'mild' ? 'selected' : ''}>Mild</option>
+            <option value="moderate" ${q.severityFlag?.severity === 'moderate' ? 'selected' : ''}>Moderate</option>
+            <option value="severe" ${q.severityFlag?.severity === 'severe' ? 'selected' : ''}>${flagLocked ? '🔒 ' : ''}Severe</option>
+          </select>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Branching
+  if(meta.hasBranching){
+    html += `<div class="ed-section">
+      <div class="ed-section-title">Branching <span style="color:var(--text-3);text-transform:none;letter-spacing:0;font-weight:500;">· optional</span></div>
+      <div class="branch-card">
+        <div class="branch-title">↳ Conditional next question</div>
+        <div class="branch-rule">
+          <span class="kw">Show next question only if</span>
+          <span>this answer =</span>
+          ${branchValueEditor(q)}
+        </div>
+        <div style="margin-top:6px;">
+          <label style="font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" ${q.branching ? 'checked' : ''} onchange="toggleBranching(this.checked)" style="accent-color:var(--brand);">
+            Enable branching for this question
+          </label>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // DEC-27 Pattern C — Linked clinical flag rules (courtesy view of Settings → Clinical Flag Rules)
+  const linkedRules = rulesLinkedToQuestion(q.id);
+  html += `<div class="ed-section linked-flags">
+    <div class="ed-section-title">⚭ Linked clinical flag rules</div>
+    <div style="font-size:11px;color:var(--text-2);margin-top:-6px;margin-bottom:8px;line-height:1.5;">
+      Flag rules whose trigger references this question fire a clinical flag when patients answer in a configured way. Rules are managed canonically in <strong>Settings → Clinical Flag Rules</strong>; this view lets you author rules without leaving the questionnaire.
+    </div>`;
+  if(linkedRules.length === 0){
+    html += `<div class="lf-empty">No flag rules linked to this question yet.</div>`;
+  } else {
+    linkedRules.forEach(r => {
+      const sevClass = { CRITICAL: 'crit', HIGH: 'high', MEDIUM: 'med', LOW: 'low' }[r.severity];
+      const triggerSummary = r.trigger.value
+        ? (Array.isArray(r.trigger.value)
+            ? `answer ${r.trigger.operator} (${r.trigger.value.join(', ')})`
+            : `answer ${r.trigger.operator} "${r.trigger.value}"`)
+        : '';
+      const primedHtml = r.primed_alignment
+        ? `<span class="lf-pill primed">Primed: ${r.primed_alignment}</span>`
+        : `<span class="lf-pill no-primed">no Primed alignment</span>`;
+      html += `
+        <div class="lf-rule-card">
+          <div>
+            <div class="lf-rule-name">
+              <span>${escapeHtml(r.name)}</span>
+              <span class="lf-flag-id">${r.flag_id}</span>
+              <span class="lf-pill ${sevClass}">${r.severity}</span>
+              <span class="lf-pill ${r.category}">${r.category.replace('_',' ')}</span>
+              ${primedHtml}
+            </div>
+            <div class="lf-rule-trigger">When ${triggerSummary} → fire flag</div>
+            <div class="lf-meta">
+              <span><strong>${r.fires_90d}</strong> fires in last 90d</span>
+              <span>Version: ${r.version}</span>
+              <span>Source: ${r.source}</span>
+            </div>
+          </div>
+          <div class="lf-actions">
+            <button class="lf-action-btn" onclick="openFlagInLibrary('${r.flag_id}')">Edit in Library →</button>
+            <button class="lf-action-btn danger" onclick="unlinkFlag('${r.flag_id}', '${q.id}')">Unlink</button>
+          </div>
+        </div>`;
+    });
+  }
+  html += `
+    <button class="lf-add-btn" onclick="openFlagPicker('${q.id}')">+ Link or create a flag rule for this question</button>
+    <div class="lf-canon-link">
+      Library is the source of truth — see <a href="livera_g6_flag_rules.html">Settings → Clinical Flag Rules</a> for the full list and edit history. Per DEC-27 Pattern C.
+    </div>
+  </div>`;
+
+  // Delete
+  html += `<div class="ed-del">
+    <button class="btn-xs danger" onclick="deleteQ()">✕ Delete this question</button>
+  </div>`;
+
+  editor.innerHTML = html;
+}
+
+function branchValueEditor(q){
+  if(q.type === 'yesno'){
+    return `<select class="ed-select" style="width:auto;" onchange="updateBranching('value', this.value)" ${!q.branching ? 'disabled' : ''}>
+      <option value="yes" ${q.branching?.value === 'yes' ? 'selected' : ''}>Yes</option>
+      <option value="no" ${q.branching?.value === 'no' ? 'selected' : ''}>No</option>
+    </select>`;
+  }
+  if(q.type === 'single'){
+    return `<select class="ed-select" style="width:auto;max-width:240px;" onchange="updateBranching('value', this.value)" ${!q.branching ? 'disabled' : ''}>
+      ${(q.options || []).map(o => `<option value="${escapeHtml(o.label)}" ${q.branching?.value === o.label ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+    </select>`;
+  }
+  if(q.type === 'numeric'){
+    return `<select class="ed-select" style="width:auto;" onchange="updateBranching('op', this.value)" ${!q.branching ? 'disabled' : ''}>
+      <option value="gt" ${q.branching?.op === 'gt' ? 'selected' : ''}>greater than</option>
+      <option value="lt" ${q.branching?.op === 'lt' ? 'selected' : ''}>less than</option>
+      <option value="eq" ${q.branching?.op === 'eq' ? 'selected' : ''}>equal to</option>
+    </select>
+    <input class="ed-input" type="number" style="width:80px;" value="${q.branching?.value ?? ''}" oninput="updateBranching('value', this.value)" ${!q.branching ? 'disabled' : ''} />`;
+  }
+  return '';
+}
+
+// ────────────────────────────────────────────────────────────────────
+// PREVIEW
+// ────────────────────────────────────────────────────────────────────
+function renderPreview(){
+  const q = curQ();
+  document.getElementById('phone-title').textContent = q.name;
+  const body = document.getElementById('phone-body');
+
+  if(q.questions.length === 0){
+    body.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--text-3);font-size:12px;">No questions yet</div>`;
+    document.getElementById('phone-progress').innerHTML = '';
+    document.getElementById('preview-meta').textContent = 'No questions';
+    document.getElementById('preview-q-num').textContent = '—';
+    return;
+  }
+
+  if(previewIndex >= q.questions.length) previewIndex = 0;
+  const qq = q.questions[previewIndex];
+  document.getElementById('preview-q-num').textContent = `Q${previewIndex + 1}`;
+
+  // Progress bar
+  document.getElementById('phone-progress').innerHTML = q.questions.map((_, i) => {
+    const cls = i < previewIndex ? 'done' : (i === previewIndex ? 'on' : '');
+    return `<div class="phone-progress-step ${cls}"></div>`;
+  }).join('');
+
+  // Question content
+  let html = `<div class="phone-q-num">Question ${previewIndex + 1} of ${q.questions.length}</div>`;
+  html += `<div class="phone-q-prompt">${qq.prompt || '(no prompt yet)'}${qq.required ? ' <span style="color:var(--red-mid);">*</span>' : ''}</div>`;
+  if(qq.help) html += `<div class="phone-q-help">${qq.help}</div>`;
+
+  if(qq.type === 'single'){
+    html += (qq.options || []).map((o, i) => `
+      <div class="phone-opt ${i === 0 ? 'selected' : ''}" onclick="this.parentElement.querySelectorAll('.phone-opt').forEach(x=>x.classList.remove('selected'));this.classList.add('selected');">
+        <div class="phone-opt-radio"></div>
+        <div>${escapeHtml(o.label) || '(no label)'}</div>
+      </div>`).join('');
+  } else if(qq.type === 'multi'){
+    html += (qq.options || []).map(o => `
+      <div class="phone-opt" onclick="this.classList.toggle('selected');">
+        <div class="phone-opt-cb"></div>
+        <div>${escapeHtml(o.label) || '(no label)'}</div>
+      </div>`).join('');
+  } else if(qq.type === 'yesno'){
+    html += `
+      <div class="phone-opt" onclick="this.parentElement.querySelectorAll('.phone-opt').forEach(x=>x.classList.remove('selected'));this.classList.add('selected');">
+        <div class="phone-opt-radio"></div><div>Yes</div>
+      </div>
+      <div class="phone-opt" onclick="this.parentElement.querySelectorAll('.phone-opt').forEach(x=>x.classList.remove('selected'));this.classList.add('selected');">
+        <div class="phone-opt-radio"></div><div>No</div>
+      </div>`;
+  } else if(qq.type === 'text-short'){
+    html += `<input class="phone-input" placeholder="Type your answer…" />`;
+  } else if(qq.type === 'text-long'){
+    html += `<textarea class="phone-textarea" placeholder="Type your answer…"></textarea>`;
+  } else if(qq.type === 'numeric'){
+    html += `<div style="display:flex;gap:6px;align-items:center;"><input class="phone-input" type="number" placeholder="${qq.min ?? ''}–${qq.max ?? ''}" />${qq.unit ? `<span style="font-size:13px;color:var(--text-3);">${qq.unit}</span>` : ''}</div>`;
+  } else if(qq.type === 'date'){
+    html += `<input class="phone-input" type="date" />`;
+  } else if(qq.type === 'bmi'){
+    html += `<div class="phone-bmi">
+      <div style="display:flex;gap:6px;align-items:center;"><input class="phone-input" type="number" placeholder="Height" /><span style="font-size:12px;color:var(--text-3);">cm</span></div>
+      <div style="display:flex;gap:6px;align-items:center;"><input class="phone-input" type="number" placeholder="Weight" /><span style="font-size:12px;color:var(--text-3);">kg</span></div>
+      <div style="font-size:11px;color:var(--text-3);text-align:center;padding-top:4px;border-top:0.5px solid var(--border);">BMI auto-calculates as you type</div>
+    </div>`;
+  } else if(qq.type === 'photo'){
+    html += `<div class="phone-photo-box">
+      <span class="phone-photo-icon">📷</span>
+      Tap to take a photo<br/>
+      <span style="font-size:10px;">or upload from your camera roll</span>
+    </div>`;
+  }
+
+  body.innerHTML = html;
+  document.getElementById('preview-meta').textContent = `Question ${previewIndex + 1} of ${q.questions.length}`;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// MUTATIONS
+// ────────────────────────────────────────────────────────────────────
+function setActiveQType(t){
+  activeQType = t;
+  activeQId = null;
+  previewIndex = 0;
+  renderAll();
+}
+
+function selectQ(id){
+  activeQId = id;
+  const idx = curQ().questions.findIndex(q => q.id === id);
+  previewIndex = idx >= 0 ? idx : 0;
+  renderQList();
+  renderEditor();
+  renderPreview();
+}
+
+function addQuestion(type){
+  const newQ = {
+    id: 'q_' + Date.now().toString(36),
+    type,
+    prompt: '',
+    help: '',
+    required: false
+  };
+  if(QTYPE[type].hasOptions){
+    newQ.options = [{ label: '', severity: null }, { label: '', severity: null }];
+    newQ.branching = null;
+  }
+  if(type === 'numeric'){ newQ.min = null; newQ.max = null; newQ.unit = ''; }
+  if(type === 'bmi'){ newQ.severityFlag = { trigger: 'bmi_below', threshold: 18.5, severity: 'severe' }; }
+  curQ().questions.push(newQ);
+  activeQId = newQ.id;
+  previewIndex = curQ().questions.length - 1;
+  markDirty();
+  renderAll();
+  showToast(`+ ${QTYPE[type].name} question added`);
+}
+
+function deleteQ(){
+  if(!activeQId) return;
+  const q = findQ(activeQId);
+  const arr = curQ().questions;
+  const idx = arr.findIndex(x => x.id === activeQId);
+
+  // BLD-CHAIN-LOCK-01: warn when deleting a safety_chain question
+  if(q && q.safety_chain){
+    const ok = confirm(
+      'This question is part of the SE safety chain (' + q.severity_chain_id + ').\n\n' +
+      'Removing it means SE will not be tracked through the questionnaire flow — but the FAB-based "Log side effect" on the patient app remains active.\n\n' +
+      'This action will be logged as SAFETY_QUESTION_EDITED with type=question_deleted.\n\n' +
+      'Continue?'
+    );
+    if(!ok){
+      logSafetyAudit(q, 'question_delete_blocked', {
+        question_id: q.id,
+        prompt: q.prompt,
+        severity_chain_id: q.severity_chain_id,
+        blocked: true,
+        reason: 'User cancelled at confirmation'
+      });
+      return;
+    }
+    logSafetyAudit(q, 'question_deleted', {
+      question_id: q.id,
+      prompt: q.prompt,
+      severity_chain_id: q.severity_chain_id,
+      blocked: false,
+      safety_chain_intact: false,
+      fallback: 'FAB-based Log side effect on patient app remains active'
+    });
+  }
+
+  arr.splice(idx, 1);
+  activeQId = null;
+  previewIndex = Math.max(0, idx - 1);
+  markDirty();
+  renderAll();
+  showToast('Question deleted');
+}
+
+function updateQ(field, value){
+  const q = findQ(activeQId);
+  if(!q) return;
+  q[field] = value;
+  markDirty();
+  renderQList();
+  renderPreview();
+}
+
+function updateOpt(idx, field, value){
+  const q = findQ(activeQId);
+  if(!q || !q.options) return;
+  const opt = q.options[idx];
+
+  // BLD-CHAIN-LOCK-01: severity dropdown locked at 'severe' for safety_chain options
+  if(field === 'severity' && opt.locked && q.safety_chain){
+    logSafetyAudit(q, 'option_severity_change_blocked', {
+      option_idx: idx,
+      option_label: opt.label,
+      attempted_severity: value,
+      blocked: true,
+      reason: 'Option is part of platform safety chain ('+q.severity_chain_id+')'
+    });
+    showToast('Severity locked — this option is part of the platform safety chain', true);
+    renderEditor();
+    return;
+  }
+
+  // BLD-CHAIN-AUDIT-01: log label edits on safety-chain questions (allowed for localisation)
+  if(q.safety_chain){
+    logSafetyAudit(q, 'option_label_edited', {
+      option_idx: idx,
+      field: field,
+      old_value: opt[field],
+      new_value: value,
+      blocked: false,
+      reason: 'Localisation edit — severity_chain intact'
+    });
+  }
+
+  q.options[idx][field] = value;
+  markDirty();
+  renderQList();
+  renderPreview();
+}
+
+function deleteOpt(idx){
+  const q = findQ(activeQId);
+  if(!q || !q.options) return;
+  const opt = q.options[idx];
+
+  // BLD-CHAIN-LOCK-01: cannot delete severe options on safety_chain questions
+  if(opt.locked && q.safety_chain){
+    logSafetyAudit(q, 'option_delete_blocked', {
+      option_idx: idx,
+      option_label: opt.label,
+      severity: opt.severity,
+      blocked: true,
+      reason: 'Option is part of platform safety chain ('+q.severity_chain_id+') · cannot be deleted'
+    });
+    showToast('Cannot delete — option is part of the platform safety chain', true);
+    return;
+  }
+
+  if(q.safety_chain){
+    logSafetyAudit(q, 'option_deleted', {
+      option_idx: idx,
+      option_label: opt.label,
+      severity: opt.severity,
+      blocked: false,
+      safety_chain_intact: true
+    });
+  }
+
+  q.options.splice(idx, 1);
+  markDirty();
+  renderEditor();
+  renderQList();
+  renderPreview();
+}
+
+function addOpt(){
+  const q = findQ(activeQId);
+  if(!q) return;
+  q.options = q.options || [];
+  q.options.push({ label: '', severity: null });
+  markDirty();
+  renderEditor();
+  renderQList();
+  renderPreview();
+}
+
+function toggleBranching(enabled){
+  const q = findQ(activeQId);
+  if(!q) return;
+  if(enabled){
+    if(q.type === 'yesno') q.branching = { type: 'show_next_if', value: 'yes' };
+    else if(q.type === 'single') q.branching = { type: 'show_next_if', value: (q.options?.[0]?.label || '') };
+    else if(q.type === 'numeric') q.branching = { type: 'show_next_if', op: 'gt', value: 0 };
+  } else {
+    q.branching = null;
+  }
+  markDirty();
+  renderEditor();
+  renderQList();
+}
+
+function updateBranching(field, value){
+  const q = findQ(activeQId);
+  if(!q || !q.branching) return;
+  q.branching[field] = value;
+  markDirty();
+  renderQList();
+}
+
+function updateBMIFlag(field, value){
+  const q = findQ(activeQId);
+  if(!q) return;
+  q.severityFlag = q.severityFlag || { trigger: 'bmi_below' };
+  q.severityFlag[field] = value;
+  markDirty();
+  renderQList();
+}
+
+function updateYesNoFlag(field, value){
+  const q = findQ(activeQId);
+  if(!q) return;
+
+  // BLD-CHAIN-LOCK-01: severity flag locked on safety_chain questions
+  if(q.safety_chain && q.severityFlag?.locked){
+    logSafetyAudit(q, 'yesno_flag_change_blocked', {
+      field: field,
+      attempted_value: value,
+      current: q.severityFlag,
+      blocked: true,
+      reason: 'Severity flag locked — part of safety chain ('+q.severity_chain_id+')'
+    });
+    showToast('Severity flag locked — part of the platform safety chain', true);
+    renderEditor();
+    return;
+  }
+
+  if(field === 'value' && !value){
+    q.severityFlag = null;
+  } else {
+    q.severityFlag = q.severityFlag || { trigger: 'answer_eq', severity: 'moderate', value: 'yes' };
+    q.severityFlag[field] = value;
+    if(!q.severityFlag.severity) q.severityFlag.severity = 'moderate';
+  }
+  markDirty();
+  renderQList();
+}
+
+// BLD-CHAIN-AUDIT-01: SAFETY_QUESTION_EDITED audit log buffer
+// Captures every edit attempt (allowed + blocked) on safety_chain questions
+// In production, posts to /audit/safety-question with full diff
+let SAFETY_AUDIT_LOG = [];
+function logSafetyAudit(q, change_type, details){
+  const entry = {
+    id: 'AUDIT-' + Date.now(),
+    timestamp: new Date().toISOString(),
+    actor_id: 'user_qadir',
+    actor_name: 'Qadir Hussain',
+    actor_role: 'Owner',
+    entity: 'CONSENT', // for filter alignment with audit log entity grouping
+    audit_type: 'SAFETY_QUESTION_EDITED',
+    questionnaire_id: curQ().id,
+    questionnaire_version: curQ().version,
+    question_id: q.id,
+    severity_chain_id: q.severity_chain_id,
+    change_type: change_type,
+    details: details,
+    safety_chain_intact: !details.blocked && !['question_deleted'].includes(change_type)
+  };
+  SAFETY_AUDIT_LOG.push(entry);
+  console.log('[SAFETY AUDIT]', entry); // for demo — would POST to /audit endpoint in production
+}
+
+// BLD-CHAIN-VIS-01 (DEC-36): Severity Action Chain panel
+// Read-only visualisation of what fires for each severity level on safety_chain questions.
+// Pulled from canonical platform rules — clinic admin cannot edit these actions.
+function renderSafetyChainPanel(q){
+  // Canonical chain definitions per severity_chain_id
+  // Severe row always shows the full safety chain regardless of chain_id
+  const chains = {
+    se_intake_medical: {
+      label: 'Intake medical conditions',
+      mild_actions: [],
+      moderate_actions: []
+    },
+    se_eating_disorder: {
+      label: 'Eating disorder history',
+      mild_actions: [],
+      moderate_actions: []
+    },
+    se_pregnancy: {
+      label: 'Pregnancy / breastfeeding',
+      mild_actions: [],
+      moderate_actions: []
+    },
+    se_reorder_side_effects: {
+      label: 'Reorder side effect triage',
+      mild_actions: [
+        { ico: '📝', text: 'Livera silent log → <code>patient_se_history</code> table' },
+        { ico: '✓', text: 'Order proceeds normally' }
+      ],
+      moderate_actions: [
+        { ico: '📝', text: 'Livera log → <code>patient_se_history</code>' },
+        { ico: '🎫', text: 'Intercom ticket auto-created · category=<code>side_effect</code>' },
+        { ico: '🔔', text: 'Prescriber notified via FCM #14' },
+        { ico: '✓', text: 'Order proceeds, prescriber may intervene before approval' }
+      ]
+    }
+  };
+
+  const chain = chains[q.severity_chain_id] || { label: q.severity_chain_id, mild_actions: [], moderate_actions: [] };
+
+  // Severe actions are universal — always the full safety chain
+  const severe_actions = [
+    { ico: '⏸', text: '<strong>Order PAUSED</strong> until prescriber clears' },
+    { ico: '🚨', text: 'Monday board <code>18402056019</code> incident auto-write via API' },
+    { ico: '🔔', text: 'Prescriber alerted immediately via FCM #14 (priority push)' },
+    { ico: '🆘', text: '999/A&amp;E guidance shown on patient screen' },
+    { ico: '⚠', text: 'MHRA Yellow Card flag set for clinical review' },
+    { ico: '🔒', text: 'Cannot be suppressed by clinic config' }
+  ];
+
+  const mildHasActions = chain.mild_actions.length > 0;
+  const moderateHasActions = chain.moderate_actions.length > 0;
+
+  let html = `<div class="ed-section safety-chain">
+    <div class="ed-section-title">🔒 Severity action chain<span class="sc-chain-id">${q.severity_chain_id}</span></div>
+    <div class="sc-intro">
+      Read-only · pulled from canonical platform rules. Shows what fires when a patient selects each severity level on this question. <strong>Severe-tier actions cannot be suppressed</strong> by clinic config — this is the platform safety chain. Editing the question label is allowed for localisation; deleting the question or its severe options is blocked. Every edit (allowed and blocked) writes a <code>SAFETY_QUESTION_EDITED</code> audit log entry per <strong>BLD-CHAIN-AUDIT-01</strong>.
+    </div>`;
+
+  // Mild row (only if chain has mild actions)
+  if(mildHasActions){
+    html += `<div class="sc-row mild">
+      <div class="sc-sev-label">Mild</div>
+      <div class="sc-actions">
+        ${chain.mild_actions.map(a => `<div class="sc-action"><span class="ico">${a.ico}</span><span>${a.text}</span></div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Moderate row (only if chain has moderate actions)
+  if(moderateHasActions){
+    html += `<div class="sc-row moderate">
+      <div class="sc-sev-label">Moderate</div>
+      <div class="sc-actions">
+        ${chain.moderate_actions.map(a => `<div class="sc-action"><span class="ico">${a.ico}</span><span>${a.text}</span></div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Severe row — always rendered, full safety chain
+  html += `<div class="sc-row severe">
+    <div class="sc-sev-label">Severe</div>
+    <div class="sc-actions">
+      ${severe_actions.map(a => `<div class="sc-action"><span class="ico">${a.ico}</span><span>${a.text}</span></div>`).join('')}
+      <div class="sc-action lock-note"><span class="ico">⓵</span><span>This chain is platform-locked. Severe options below cannot be deleted; severity dropdown is fixed at <code>severe</code>; labels remain editable for localisation.</span></div>
+    </div>
+  </div>`;
+
+  // Note for chains without mild/moderate
+  if(!mildHasActions && !moderateHasActions){
+    html += `<div style="font-size:11px;color:#7c2d12;line-height:1.5;margin-top:8px;padding:8px 10px;background:rgba(255,255,255,0.6);border-radius:4px;border:0.5px dashed #fed7aa;">
+      This question only flags <strong>severe</strong> outcomes — there are no mild/moderate tiers in <code>${q.severity_chain_id}</code>. Any patient response matching a locked severe option triggers the full safety chain above.
+    </div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// AUTOSAVE
+// ────────────────────────────────────────────────────────────────────
+function markDirty(){
+  const ss = document.getElementById('save-state');
+  ss.textContent = '⋯ Saving…';
+  ss.className = 'save-state saving';
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    ss.textContent = '✓ Saved · just now';
+    ss.className = 'save-state saved';
+  }, 700);
+}
+
+// ────────────────────────────────────────────────────────────────────
+// PREVIEW NAVIGATION
+// ────────────────────────────────────────────────────────────────────
+function nextPreview(){ const max = curQ().questions.length - 1; if(previewIndex < max) previewIndex++; renderPreview(); }
+function prevPreview(){ if(previewIndex > 0) previewIndex--; renderPreview(); }
+function resetPreview(){ previewIndex = 0; renderPreview(); }
+function jumpToCurrentQ(){
+  if(!activeQId) return;
+  previewIndex = curQ().questions.findIndex(q => q.id === activeQId);
+  renderPreview();
+}
+function openPreview(){ showToast('▶ Full-screen preview · in production this opens an iframe of the patient app'); }
+
+// ────────────────────────────────────────────────────────────────────
+// PUBLISH FLOW
+// ────────────────────────────────────────────────────────────────────
+function openPublish(){
+  const q = curQ();
+  document.getElementById('pub-version').textContent = `v${q.version + 1}`;
+  document.getElementById('pub-qname').textContent = q.name;
+
+  // Mock diff
+  const diffs = [
+    { kind: 'mod', text: `Edited Q4 prompt — added clarifying language about pancreatitis history` },
+    { kind: 'add', text: `Added new Q7 — "Are you currently taking any of these medications?"` },
+    { kind: 'mod', text: `Severity flag tightened on Q1 reorder ("Has anything changed?") from mild → moderate` }
+  ];
+  document.getElementById('pub-diff').innerHTML = diffs.map(d => `
+    <div class="diff-row">
+      <div class="diff-icon ${d.kind}">${d.kind === 'add' ? '+' : (d.kind === 'mod' ? '✎' : '−')}</div>
+      <div class="diff-text">${d.text}</div>
+    </div>`).join('');
+
+  document.getElementById('modal-publish').classList.add('show');
+}
+function confirmPublish(){
+  const q = curQ();
+  q.version += 1;
+  q.status = 'published';
+  q.lastPublished = `just now by Mobeen`;
+  closeModal('publish');
+  renderAll();
+  showToast(`✓ Published ${q.name} v${q.version} · in-flight questionnaires keep v${q.version - 1}`);
+}
+function duplicateQuestionnaire(){
+  showToast('⎘ Duplicate flow · in v2 — this opens the new-questionnaire dialog');
+}
+
+// ────────────────────────────────────────────────────────────────────
+// MODALS / TOAST
+// ────────────────────────────────────────────────────────────────────
+function closeModal(k){ document.getElementById('modal-' + k).classList.remove('show'); }
+function closeModalOutside(e, id){ if(e.target.id === id) document.getElementById(id).classList.remove('show'); }
+function showToast(msg, isError){
+  const t = document.getElementById('fab-toast');
+  const icon = isError ? '<span style="color:#f87171;">✕</span>' : '<span style="color:#10b981;">✓</span>';
+  t.innerHTML = icon + ' ' + msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ────────────────────────────────────────────────────────────────────
+// WORKSPACE SWITCHER
+// ────────────────────────────────────────────────────────────────────
+function toggleWSMenu(){ document.getElementById('wsMenu').classList.toggle('open'); }
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#wsSwitcher') && !e.target.closest('#wsMenu')) document.getElementById('wsMenu').classList.remove('open');
+});
+function setWorkspace(ws){
+  currentWS = ws;
+  activeQId = null;
+  previewIndex = 0;
+  document.body.setAttribute('data-workspace', ws);
+  document.getElementById('wsMenu').classList.remove('open');
+  if(ws === 'feeltru'){
+    document.getElementById('wsName').textContent = 'FeelTru';
+    document.getElementById('check-feeltru').style.opacity = '1';
+    document.getElementById('check-vsc').style.opacity = '0';
+  } else {
+    document.getElementById('wsName').textContent = 'VSC';
+    document.getElementById('check-feeltru').style.opacity = '0';
+    document.getElementById('check-vsc').style.opacity = '1';
+  }
+  renderAll();
+  showToast(`Switched to ${ws === 'feeltru' ? 'FeelTru' : 'VSC'}`);
+}
+
+// ────────────────────────────────────────────────────────────────────
+// HELPERS
+// ────────────────────────────────────────────────────────────────────
+function escapeHtml(s){ if(s == null) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+
+function renderAll(){
+  renderQTypeStrip();
+  renderBreadcrumb();
+  renderQList();
+  renderEditor();
+  renderPreview();
+}
+
+// Init
+document.body.setAttribute('data-workspace', 'feeltru');
+// Default to reorder questionnaire — most directly useful
+activeQType = 'reorder';
+activeQId = curQ().questions[0]?.id || null;
+renderAll();
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+
+<!-- Flag picker modal — DEC-27 Pattern C inline authoring courtesy -->
+<div class="fp-overlay" id="fp-overlay">
+  <div class="fp-modal">
+    <div class="fp-head">
+      <span class="ico">⚭</span>
+      <div>
+        <h3>Link a flag rule to this question</h3>
+        <div class="sub">Pick an existing flag from the Library, or create a new one. Library is canonical (DEC-27 Pattern C).</div>
+      </div>
+      <button onclick="closeFlagPicker()" style="margin-left:auto;background:none;border:none;font-size:18px;color:var(--text-3);cursor:pointer;padding:4px 8px;">×</button>
+    </div>
+    <div class="fp-body" id="fp-body">
+      <!-- Populated by openFlagPicker() -->
+    </div>
+    <div class="fp-foot">
+      <button class="fp-btn" onclick="closeFlagPicker()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let fpTargetQuestionId = null;
+
+function openFlagPicker(qid){
+  fpTargetQuestionId = qid;
+  const body = document.getElementById('fp-body');
+  // Show flags NOT already linked to this question
+  const alreadyLinked = rulesLinkedToQuestion(qid).map(r => r.flag_id);
+  const linkable = FLAG_LIBRARY.filter(r => !alreadyLinked.includes(r.flag_id) && r.source === 'questionnaire' && !r.trigger.linkedQuestionId);
+  // Also show all questionnaire-source flags from other questions, marked as "currently linked elsewhere"
+  const otherQLinked = FLAG_LIBRARY.filter(r => r.source === 'questionnaire' && r.trigger.linkedQuestionId && r.trigger.linkedQuestionId !== qid);
+  
+  let html = '';
+  
+  // Create new
+  html += `<div class="fp-section-label">Create a new flag rule</div>`;
+  html += `<div class="fp-create" onclick="createNewFlag()">
+    <span style="font-size:14px;">＋</span>
+    <span>Create a new clinical flag for this question — opens the Library editor with this question's ID pre-bound to the trigger.</span>
+  </div>`;
+  
+  // Available to link (questionnaire-source rules with no question yet)
+  if(linkable.length > 0){
+    html += `<div class="fp-section-label" style="margin-top:18px;">Existing rules without a linked question</div>`;
+    linkable.forEach(r => {
+      html += `<div class="fp-row" onclick="linkFlagToQuestion('${r.flag_id}')">
+        <div style="flex:1;">
+          <div class="fp-rname">${r.name} <span style="font-family:monospace;font-size:10px;color:var(--text-3);">${r.flag_id}</span></div>
+          <div class="fp-rmeta">${r.severity} · ${r.category.replace('_',' ')} · v${r.version}</div>
+        </div>
+        <span class="fp-arrow">→</span>
+      </div>`;
+    });
+  } else {
+    html += `<div class="fp-section-label" style="margin-top:18px;">No existing questionnaire-source rules available to link</div>
+      <div style="font-size:11px;color:var(--text-3);font-style:italic;padding:6px 0;">All questionnaire-source rules are already linked to other questions. Create a new flag rule above.</div>`;
+  }
+  
+  // Show what's linked elsewhere — informational only
+  if(otherQLinked.length > 0){
+    html += `<div class="fp-section-label" style="margin-top:18px;">Already linked to other questions</div>`;
+    otherQLinked.forEach(r => {
+      html += `<div class="fp-row" style="opacity:0.6;cursor:not-allowed;" onclick="event.stopPropagation();">
+        <div style="flex:1;">
+          <div class="fp-rname">${r.name} <span style="font-family:monospace;font-size:10px;color:var(--text-3);">${r.flag_id}</span></div>
+          <div class="fp-rmeta">${r.severity} · ${r.category.replace('_',' ')} · linked to <code>${r.trigger.linkedQuestionId}</code></div>
+        </div>
+      </div>`;
+    });
+  }
+  
+  body.innerHTML = html;
+  document.getElementById('fp-overlay').classList.add('open');
+}
+
+function closeFlagPicker(){
+  document.getElementById('fp-overlay').classList.remove('open');
+  fpTargetQuestionId = null;
+}
+
+function linkFlagToQuestion(flagId){
+  // Find the rule and set its linkedQuestionId
+  const r = FLAG_LIBRARY.find(x => x.flag_id === flagId);
+  if(r){
+    r.trigger.linkedQuestionId = fpTargetQuestionId;
+    showToast(`Linked ${flagId} → ${fpTargetQuestionId} · Library updated · audit-logged`);
+  }
+  closeFlagPicker();
+  renderEditor();
+}
+
+function unlinkFlag(flagId, qid){
+  const r = FLAG_LIBRARY.find(x => x.flag_id === flagId);
+  if(r){
+    r.trigger.linkedQuestionId = null;
+    showToast(`Unlinked ${flagId} from ${qid} · rule retained in Library, just no longer fires from this question`);
+  }
+  renderEditor();
+}
+
+function openFlagInLibrary(flagId){
+  // Demo stub — real version would deep-link to /livera_g6_flag_rules.html#row-X with flag pre-expanded
+  if(confirm(`Open ${flagId} in the Clinical Flag Rules library? You'll leave the questionnaire builder and the Library will open with this flag expanded for editing.`)){
+    window.location.href = 'livera_g6_flag_rules.html';
+  }
+}
+
+function createNewFlag(){
+  // Demo stub
+  showToast(`Demo stub — would open Library "Create flag" modal with trigger.linkedQuestionId pre-bound to ${fpTargetQuestionId}. Source = questionnaire. Save creates the new rule and returns to this editor.`);
+  closeFlagPicker();
+}
+
+// Toast helper (in case it's not already defined elsewhere)
+if(typeof showToast === 'undefined'){
+  window.showToast = function(msg){
+    const existing = document.getElementById('toast');
+    if(!existing){
+      const t = document.createElement('div');
+      t.id = 'toast';
+      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:500;z-index:9000;box-shadow:0 8px 24px rgba(0,0,0,0.3);opacity:0;transition:opacity .2s;';
+      document.body.appendChild(t);
+    }
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.opacity = '1';
+    setTimeout(() => { t.style.opacity = '0'; }, 3500);
+  };
+}
+
+// Close picker on outside click
+document.addEventListener('click', function(e){
+  const overlay = document.getElementById('fp-overlay');
+  if(overlay && overlay.classList.contains('open') && e.target === overlay){
+    closeFlagPicker();
+  }
+});
+</script>
+
+</body>
+</html>

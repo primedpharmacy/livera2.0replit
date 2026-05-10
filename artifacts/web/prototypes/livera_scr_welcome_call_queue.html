@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Welcome Calls (BLD-13.3)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row:hover { background: var(--surface-2); }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .nb-red { margin-left: auto; background: var(--red-bg); color: var(--red-mid); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .nb-amber { margin-left: auto; background: var(--amber-bg); color: var(--amber); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  /* Topbar */
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+  .topbar-count { font-size: 12px; color: var(--text-3); }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .btn-sm:hover { background: var(--surface-2); }
+  .btn-sm.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn-sm.primary:hover { background: #3730a3; }
+  .btn-xs { padding: 4px 9px; border-radius: var(--r-sm); font-size: 11px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .btn-xs:hover { background: var(--surface-2); border-color: var(--brand-mid); color: var(--brand-dark); }
+  .btn-xs.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn-xs.primary:hover { background: #3730a3; }
+
+  /* KPI strip */
+  .kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 16px 24px 0; flex-shrink: 0; }
+  .kpi-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); padding: 12px 14px; }
+  .kpi-label { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .kpi-value { font-size: 22px; font-weight: 700; color: var(--text-1); line-height: 1; letter-spacing: -0.5px; }
+  .kpi-sub { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+  .kpi-card.alert { border-color: var(--red-border); background: var(--red-bg); }
+  .kpi-card.alert .kpi-value { color: var(--red-mid); }
+  .kpi-card.warn { border-color: var(--amber-border); background: var(--amber-bg); }
+  .kpi-card.warn .kpi-value { color: var(--amber); }
+  .kpi-card.good { border-color: var(--green-border); background: var(--green-bg); }
+  .kpi-card.good .kpi-value { color: var(--green); }
+
+  /* Tabs */
+  .tabs { display: flex; background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 24px; margin-top: 16px; flex-shrink: 0; overflow-x: auto; }
+  .tab { padding: 11px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; white-space: nowrap; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .tab:hover { color: var(--text-1); }
+  .tab.on { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 500; }
+  .tab-ct { background: var(--surface-2); color: var(--text-3); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; border: 0.5px solid var(--border-strong); }
+  .tab-ct.red { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .tab-ct.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .tab-ct.green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+
+  /* Filter row */
+  .filter-row { padding: 10px 24px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+  .search-input { min-width: 240px; max-width: 320px; padding: 7px 12px; border: 0.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 12px; font-family: inherit; background: var(--surface); }
+  .filter-chip { padding: 5px 11px; border-radius: 999px; font-size: 11px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 5px; user-select: none; }
+  .filter-chip:hover { border-color: var(--brand-mid); color: var(--brand-dark); }
+  .filter-chip.on { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+
+  /* Content */
+  .content { flex: 1; overflow-y: auto; padding: 16px 24px 24px; }
+
+  /* Section card */
+  .scard { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .scard-head { padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .scard-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .scard-sub { font-size: 11px; color: var(--text-3); margin-left: auto; }
+
+  /* Welcome call table */
+  .wc-table { width: 100%; border-collapse: collapse; }
+  .wc-table th { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; padding: 10px 14px; text-align: left; border-bottom: 0.5px solid var(--border); background: var(--surface-2); }
+  .wc-table td { padding: 12px 14px; font-size: 13px; color: var(--text-1); border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+  .wc-table tr:last-child td { border-bottom: none; }
+  .wc-table tr:hover td { background: var(--surface-2); }
+
+  /* Patient cell */
+  .patient-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .av { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--brand), var(--brand-dark)); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: -0.3px; }
+  .av.green { background: linear-gradient(135deg, #34d399, #059669); }
+  .av.amber { background: linear-gradient(135deg, #fbbf24, #d97706); }
+  .av.purple { background: linear-gradient(135deg, #a78bfa, #7c3aed); }
+  .av.pink { background: linear-gradient(135deg, #f472b6, #be185d); }
+  .av.teal { background: linear-gradient(135deg, #2dd4bf, #0891b2); }
+  .av.sm { width: 24px; height: 24px; font-size: 10px; }
+  .patient-info { min-width: 0; flex: 1; }
+  .patient-name { font-size: 13px; font-weight: 500; color: var(--text-1); }
+  .patient-meta { font-size: 11px; color: var(--text-3); margin-top: 1px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .patient-id { font-family: 'SF Mono', Menlo, monospace; }
+
+  /* Trigger cell */
+  .trig-cell { display: flex; flex-direction: column; gap: 1px; }
+  .trig-order { font-size: 12px; font-weight: 500; color: var(--text-1); font-family: 'SF Mono', Menlo, monospace; }
+  .trig-when { font-size: 11px; color: var(--text-3); }
+
+  /* SLA cell */
+  .sla-cell { display: flex; flex-direction: column; gap: 3px; }
+  .sla-time { font-size: 12px; font-weight: 600; }
+  .sla-time.ok { color: var(--green); }
+  .sla-time.warn { color: var(--amber); }
+  .sla-time.breach { color: var(--red-mid); }
+  .sla-time.done { color: var(--text-3); font-weight: 500; }
+  .sla-bar { width: 100px; height: 4px; background: var(--surface-3); border-radius: 999px; overflow: hidden; }
+  .sla-fill { height: 100%; transition: width 0.3s; }
+  .sla-fill.ok { background: var(--green); }
+  .sla-fill.warn { background: var(--amber); }
+  .sla-fill.breach { background: var(--red-mid); }
+  .sla-fill.done { background: var(--text-3); }
+  .sla-deadline { font-size: 10px; color: var(--text-3); }
+
+  /* Status pill */
+  .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; line-height: 1.4; white-space: nowrap; border: 0.5px solid; }
+  .pill .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .pill.awaiting { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .pill.awaiting .dot { background: var(--amber); }
+  .pill.attempted { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .pill.attempted .dot { background: var(--blue); }
+  .pill.completed { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .pill.completed .dot { background: var(--green); }
+  .pill.unreachable { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .pill.unreachable .dot { background: var(--red-mid); }
+  .pill.declined { background: var(--surface-2); color: var(--text-2); border-color: var(--border-strong); }
+  .pill.declined .dot { background: var(--text-3); }
+
+  /* Owner cell */
+  .owner-cell { display: flex; align-items: center; gap: 7px; cursor: pointer; padding: 4px 6px; border-radius: var(--r-sm); margin: -4px -6px; }
+  .owner-cell:hover { background: var(--surface-3); }
+  .owner-name { font-size: 12px; color: var(--text-1); font-weight: 500; }
+  .owner-empty { color: var(--text-3); font-size: 12px; font-style: italic; }
+
+  /* Last attempt cell */
+  .attempt-cell { font-size: 11px; color: var(--text-3); display: flex; flex-direction: column; gap: 1px; }
+  .attempt-cell .ah { color: var(--text-2); font-size: 12px; }
+
+  /* Actions cell */
+  .actions-cell { display: flex; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
+
+  /* Empty state */
+  .empty { padding: 60px 20px; text-align: center; color: var(--text-3); }
+  .empty-icon { font-size: 36px; margin-bottom: 8px; }
+  .empty-title { font-size: 14px; color: var(--text-2); font-weight: 500; margin-bottom: 4px; }
+  .empty-sub { font-size: 12px; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* Workspace switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); transition:background .12s; position:relative; }
+  .ws-switcher:hover { background:var(--surface-2); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ws-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); flex-shrink:0; }
+  .ws-menu { display:none; position:absolute; top:54px; left:8px; right:8px; background:var(--surface); border:0.5px solid var(--border-strong); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:500; overflow:hidden; }
+  .ws-menu.open { display:block; }
+  .ws-menu-item { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; transition:background .1s; }
+  .ws-menu-item:hover { background:var(--surface-2); }
+  .ws-menu-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ws-menu-name { font-size:12px; font-weight:600; color:var(--text-1); }
+  .ws-menu-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-menu-check { font-size:12px; color:#4338ca; font-weight:700; flex-shrink:0; }
+
+  /* Team picker (shared pattern) */
+  .picker { display: flex; flex-direction: column; gap: 0; max-height: 280px; overflow-y: auto; border: 0.5px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); }
+  .picker-search { padding: 8px 10px; border-bottom: 0.5px solid var(--border); background: var(--surface-2); position: sticky; top: 0; z-index: 1; }
+  .picker-search input { width: 100%; border: none; background: transparent; outline: none; font-size: 12px; font-family: inherit; color: var(--text-1); padding: 4px 6px; }
+  .picker-search input::placeholder { color: var(--text-3); }
+  .picker-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 0.5px solid var(--border); transition: background 0.1s; }
+  .picker-item:last-child { border-bottom: none; }
+  .picker-item:hover { background: var(--brand-light); }
+  .picker-item.selected { background: var(--brand-light); }
+  .picker-item.selected .picker-check { opacity: 1; }
+  .picker-item .av { width: 28px; height: 28px; font-size: 11px; flex-shrink: 0; }
+  .picker-info { flex: 1; min-width: 0; }
+  .picker-name { font-size: 12px; font-weight: 500; color: var(--text-1); }
+  .picker-meta { font-size: 10px; color: var(--text-3); margin-top: 1px; display: flex; gap: 6px; align-items: center; }
+  .picker-role { display: inline-flex; padding: 1px 6px; border-radius: 999px; font-size: 9px; font-weight: 600; line-height: 1.4; border: 0.5px solid; text-transform: uppercase; letter-spacing: 0.3px; }
+  .role-owner { background: var(--brand-light); color: var(--brand-dark); border-color: var(--brand-mid); }
+  .role-prescriber { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .role-coach { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .role-admin { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+  .role-clinician { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .role-superintendent { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .picker-check { font-size: 14px; color: var(--brand-dark); font-weight: 700; opacity: 0; flex-shrink: 0; }
+
+  /* Inline reassign popover */
+  .pop-overlay { position: fixed; inset: 0; z-index: 250; display: none; }
+  .pop-overlay.show { display: block; }
+  .pop { position: absolute; background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: 0 12px 32px rgba(0,0,0,0.18); width: 320px; overflow: hidden; animation: popIn 0.15s ease; }
+  @keyframes popIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+  .pop-head { padding: 10px 14px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; background: var(--surface-2); }
+  .pop-title { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .pop-sub { font-size: 11px; color: var(--text-3); margin-left: auto; }
+  .pop-body { padding: 6px; }
+  .pop-body .picker { border: none; max-height: 240px; }
+
+  /* FAB */
+  .fab-wrap { position: fixed; bottom: 28px; right: 28px; z-index: 100; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .fab-main { width: 52px; height: 52px; border-radius: 50%; background: var(--brand-dark); color: #fff; border: none; cursor: pointer; font-size: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(67,56,202,0.4); transition: all 0.2s; font-family: inherit; }
+  .fab-main:hover { background: #3730a3; box-shadow: 0 6px 24px rgba(67,56,202,0.5); transform: scale(1.05); }
+  .fab-main.open { background: #374151; box-shadow: 0 4px 20px rgba(0,0,0,0.25); transform: rotate(45deg); }
+  .fab-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; opacity: 0; pointer-events: none; transform: translateY(10px); transition: all 0.2s ease; }
+  .fab-actions.open { opacity: 1; pointer-events: all; transform: translateY(0); }
+  .fab-action { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .fab-action-label { background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.2); opacity: 0; transform: translateX(8px); transition: all 0.15s ease; }
+  .fab-actions.open .fab-action-label { opacity: 1; transform: translateX(0); }
+  .fab-icon-btn { width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15); transition: transform 0.15s; flex-shrink: 0; color: #fff; }
+  .fab-icon-btn:hover { transform: scale(1.1); }
+  .fab-icon-btn.brand { background: var(--brand); }
+  .fab-icon-btn.green { background: #16a34a; }
+  .fab-icon-btn.amber { background: #d97706; }
+  .fab-icon-btn.blue { background: #2563eb; }
+
+  /* FAB modal */
+  .fab-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .fab-modal-overlay.show { display: flex; }
+  .fab-modal { background: var(--surface); border-radius: var(--r-xl); width: 480px; max-width: 95vw; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: modalIn 0.2s ease; max-height: 90vh; display: flex; flex-direction: column; }
+  @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:none; } }
+  .fab-modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .fab-modal-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .fab-modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .fab-modal-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+  .fab-modal-close:hover { background: var(--surface-3); }
+  .fab-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+  .fab-modal-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+  .fab-input, .fab-select, .fab-textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 13px; font-family: inherit; color: var(--text-1); outline: none; }
+  .fab-input:focus, .fab-select:focus, .fab-textarea:focus { border-color: var(--brand); }
+  .fab-textarea { resize: none; min-height: 80px; line-height: 1.5; }
+  .fab-select { background: var(--surface); }
+  .fab-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: -4px; }
+  .fab-field { display: flex; flex-direction: column; gap: 5px; }
+  .fab-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fab-btn { padding: 8px 16px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .fab-btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .fab-btn.primary:hover { background: #3730a3; }
+  .fab-toast { position: fixed; bottom: 90px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 300; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .fab-toast.show { display: flex; }
+
+  /* Patient summary in modal */
+  .pat-summary { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); }
+  .pat-summary .label { font-size: 11px; color: var(--text-3); }
+  .pat-summary .name { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .pat-summary .meta { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+
+  /* Outcome radio cards */
+  .outcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .outcome-card { padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--r-md); cursor: pointer; transition: all 0.1s; display: flex; align-items: flex-start; gap: 8px; background: var(--surface); }
+  .outcome-card:hover { border-color: var(--brand-mid); background: var(--brand-light); }
+  .outcome-card.selected { border-color: var(--brand); background: var(--brand-light); border-width: 1.5px; padding: 9.5px 11.5px; }
+  .outcome-card input[type=radio] { margin-top: 2px; flex-shrink: 0; accent-color: var(--brand); }
+  .outcome-name { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .outcome-desc { font-size: 11px; color: var(--text-3); margin-top: 1px; line-height: 1.3; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html" class="active"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">Welcome Calls</div>
+      <div class="topbar-count" id="topbar-count">14 total · 5 awaiting · 2 SLA breached</div>
+      <div class="topbar-actions">
+        <button class="btn-sm">⤓ Export</button>
+        <button class="btn-sm primary" onclick="openModal('logcall')">+ Log call</button>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="kpi-strip">
+      <div class="kpi-card">
+        <div class="kpi-label">Total awaiting</div>
+        <div class="kpi-value">5</div>
+        <div class="kpi-sub">Across both clinics</div>
+      </div>
+      <div class="kpi-card alert">
+        <div class="kpi-label">SLA breached</div>
+        <div class="kpi-value">2</div>
+        <div class="kpi-sub">&gt; 48h since first paid order</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">Due in &lt; 12h</div>
+        <div class="kpi-value">1</div>
+        <div class="kpi-sub">Approaching breach</div>
+      </div>
+      <div class="kpi-card good">
+        <div class="kpi-label">Completed today</div>
+        <div class="kpi-value">3</div>
+        <div class="kpi-sub">Avg time-to-call: 18h</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Unreachable</div>
+        <div class="kpi-value">1</div>
+        <div class="kpi-sub">3 attempts logged</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab on" onclick="setFilter('all', this)">All <span class="tab-ct" id="ct-all">14</span></div>
+      <div class="tab" onclick="setFilter('awaiting', this)">Awaiting <span class="tab-ct amber" id="ct-awaiting">5</span></div>
+      <div class="tab" onclick="setFilter('breached', this)">Breached <span class="tab-ct red" id="ct-breached">2</span></div>
+      <div class="tab" onclick="setFilter('attempted', this)">Attempted <span class="tab-ct" id="ct-attempted">2</span></div>
+      <div class="tab" onclick="setFilter('completed', this)">Completed <span class="tab-ct green" id="ct-completed">5</span></div>
+      <div class="tab" onclick="setFilter('unreachable', this)">Unreachable <span class="tab-ct" id="ct-unreachable">1</span></div>
+      <div class="tab" onclick="setFilter('declined', this)">Declined <span class="tab-ct" id="ct-declined">1</span></div>
+    </div>
+
+    <!-- Filter row -->
+    <div class="filter-row">
+      <input class="search-input" placeholder="Search by patient, order ID, owner…" />
+      <span class="filter-chip on">Status: All</span>
+      <span class="filter-chip">Owner: Anyone</span>
+      <span class="filter-chip">Triggered: Last 7 days</span>
+      <span class="filter-chip">SLA: Any</span>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="scard">
+        <div class="scard-head">
+          <div class="scard-title">Welcome calls</div>
+          <div class="scard-sub" id="scard-count">14 calls</div>
+        </div>
+        <table class="wc-table">
+          <thead>
+            <tr>
+              <th style="width: 22%">Patient</th>
+              <th style="width: 14%">Trigger (first paid order)</th>
+              <th style="width: 16%">SLA · 48h</th>
+              <th style="width: 11%">Status</th>
+              <th style="width: 14%">Assigned to</th>
+              <th style="width: 11%">Last attempt</th>
+              <th style="width: 12%; text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="wcTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Annotation -->
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-Welcome-Calls · Admin workflow · 48h SLA from first paid order</span>
+      <span class="at">BLD-13.3</span>
+      <span>Available on both VSC and FeelTru — not coach-gated</span>
+      <span class="at">V1.2 Critical</span>
+      <span>📞 Call → Intercom click-to-call · ✓ Log call → outcome modal</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- FAB -->
+<div class="fab-wrap">
+  <div class="fab-actions" id="fab-actions">
+    <div class="fab-action" onclick="openModal('logcall')">
+      <div class="fab-action-label">Log welcome call</div>
+      <button class="fab-icon-btn brand">📞</button>
+    </div>
+    <div class="fab-action" onclick="openModal('newtask')">
+      <div class="fab-action-label">Create task from call</div>
+      <button class="fab-icon-btn green">✓</button>
+    </div>
+  </div>
+  <button class="fab-main" id="fab-main" onclick="toggleFAB()">+</button>
+</div>
+
+<!-- Toast -->
+<div class="fab-toast" id="fab-toast"></div>
+
+<!-- Inline Reassign Popover -->
+<div class="pop-overlay" id="pop-overlay" onclick="closePop()">
+  <div class="pop" id="pop" onclick="event.stopPropagation()">
+    <div class="pop-head">
+      <div class="pop-title">Assign welcome call</div>
+      <div class="pop-sub" id="pop-sub"></div>
+    </div>
+    <div class="pop-body">
+      <div class="picker" id="pop-picker">
+        <div class="picker-search">
+          <input placeholder="Search team members…" oninput="filterPicker(this, 'pop-picker')" />
+        </div>
+        <div class="picker-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Log Call Modal -->
+<div class="fab-modal-overlay" id="modal-logcall" onclick="closeModalOutside(event,'modal-logcall')">
+  <div class="fab-modal">
+    <div class="fab-modal-head">
+      <div class="fab-modal-icon" style="background:var(--brand-light);">📞</div>
+      <div class="fab-modal-title">Log welcome call</div>
+      <button class="fab-modal-close" onclick="closeModal('logcall')">✕</button>
+    </div>
+    <div class="fab-modal-body">
+      <div class="pat-summary" id="logcall-patient">
+        <div class="av green">SC</div>
+        <div style="flex:1;">
+          <div class="label">Calling</div>
+          <div class="name">Sarah Chen</div>
+          <div class="meta">P-00214 · ORD-01287 · First paid order 04 May 2026 09:14</div>
+        </div>
+      </div>
+
+      <div class="fab-field">
+        <div class="fab-label">Outcome</div>
+        <div class="outcome-grid">
+          <label class="outcome-card selected" onclick="selectOutcome(this,'completed')">
+            <input type="radio" name="outcome" value="completed" checked>
+            <div>
+              <div class="outcome-name">✓ Completed</div>
+              <div class="outcome-desc">Spoke with patient, welcome call done</div>
+            </div>
+          </label>
+          <label class="outcome-card" onclick="selectOutcome(this,'voicemail')">
+            <input type="radio" name="outcome" value="voicemail">
+            <div>
+              <div class="outcome-name">📩 Voicemail left</div>
+              <div class="outcome-desc">Will retry later</div>
+            </div>
+          </label>
+          <label class="outcome-card" onclick="selectOutcome(this,'noanswer')">
+            <input type="radio" name="outcome" value="noanswer">
+            <div>
+              <div class="outcome-name">⊘ No answer</div>
+              <div class="outcome-desc">No voicemail option</div>
+            </div>
+          </label>
+          <label class="outcome-card" onclick="selectOutcome(this,'reschedule')">
+            <input type="radio" name="outcome" value="reschedule">
+            <div>
+              <div class="outcome-name">🗓 Reschedule requested</div>
+              <div class="outcome-desc">Patient asked to call back</div>
+            </div>
+          </label>
+          <label class="outcome-card" onclick="selectOutcome(this,'unreachable')">
+            <input type="radio" name="outcome" value="unreachable">
+            <div>
+              <div class="outcome-name">🚫 Unreachable</div>
+              <div class="outcome-desc">3+ attempts, no response</div>
+            </div>
+          </label>
+          <label class="outcome-card" onclick="selectOutcome(this,'declined')">
+            <input type="radio" name="outcome" value="declined">
+            <div>
+              <div class="outcome-name">✕ Patient declined</div>
+              <div class="outcome-desc">Doesn't want welcome call</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="fab-row">
+        <div class="fab-field">
+          <div class="fab-label">Channel</div>
+          <select class="fab-select">
+            <option>Intercom phone</option>
+            <option>Mobile (manual)</option>
+            <option>Patient called us back</option>
+          </select>
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Duration (mins)</div>
+          <input class="fab-input" type="number" min="0" max="120" value="12">
+        </div>
+      </div>
+
+      <div class="fab-field">
+        <div class="fab-label">Notes</div>
+        <textarea class="fab-textarea" placeholder="Summary of conversation, key concerns, agreed actions, anything for the prescriber to be aware of…"></textarea>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:var(--r-sm);">
+        <input type="checkbox" id="logcall-task" style="accent-color:var(--brand);width:14px;height:14px;">
+        <label for="logcall-task" style="font-size:12px;color:var(--text-1);cursor:pointer;">Create follow-up task from this call</label>
+      </div>
+    </div>
+    <div class="fab-modal-foot">
+      <button class="fab-btn" onclick="closeModal('logcall')">Cancel</button>
+      <button class="fab-btn primary" onclick="submitLogCall()">Save call log</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Clinic team list (clinic-config-driven) ──
+const TEAMS = {
+  feeltru: [
+    { id:'u-mobeen',  name:'Mobeen Alam',         init:'MA', avatar:'brand',  role:'owner',         roleLabel:'Owner / RM' },
+    { id:'u-qadir',   name:'Qadir Hussain',       init:'QH', avatar:'brand',  role:'owner',         roleLabel:'Owner' },
+    { id:'u-claire',  name:'Claire Moynehan',     init:'CM', avatar:'green',  role:'prescriber',    roleLabel:'Prescriber' },
+    { id:'u-olwyn',   name:'Olwyn Sutcliffe',     init:'OS', avatar:'amber',  role:'coach',         roleLabel:'Coach' },
+    { id:'u-thivera', name:'Thivera Chandrapala', init:'TC', avatar:'purple', role:'admin',         roleLabel:'GTM / Admin' },
+    { id:'u-shannon', name:'Shannon Townsend',    init:'ST', avatar:'purple', role:'admin',         roleLabel:'Customer Exec' },
+    { id:'u-shahid',  name:'Shahid Mahmood',      init:'SM', avatar:'green',  role:'superintendent',roleLabel:'Superintendent' }
+  ],
+  vsc: [
+    { id:'u-mobeen',  name:'Mobeen Alam',         init:'MA', avatar:'brand',  role:'owner',         roleLabel:'Operations Lead' },
+    { id:'u-qadir',   name:'Qadir Hussain',       init:'QH', avatar:'brand',  role:'owner',         roleLabel:'Owner' },
+    { id:'u-naeem',   name:'Mohammed Naeem',      init:'MN', avatar:'green',  role:'admin',         roleLabel:'Operations' },
+    { id:'u-ali',     name:'Ali Abbas',           init:'AA', avatar:'green',  role:'prescriber',    roleLabel:'Pharmacy Manager' },
+    { id:'u-shahid',  name:'Shahid Mahmood',      init:'SM', avatar:'green',  role:'superintendent',roleLabel:'Superintendent' },
+    { id:'u-thivera', name:'Thivera Chandrapala', init:'TC', avatar:'purple', role:'admin',         roleLabel:'GTM / Admin' },
+    { id:'u-punam',   name:'Punam',               init:'PM', avatar:'purple', role:'admin',         roleLabel:'Sales' }
+  ]
+};
+let currentWS = 'feeltru';
+function team(){ return TEAMS[currentWS]; }
+function findMember(id){ return team().find(m => m.id === id); }
+
+// ── Welcome calls data ──
+// triggerHoursAgo = hours since first paid order. SLA = 48h.
+// status: awaiting | attempted | completed | unreachable | declined
+const CALLS = [
+  // Breached SLA — overdue
+  { id:'WC-0058', patient:'Sarah Chen',       patientId:'P-00214', patientInit:'SC', patientAvatar:'green',  orderId:'ORD-01287', triggerHoursAgo: 53, ownerId:'u-mobeen',  status:'awaiting',    attempts:0, lastAttempt:null, age:'4d ago' },
+  { id:'WC-0057', patient:'Maria Santos',     patientId:'P-00208', patientInit:'MS', patientAvatar:'pink',   orderId:'ORD-01281', triggerHoursAgo: 51, ownerId:'u-shannon', status:'attempted',   attempts:1, lastAttempt:'Voicemail · 2h ago', age:'3d ago' },
+
+  // Approaching breach
+  { id:'WC-0056', patient:'Jennifer Walsh',   patientId:'P-00211', patientInit:'JW', patientAvatar:'teal',   orderId:'ORD-01284', triggerHoursAgo: 38, ownerId:null,        status:'awaiting',    attempts:0, lastAttempt:null, age:'2d ago' },
+
+  // Active in window
+  { id:'WC-0055', patient:'Lisa Morrison',    patientId:'P-00216', patientInit:'LM', patientAvatar:'purple', orderId:'ORD-01290', triggerHoursAgo: 22, ownerId:'u-mobeen',  status:'awaiting',    attempts:0, lastAttempt:null, age:'1d ago' },
+  { id:'WC-0054', patient:'Angela Patel',     patientId:'P-00217', patientInit:'AP', patientAvatar:'amber',  orderId:'ORD-01293', triggerHoursAgo:  9, ownerId:null,        status:'awaiting',    attempts:0, lastAttempt:null, age:'9h ago' },
+
+  // Completed today
+  { id:'WC-0053', patient:'Michelle Clarke',  patientId:'P-00210', patientInit:'MC', patientAvatar:'brand',  orderId:'ORD-01278', triggerHoursAgo: 28, ownerId:'u-mobeen',  status:'completed',   attempts:1, lastAttempt:'Completed · 11:14', age:'1d ago' },
+  { id:'WC-0052', patient:'Karen Thompson',   patientId:'P-00207', patientInit:'KT', patientAvatar:'green',  orderId:'ORD-01275', triggerHoursAgo: 30, ownerId:'u-shannon', status:'completed',   attempts:2, lastAttempt:'Completed · 09:32', age:'1d ago' },
+  { id:'WC-0051', patient:'Rachel Owens',     patientId:'P-00206', patientInit:'RO', patientAvatar:'pink',   orderId:'ORD-01273', triggerHoursAgo: 34, ownerId:'u-mobeen',  status:'completed',   attempts:1, lastAttempt:'Completed · 14:50', age:'1d ago' },
+  { id:'WC-0050', patient:'Helen Park',       patientId:'P-00204', patientInit:'HP', patientAvatar:'teal',   orderId:'ORD-01269', triggerHoursAgo: 47, ownerId:'u-shannon', status:'completed',   attempts:1, lastAttempt:'Completed · 16:21', age:'2d ago' },
+  { id:'WC-0049', patient:'Anna Doyle',       patientId:'P-00203', patientInit:'AD', patientAvatar:'amber',  orderId:'ORD-01265', triggerHoursAgo: 60, ownerId:'u-mobeen',  status:'completed',   attempts:2, lastAttempt:'Completed · 10:05', age:'3d ago' },
+
+  // Attempted (still in window)
+  { id:'WC-0048', patient:'Jane Atkinson',    patientId:'P-00212', patientInit:'JA', patientAvatar:'purple', orderId:'ORD-01285', triggerHoursAgo: 32, ownerId:'u-shannon', status:'attempted',   attempts:2, lastAttempt:'No answer · 1h ago', age:'1d ago' },
+
+  // Unreachable
+  { id:'WC-0047', patient:'Beth Newman',      patientId:'P-00198', patientInit:'BN', patientAvatar:'green',  orderId:'ORD-01258', triggerHoursAgo: 96, ownerId:'u-mobeen',  status:'unreachable', attempts:3, lastAttempt:'No answer · 2d ago', age:'4d ago' },
+
+  // Declined
+  { id:'WC-0046', patient:'Carla Benson',     patientId:'P-00195', patientInit:'CB', patientAvatar:'amber',  orderId:'ORD-01252', triggerHoursAgo: 70, ownerId:'u-shannon', status:'declined',    attempts:1, lastAttempt:'Declined · 2d ago', age:'3d ago' }
+];
+
+let activeFilter = 'all';
+
+// ── Helpers ──
+function avFor(m){ if(!m) return ''; return `<div class="av sm ${m.avatar==='brand'?'':m.avatar}">${m.init}</div>`; }
+function patAvFor(c){ return `<div class="av ${c.patientAvatar}">${c.patientInit}</div>`; }
+
+function slaFor(c){
+  const SLA = 48;
+  const hoursLeft = SLA - c.triggerHoursAgo;
+  const pct = Math.max(0, Math.min(100, (c.triggerHoursAgo / SLA) * 100));
+
+  if(c.status === 'completed' || c.status === 'declined' || c.status === 'unreachable'){
+    return `
+      <div class="sla-cell">
+        <div class="sla-time done">${c.status === 'completed' ? '✓ Completed' : c.status === 'declined' ? '— Closed' : '🚫 Closed'}</div>
+        <div class="sla-bar"><div class="sla-fill done" style="width:100%"></div></div>
+        <div class="sla-deadline">SLA n/a</div>
+      </div>`;
+  }
+
+  let cls = 'ok', label = '';
+  if(hoursLeft < 0){ cls = 'breach'; label = `Breached by ${Math.abs(hoursLeft).toFixed(0)}h`; }
+  else if(hoursLeft < 12){ cls = 'warn'; label = `${hoursLeft.toFixed(0)}h left`; }
+  else { cls = 'ok'; label = `${hoursLeft.toFixed(0)}h left`; }
+
+  return `
+    <div class="sla-cell">
+      <div class="sla-time ${cls}">${label}</div>
+      <div class="sla-bar"><div class="sla-fill ${cls}" style="width:${pct}%"></div></div>
+      <div class="sla-deadline">Deadline: ${SLA}h from order</div>
+    </div>`;
+}
+
+function statusPill(s){
+  const lbl = { awaiting:'Awaiting', attempted:'Attempted', completed:'Completed', unreachable:'Unreachable', declined:'Declined' };
+  return `<span class="pill ${s}"><span class="dot"></span>${lbl[s]}</span>`;
+}
+
+function ownerCell(c){
+  const m = c.ownerId ? findMember(c.ownerId) : null;
+  if(!m){
+    return `<div class="owner-cell" onclick="event.stopPropagation();openReassignPop(event,'${c.id}')" title="Click to assign">
+      <div class="av sm" style="background:var(--surface-3);color:var(--text-3);border:1px dashed var(--border-strong);">+</div>
+      <div class="owner-empty">Unassigned</div>
+    </div>`;
+  }
+  return `<div class="owner-cell" onclick="event.stopPropagation();openReassignPop(event,'${c.id}')" title="Click to reassign">
+    ${avFor(m)}<div class="owner-name">${m.name}</div>
+  </div>`;
+}
+
+function actionsCell(c){
+  if(c.status === 'completed' || c.status === 'declined'){
+    return `<div class="actions-cell"><button class="btn-xs" onclick="event.stopPropagation();window.location.href='livera_welcome_call_detail.html#${c.id}'">View log</button></div>`;
+  }
+  if(c.status === 'unreachable'){
+    return `<div class="actions-cell">
+      <button class="btn-xs" onclick="event.stopPropagation();showToast('Reopened ${c.id}')">Reopen</button>
+    </div>`;
+  }
+  return `<div class="actions-cell">
+    <button class="btn-xs primary" onclick="event.stopPropagation();intercomCall('${c.id}','${c.patient.replace(/'/g,"\\'")}')">📞 Call</button>
+    <button class="btn-xs" onclick="event.stopPropagation();openLogCall('${c.id}')">✓ Log</button>
+  </div>`;
+}
+
+function renderCalls(){
+  let list = CALLS.slice();
+  if(activeFilter==='awaiting')         list = list.filter(c=>c.status==='awaiting');
+  else if(activeFilter==='breached')    list = list.filter(c=>c.status==='awaiting' && c.triggerHoursAgo > 48);
+  else if(activeFilter==='attempted')   list = list.filter(c=>c.status==='attempted');
+  else if(activeFilter==='completed')   list = list.filter(c=>c.status==='completed');
+  else if(activeFilter==='unreachable') list = list.filter(c=>c.status==='unreachable');
+  else if(activeFilter==='declined')    list = list.filter(c=>c.status==='declined');
+
+  // Sort: breached first, then by time elapsed desc
+  list.sort((a,b)=>{
+    const aBreached = a.status==='awaiting' && a.triggerHoursAgo > 48;
+    const bBreached = b.status==='awaiting' && b.triggerHoursAgo > 48;
+    if(aBreached !== bBreached) return aBreached ? -1 : 1;
+    return b.triggerHoursAgo - a.triggerHoursAgo;
+  });
+
+  const tb = document.getElementById('wcTbody');
+  if(list.length===0){
+    tb.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📞</div><div class="empty-title">No welcome calls match this filter</div><div class="empty-sub">Try a different tab or clear filters</div></div></td></tr>`;
+    document.getElementById('scard-count').textContent = '0 calls';
+    return;
+  }
+  tb.innerHTML = list.map(c=>`
+    <tr style="cursor:pointer" onclick="window.location.href='livera_welcome_call_detail.html#${c.id}'">
+      <td>
+        <div class="patient-cell">
+          ${patAvFor(c)}
+          <div class="patient-info">
+            <div class="patient-name">${c.patient}</div>
+            <div class="patient-meta"><span class="patient-id">${c.patientId}</span></div>
+          </div>
+        </div>
+      </td>
+      <td>
+        <div class="trig-cell">
+          <div class="trig-order">${c.orderId}</div>
+          <div class="trig-when">${c.age}</div>
+        </div>
+      </td>
+      <td>${slaFor(c)}</td>
+      <td>${statusPill(c.status)}</td>
+      <td>${ownerCell(c)}</td>
+      <td>
+        <div class="attempt-cell">
+          ${c.attempts === 0 ? '<div class="ah">No attempts yet</div>' : `<div class="ah">${c.attempts} attempt${c.attempts===1?'':'s'}</div><div>${c.lastAttempt||'—'}</div>`}
+        </div>
+      </td>
+      <td>${actionsCell(c)}</td>
+    </tr>`).join('');
+
+  document.getElementById('scard-count').textContent = `${list.length} ${list.length===1?'call':'calls'}`;
+
+  // Update tab counts
+  document.getElementById('ct-all').textContent = CALLS.length;
+  document.getElementById('ct-awaiting').textContent = CALLS.filter(c=>c.status==='awaiting').length;
+  document.getElementById('ct-breached').textContent = CALLS.filter(c=>c.status==='awaiting' && c.triggerHoursAgo > 48).length;
+  document.getElementById('ct-attempted').textContent = CALLS.filter(c=>c.status==='attempted').length;
+  document.getElementById('ct-completed').textContent = CALLS.filter(c=>c.status==='completed').length;
+  document.getElementById('ct-unreachable').textContent = CALLS.filter(c=>c.status==='unreachable').length;
+  document.getElementById('ct-declined').textContent = CALLS.filter(c=>c.status==='declined').length;
+}
+
+function setFilter(f, el){
+  activeFilter = f;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  renderCalls();
+}
+
+// ── People picker (shared pattern) ──
+function renderPicker(containerId, onSelect, selectedId){
+  const container = document.getElementById(containerId);
+  if(!container) return;
+  const list = container.querySelector('.picker-list');
+  list.innerHTML = team().map(m=>`
+    <div class="picker-item ${m.id===selectedId?'selected':''}" data-name="${m.name.toLowerCase()}" data-role="${m.roleLabel.toLowerCase()}" onclick="window.__pickerCallback('${containerId}','${m.id}')">
+      ${avFor(m)}
+      <div class="picker-info">
+        <div class="picker-name">${m.name}</div>
+        <div class="picker-meta"><span class="picker-role role-${m.role}">${m.roleLabel}</span></div>
+      </div>
+      <span class="picker-check">✓</span>
+    </div>
+  `).join('');
+  window.__pickerCallbacks = window.__pickerCallbacks || {};
+  window.__pickerCallbacks[containerId] = onSelect;
+}
+window.__pickerCallback = function(containerId, memberId){
+  const cb = (window.__pickerCallbacks||{})[containerId];
+  if(cb) cb(findMember(memberId));
+};
+function filterPicker(inputEl, containerId){
+  const q = inputEl.value.toLowerCase().trim();
+  document.querySelectorAll(`#${containerId} .picker-item`).forEach(it=>{
+    const hay = (it.dataset.name||'') + ' ' + (it.dataset.role||'');
+    it.style.display = hay.includes(q) ? '' : 'none';
+  });
+}
+
+// ── Inline reassign popover ──
+let popCallId = null;
+function openReassignPop(evt, callId){
+  popCallId = callId;
+  const c = CALLS.find(x=>x.id===callId);
+  const overlay = document.getElementById('pop-overlay');
+  const pop = document.getElementById('pop');
+  document.getElementById('pop-sub').textContent = c.id;
+
+  const rect = evt.currentTarget.getBoundingClientRect();
+  const popWidth = 320;
+  let left = rect.left;
+  if(left + popWidth > window.innerWidth - 16) left = window.innerWidth - popWidth - 16;
+  pop.style.left = left + 'px';
+  pop.style.top  = (rect.bottom + 6) + 'px';
+
+  renderPicker('pop-picker', (member)=>{
+    const call = CALLS.find(x=>x.id===popCallId);
+    if(call && member){
+      const prevOwner = call.ownerId ? findMember(call.ownerId) : null;
+      call.ownerId = member.id;
+      renderCalls();
+      closePop();
+      if(prevOwner) showToast(`Reassigned ${call.id} from ${prevOwner.name} to ${member.name}`);
+      else showToast(`Assigned ${call.id} to ${member.name}`);
+    }
+  }, c.ownerId);
+
+  overlay.classList.add('show');
+}
+function closePop(){
+  document.getElementById('pop-overlay').classList.remove('show');
+  popCallId = null;
+}
+
+// ── Log call modal ──
+let logCallId = null;
+let selectedOutcome = 'completed';
+
+function openLogCall(callId){
+  logCallId = callId;
+  const c = CALLS.find(x=>x.id===callId);
+  const html = `
+    ${patAvFor(c)}
+    <div style="flex:1;">
+      <div class="label">Calling</div>
+      <div class="name">${c.patient}</div>
+      <div class="meta">${c.patientId} · ${c.orderId} · First paid order ${c.age}</div>
+    </div>`;
+  document.getElementById('logcall-patient').innerHTML = html;
+
+  // Reset outcome selection to default
+  selectedOutcome = 'completed';
+  document.querySelectorAll('.outcome-card').forEach((el, i)=>{
+    el.classList.toggle('selected', i===0);
+    const r = el.querySelector('input[type=radio]');
+    r.checked = i===0;
+  });
+
+  document.getElementById('modal-logcall').classList.add('show');
+}
+
+function selectOutcome(card, value){
+  selectedOutcome = value;
+  document.querySelectorAll('.outcome-card').forEach(el=>el.classList.remove('selected'));
+  card.classList.add('selected');
+  card.querySelector('input[type=radio]').checked = true;
+}
+
+function submitLogCall(){
+  const call = CALLS.find(x=>x.id===logCallId);
+  if(!call){ closeModal('logcall'); showToast('Call log saved'); return; }
+
+  const outcomeMap = {
+    completed:    { status:'completed',   label:'Completed' },
+    voicemail:    { status:'attempted',   label:'Voicemail left' },
+    noanswer:     { status:'attempted',   label:'No answer' },
+    reschedule:   { status:'attempted',   label:'Reschedule' },
+    unreachable:  { status:'unreachable', label:'Unreachable' },
+    declined:     { status:'declined',    label:'Declined' }
+  };
+  const o = outcomeMap[selectedOutcome];
+  call.status = o.status;
+  call.attempts = (call.attempts || 0) + 1;
+  call.lastAttempt = `${o.label} · just now`;
+
+  const createTask = document.getElementById('logcall-task').checked;
+
+  closeModal('logcall');
+  renderCalls();
+
+  if(createTask){
+    showToast(`Call logged · ${o.label} · follow-up task created`);
+  } else {
+    showToast(`Call logged · ${o.label}`);
+  }
+}
+
+function intercomCall(callId, patientName){
+  showToast(`📞 Intercom call started · ${patientName}`);
+  // In production: trigger Intercom click-to-call API + open log modal pre-attached on call end
+  setTimeout(()=>openLogCall(callId), 800);
+}
+
+// ── FAB ──
+let fabOpen = false;
+function toggleFAB(){ fabOpen = !fabOpen; document.getElementById('fab-main').classList.toggle('open', fabOpen); document.getElementById('fab-actions').classList.toggle('open', fabOpen); }
+function closeFAB(){ fabOpen = false; document.getElementById('fab-main').classList.remove('open'); document.getElementById('fab-actions').classList.remove('open'); }
+
+// ── Modals ──
+const modalMap = { logcall:'modal-logcall', newtask:null };
+function openModal(k){
+  closeFAB();
+  if(k === 'logcall'){
+    // FAB-triggered log call → use first awaiting call as default
+    const firstAwaiting = CALLS.find(c=>c.status==='awaiting' || c.status==='attempted');
+    if(firstAwaiting) openLogCall(firstAwaiting.id);
+    else showToast('No awaiting calls to log');
+    return;
+  }
+  const id = modalMap[k];
+  if(id) document.getElementById(id).classList.add('show');
+  else showToast(k+' — placeholder');
+}
+function closeModal(k){ const id = modalMap[k]; if(id) document.getElementById(id).classList.remove('show'); }
+function closeModalOutside(e, id){ if(e.target.id===id) document.getElementById(id).classList.remove('show'); }
+
+// ── Toast ──
+function showToast(msg, isError){
+  const t = document.getElementById('fab-toast');
+  const icon = isError ? '<span style="color:#f87171;">✕</span>' : '<span style="color:#10b981;">✓</span>';
+  t.innerHTML = icon + ' ' + msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+// ── Workspace switcher ──
+function toggleWSMenu(){ document.getElementById('wsMenu').classList.toggle('open'); }
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#wsSwitcher') && !e.target.closest('#wsMenu')) document.getElementById('wsMenu').classList.remove('open');
+});
+function setWorkspace(ws){
+  currentWS = ws;
+  document.body.setAttribute('data-workspace', ws);
+  document.getElementById('wsMenu').classList.remove('open');
+  if(ws==='feeltru'){
+    document.getElementById('wsName').textContent='FeelTru';
+    document.getElementById('check-feeltru').style.opacity='1';
+    document.getElementById('check-vsc').style.opacity='0';
+  } else {
+    document.getElementById('wsName').textContent='VSC';
+    document.getElementById('check-feeltru').style.opacity='0';
+    document.getElementById('check-vsc').style.opacity='1';
+    // Reassign owners not present in VSC team to default
+    CALLS.forEach(c=>{ if(c.ownerId && !findMember(c.ownerId)) c.ownerId = 'u-mobeen'; });
+  }
+  renderCalls();
+  showToast(`Switched to ${ws==='feeltru'?'FeelTru':'VSC'} workspace`);
+}
+
+document.body.setAttribute('data-workspace','feeltru');
+renderCalls();
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

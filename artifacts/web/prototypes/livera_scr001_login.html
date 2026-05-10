@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Login (SCR-001)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0e17; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca;
+    --surface: #ffffff; --border: rgba(0,0,0,0.1); --border-strong: rgba(0,0,0,0.15);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  }
+  .page { min-height: 100vh; display: flex; }
+
+  /* Left — brand panel */
+  .brand-panel { width: 420px; flex-shrink: 0; background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); display: flex; flex-direction: column; padding: 48px; position: relative; overflow: hidden; }
+  .brand-panel::before { content:''; position:absolute; inset:0; background: radial-gradient(ellipse at 30% 50%, rgba(99,102,241,0.15) 0%, transparent 60%); }
+  .brand-logo { display: flex; align-items: center; gap: 10px; margin-bottom: auto; position: relative; }
+  .logo-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--brand); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; font-weight: 800; }
+  .logo-name { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+  .brand-content { position: relative; margin-bottom: 48px; }
+  .brand-headline { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.8px; line-height: 1.2; margin-bottom: 16px; }
+  .brand-sub { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.7; }
+  .brand-features { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+  .brand-feat { display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(255,255,255,0.7); }
+  .feat-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); flex-shrink: 0; }
+  .brand-footer { font-size: 11px; color: rgba(255,255,255,0.3); position: relative; }
+
+  /* Right — login form */
+  .form-panel { flex: 1; background: #f8f8f8; display: flex; align-items: center; justify-content: center; padding: 48px 40px; }
+  .form-card { background: var(--surface); border-radius: var(--r-xl); padding: 40px; width: 100%; max-width: 420px; box-shadow: 0 4px 32px rgba(0,0,0,0.08); }
+  .form-title { font-size: 22px; font-weight: 700; color: var(--text-1); letter-spacing: -0.5px; margin-bottom: 6px; }
+  .form-sub { font-size: 13px; color: var(--text-3); margin-bottom: 24px; }
+
+  /* Selector groups */
+  .selector-label { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .clinic-selector { display: flex; gap: 6px; margin-bottom: 18px; }
+  .clinic-btn { flex: 1; padding: 8px; border-radius: var(--r-md); border: 1.5px solid var(--border-strong); background: #f9f9f9; font-size: 12px; font-weight: 500; color: var(--text-2); cursor: pointer; text-align: center; font-family: inherit; transition: all 0.15s; }
+  .clinic-btn:hover { border-color: var(--brand); background: var(--brand-light); color: var(--brand-dark); }
+  .clinic-btn.on { border-color: var(--brand); background: var(--brand-light); color: var(--brand-dark); font-weight: 600; }
+
+  /* Role selector — BLD-2.3 */
+  .role-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 18px; }
+  .role-btn { padding: 10px 12px; border-radius: var(--r-md); border: 1.5px solid var(--border-strong); background: #f9f9f9; cursor: pointer; text-align: left; font-family: inherit; transition: all 0.15s; display: flex; align-items: center; gap: 8px; }
+  .role-btn:hover { border-color: var(--brand); background: var(--brand-light); }
+  .role-btn.on { border-color: var(--brand); background: var(--brand-light); }
+  .role-btn .role-icon { width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .role-btn[data-role="clinician"] .role-icon { background: rgba(99,102,241,0.15); color: var(--brand-dark); }
+  .role-btn[data-role="coach"] .role-icon { background: rgba(99,102,241,0.15); color: var(--brand-dark); }
+  .role-btn[data-role="admin"] .role-icon { background: rgba(220,38,38,0.12); color: var(--red-mid); }
+  .role-btn[data-role="prescriber"] .role-icon { background: rgba(99,102,241,0.15); color: var(--brand-dark); }
+  .role-btn .role-label { font-size: 12px; font-weight: 600; color: var(--text-1); line-height: 1.1; }
+  .role-btn .role-sub { font-size: 10px; color: var(--text-3); margin-top: 1px; }
+  .role-btn.on .role-label { color: var(--brand-dark); }
+  /* Coach gating — only available on FeelTru */
+  body[data-clinic="vsc"] .role-btn[data-role="coach"] { display: none; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .field-label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+  .field-input { padding: 11px 13px; border: 1.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 14px; font-family: inherit; color: var(--text-1); outline: none; background: var(--surface); transition: border-color 0.15s; }
+  .field-input:focus { border-color: var(--brand); }
+  .field-input::placeholder { color: var(--text-3); }
+  .field-input.error { border-color: var(--red-mid); background: var(--red-bg); }
+  .field-row { display: flex; justify-content: space-between; align-items: center; }
+  .forgot-link { font-size: 12px; color: var(--brand-dark); text-decoration: none; font-weight: 500; }
+  .forgot-link:hover { text-decoration: underline; }
+  .error-msg { padding: 10px 12px; background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: var(--r-md); font-size: 12px; color: var(--red-mid); margin-bottom: 14px; display: none; }
+  .error-msg.show { display: block; }
+
+  /* Routing hint banner — shows where login will route */
+  .route-hint { padding: 8px 10px; background: var(--brand-light); border: 0.5px solid rgba(99,102,241,0.2); border-radius: var(--r-md); font-size: 11px; color: var(--brand-dark); margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+  .route-hint .route-arrow { font-size: 13px; }
+
+  .login-btn { width: 100%; padding: 13px; border-radius: var(--r-md); background: var(--brand-dark); color: #fff; border: none; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s; margin-top: 6px; }
+  .login-btn:hover { background: #3730a3; }
+  .login-btn:active { transform: scale(0.99); }
+  .login-btn.loading { opacity: 0.7; cursor: not-allowed; }
+  .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
+  .divider-line { flex: 1; height: 0.5px; background: var(--border-strong); }
+  .divider-text { font-size: 11px; color: var(--text-3); }
+  .sso-btn { width: 100%; padding: 11px; border-radius: var(--r-md); background: var(--surface); color: var(--text-2); border: 1.5px solid var(--border-strong); font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .sso-btn:hover { background: #f9f9f9; border-color: var(--text-3); }
+  .form-footer { margin-top: 24px; text-align: center; font-size: 11px; color: var(--text-3); line-height: 1.6; }
+  .form-footer a { color: var(--brand-dark); text-decoration: none; }
+
+  /* Toast */
+  .toast { position: fixed; top: 60px; right: 24px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 9999; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .toast.show { display: flex; }
+
+  /* Annotation */
+  .ann { position: fixed; bottom: 0; left: 0; right: 0; background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; z-index: 1000; }
+  .al { color: #818cf8; font-weight: 600; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body data-clinic="feeltru" data-role="clinician">
+<div class="page">
+  <!-- Brand panel -->
+  <div class="brand-panel">
+    <div class="brand-logo">
+      <div class="logo-mark">L</div>
+      <div class="logo-name">Livera</div>
+    </div>
+    <div class="brand-content">
+      <div class="brand-headline">Clinical infrastructure for modern healthcare</div>
+      <div class="brand-sub">Compliant, auditable, and built for regulated digital health services. Powering FeelTru and VSC.</div>
+      <div class="brand-features">
+        <div class="brand-feat"><div class="feat-dot"></div>CQC and GPhC compliant by default</div>
+        <div class="brand-feat"><div class="feat-dot"></div>DCB0129 / DCB0160 clinical safety standards</div>
+        <div class="brand-feat"><div class="feat-dot"></div>Automated audit trails for every prescribing decision</div>
+        <div class="brand-feat"><div class="feat-dot"></div>Primed Pharmacy integrated — prescription to dispatch</div>
+      </div>
+    </div>
+    <div class="brand-footer">Livera · Incognia Health Ltd · Confidential</div>
+  </div>
+
+  <!-- Login form -->
+  <div class="form-panel">
+    <div class="form-card">
+      <div class="form-title">Sign in to Livera</div>
+      <div class="form-sub">Select your clinic and role to continue</div>
+
+      <!-- Clinic selector -->
+      <div class="selector-label">Clinic</div>
+      <div class="clinic-selector">
+        <button class="clinic-btn on" onclick="selClinic(this,'feeltru')">FeelTru</button>
+        <button class="clinic-btn" onclick="selClinic(this,'vsc')">VSC</button>
+      </div>
+
+      <!-- Role selector — BLD-2.3 -->
+      <div class="selector-label">Role</div>
+      <div class="role-selector">
+        <button class="role-btn on" data-role="clinician" onclick="selRole(this,'clinician')">
+          <div class="role-icon">⚕</div>
+          <div><div class="role-label">Clinician</div><div class="role-sub">Prescriber / Nurse</div></div>
+        </button>
+        <button class="role-btn" data-role="coach" onclick="selRole(this,'coach')">
+          <div class="role-icon">💬</div>
+          <div><div class="role-label">Coach</div><div class="role-sub">FeelTru only</div></div>
+        </button>
+        <button class="role-btn" data-role="admin" onclick="selRole(this,'admin')">
+          <div class="role-icon">🔧</div>
+          <div><div class="role-label">Admin</div><div class="role-sub">Operations</div></div>
+        </button>
+        <button class="role-btn" data-role="prescriber" onclick="selRole(this,'prescriber')">
+          <div class="role-icon">℞</div>
+          <div><div class="role-label">Prescriber</div><div class="role-sub">Lead clinician</div></div>
+        </button>
+      </div>
+
+      <div class="error-msg" id="err">Incorrect email or password. Please try again.</div>
+
+      <div class="field">
+        <div class="field-label">Email address</div>
+        <input class="field-input" id="email" type="email" placeholder="claire@feeltru.co.uk" autocomplete="email">
+      </div>
+
+      <div class="field">
+        <div class="field-row">
+          <div class="field-label">Password</div>
+          <a href="#" class="forgot-link">Forgot password?</a>
+        </div>
+        <input class="field-input" id="password" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+
+      <!-- Routing hint — shows where this combo will land -->
+      <div class="route-hint" id="route-hint">
+        <span class="route-arrow">→</span>
+        <span id="route-target">Sign in as <strong>Clinician</strong> on <strong>FeelTru</strong> → Clinician Home</span>
+      </div>
+
+      <button class="login-btn" id="login-btn" onclick="attemptLogin()">Sign in</button>
+
+      <div class="divider">
+        <div class="divider-line"></div>
+        <div class="divider-text">or continue with</div>
+        <div class="divider-line"></div>
+      </div>
+
+      <button class="sso-btn" onclick="showToast('Google SSO not yet wired')">
+        <svg width="16" height="16" viewBox="0 0 16 16"><rect width="7.5" height="7.5" fill="#4285F4"/><rect x="8.5" width="7.5" height="7.5" fill="#34A853"/><rect y="8.5" width="7.5" height="7.5" fill="#FBBC05"/><rect x="8.5" y="8.5" width="7.5" height="7.5" fill="#EA4335"/></svg>
+        Sign in with Google SSO
+      </button>
+
+      <div class="form-footer">
+        By signing in you agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.<br>
+        Need access? Contact <a href="#">support@livera.health</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="ann">
+  <span class="al">UX notes</span>
+  <span>SCR-001 — Login + clinic selector + role selector (BLD-2.3)</span>
+  <span class="at">BLD-2.3</span>
+  <span>Coach role gated by [data-clinic=feeltru] · Coach signs in → SCR-040 Coach Dashboard · all other roles → Clinician Home</span>
+  <span class="at">Auth0 / Supabase TBC</span>
+</div>
+
+<script>
+  // Default state: FeelTru + Clinician
+  let currentClinic = 'feeltru';
+  let currentRole = 'clinician';
+
+  function selClinic(btn, key) {
+    document.querySelectorAll('.clinic-btn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    currentClinic = key;
+    document.body.setAttribute('data-clinic', key);
+
+    // If VSC selected and current role is coach, fall back to clinician (coach hidden on VSC)
+    if (key === 'vsc' && currentRole === 'coach') {
+      const clinicianBtn = document.querySelector('.role-btn[data-role="clinician"]');
+      selRole(clinicianBtn, 'clinician');
+    }
+
+    // Update email placeholder
+    const placeholder = key === 'feeltru' ? 'claire@feeltru.co.uk' : 'admin@thevirtualslimmingclinic.co.uk';
+    document.getElementById('email').placeholder = placeholder;
+
+    updateRouteHint();
+  }
+
+  function selRole(btn, role) {
+    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    currentRole = role;
+    document.body.setAttribute('data-role', role);
+
+    // Update email placeholder for coach role
+    if (role === 'coach') {
+      document.getElementById('email').placeholder = 'sarah.wentworth@feeltru.co.uk';
+    }
+
+    updateRouteHint();
+  }
+
+  function updateRouteHint() {
+    const clinicLabel = currentClinic === 'feeltru' ? 'FeelTru' : 'VSC';
+    const roleLabel = currentRole.charAt(0).toUpperCase() + currentRole.slice(1);
+    const target = currentRole === 'coach' ? 'Coach Dashboard' : 'Clinician Home';
+    document.getElementById('route-target').innerHTML =
+      'Sign in as <strong>' + roleLabel + '</strong> on <strong>' + clinicLabel + '</strong> → ' + target;
+  }
+
+  function attemptLogin() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const btn = document.getElementById('login-btn');
+    const err = document.getElementById('err');
+    if (!email || !password) {
+      err.classList.add('show');
+      document.getElementById('email').classList.add('error');
+      return;
+    }
+    err.classList.remove('show');
+    document.getElementById('email').classList.remove('error');
+
+    btn.textContent = 'Signing in…';
+    btn.classList.add('loading');
+
+    setTimeout(() => {
+      btn.textContent = 'Sign in';
+      btn.classList.remove('loading');
+      // BLD-2.3 routing: Coach → SCR-040, all other roles → Clinician Home
+      if (currentRole === 'coach') {
+        window.location.href = 'livera_scr040_coach_dashboard.html';
+      } else {
+        window.location.href = 'livera_prototype_15_clinician_home.html';
+      }
+    }, 1000);
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.innerHTML = '<span style="color:#10b981;">✓</span> ' + msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Build Tracker · V1.1 + V1.2</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --nav-2:#312e81;
+  --surface:#ffffff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --grey:#64748b; --grey-bg:#f1f5f9; --grey-bdr:#e2e8f0;
+  --gov:#a855f7; --gov-bg:#faf5ff; --gov-bdr:#e9d5ff;
+}
+
+/* TOP NAV --- canonical Livera admin pattern */
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws-name{color:#fff;font-weight:600}
+.topnav .right{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .right .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:rgba(255,255,255,.08);border-radius:999px;border:1px solid rgba(255,255,255,.12)}
+.topnav .right .pill .dot{width:5px;height:5px;border-radius:50%}
+
+/* LAYOUT */
+.shell{max-width:1440px;margin:0 auto;padding:24px 32px 64px}
+.h1{font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-.6px;margin-bottom:4px}
+.sub{font-size:13px;color:var(--t2);margin-bottom:20px}
+.sub strong{color:var(--t1);font-weight:600}
+
+/* HERO STATS */
+.hero{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:28px}
+.stat{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:16px 18px;position:relative;overflow:hidden}
+.stat::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+.stat.ok::before{background:var(--ok)}
+.stat.proto::before{background:var(--proto)}
+.stat.warn::before{background:var(--warn)}
+.stat.gov::before{background:var(--gov)}
+.stat .lbl{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-bottom:8px}
+.stat .val{font-size:28px;font-weight:700;color:var(--t1);letter-spacing:-1px;line-height:1}
+.stat .delta{font-size:11px;color:var(--t2);margin-top:6px;display:flex;align-items:center;gap:5px}
+.stat .delta .arrow{color:var(--ok);font-weight:700}
+
+/* TABS */
+.tabs{display:flex;gap:2px;background:var(--surface);border:1px solid var(--bdr);border-radius:8px 8px 0 0;border-bottom:none;padding:6px 6px 0 6px;margin-bottom:0}
+.tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--t2);background:transparent;border:none;cursor:pointer;border-radius:6px 6px 0 0;position:relative;display:flex;align-items:center;gap:8px;transition:color .15s}
+.tab:hover{color:var(--t1)}
+.tab.active{color:var(--brand);background:var(--brand-l)}
+.tab.active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--brand)}
+.tab .count{font-size:10px;background:var(--bdr);color:var(--t2);padding:2px 6px;border-radius:999px;font-weight:600}
+.tab.active .count{background:var(--brand);color:#fff}
+
+.panel{background:var(--surface);border:1px solid var(--bdr);border-radius:0 8px 8px 8px;padding:24px;min-height:600px}
+
+/* FILTERS */
+.filterbar{display:flex;gap:8px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.fchip{padding:5px 12px;font-size:12px;font-weight:600;background:var(--grey-bg);border:1px solid var(--bdr);color:var(--t2);border-radius:999px;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.fchip:hover{border-color:var(--bdr-d);color:var(--t1)}
+.fchip.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.fchip .n{font-size:10px;font-weight:700;opacity:.85}
+.fchip .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.fchip[data-status="proto_done"] .dot{background:var(--proto)}
+.fchip[data-status="not_started"] .dot{background:var(--grey)}
+.fchip[data-status="in_progress"] .dot{background:var(--warn)}
+.fchip[data-status="blocked"] .dot{background:var(--err)}
+.fchip[data-status="done"] .dot{background:var(--ok)}
+.fdiv{width:1px;height:20px;background:var(--bdr);margin:0 4px}
+.fsearch{flex:1;max-width:280px;padding:6px 12px;font-size:12px;border:1px solid var(--bdr);border-radius:6px;outline:none;font-family:inherit;background:var(--bg)}
+.fsearch:focus{border-color:var(--brand);background:#fff}
+
+/* CHUNKS */
+.chunk{margin-bottom:18px;border:1px solid var(--bdr);border-radius:8px;background:var(--surface);overflow:hidden}
+.chunk-head{padding:14px 18px;background:linear-gradient(180deg,#fafafa 0%,var(--surface) 100%);border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;transition:background .15s}
+.chunk-head:hover{background:var(--brand-l)}
+.chunk-head .toggle{width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--t3);transition:transform .2s;flex-shrink:0;font-size:12px}
+.chunk.open .chunk-head .toggle{transform:rotate(90deg)}
+.chunk-head h3{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.2px;flex:1}
+.chunk-head .v{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--brand-l);color:var(--brand);letter-spacing:.3px}
+.chunk-head .v.v12{background:var(--proto-bg);color:var(--proto);border:1px solid var(--proto-bdr)}
+.chunk-head .v.oos{background:var(--grey-bg);color:var(--grey);border:1px solid var(--bdr-d)}
+.chunk-head .progress{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2);font-weight:500}
+.chunk-head .pbar{width:120px;height:6px;background:var(--grey-bg);border-radius:3px;overflow:hidden;position:relative}
+.chunk-head .pbar-fill{position:absolute;left:0;top:0;bottom:0;background:var(--proto);transition:width .3s}
+.chunk-head .pbar-fill.high{background:var(--ok)}
+.chunk-body{display:none;padding:0}
+.chunk.open .chunk-body{display:block}
+
+/* ITEM ROWS */
+.row{display:grid;grid-template-columns:80px 1fr 110px 70px 100px 110px;gap:14px;padding:11px 18px;border-top:1px solid var(--bdr);align-items:center;font-size:12.5px;transition:background .1s}
+.row:hover{background:var(--brand-l)}
+.row.hidden{display:none}
+.row .bld{font-family:'SF Mono',Menlo,monospace;font-size:11px;font-weight:600;color:var(--brand)}
+.row .name{color:var(--t1);font-weight:500;line-height:1.4}
+.row .name .where{display:block;font-size:11px;color:var(--t2);font-weight:400;margin-top:2px}
+.row .tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.3px;text-align:center;white-space:nowrap}
+.row .tag.new{background:var(--info-bg);color:var(--info);border:1px solid var(--info-bdr)}
+.row .tag.amend{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-bdr)}
+.row .tag.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-bdr)}
+.row .tag.gov{background:var(--gov-bg);color:var(--gov);border:1px solid var(--gov-bdr)}
+.row .tag.retire{background:var(--grey-bg);color:var(--grey);border:1px solid var(--bdr-d)}
+.row .tag.oos{background:var(--grey-bg);color:var(--grey);border:1px solid var(--bdr-d)}
+.row .complexity{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--grey-bg);color:var(--grey);text-align:center;border:1px solid var(--bdr-d)}
+.row .complexity.S{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-bdr)}
+.row .complexity.M{background:var(--info-bg);color:var(--info);border-color:var(--info-bdr)}
+.row .complexity.M-L{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-bdr)}
+.row .complexity.L{background:var(--err-bg);color:var(--err);border-color:var(--err-bdr)}
+.row .status{font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.row .status::before{content:'';width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.row .status.proto_done{color:var(--proto)}.row .status.proto_done::before{background:var(--proto)}
+.row .status.not_started{color:var(--grey)}.row .status.not_started::before{background:var(--grey)}
+.row .status.in_progress{color:var(--warn)}.row .status.in_progress::before{background:var(--warn)}
+.row .status.blocked{color:var(--err)}.row .status.blocked::before{background:var(--err)}
+.row .status.done{color:var(--ok)}.row .status.done::before{background:var(--ok)}
+.row .links{display:flex;gap:6px;justify-content:flex-end}
+.row .links a{font-size:11px;color:var(--brand);text-decoration:none;padding:3px 8px;border:1px solid var(--brand-l);background:var(--brand-l);border-radius:4px;font-weight:600;transition:all .15s;white-space:nowrap}
+.row .links a:hover{background:var(--brand);color:#fff;border-color:var(--brand)}
+.row .links a.disabled{color:var(--t3);background:var(--grey-bg);border-color:var(--bdr);cursor:not-allowed;pointer-events:none}
+
+.row-head{display:grid;grid-template-columns:80px 1fr 110px 70px 100px 110px;gap:14px;padding:9px 18px;background:var(--bg);font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);font-weight:700;border-top:1px solid var(--bdr)}
+
+/* PROTOTYPE SCREENS GRID (Tab 2) */
+.proto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.proto-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:16px;transition:all .15s;cursor:pointer;text-decoration:none;color:inherit;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden}
+.proto-card:hover{border-color:var(--brand);box-shadow:0 4px 12px rgba(99,102,241,.08);transform:translateY(-1px)}
+.proto-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+.proto-card.placeholder{cursor:not-allowed;opacity:.6}
+.proto-card.placeholder:hover{transform:none;border-color:var(--bdr);box-shadow:none}
+.proto-card.placeholder::before{background:var(--grey)}
+.pc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.pc-bld{font-family:'SF Mono',Menlo,monospace;font-size:10px;font-weight:600;color:var(--brand)}
+.pc-tag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.3px}
+.pc-tag.proto{background:var(--proto-bg);color:var(--proto);border:1px solid var(--proto-bdr)}
+.pc-tag.built{background:#dcfce7;color:#166534;padding:2px 7px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase} .pc-tag.coming{background:var(--grey-bg);color:var(--grey);border:1px solid var(--bdr-d)}
+.pc-name{font-size:14px;font-weight:600;color:var(--t1);letter-spacing:-.1px;line-height:1.3}
+.pc-desc{font-size:11.5px;color:var(--t2);line-height:1.45;flex:1}
+.pc-foot{display:flex;align-items:center;justify-content:space-between;font-size:10px;color:var(--t3);padding-top:8px;border-top:1px solid var(--bdr);margin-top:6px}
+.pc-foot .open{color:var(--brand);font-weight:600}
+.pc-section{margin-bottom:30px}
+.pc-section h3{font-size:13px;font-weight:700;color:var(--t1);letter-spacing:-.2px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.pc-section h3 .ico{width:24px;height:24px;background:var(--brand-l);color:var(--brand);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.pc-section h3 .n{font-size:11px;color:var(--t3);font-weight:500;margin-left:auto;background:var(--grey-bg);padding:2px 9px;border-radius:999px}
+
+/* DOCS PANEL */
+.docs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.doc-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:18px;text-decoration:none;color:inherit;display:flex;flex-direction:column;gap:10px;transition:all .15s;position:relative}
+.doc-card:hover{border-color:var(--brand);box-shadow:0 4px 12px rgba(99,102,241,.08)}
+.doc-card .icon{width:36px;height:36px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));color:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;margin-bottom:4px}
+.doc-card .icon.board{background:linear-gradient(135deg,#0d9488,#0f766e)}
+.doc-card .icon.matrix{background:linear-gradient(135deg,#a855f7,#7c3aed)}
+.doc-card .title{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.2px;line-height:1.3}
+.doc-card .meta{font-size:11px;color:var(--t2);line-height:1.5;flex:1}
+.doc-card .v{font-size:10px;font-weight:700;color:var(--brand);background:var(--brand-l);padding:2px 7px;border-radius:4px;align-self:flex-start;letter-spacing:.3px}
+.doc-card .open-arrow{font-size:11px;color:var(--brand);font-weight:600;margin-top:auto;padding-top:8px;border-top:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center}
+
+.docs-section{margin-bottom:30px}
+.docs-section h3{font-size:13px;font-weight:700;color:var(--t1);letter-spacing:-.2px;margin-bottom:14px;display:flex;align-items:center;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--bdr)}
+
+/* HIDE PANEL UTILITIES */
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* ANNOTATION FOOTER --- canonical Livera pattern */
+.ann{background:var(--nav);color:rgba(255,255,255,.7);padding:14px 32px;font-size:11px;display:flex;align-items:center;gap:14px;margin-top:32px;border-radius:8px}
+.ann .label{color:#fff;font-weight:600;display:flex;align-items:center;gap:6px}
+.ann .label::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--brand-mid)}
+
+@media (max-width:900px){
+  .hero{grid-template-columns:repeat(2,1fr)}
+  .row,.row-head{grid-template-columns:1fr;gap:6px}
+  .row-head{display:none}
+  .shell{padding:16px}
+}
+
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<div class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="right">
+    <span class="pill"><span class="dot" style="background:#10b981"></span>Build Tracker</span>
+    <span>5 May 2026</span>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- HEADER -->
+  <h1 class="h1">Livera Build Tracker</h1>
+  <p class="sub">V1.1 prototype build (12 chunks · 75 items) · V1.2 extensions (chunks 13–16 · 19 items) · <strong>Group 6 added 5 May 2026</strong> driven by GPhC inspection remediation. <a href="https://primedpharmacy-company.monday.com/boards/18410465442" target="_blank" style="color:var(--brand);text-decoration:none;font-weight:600">Sync Monday →</a></p>
+
+  <!-- HERO STATS -->
+  <div class="hero">
+    <div class="stat ok">
+      <div class="lbl">Items in scope</div>
+      <div class="val">94</div>
+      <div class="delta">V1.1 + V1.2 build items</div>
+    </div>
+    <div class="stat proto">
+      <div class="lbl">Proto done</div>
+      <div class="val">33</div>
+      <div class="delta"><span class="arrow">↑</span> Audit-reconciled 5 May</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Not started</div>
+      <div class="val">60</div>
+      <div class="delta">V1.2 mostly · awaiting build</div>
+    </div>
+    <div class="stat warn">
+      <div class="lbl">Blocked / OOS</div>
+      <div class="val">11</div>
+      <div class="delta">10 OOS + 1 superseded</div>
+    </div>
+    <div class="stat gov">
+      <div class="lbl">Group 6 (V1.2)</div>
+      <div class="val">7</div>
+      <div class="delta">GPhC remediation</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" data-tab="status"><span>Build Status</span><span class="count">104</span></button>
+    <button class="tab" data-tab="screens"><span>Prototype Screens</span><span class="count">30</span></button>
+    <button class="tab" data-tab="docs"><span>Documents</span><span class="count">7</span></button>
+  </div>
+
+  <!-- ===== TAB 1: BUILD STATUS ===== -->
+  <div class="tab-content active" id="tab-status">
+  <div class="panel">
+
+    <div class="filterbar">
+      <span class="fchip active" data-filter-status="all">All <span class="n">104</span></span>
+      <span class="fchip" data-filter-status="proto_done"><span class="dot"></span>Proto done <span class="n">33</span></span>
+      <span class="fchip" data-filter-status="not_started"><span class="dot"></span>Not started <span class="n">60</span></span>
+      <span class="fchip" data-filter-status="blocked"><span class="dot"></span>Blocked / OOS <span class="n">11</span></span>
+      <div class="fdiv"></div>
+      <span class="fchip active" data-filter-version="all">V1.1 + V1.2</span>
+      <span class="fchip" data-filter-version="v11">V1.1</span>
+      <span class="fchip" data-filter-version="v12">V1.2</span>
+      <input type="text" class="fsearch" placeholder="Search BLD / item name…" id="search-input">
+    </div>
+
+    <!-- ============ V1.1 CHUNKS ============ -->
+
+    <!-- Chunk 1 -->
+    <div class="chunk" data-chunk="c1">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>⚙️ Chunk 1 — Foundations (P0)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:0%"></span></span><span>0 / 7 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-1.1" data-version="v11" data-status="not_started"><span class="bld">BLD-1.1</span><span class="name">SCR-001 Login & 2FA<span class="where">Auth foundation</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="livera_scr001_login.html">Open</a></span></div>
+        <div class="row" data-id="BLD-1.2" data-version="v11" data-status="not_started"><span class="bld">BLD-1.2</span><span class="name">Multi-Owner permissions stub (DEC-13)<span class="where">FeelTru workspace</span></span><span class="tag amend">AMEND</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-1.3" data-version="v11" data-status="not_started"><span class="bld">BLD-1.3</span><span class="name">clinic_config schema implementation<span class="where">12 fields per workspace</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-1.4" data-version="v11" data-status="not_started"><span class="bld">BLD-1.4</span><span class="name">Audit log foundation<span class="where">Activity tracking entity</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-1.5" data-version="v11" data-status="not_started"><span class="bld">BLD-1.5</span><span class="name">Retire Manager / Pharmacist / Technician roles<span class="where">UI cleanup</span></span><span class="tag retire">RETIRE</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-1.6" data-version="v11" data-status="not_started"><span class="bld">BLD-1.6</span><span class="name">Notes Timeline foundation<span class="where">Patient profile component</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status not_started">Not started</span><span class="links"><a href="livera_scr_notes_timeline.html">Open</a></span></div>
+        <div class="row" data-id="BLD-1.7" data-version="v11" data-status="not_started"><span class="bld">BLD-1.7</span><span class="name">SumSub identity verification<span class="where">Pre-Clinical-Check gate</span></span><span class="tag amend">AMEND</span><span class="complexity M-L">M-L</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 2 -->
+    <div class="chunk" data-chunk="c2">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>👥 Chunk 2 — Coach Surface (P0) <span style="font-size:10px;color:var(--gov);font-weight:700;margin-left:6px">FT only</span></h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill high" style="width:88%"></span></span><span>8 / 9 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-2.1" data-version="v11" data-status="proto_done"><span class="bld">BLD-2.1</span><span class="name">Coach sidebar nav (V1.1 patch)<span class="where">Distinct sidebar gated by coaching_enabled</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr040_coach_dashboard.html">Open</a></span></div>
+        <div class="row" data-id="BLD-2.2" data-version="v11" data-status="proto_done"><span class="bld">BLD-2.2</span><span class="name">Coach Dashboard (SCR-040)<span class="where">3 KPIs · today's schedule · escalations</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr040_coach_dashboard.html">Open</a></span></div>
+        <div class="row" data-id="BLD-2.3" data-version="v11" data-status="proto_done"><span class="bld">BLD-2.3</span><span class="name">coaching_log entity model<span class="where">Backend + UI scaffolding</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_bld_2_5_coaching_log_modal.html">Open</a></span></div>
+        <div class="row" data-id="BLD-2.4" data-version="v11" data-status="not_started"><span class="bld">BLD-2.4</span><span class="name">Patient assignment to Coach<span class="where">FT clinic workflow</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-2.5" data-version="v11" data-status="proto_done"><span class="bld">BLD-2.5</span><span class="name">Coaching log entry modal<span class="where">Primary content authoring surface</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_bld_2_5_coaching_log_modal.html">Open</a></span></div>
+        <div class="row" data-id="BLD-2.6" data-version="v11" data-status="proto_done"><span class="bld">BLD-2.6</span><span class="name">Clinical Escalation flag (24h SLA)<span class="where">Coach → Prescriber</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr040_coach_dashboard.html">Open</a></span></div>
+        <div class="row" data-id="BLD-2.7" data-version="v11" data-status="proto_done"><span class="bld">BLD-2.7</span><span class="name">Notes Timeline coaching purple type<span class="where">Filter + colour coded</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_notes_timeline.html">Open</a></span></div>
+        <div class="row" data-id="BLD-2.8" data-version="v11" data-status="proto_done"><span class="bld">BLD-2.8</span><span class="name">Welcome Call (5-day SLA) · BOTH clinics<span class="where">Intercom phone integration · per May 2026 update VSC also gets welcome calls</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_welcome_call_queue.html">Open</a></span></div>
+        <div class="row" data-id="BLD-2.9" data-version="v11" data-status="proto_done"><span class="bld">BLD-2.9</span><span class="name">Initial Coaching Call (FT) 7-day SLA<span class="where">From first dispatch · FT-only until VSC adopts coaching layer</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_welcome_call_queue.html">Open</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 3 -->
+    <div class="chunk" data-chunk="c3">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>⏱️ Chunk 3 — Patient Lifecycle SLAs and Expiry (P0)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill high" style="width:71%"></span></span><span>5 / 7 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-3.1" data-version="v11" data-status="proto_done"><span class="bld">BLD-3.1</span><span class="name">SLA configuration UI<span class="where">Settings → Other Settings</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_audits_settings.html">Open</a></span></div>
+        <div class="row" data-id="BLD-3.2" data-version="v11" data-status="proto_done"><span class="bld">BLD-3.2</span><span class="name">Order Expiry (6 days from creation)<span class="where">Clinical Check Queue</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_02_clinical_check_queue.html">Open</a></span></div>
+        <div class="row" data-id="BLD-3.3" data-version="v11" data-status="not_started"><span class="bld">BLD-3.3</span><span class="name">Order amber/red colour coding (4h SLA)<span class="where">Queue urgency cues</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="livera_prototype_02_clinical_check_queue.html">Open</a></span></div>
+        <div class="row" data-id="BLD-3.4" data-version="v11" data-status="proto_done"><span class="bld">BLD-3.4</span><span class="name">Intervention 7-day SLA<span class="where">Admin Dashboard</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_15_clinician_home.html">Open</a></span></div>
+        <div class="row" data-id="BLD-3.5" data-version="v11" data-status="not_started"><span class="bld">BLD-3.5</span><span class="name">Expired tab on Clinical Check Queue<span class="where">Read-only surface</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="livera_prototype_02_clinical_check_queue.html">Open</a></span></div>
+        <div class="row" data-id="BLD-3.6" data-version="v11" data-status="proto_done"><span class="bld">BLD-3.6</span><span class="name">Dispatch date calculator (4 scenarios)<span class="where">DEC-15 — order_at + delivery_type + holidays</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_dispatch_calculator.html">Open</a></span></div>
+        <div class="row" data-id="BLD-3.7" data-version="v11" data-status="proto_done"><span class="bld">BLD-3.7</span><span class="name">Holiday calendar configuration<span class="where">Per clinic — Settings → Other</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_holiday_calendar.html">Open</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 4 -->
+    <div class="chunk" data-chunk="c4">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>📝 Chunk 4 — Notes Timeline + Admin Notes (P0)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:40%"></span></span><span>2 / 5 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-4.1" data-version="v11" data-status="not_started"><span class="bld">BLD-4.1</span><span class="name">admin_note entity model<span class="where">Distinct from clinical_note</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-4.2" data-version="v11" data-status="proto_done"><span class="bld">BLD-4.2</span><span class="name">Unified Notes Timeline (3 colour types)<span class="where">Patient Profile tab</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_notes_timeline.html">Open</a></span></div>
+        <div class="row" data-id="BLD-4.3" data-version="v11" data-status="proto_done"><span class="bld">BLD-4.3</span><span class="name">Filters: All / Clinical / Admin / Coaching<span class="where">Notes tab UI</span></span><span class="tag amend">AMEND</span><span class="complexity S">S</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_notes_timeline.html">Open</a></span></div>
+        <div class="row" data-id="BLD-4.4" data-version="v11" data-status="not_started"><span class="bld">BLD-4.4</span><span class="name">Search across all note types<span class="where">Notes tab + global</span></span><span class="tag amend">AMEND</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-4.5" data-version="v11" data-status="not_started"><span class="bld">BLD-4.5</span><span class="name">General-type clinical_note migration rule<span class="where">DEC-17 / GAP-4.12</span></span><span class="tag amend">AMEND</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 5 -->
+    <div class="chunk" data-chunk="c5">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>💳 Chunk 5 — Pre-Approval Refund Alignment (P0)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:67%"></span></span><span>2 / 3 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-5.1" data-version="v11" data-status="proto_done"><span class="bld">BLD-5.1</span><span class="name">Hide pre_dispensed buttons on VSC<span class="where">Order Detail amendment panel</span></span><span class="tag amend">AMEND</span><span class="complexity S">S</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_preapproval_enforcement.html">Open</a></span></div>
+        <div class="row" data-id="BLD-5.2" data-version="v11" data-status="proto_done"><span class="bld">BLD-5.2</span><span class="name">Pre-approval enforcement screen<span class="where">Both clinics V1.1</span></span><span class="tag amend">AMEND</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_preapproval_enforcement.html">Open</a></span></div>
+        <div class="row" data-id="BLD-5.3" data-version="v11" data-status="not_started"><span class="bld">BLD-5.3</span><span class="name">Refund window reconciliation V1.2 (per recent updates)<span class="where">FT/VSC both pre_dispensed — see DEC-18 implications</span></span><span class="tag ok">OK</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 6 -->
+    <div class="chunk" data-chunk="c6">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>🤖 Chunk 6 — AI Clinical Note Drafting (P1)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:40%"></span></span><span>2 / 5 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-6.5" data-version="v11" data-status="proto_done"><span class="bld">BLD-6.5</span><span class="name">System prompt sign-off (Qadir)<span class="where">DEC-07 governance gate</span></span><span class="tag gov">GOV</span><span class="complexity S">S</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_ai_prompt_signoff.html">Open</a></span></div>
+        <div class="row" data-id="BLD-6.1" data-version="v11" data-status="not_started"><span class="bld">BLD-6.1</span><span class="name">Anthropic API integration (live)<span class="where">claude-sonnet-4-20250514</span></span><span class="tag amend">AMEND</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-6.2" data-version="v11" data-status="proto_done"><span class="bld">BLD-6.2</span><span class="name">AI Note Drafting on Approve/Decline/Intervene<span class="where">Modal UI with prescriber sign-off</span></span><span class="tag new">NEW</span><span class="complexity L">L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr030_ai_note_drafting.html">Open</a></span></div>
+        <div class="row" data-id="BLD-6.3" data-version="v11" data-status="not_started"><span class="bld">BLD-6.3</span><span class="name">Audit trail (ai_draft_original / edits / final)<span class="where">DEC-07 — clinical_note schema</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-6.4" data-version="v11" data-status="not_started"><span class="bld">BLD-6.4</span><span class="name">NICE V1.0 source citation in drafts<span class="where">Reference panel</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 7 -->
+    <div class="chunk" data-chunk="c7">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>📨 Chunk 7 — GP Communication Format (P1)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:20%"></span></span><span>1 / 5 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-7.2" data-version="v11" data-status="not_started"><span class="bld">BLD-7.2</span><span class="name">PDF generation engine<span class="where">Server-side · letter renderer · CRITICAL PATH</span></span><span class="tag new">NEW</span><span class="complexity L">L</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-7.1" data-version="v11" data-status="not_started"><span class="bld">BLD-7.1</span><span class="name">Replace single GP letter template with two: Email Body + PDF Letter<span class="where">DEC-08 format split</span></span><span class="tag amend">AMEND</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-7.3" data-version="v11" data-status="not_started"><span class="bld">BLD-7.3</span><span class="name">Postmark email send (live) · email body + PDF attachment in single message<span class="where">DEC-08 send mechanics</span></span><span class="tag amend">AMEND</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-7.4" data-version="v11" data-status="not_started"><span class="bld">BLD-7.4</span><span class="name">Activity log: email body + PDF filename + Postmark confirmation<span class="where">Audit trail per send</span></span><span class="tag amend">AMEND</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-7.5" data-version="v11" data-status="proto_done"><span class="bld">BLD-7.5</span><span class="name">SCR-015 compose modal — email body (left) + PDF preview (right)<span class="where">GP letter detail UI</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_gp_letter_detail.html">Open</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 8 -->
+    <div class="chunk" data-chunk="c8">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>🚨 Chunk 8 — Intercom-Tag → Incident (P1)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill high" style="width:75%"></span></span><span>3 / 4 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-8.1" data-version="v11" data-status="proto_done"><span class="bld">BLD-8.1</span><span class="name">incident entity: intercom_thread_url + incident_origin fields<span class="where">DEC-10 schema</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_incident_detail_intercom.html">Open</a></span></div>
+        <div class="row" data-id="BLD-8.2" data-version="v11" data-status="proto_done"><span class="bld">BLD-8.2</span><span class="name">Configure Intercom 'Incident' tag + webhook subscription<span class="where">Settings → Integrations</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_intercom_webhook_config.html">Open</a></span></div>
+        <div class="row" data-id="BLD-8.3" data-version="v11" data-status="not_started"><span class="bld">BLD-8.3</span><span class="name">Webhook handler: resolve patient_id from Intercom → create Incident<span class="where">Backend</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-8.4" data-version="v11" data-status="proto_done"><span class="bld">BLD-8.4</span><span class="name">Closure rule: tagged Intercom thread cannot close until Incident Resolved<span class="where">Manual Incident creation UI also covered</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_incident_create_manual.html">Open</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 9 -->
+    <div class="chunk" data-chunk="c9">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>📣 Chunk 9 — Complaint Entity (P1)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:0%"></span></span><span>0 / 6 proto · prototype lives in BLD-13.1 (V1.2)</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-9.0" data-version="v11" data-status="not_started"><span class="bld">BLD-9.0</span><span class="name">Monday API write integration<span class="where">Prerequisite for board writes</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-9.1" data-version="v11" data-status="not_started"><span class="bld">BLD-9.1</span><span class="name">complaint entity — 20 fields (CMP-XXXX, SLA timers, Monday ID)<span class="where">CQC Reg 16 + LASS NHS 2009</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-9.2" data-version="v11" data-status="not_started"><span class="bld">BLD-9.2</span><span class="name">Complaints Log — SCR-041 (mirrors SCR-012 Incident Log)<span class="where">List screen</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-9.3" data-version="v11" data-status="not_started"><span class="bld">BLD-9.3</span><span class="name">Complaint Detail — SCR-042 (mirrors SCR-013, dual SLA bar)<span class="where">3-day ack / 20-day response · DEC-03</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-9.4" data-version="v11" data-status="not_started"><span class="bld">BLD-9.4</span><span class="name">Auto-write to Monday board 18402056040 on complaint creation<span class="where">DEC-03 governance</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-9.5" data-version="v11" data-status="not_started"><span class="bld">BLD-9.5</span><span class="name">Complaints in sidebar nav (Owner/Admin/Prescriber · hidden for Coach)<span class="where">RBAC routing</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 10 -->
+    <div class="chunk" data-chunk="c10">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>♀ Chunk 10 — Women-Only Filter + VSC Redirect (P1)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:0%"></span></span><span>0 / 4 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-10.1" data-version="v11" data-status="not_started"><span class="bld">BLD-10.1</span><span class="name">gender_eligibility config field<span class="where">FT female_only · VSC gender_neutral</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-10.2" data-version="v11" data-status="not_started"><span class="bld">BLD-10.2</span><span class="name">VSC redirect screen<span class="where">From FT registration on male/NB-AMAB</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-10.3" data-version="v11" data-status="not_started"><span class="bld">BLD-10.3</span><span class="name">Equality Act Schedule 3 Para 27 disclosure<span class="where">DEC-16</span></span><span class="tag gov">GOV</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-10.4" data-version="v11" data-status="not_started"><span class="bld">BLD-10.4</span><span class="name">Data purge on redirect (UK GDPR Art 5(1)(c))<span class="where">DEC-17 / GAP-5.18</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 11 -->
+    <div class="chunk" data-chunk="c11">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>📦 Chunk 11 — Royal Mail API Integration (P1)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:0%"></span></span><span>0 / 5 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-11.1" data-version="v11" data-status="not_started"><span class="bld">BLD-11.1</span><span class="name">Royal Mail API integration (5 webhook events)<span class="where">DEC-14 — dispatched / in_transit / out_for_delivery / delivered / exception</span></span><span class="tag new">NEW</span><span class="complexity L">L</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-11.2" data-version="v11" data-status="not_started"><span class="bld">BLD-11.2</span><span class="name">Postmark templates per event<span class="where">5 transactional emails</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-11.3" data-version="v11" data-status="not_started"><span class="bld">BLD-11.3</span><span class="name">Order tracking surface (6 touchpoints)<span class="where">Patient + admin views</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-11.4" data-version="v11" data-status="not_started"><span class="bld">BLD-11.4</span><span class="name">Order Detail Activity log — Royal Mail courier event entries<span class="where">Per webhook event entry</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-11.5" data-version="v11" data-status="not_started"><span class="bld">BLD-11.5</span><span class="name">Admin Dashboard — 'Delivery exceptions to action' stat card<span class="where">Operational visibility</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 12 -->
+    <div class="chunk" data-chunk="c12">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>📊 Chunk 12 — Audit Pipelines + Settings Polish (P2 — Q3 2026 hard deadline)</h3>
+        <span class="v">V1.1</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:22%"></span></span><span>2 / 9 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-12.2" data-version="v11" data-status="proto_done"><span class="bld">BLD-12.2</span><span class="name">AUD-01 Prescribing Compliance — Monday pipeline<span class="where">Audit 1 of 8</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_aud01_prescribing.html">Open</a></span></div>
+        <div class="row" data-id="BLD-12.3" data-version="v11" data-status="proto_done"><span class="bld">BLD-12.3</span><span class="name">AUD-02 Consent and Cancellation — Monday pipeline<span class="where">Renamed from Cooling-Off per V1.1</span></span><span class="tag amend">AMEND</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_aud02_consent_cancellation.html">Open</a></span></div>
+        <div class="row" data-id="BLD-12.4" data-version="v11" data-status="not_started"><span class="bld">BLD-12.4</span><span class="name">AUD-03 Clinical Record-Keeping — continuous in-Livera flag + Monday pipeline<span class="where">3 quality categories: Awaiting Rx · Awaiting BMI · New patient flags</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-12.5" data-version="v11" data-status="not_started"><span class="bld">BLD-12.5</span><span class="name">AUD-04 Patient Outcomes — Monday pipeline (cohort + coaching)<span class="where">FT coaching summary section</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-12.6" data-version="v11" data-status="not_started"><span class="bld">BLD-12.6</span><span class="name">AUD-11 Incident summary — Monday pipeline + monthly auto-email<span class="where">Audit 5 of 8</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-12.7" data-version="v11" data-status="not_started"><span class="bld">BLD-12.7</span><span class="name">AUD-18 Remote Prescribing + AUD-19 Identity Verification — Monday pipelines<span class="where">Audits 6+7 of 8</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-12.8" data-version="v11" data-status="not_started"><span class="bld">BLD-12.8</span><span class="name">Governance Meeting Data Pack — Monday dashboard + monthly email<span class="where">Audit 8 of 8</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-12.9" data-version="v11" data-status="not_started"><span class="bld">BLD-12.9</span><span class="name">Settings → Other Settings: configurable SLA values per clinic (10 SLAs)<span class="where">DEC-04</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="livera_scr_audits_settings.html">Open</a></span></div>
+        <div class="row" data-id="BLD-12.10" data-version="v11" data-status="not_started"><span class="bld">BLD-12.10</span><span class="name">Verify Holiday Calendar config editable per clinic in Settings<span class="where">DEC-15 alignment</span></span><span class="tag amend">AMEND</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="livera_scr_holiday_calendar.html">Open</a></span></div>
+      </div>
+    </div>
+
+    <!-- ============ V1.2 CHUNKS ============ -->
+
+    <!-- Chunk 13 -->
+    <div class="chunk open" data-chunk="c13">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>🚨 Chunk 13 — V1.2 Critical Gap Closure (P0)</h3>
+        <span class="v v12">V1.2</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill high" style="width:80%"></span></span><span>4 / 5 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-13.1" data-version="v12" data-status="proto_done"><span class="bld">BLD-13.1</span><span class="name">Patient complaint workflow<span class="where">Email → Intercom → Livera Open Complaint</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_complaints.html">Open</a></span></div>
+        <div class="row" data-id="BLD-13.2" data-version="v12" data-status="proto_done"><span class="bld">BLD-13.2</span><span class="name">Task management feature<span class="where">Admin + clinician tasks · owner · due date · status</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_tasks_list.html">Open</a> <a href="livera_scr_task_detail.html">Detail</a></span></div>
+        <div class="row" data-id="BLD-13.3" data-version="v12" data-status="proto_done"><span class="bld">BLD-13.3</span><span class="name">Welcome call queue<span class="where">Intercom phone integration UI</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_welcome_call_queue.html">Open</a></span></div>
+        <div class="row" data-id="BLD-13.4" data-version="v12" data-status="proto_done"><span class="bld">BLD-13.4</span><span class="name">Customisable questionnaire builder<span class="where">Order + reorder · per clinic · backend-configurable</span></span><span class="tag new">NEW</span><span class="complexity L">L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_scr_questionnaire_builder.html">Open</a></span></div>
+        <div class="row" data-id="BLD-13.5" data-version="v12" data-status="not_started"><span class="bld">BLD-13.5</span><span class="name">Discontinuation Protocol entity<span class="where">Entity + screen + SLAs</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 14 -->
+    <div class="chunk open" data-chunk="c14">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>⚠️ Chunk 14 — V1.2 High-Priority Gaps (P1)</h3>
+        <span class="v v12">V1.2</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill high" style="width:57%"></span></span><span>4 / 7 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-14.1" data-version="v12" data-status="not_started"><span class="bld">BLD-14.1</span><span class="name">Awaiting sub-queues UI<span class="where">Awaiting ID / BMI / Rx evidence tabs</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="livera_prototype_02_clinical_check_queue.html">Open</a></span></div>
+        <div class="row" data-id="BLD-14.2" data-version="v12" data-status="proto_done"><span class="bld">BLD-14.2</span><span class="name">Three-gate Clinical Check sequence<span class="where">Identity → BMI → Clinical eligibility enforcement</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_10_order_detail.html">Open</a></span></div>
+        <div class="row" data-id="BLD-14.3" data-version="v12" data-status="proto_done"><span class="bld">BLD-14.3</span><span class="name">NICE CG189 checklist<span class="where">In order approval flow</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_10_order_detail.html">Open</a></span></div>
+        <div class="row" data-id="BLD-14.4" data-version="v12" data-status="proto_done"><span class="bld">BLD-14.4</span><span class="name">Dose escalation gate + history panel<span class="where">Order Detail · prior dose evidence</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_10_order_detail.html">Open</a></span></div>
+        <div class="row" data-id="BLD-14.5" data-version="v12" data-status="proto_done"><span class="bld">BLD-14.5</span><span class="name">Weight trajectory + check-in panel<span class="where">In order review</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_10_order_detail.html">Open</a></span></div>
+        <div class="row" data-id="BLD-14.6" data-version="v12" data-status="not_started"><span class="bld">BLD-14.6</span><span class="name">Treatment-gap rules<span class="where">Settings → Reorder Rules · backend-configurable</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-14.7" data-version="v12" data-status="blocked"><span class="bld">BLD-14.7</span><span class="name">Two-way Intercom Request Information button<span class="where">⚠️ Superseded by BLD-16.1 Pharmacy Comms</span></span><span class="tag retire">SUPER</span><span class="complexity M">M</span><span class="status blocked">Superseded</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 15 -->
+    <div class="chunk" data-chunk="c15">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>📋 Chunk 15 — V1.2 Backlog (P2)</h3>
+        <span class="v v12">V1.2</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:0%"></span></span><span>0 / 6 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-15.1" data-version="v12" data-status="not_started"><span class="bld">BLD-15.1</span><span class="name">Queue age indicator column<span class="where">Clinical Check Queue</span></span><span class="tag new">NEW</span><span class="complexity S">S</span><span class="status not_started">Not started</span><span class="links"><a href="livera_prototype_02_clinical_check_queue.html">Open</a></span></div>
+        <div class="row" data-id="BLD-15.2" data-version="v12" data-status="not_started"><span class="bld">BLD-15.2</span><span class="name">Eating disorder safeguarding flag<span class="where">Clinical safety</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-15.3" data-version="v12" data-status="not_started"><span class="bld">BLD-15.3</span><span class="name">MHRA Yellow Card flag<span class="where">Pharmacovigilance</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-15.4" data-version="v12" data-status="not_started"><span class="bld">BLD-15.4</span><span class="name">Emergency escalation pathway<span class="where">999/A&E guidance</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-15.5" data-version="v12" data-status="not_started"><span class="bld">BLD-15.5</span><span class="name">Patient information pack at prescription<span class="where">PIL bundling</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="BLD-15.6" data-version="v12" data-status="not_started"><span class="bld">BLD-15.6</span><span class="name">Monthly check-in with reorder block<span class="where">Patient surface</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+    <!-- Chunk 16 — Group 6 -->
+    <div class="chunk open" data-chunk="c16" style="border:2px solid var(--gov)">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')" style="background:linear-gradient(180deg,var(--gov-bg) 0%,var(--surface) 100%)">
+        <span class="toggle">▶</span>
+        <h3>🤝 Chunk 16 — V1.2 Group 6 (Primed Integration & Clinical Disclosure) <span style="font-size:10px;color:var(--gov);font-weight:700;margin-left:6px">GPhC remediation</span></h3>
+        <span class="v v12">V1.2</span>
+        <span class="progress"><span class="pbar"><span class="pbar-fill" style="width:88%"></span></span><span>7 / 8 proto</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="BLD-16.1" data-version="v12" data-status="proto_done"><span class="bld">BLD-16.1</span><span class="name">Pharmacy Comms — order-anchored two-way messaging<span class="where">5th tab on consolidated Order Detail · Spec V1.2 §10.4</span></span><span class="tag new">NEW</span><span class="complexity L">L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_10_order_detail.html">Open</a></span></div>
+        <div class="row" data-id="BLD-16.2" data-version="v12" data-status="proto_done"><span class="bld">BLD-16.2</span><span class="name">BMI AI Validation — three-up card + history<span class="where">Clinical Evidence tab + patient profile · §10.6</span></span><span class="tag new">NEW</span><span class="complexity M-L">M-L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_10_order_detail.html">Open</a></span></div>
+        <div class="row" data-id="BLD-16.3" data-version="v12" data-status="proto_done"><span class="bld">BLD-16.3</span><span class="name">Primed Flag Mirror engine — 8 mirrored rules<span class="where">A2 · B1–B4 · C1–C3 · E2 · §10.5</span></span><span class="tag new">NEW</span><span class="complexity L">L</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_02_clinical_check_queue.html">Open</a></span></div>
+        <div class="row" data-id="BLD-16.4" data-version="v12" data-status="proto_done"><span class="bld">BLD-16.4</span><span class="name">Approval-time proactive note prompt modal<span class="where">Approve gate · Spec V1.2 §10.5</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_prototype_10_order_detail.html">Open</a></span></div>
+        <div class="row" data-id="BLD-16.5" data-version="v12" data-status="proto_done"><span class="bld">BLD-16.5</span><span class="name">Settings → Other → Primed Flag Rules<span class="where">Threshold + template config · §10.5</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_g6_flag_rules.html">Open</a></span></div>
+        <div class="row" data-id="BLD-16.6" data-version="v12" data-status="proto_done"><span class="bld">BLD-16.6</span><span class="name">Settings → Reports → Primed Flag Dashboard<span class="where">Mirrors Annex H §B2/B3 · §10.7</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_g6_flag_dashboard.html">Open</a></span></div>
+        <div class="row" data-id="BLD-16.7" data-version="v12" data-status="not_started"><span class="bld">BLD-16.7</span><span class="name">Permissions Matrix reconciliation<span class="where">Named-person ↔ role-based axes · DEC-21</span></span><span class="tag gov">GOV</span><span class="complexity M">M</span><span class="status not_started">Not started</span><span class="links"><a href="https://primedpharmacy-company.monday.com/boards/18410922817" target="_blank">Board</a></span></div>
+        <div class="row" data-id="BLD-16.8" data-version="v12" data-status="proto_done"><span class="bld">BLD-16.8</span><span class="name">BMI Verification Timeline — full screen<span class="where">Patient-anchored deep-dive · §10.6 extension · entry from Patient Profile + Order Detail</span></span><span class="tag new">NEW</span><span class="complexity M">M</span><span class="status proto_done">Proto done</span><span class="links"><a href="livera_patient_bmi_history.html">Open</a></span></div>
+      </div>
+    </div>
+
+    <!-- OOS -->
+    <div class="chunk" data-chunk="oos">
+      <div class="chunk-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle">▶</span>
+        <h3>🚫 Out of Scope (V1.1 + V1.2 prototype)</h3>
+        <span class="v oos">OOS</span>
+        <span class="progress"><span style="color:var(--t3)">10 deferred items</span></span>
+      </div>
+      <div class="chunk-body">
+        <div class="row-head"><span>BLD</span><span>Item</span><span>Tag</span><span>Cmplx</span><span>Status</span><span>Open</span></div>
+        <div class="row" data-id="OOS-1" data-version="v11" data-status="blocked"><span class="bld">OOS-1</span><span class="name">VSC patient mobile app<span class="where">Tracked separately on Monday board 18403959094</span></span><span class="tag oos">OOS</span><span class="complexity L">L</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="OOS-2" data-version="v11" data-status="blocked"><span class="bld">OOS-2</span><span class="name">Workflow Builder (SCR-031 + 032/033/035/036/037)<span class="where">Phase 2 · third-party clinic onboarding</span></span><span class="tag oos">OOS</span><span class="complexity L">L</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="OOS-3" data-version="v11" data-status="blocked"><span class="bld">OOS-3</span><span class="name">Bluestream integration<span class="where">Phase 3</span></span><span class="tag oos">OOS</span><span class="complexity M">M</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="OOS-4" data-version="v11" data-status="blocked"><span class="bld">OOS-4</span><span class="name">DPD integration<span class="where">Phase 2</span></span><span class="tag oos">OOS</span><span class="complexity M">M</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="OOS-5" data-version="v11" data-status="blocked"><span class="bld">OOS-5</span><span class="name">Xero / QuickBooks integration<span class="where">Phase 2 · Q1 2027</span></span><span class="tag oos">OOS</span><span class="complexity M">M</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="OOS-6" data-version="v11" data-status="blocked"><span class="bld">OOS-6</span><span class="name">Trustpilot integration (full)<span class="where">Required Q3 2026 for Audit 9</span></span><span class="tag oos">OOS</span><span class="complexity M">M</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="OOS-7" data-version="v11" data-status="blocked"><span class="bld">OOS-7</span><span class="name">AES-256 encryption at rest<span class="where">On hold · Q4 2026 review</span></span><span class="tag oos">OOS</span><span class="complexity L">L</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="OOS-8" data-version="v11" data-status="blocked"><span class="bld">OOS-8</span><span class="name">Spec version display in admin settings<span class="where">DEC-17 · GAP-8.6</span></span><span class="tag oos">OOS</span><span class="complexity S">S</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="OOS-9" data-version="v12" data-status="blocked"><span class="bld">OOS-9</span><span class="name">Primed-side build (DEC-19)<span class="where">Out of Livera scope · assume APIs exist</span></span><span class="tag oos">OOS</span><span class="complexity L">L</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+        <div class="row" data-id="OOS-10" data-version="v11" data-status="blocked"><span class="bld">OOS-10</span><span class="name">Audit visibility UI in Livera (Settings → Audits screen)<span class="where">Originally BLD-12.1 · deprecated and re-tagged as OOS</span></span><span class="tag oos">OOS</span><span class="complexity M">M</span><span class="status blocked">OOS</span><span class="links"><a href="#" class="disabled">—</a></span></div>
+      </div>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- ===== TAB 2: PROTOTYPE SCREENS ===== -->
+  <div class="tab-content" id="tab-screens">
+  <div class="panel">
+
+  <!-- Foundation -->
+  <div class="pc-section">
+    <h3><span class="ico">🔐</span> Foundation <span class="n">1 screen</span></h3>
+    <div class="proto-grid">
+      <a href="livera_scr001_login.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-001</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Login & 2FA</div>
+        <div class="pc-desc">Auth entry screen with email + password + 2FA code. Workspace selector for multi-tenant flow.</div>
+        <div class="pc-foot"><span>BLD-1.1</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Coach Surface -->
+  <div class="pc-section">
+    <h3><span class="ico">👥</span> Coach Surface (FT-only) <span class="n">3 screens</span></h3>
+    <div class="proto-grid">
+      <a href="livera_scr040_coach_dashboard.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-040</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Coach Dashboard</div>
+        <div class="pc-desc">3 KPIs · today's schedule · overdue check-ins · escalations · my patient list. Coach login lands here.</div>
+        <div class="pc-foot"><span>BLD-2.1, 2.2</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_bld_2_5_coaching_log_modal.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-2.5</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Coaching Log Entry Modal</div>
+        <div class="pc-desc">Primary content authoring surface for Coach. Entry types: Initial / Check-in / Ad-hoc. Clinical Escalation flag inline.</div>
+        <div class="pc-foot"><span>BLD-2.5, 2.6</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_welcome_call_queue.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-2.8</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Welcome Call Queue</div>
+        <div class="pc-desc">Welcome calls (5-day SLA) + Initial Coaching Calls (7-day SLA). Intercom phone integration.</div>
+        <div class="pc-foot"><span>BLD-2.8, 2.9, 13.3</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Clinical Workflow -->
+  <div class="pc-section">
+    <h3><span class="ico">🩺</span> Clinical Workflow <span class="n">7 screens</span></h3>
+    <div class="proto-grid">
+      <a href="livera_prototype_15_clinician_home.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-015</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Clinician Home</div>
+        <div class="pc-desc">Prescriber landing page. Pending clinical checks · interventions awaiting response · escalation flag banner.</div>
+        <div class="pc-foot"><span>Group 5</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_prototype_02_clinical_check_queue.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-009</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Clinical Check Queue</div>
+        <div class="pc-desc">Queue with 4h SLA amber/red coding · Group 5 amendments: NICE checklist · dose escalation · weight trajectory · BMI AI · mandatory notes.</div>
+        <div class="pc-foot"><span>BLD-3.2, 14.2-14.5</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_prototype_10_order_detail.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-010</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Order Detail (consolidated)</div>
+        <div class="pc-desc">Single-view Order Detail with role + state switchers. 48 locked-permission cells. All 6 BLD-Amendments preserved. The hub of V1.2.</div>
+        <div class="pc-foot"><span>Group 5 · 14.2-14.5</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_prototype_10_order_detail_admin.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-010a</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Order Detail — Admin View</div>
+        <div class="pc-desc">Admin-role variant of Order Detail. Read-only clinical sections, full operational sections.</div>
+        <div class="pc-foot"><span>Group 5</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_prototype_10_order_detail_admin_expired.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-010b</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Order Detail — Expired</div>
+        <div class="pc-desc">Expired order state. Read-only · expiry rationale · "Your payment was never taken" copy rule (no "refund").</div>
+        <div class="pc-foot"><span>BLD-3.2</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_orders_list.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-009b</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Orders List</div>
+        <div class="pc-desc">All orders queue. Filters by status · clinician · date range. Drill-down to Order Detail.</div>
+        <div class="pc-foot"><span>Group 5</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr030_ai_note_drafting.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-030</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">AI Note Drafting</div>
+        <div class="pc-desc">AI-drafted clinical notes on Approve/Decline/Intervene. Audit trail of original / edits / final saved.</div>
+        <div class="pc-foot"><span>BLD-6.2, DEC-07</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Patient & Records -->
+  <div class="pc-section">
+    <h3><span class="ico">👤</span> Patient & Records <span class="n">2 screens</span></h3>
+    <div class="proto-grid">
+      <a href="livera_prototype_09_patient_profile.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-009p</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Patient Profile</div>
+        <div class="pc-desc">Full patient record · Group 5 amendments · order history · clinical/admin/coaching notes · BMI history (Group 6 to extend).</div>
+        <div class="pc-foot"><span>Group 5 · 16.2</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_notes_timeline.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-022</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Notes Timeline</div>
+        <div class="pc-desc">Unified timeline · 3 colour types (Clinical green · Admin blue · Coaching purple-FT) · filters · search.</div>
+        <div class="pc-foot"><span>BLD-1.6, 4.2, 4.3</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Order Amendments (BLD-AMEND-01..06 · DEC-36 · spec §10) -->
+  <div class="pc-section">
+    <h3><span class="ico">🔄</span> Order Amendments <span class="n">3 screens</span></h3>
+    <div class="proto-grid">
+      <a href="livera_scr_amendment_queue.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-AMEND-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Amendment Request Queue</div>
+        <div class="pc-desc">Held orders awaiting prescriber decision · dose increase + medication switch · 24h SLA · filter pills.</div>
+        <div class="pc-foot"><span>Pass 2 · DEC-36</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_amendment_decision.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-AMEND-02</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Amendment Decision</div>
+        <div class="pc-desc">Single-amendment view · patient context · eligibility checks · Approve/Reject/Request more info modals.</div>
+        <div class="pc-foot"><span>Pass 2 · DEC-36</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_patient_documents.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-AMEND-05</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Patient Documents</div>
+        <div class="pc-desc">Invoice voiding & replacement · live + voided invoices, prescriptions, GP letters · "show voided" toggle for AUD-04.</div>
+        <div class="pc-foot"><span>Pass 2 · DEC-36</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Omnisend Integration (BLD-INT-OMNI-01..06 · Wave 5) -->
+  <div class="pc-section">
+    <h3><span class="ico">📨</span> Omnisend Integration <span class="n">1 screen + 4 surface mods</span></h3>
+    <div class="proto-grid">
+      <a href="livera_settings_omnisend.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-INT-OMNI-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Omnisend Settings</div>
+        <div class="pc-desc">Marketing automation · field-level data sync · audience segments · campaign view. Clinical data hard-blocked at platform level.</div>
+        <div class="pc-foot"><span>Pass 2 · Wave 5</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Wave 6 — Spec-driven additions (BLD-INT-COURIER-01, BLD-FCM-LOG-01, BLD-VERIFY-EXPIRY-01, BLD-REORDER-VIEW-01, BLD-RX-EXPIRY-01) -->
+  <div class="pc-section">
+    <h3><span class="ico">📦</span> Wave 6 — Couriers, FCM, Verification &amp; Rx <span class="n">2 new screens + 3 surface mods</span></h3>
+    <div class="proto-grid">
+      <a href="livera_settings_couriers.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-INT-COURIER-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Courier visibility</div>
+        <div class="pc-desc">Read-only mirror of Primed dispatch feed across Royal Mail · DX · DPD. Single normalised webhook from Primed. Routing decisions live in Primed (GPhC 1039469), not Livera.</div>
+        <div class="pc-foot"><span>Pass 2 · Wave 6</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_patient_notifications.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-FCM-LOG-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Patient notifications log</div>
+        <div class="pc-desc">Per-patient FCM log surfacing all 14 trigger types · 9 always-on (clinical/care team), 5 user-controllable. Delivery state, payload, response. Admin sees status only, not body.</div>
+        <div class="pc-foot"><span>Pass 2 · Wave 6</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_settings_intercom.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-INT-INTERCOM-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Intercom integration</div>
+        <div class="pc-desc">Full integration page · 9 webhook topics live + 5 available · 4 outbound API actions · OAuth scopes · IP allowlist · brand→workspace mapping (VSC + FeelTru) · live event feed.</div>
+        <div class="pc-foot"><span>Pass 2 · Wave 6</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_settings_intercom_tag_actions.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-INT-INTERCOM-02</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Intercom tag actions</div>
+        <div class="pc-desc">Tag→action rule mapping · 4 DEC-36 protected (severe_se · safeguarding · allergic_symptom · mhra_alert) · 4 customisable. Auto-incident, Monday-mirrored complaints, Amendment-routed refunds.</div>
+        <div class="pc-foot"><span>Pass 2 · Wave 6 + 7</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_settings_mhra_alerts.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-INT-MHRA-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">MHRA gov.uk alerts</div>
+        <div class="pc-desc">Daily-poll integration with gov.uk/drug-device-alerts · 5 tabs (Overview · Drug watchlist · Severity routing · Recipients · Alert log). DEC-39. Future-extensible to FSN/DSU/DHSC feeds.</div>
+        <div class="pc-foot"><span>Pass 2 · Wave 7</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_schedule_calendar.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-CONS-CAL-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Schedule (consultation calendar)</div>
+        <div class="pc-desc">Clinic-wide calendar of all consultations · welcome calls · coaching · clinical · future medical types. Week/day/month views, role-scoped, Google Meet for V1. DEC-40.</div>
+        <div class="pc-foot"><span>Pass 2 · Wave 8</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_consultation_detail.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-CONS-DETAIL-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Consultation detail</div>
+        <div class="pc-desc">Full consultation detail with Google Meet join, identity verification cue, provider metadata, post-call clinical note linkage. V1: no recordings (DEC-40).</div>
+        <div class="pc-foot"><span>Pass 2 · Wave 8</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_settings_consultation_types.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-CONS-SETTINGS-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Consultation types settings</div>
+        <div class="pc-desc">Clinic admin defines which consultation types are offered, modality, provider, duration, recording posture. Future medical/aesthetics types are config not rebuild.</div>
+        <div class="pc-foot"><span>Pass 2 · Wave 8</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Tasks, Comms & Intercom -->
+  <div class="pc-section">
+    <h3><span class="ico">📨</span> Tasks, Comms & Intercom <span class="n">5 screens</span></h3>
+    <div class="proto-grid">
+      <a href="livera_scr_tasks_list.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-13.2</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Tasks List</div>
+        <div class="pc-desc">Admin + clinician tasks. Owner · due date · status · priority. Filters · bulk actions.</div>
+        <div class="pc-foot"><span>V1.2 Critical</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_task_detail.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-13.2</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Task Detail</div>
+        <div class="pc-desc">Single task view · activity log · linked patient/order · status transitions.</div>
+        <div class="pc-foot"><span>V1.2 Critical</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_intercom_webhook_config.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-INT</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Intercom Webhook Config</div>
+        <div class="pc-desc">Settings → Integrations · Intercom tag → auto-Incident workflow.</div>
+        <div class="pc-foot"><span>BLD-8.1, DEC-10</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_incident_create_manual.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-INC1</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Manual Incident Creation</div>
+        <div class="pc-desc">Fallback flow for non-Intercom incident creation. incident_origin = manual.</div>
+        <div class="pc-foot"><span>BLD-8.4</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_incident_detail_intercom.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-INC2</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Incident Detail (from Intercom)</div>
+        <div class="pc-desc">Auto-created from Intercom tag · linked thread · closure rule blocks Intercom thread close.</div>
+        <div class="pc-foot"><span>BLD-8.2</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Pharmacy & Dispensing -->
+  <div class="pc-section">
+    <h3><span class="ico">💊</span> Pharmacy & Dispensing <span class="n">3 screens</span></h3>
+    <div class="proto-grid">
+      <a href="livera_scr_preapproval_enforcement.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-PRE</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Pre-approval Enforcement</div>
+        <div class="pc-desc">Amendment window enforcement on Order Detail. Hides pre_dispensed buttons appropriately per clinic config.</div>
+        <div class="pc-foot"><span>BLD-5.1, 5.2, DEC-01</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_dispatch_calculator.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-DSP</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Dispatch Date Calculator</div>
+        <div class="pc-desc">4-scenario calculator · order_at + delivery_type + holiday calendar → dispatch_date / delivery_date.</div>
+        <div class="pc-foot"><span>BLD-3.6, DEC-15</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_holiday_calendar.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-HOL</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Holiday Calendar</div>
+        <div class="pc-desc">Per-clinic configurable public holiday list. Used by dispatch calculator.</div>
+        <div class="pc-foot"><span>BLD-3.7</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- GP & Complaints -->
+  <div class="pc-section">
+    <h3><span class="ico">📑</span> GP & Complaints <span class="n">2 screens</span></h3>
+    <div class="proto-grid">
+      <a href="livera_prototype_14_gp_letters.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-014</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">GP Letters List</div>
+        <div class="pc-desc">All GP correspondence · status (sent/scheduled/draft) · 48h SLA · Postmark delivery confirmation.</div>
+        <div class="pc-foot"><span>BLD-7.1</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_gp_letter_detail.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-014a</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">GP Letter Detail</div>
+        <div class="pc-desc">Email body + PDF attachment preview (DEC-08). Patient consent gate · Postmark delivery state.</div>
+        <div class="pc-foot"><span>BLD-7.1, 7.4</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Operational -->
+  <div class="pc-section">
+    <h3><span class="ico">📞</span> Operational <span class="n">1 screen</span></h3>
+    <div class="proto-grid">
+      <a href="livera_scr_complaints.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-041</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Complaints</div>
+        <div class="pc-desc">Complaint workflow · email → Intercom → Livera Open Complaint · 3-day ack / 20-day response SLAs.</div>
+        <div class="pc-foot"><span>BLD-9.1, 13.1, DEC-03</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Patient Intake & Registration -->
+  <div class="pc-section">
+    <h3><span class="ico">📝</span> Patient Intake & Registration <span class="n">1 screen</span></h3>
+    <div class="proto-grid">
+      <a href="livera_scr_questionnaire_builder.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-13.4</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Questionnaire Builder</div>
+        <div class="pc-desc">Customisable order + reorder questionnaires · per clinic · backend-configurable · branching logic. Foundational capability — also drives BLD-7.4 (GP letter consent) and BLD-14.6 (treatment-gap rules).</div>
+        <div class="pc-foot"><span>V1.2 Critical</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Settings & Audit -->
+  <div class="pc-section">
+    <h3><span class="ico">⚙️</span> Settings & Audit <span class="n">4 screens</span></h3>
+    <div class="proto-grid">
+      <a href="livera_scr_roles_permissions.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-RPM</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Roles & Permissions</div>
+        <div class="pc-desc">Settings → Roles & Permissions config UI. 3-pane view · audit log · lock-state surfacing.</div>
+        <div class="pc-foot"><span>Group 5</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_audits_settings.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-AUD</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Audits Settings</div>
+        <div class="pc-desc">8-audit feature catalogue · Q3 2026 hard deadline tracker · per-audit configuration.</div>
+        <div class="pc-foot"><span>BLD-12.x</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_aud01_prescribing.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">AUD-01</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">AUD-01 Prescribing Compliance</div>
+        <div class="pc-desc">Audit 1 of 8. Sample · evidence assembly · export.</div>
+        <div class="pc-foot"><span>BLD-12.2</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_scr_aud02_consent_cancellation.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">AUD-02</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">AUD-02 Consent & Cancellation</div>
+        <div class="pc-desc">Audit 2 of 8. Renamed from "Cooling-Off" per V1.1.</div>
+        <div class="pc-foot"><span>BLD-12.3</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Governance -->
+  <div class="pc-section">
+    <h3><span class="ico">🛡️</span> Governance <span class="n">1 screen</span></h3>
+    <div class="proto-grid">
+      <a href="livera_scr_ai_prompt_signoff.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-6.5</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">AI Prompt Sign-off</div>
+        <div class="pc-desc">Qadir-only governance gate · system prompt sign-off before AI Note Drafting can go live · DEC-07.</div>
+        <div class="pc-foot"><span>Governance</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Reporting -->
+  <div class="pc-section">
+    <h3><span class="ico">📊</span> Reporting <span class="n">3 screens</span></h3>
+    <div class="proto-grid">
+      <a href="livera_kpi_dashboard.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-005</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">KPI Dashboard</div>
+        <div class="pc-desc">Operational KPIs · clinical SLAs · order volumes · prescriber productivity. Owner / RM view.</div>
+        <div class="pc-foot"><span>Group 5</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_reports_landing.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-008</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Reports landing</div>
+        <div class="pc-desc">Index of all reporting surfaces · live dashboards, CQC governance, monthly governance packs, GPhC follow-up.</div>
+        <div class="pc-foot"><span>Group 5</span><span class="open">Open →</span></div>
+      </a>
+      <a href="livera_orders_list.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">SCR-009</span><span class="pc-tag proto">PROTO</span></div>
+        <div class="pc-name">Orders (all states)</div>
+        <div class="pc-desc">Multi-state queue · 9 status tabs · contains the Clinical Check Queue as a filtered view. Parent of all order surfaces.</div>
+        <div class="pc-foot"><span>Group 5</span><span class="open">Open →</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Group 6 Coming Next -->
+  <div class="pc-section" style="background:var(--gov-bg);border:1px solid var(--gov-bdr);border-radius:8px;padding:18px">
+    <h3><span class="ico" style="background:var(--gov);color:#fff">🤝</span> Group 6 — Coming Next <span class="n" style="background:var(--gov-bdr);color:var(--gov)">4 placeholders</span></h3>
+    <div style="font-size:11.5px;color:var(--t2);margin-bottom:14px">Spec V1.2 §10 · DEC-18 through DEC-21 · driven by GPhC inspection of Primed Pharmacy. <a href="https://primedpharmacy-company.monday.com/docs/18410460910" target="_blank" style="color:var(--gov);font-weight:600">Read full spec →</a></div>
+    <div class="proto-grid">
+            <a href="livera_pharmacy_comms_thread.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-16.1 / 16.9 / 16.10</span><span class="pc-tag built">DONE</span></div>
+        <div class="pc-name">Pharmacy Comms (inbound + outbound + thread)</div>
+        <div class="pc-desc">5th tab on Order Detail · order-anchored + patient-anchored two-way messaging · synced with Primed · proactive notes flow + thread detail surface.</div>
+        <div class="pc-foot"><span>Spec §10.4</span><span style="color:var(--grey)">Built 8–9 May 2026</span></div>
+      </a>
+            <a href="livera_prototype_10_order_detail.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-16.2</span><span class="pc-tag built">DONE</span></div>
+        <div class="pc-name">BMI AI Validation Card (in Order Detail)</div>
+        <div class="pc-desc">Three-up display (AI / patient / delta with traffic-light) · photo viewer (consent gated) · prescriber-assessed override · history.</div>
+        <div class="pc-foot"><span>Spec §10.6</span><span style="color:var(--grey)">Built</span></div>
+      </a>
+            <a href="livera_flag_detail.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-16.3 / 16.4 / FLAG-3a / FLAG-5</span><span class="pc-tag built">DONE</span></div>
+        <div class="pc-name">Clinical Flag Mirror + Approval Modal + Detail</div>
+        <div class="pc-desc">6 mixed-source clinic flags per DEC-27 · queue chips · approval-time proactive note prompt · fired flag detail with rule_version_id snapshot.</div>
+        <div class="pc-foot"><span>Spec §10.5 + DEC-27</span><span style="color:var(--grey)">Built 8–9 May 2026</span></div>
+      </a>
+            <a href="livera_g6_flag_dashboard.html" class="proto-card">
+        <div class="pc-head"><span class="pc-bld">BLD-16.6</span><span class="pc-tag built">DONE</span></div>
+        <div class="pc-name">Clinical Flag Dashboard (G6)</div>
+        <div class="pc-desc">Annex H §B2/B3 format · donut chart by severity · trend SVG · KPI strip · CSV/PDF/email export · monthly Primed governance handover.</div>
+        <div class="pc-foot"><span>Spec §10.7</span><span style="color:var(--grey)">Built</span></div>
+      </a>
+    </div>
+  </div>
+
+  </div>
+  </div>
+
+  <!-- ===== TAB 3: DOCUMENTS ===== -->
+  <div class="tab-content" id="tab-docs">
+  <div class="panel">
+
+    <!-- Canonical specs -->
+    <div class="docs-section">
+      <h3>Canonical specifications · Monday workspace docs</h3>
+      <div class="docs-grid">
+        <a href="https://primedpharmacy-company.monday.com/docs/18410460910" target="_blank" class="doc-card">
+          <div class="icon">📋</div>
+          <div class="title">Livera Platform Specification V1.2</div>
+          <div class="meta">Canonical operational spec. §1–9 unchanged from V1.1 · §10 new (Group 6 — Primed Integration & Clinical Disclosure). Doc 41021337.</div>
+          <div class="v">V1.2 · 5 May 2026</div>
+          <div class="open-arrow"><span>Open in Monday</span><span>→</span></div>
+        </a>
+        <a href="https://primedpharmacy-company.monday.com/docs/18410465265" target="_blank" class="doc-card">
+          <div class="icon">🔒</div>
+          <div class="title">Specification Decisions V1.2</div>
+          <div class="meta">Locked decisions register · DEC-01 to DEC-17 unchanged · DEC-18 to DEC-21 added 5 May 2026 (Group 6 scope · Primed APIs assumed · 8-flag mirror selection · Permissions axis). Doc 41022910.</div>
+          <div class="v">V1.2 · 5 May 2026</div>
+          <div class="open-arrow"><span>Open in Monday</span><span>→</span></div>
+        </a>
+        <a href="https://primedpharmacy-company.monday.com/docs/18410461669" target="_blank" class="doc-card">
+          <div class="icon">🛠️</div>
+          <div class="title">Livera Prototype Build Plan V1.1</div>
+          <div class="meta">12-chunk build plan · 70 in-scope V1.1 build items + 9 OOS · sequencing dependencies · critical-path flags. Doc 41021520.</div>
+          <div class="v">V1.1 · 27 Apr 2026</div>
+          <div class="open-arrow"><span>Open in Monday</span><span>→</span></div>
+        </a>
+        <a href="https://primedpharmacy-company.monday.com/docs/18410462961" target="_blank" class="doc-card">
+          <div class="icon">📊</div>
+          <div class="title">Livera Platform Gap Report V1.1</div>
+          <div class="meta">Gap analysis · BUILT-OK / BUILT-AMEND / NEW-BUILD / GOVERNANCE / OUT-OF-SCOPE · sequencing deps · critical-path flags. Doc 41021932.</div>
+          <div class="v">V1.1 · 27 Apr 2026</div>
+          <div class="open-arrow"><span>Open in Monday</span><span>→</span></div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Boards -->
+    <div class="docs-section">
+      <h3>Live tracker boards · Monday</h3>
+      <div class="docs-grid">
+        <a href="https://primedpharmacy-company.monday.com/boards/18410465442" target="_blank" class="doc-card">
+          <div class="icon board">🗂️</div>
+          <div class="title">Livera V1.1 + V1.2 Build Tracker</div>
+          <div class="meta">Source of truth for build status. 16 chunks · 89 items + 9 OOS · Status column with "Proto done" label. The board this index page mirrors.</div>
+          <div class="v">Live</div>
+          <div class="open-arrow"><span>Open board</span><span>→</span></div>
+        </a>
+        <a href="https://primedpharmacy-company.monday.com/boards/18410922817" target="_blank" class="doc-card">
+          <div class="icon matrix">🔐</div>
+          <div class="title">VSC Livera — Permissions Matrix</div>
+          <div class="meta">155 permission rows · named-person columns + new role-based columns (added 5 May 2026) + Lock state column · Group 6 permissions added (Pharmacy Comms · BMI AI · Flag Mirror).</div>
+          <div class="v">Live · DEC-21</div>
+          <div class="open-arrow"><span>Open board</span><span>→</span></div>
+        </a>
+        <a href="https://primedpharmacy-company.monday.com/boards/18296688407" target="_blank" class="doc-card">
+          <div class="icon board">📦</div>
+          <div class="title">Livera Product & Feature Tracker</div>
+          <div class="meta">Long-running product roadmap board · feature catalogue across all phases · pre-V1.1 history.</div>
+          <div class="v">Live</div>
+          <div class="open-arrow"><span>Open board</span><span>→</span></div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Working files in this folder -->
+    <div class="docs-section">
+      <h3>Working files in this folder</h3>
+      <div class="docs-grid">
+        <a href="livera_v12_group6_spec.md" class="doc-card">
+          <div class="icon">📄</div>
+          <div class="title">Group 6 Spec (Markdown working draft)</div>
+          <div class="meta">Pre-consolidation working draft of the Group 6 spec. Now consolidated into Spec V1.2 §10 (canonical) — kept in folder as audit trail.</div>
+          <div class="v">Markdown</div>
+          <div class="open-arrow"><span>Open file</span><span>→</span></div>
+        </a>
+        <a href="livera_permissions_matrix_v1.md" class="doc-card">
+          <div class="icon">🔐</div>
+          <div class="title">Permissions Matrix v1.1 (Markdown)</div>
+          <div class="meta">Role-based matrix doc · 5 corrections applied · regulator escalation removed as Livera workflow · Pharmacist no clinical reasoning notes · Coach full Intercom on FT.</div>
+          <div class="v">Markdown</div>
+          <div class="open-arrow"><span>Open file</span><span>→</span></div>
+        </a>
+        <a href="intercom_analysis_brief_v1.md" class="doc-card">
+          <div class="icon">📊</div>
+          <div class="title">Intercom Analysis Brief (VSC-only)</div>
+          <div class="meta">VSC Intercom · 492 conversations · 60-day window · 3 regulatory issues identified · Qadir decided not to action.</div>
+          <div class="v">Markdown</div>
+          <div class="open-arrow"><span>Open file</span><span>→</span></div>
+        </a>
+      </div>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- ANNOTATION FOOTER -->
+  <div class="ann">
+    <span class="label">Build status</span>
+    <span>Live tracker — clickable HTML index for V1.1 + V1.2 prototypes. Audit-reconciled with Monday board 18410465442 on 5 May 2026 — 104 items tracked, no missing rows, no extra rows. Two pending Monday updates: AUD-01 (BLD-12.2) and AUD-02 (BLD-12.3) need to be flipped to "Proto done" on the Monday board (Tier 2). To deploy: drag this folder onto Netlify, or push to GitHub for auto-deploy on commit.</span>
+  </div>
+
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Status filter
+let activeStatus = 'all', activeVersion = 'all', activeSearch = '';
+
+function applyFilters(){
+  document.querySelectorAll('.row').forEach(row => {
+    const s = row.dataset.status;
+    const v = row.dataset.version;
+    const id = (row.dataset.id || '').toLowerCase();
+    const name = (row.querySelector('.name')?.textContent || '').toLowerCase();
+    const okStatus = activeStatus === 'all' || (activeStatus === 'blocked' ? (s === 'blocked') : s === activeStatus);
+    const okVersion = activeVersion === 'all' || v === activeVersion;
+    const okSearch = !activeSearch || id.includes(activeSearch) || name.includes(activeSearch);
+    row.classList.toggle('hidden', !(okStatus && okVersion && okSearch));
+  });
+  // Hide empty chunks
+  document.querySelectorAll('.chunk').forEach(chunk => {
+    const visible = chunk.querySelectorAll('.row:not(.hidden)').length;
+    chunk.style.display = visible ? '' : 'none';
+  });
+}
+
+document.querySelectorAll('[data-filter-status]').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('[data-filter-status]').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    activeStatus = c.dataset.filterStatus;
+    applyFilters();
+  });
+});
+document.querySelectorAll('[data-filter-version]').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('[data-filter-version]').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    activeVersion = c.dataset.filterVersion;
+    applyFilters();
+  });
+});
+document.getElementById('search-input').addEventListener('input', e => {
+  activeSearch = e.target.value.toLowerCase().trim();
+  applyFilters();
+});
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

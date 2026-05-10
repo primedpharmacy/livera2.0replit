@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Intercom tag actions</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --surface:#ffffff; --bg:#f1f0ef; --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --intercom:#286efa;
+}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#fce7f3 0%,#9333ea 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-info .sub code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11.5px}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:.12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);color:#fff}
+
+/* Architecture banner */
+.arch-banner{background:linear-gradient(135deg,#faf5ff 0%,#fdf4ff 100%);border:1px solid #ddd6fe;border-radius:10px;padding:14px 18px;margin-bottom:24px;display:flex;gap:14px;align-items:flex-start}
+.arch-banner .ic{width:36px;height:36px;border-radius:8px;background:#9333ea;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.arch-banner .text{font-size:12.5px;color:#5b21b6;line-height:1.6}
+.arch-banner .text strong{color:#0f172a;font-weight:700;display:block;margin-bottom:4px;font-size:13px}
+.arch-banner .text code{font-family:'SF Mono',Menlo,monospace;background:rgba(147,51,234,.1);color:#5b21b6;padding:1px 5px;border-radius:3px;font-size:11px}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.stat-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px}
+.stat-num{font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1.1}
+.stat-num.warn{color:var(--warn)}
+.stat-num.ok{color:var(--ok)}
+.stat-num.err{color:var(--err)}
+.stat-lbl{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+.stat-sub{font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4}
+
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+/* Rule rows */
+.rule-row{display:grid;grid-template-columns:120px 28px 1fr 28px 1fr 110px 60px;gap:14px;padding:16px 18px;border-bottom:.5px solid var(--bdr);align-items:center;font-size:12.5px}
+.rule-row:last-child{border-bottom:none}
+.rule-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.rule-trigger{font-family:'SF Mono',Menlo,monospace;font-size:11px;font-weight:700;letter-spacing:.3px;padding:5px 10px;border-radius:4px;width:fit-content;text-align:center;border:.5px solid}
+.rule-trigger.crit{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+.rule-trigger.warn{background:#fffbeb;color:#92400e;border-color:#fde68a}
+.rule-trigger.info{background:#eff6ff;color:#1e40af;border-color:#bfdbfe}
+.rule-trigger.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+.rule-trigger.purp{background:#faf5ff;color:#7c3aed;border-color:#ddd6fe}
+.rule-arrow{color:var(--t3);text-align:center;font-size:18px}
+.rule-detail{font-size:11.5px;color:var(--t2);line-height:1.45}
+.rule-detail strong{color:var(--t1);font-weight:600}
+.rule-action{font-size:12px;color:var(--t1);font-weight:500;line-height:1.45}
+.rule-action .meta{font-size:10.5px;color:var(--t3);margin-top:3px;line-height:1.4}
+.rule-action .pill{font-size:9.5px;font-weight:700;background:var(--brand-l);color:var(--brand);padding:2px 7px;border-radius:3px;letter-spacing:.4px;border:.5px solid #c7d2fe;margin-right:4px}
+.rule-action .pill.alert{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+.rule-vol{font-size:11px;color:var(--t2);font-variant-numeric:tabular-nums;text-align:right}
+.rule-vol strong{color:var(--t1);font-size:13px;font-weight:700;display:block}
+.rule-toggle{position:relative;width:32px;height:18px;background:var(--ok);border-radius:999px;cursor:pointer;transition:.18s;flex-shrink:0;margin-left:auto}
+.rule-toggle.off{background:var(--bdr)}
+.rule-toggle::after{content:'';position:absolute;top:2px;left:14px;width:14px;height:14px;background:#fff;border-radius:50%;transition:.18s;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.rule-toggle.off::after{transform:translateX(-12px)}
+.rule-row.disabled{opacity:.55;background:repeating-linear-gradient(45deg,transparent,transparent 6px,rgba(0,0,0,.015) 6px,rgba(0,0,0,.015) 12px)}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <div class="ws"><button class="ws-trigger"><strong>VSC — Quanta Healthcare Ltd</strong><span class="ws-chev">▼</span></button></div>
+  <div class="role"><span>Qadir Hussain</span><span class="role-pill">Owner</span></div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_settings_landing.html">Settings</a>
+      <span class="sep">›</span>
+      <a href="livera_settings_intercom.html">Intercom</a>
+      <span class="sep">›</span>
+      <span class="cur">Tag actions</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">🏷</div>
+      <div class="pg-info">
+        <h1>Intercom tag actions <span class="bld-pill">BLD-INT-INTERCOM-02</span></h1>
+        <div class="sub">When an Intercom tag is added to a patient conversation, Livera takes a configured action automatically. 7 active rules · clinic-customisable · changes audit-logged. Tags applied to live conversations route through <code>conversation.user.tag.created</code> webhook.</div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Stub · would open new rule wizard')">＋ New rule</button>
+      </div>
+    </div>
+
+    <!-- Architecture banner -->
+    <div class="arch-banner">
+      <div class="ic">🏷</div>
+      <div class="text">
+        <strong>How tag actions work</strong>
+        Admin tags an Intercom conversation (manually or via Intercom AI classifier) → Intercom fires <code>conversation.user.tag.created</code> webhook → Livera matches tag name against active rules below → executes action(s) on Livera side. Tag→action rules are clinic-configurable like consents and SLA tints — no hardcoded clinical logic. Severe-outcome rules (red triggers below) are protected per DEC-36 and cannot be downgraded by clinic admin without Owner sign-off.
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num">8</div>
+        <div class="stat-lbl">Active rules</div>
+        <div class="stat-sub">4 protected · 4 customisable</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">90</div>
+        <div class="stat-lbl">Triggered (30d)</div>
+        <div class="stat-sub">across all rules</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num warn">12</div>
+        <div class="stat-lbl">Incidents auto-created</div>
+        <div class="stat-sub">from severe_se + safeguarding + mhra_alert</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">3</div>
+        <div class="stat-lbl">Complaints auto-routed</div>
+        <div class="stat-sub">complaint tag → Monday board (DEC-37)</div>
+      </div>
+    </div>
+
+    <!-- ============================ -->
+    <!-- ACTIVE RULES                  -->
+    <!-- ============================ -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">⚡ Active rules</div>
+        <div class="sub">Tag → action mappings · evaluated in priority order · multiple actions per rule supported</div>
+        <div class="right"><a href="livera_audit_log.html?entity=intercom_tag_rule" style="color:var(--brand);font-size:11px;font-weight:600;text-decoration:none;">View audit log →</a></div>
+      </div>
+
+      <div class="rule-row head">
+        <span>Intercom tag</span>
+        <span></span>
+        <span>Match condition</span>
+        <span></span>
+        <span>Livera action(s)</span>
+        <span style="text-align:right">Triggered (30d)</span>
+        <span style="text-align:center">On</span>
+      </div>
+
+      <!-- Rule 1: severe_se → incident (PROTECTED) -->
+      <div class="rule-row" style="background:rgba(239,68,68,0.025);">
+        <span class="rule-trigger crit" title="DEC-36 protected — cannot be disabled or downgraded">🔒 severe_se</span>
+        <span class="rule-arrow">→</span>
+        <div class="rule-detail">When tag <strong>severe_se</strong> is added to any conversation by admin or AI classifier</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action">
+          <span class="pill alert">CREATE INCIDENT</span><span class="pill">PAUSE ORDER</span><span class="pill">FCM #12 PRESCRIBER</span>
+          <div class="meta">Auto-creates Livera Incident + Monday board write to 18402056019 + pauses linked order. <strong>DEC-36 protected</strong> — cannot be disabled.</div>
+        </div>
+        <div class="rule-vol"><strong>11</strong>fires</div>
+        <div class="rule-toggle" title="DEC-36 protected — cannot be disabled" style="cursor:not-allowed;opacity:.7;"></div>
+      </div>
+
+      <!-- Rule 2: safeguarding → incident + tasks (PROTECTED) -->
+      <div class="rule-row" style="background:rgba(239,68,68,0.025);">
+        <span class="rule-trigger crit" title="DEC-36 protected — cannot be disabled or downgraded">🔒 safeguarding</span>
+        <span class="rule-arrow">→</span>
+        <div class="rule-detail">Safeguarding concern flagged → tag <strong>safeguarding</strong> applied (typically by senior admin or AI classifier on key phrases)</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action">
+          <span class="pill alert">CREATE INCIDENT</span><span class="pill alert">NOTIFY OWNER + RM</span><span class="pill">PAUSE ORDER</span>
+          <div class="meta">CQC Reg 13 obligation — auto-route to Owner + Registered Manager for review within 24h. <strong>DEC-36 protected</strong>.</div>
+        </div>
+        <div class="rule-vol"><strong>1</strong>fire</div>
+        <div class="rule-toggle" title="DEC-36 protected — cannot be disabled" style="cursor:not-allowed;opacity:.7;"></div>
+      </div>
+
+      <!-- Rule 3: allergic_symptom → incident (PROTECTED) -->
+      <div class="rule-row" style="background:rgba(239,68,68,0.025);">
+        <span class="rule-trigger crit" title="DEC-36 protected — cannot be disabled or downgraded">🔒 allergic_symptom</span>
+        <span class="rule-arrow">→</span>
+        <div class="rule-detail">Patient reports allergic reaction (rash, swelling, breathing difficulty) → tag applied by AI classifier on key phrases or manually by admin</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action">
+          <span class="pill alert">CREATE INCIDENT</span><span class="pill">PAUSE ORDER</span><span class="pill">YELLOW CARD PROMPT</span>
+          <div class="meta">Pharmacovigilance flow — prompts prescriber to review whether MHRA Yellow Card report needed. <strong>DEC-36 protected</strong>.</div>
+        </div>
+        <div class="rule-vol"><strong>0</strong>fires</div>
+        <div class="rule-toggle" title="DEC-36 protected — cannot be disabled" style="cursor:not-allowed;opacity:.7;"></div>
+      </div>
+
+      <!-- Rule 4: complaint → Monday item (CUSTOMISABLE · DEC-37) -->
+      <div class="rule-row">
+        <span class="rule-trigger warn">complaint</span>
+        <span class="rule-arrow">→</span>
+        <div class="rule-detail">Patient complaint email/message tagged → creates item on clinic's Monday Complaints board (source of truth)</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action">
+          <span class="pill">CREATE MONDAY ITEM</span><span class="pill">SLA: 3 WORKING DAYS</span><span class="pill">LIVERA MIRROR</span>
+          <div class="meta"><strong>DEC-37</strong> · Investigation lives on Monday board (VSC: 18409111860 · FeelTru: 18402056040). Livera shows read-only mirror with deep-link. CQC Reg 16 evidence captured on Monday board's audit log.</div>
+        </div>
+        <div class="rule-vol"><strong>3</strong>fires</div>
+        <div class="rule-toggle" onclick="this.classList.toggle('off')"></div>
+      </div>
+
+      <!-- Rule 5: refund_request → amendment (DEC-38) -->
+      <div class="rule-row">
+        <span class="rule-trigger info">refund_request</span>
+        <span class="rule-arrow">→</span>
+        <div class="rule-detail">Patient asks for refund → creates Amendment (type=refund) routed through standard Amendment Decision flow</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action">
+          <span class="pill">CREATE AMENDMENT</span><span class="pill">TYPE: REFUND</span><span class="pill">ASSIGN: OWNER</span>
+          <div class="meta"><strong>DEC-38</strong> · All refunds flow through unified Amendment surface (BLD-AMEND-01..06). Existing payment-delta logic handles partial refunds. Replaces previous CREATE TASK behaviour.</div>
+        </div>
+        <div class="rule-vol"><strong>14</strong>fires</div>
+        <div class="rule-toggle" onclick="this.classList.toggle('off')"></div>
+      </div>
+
+      <!-- Rule 6: mhra_alert → cascade (PROTECTED · DEC-39) -->
+      <div class="rule-row" style="background:rgba(245,158,11,0.04);">
+        <span class="rule-trigger crit" style="background:#fef3c7;color:#92400e;border-color:#fde68a;" title="DEC-36 protected — cannot be disabled, severity routing configurable in MHRA settings">🔒 mhra_alert</span>
+        <span class="rule-arrow">→</span>
+        <div class="rule-detail">gov.uk MHRA alert matched against clinic's drug watchlist → conversation auto-created in Intercom by daily-poll integration (<a href="livera_settings_mhra_alerts.html" style="color:var(--brand);font-weight:600;text-decoration:none;">configure ↗</a>)</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action">
+          <span class="pill alert">CREATE INCIDENT (Class 1/2)</span><span class="pill">CREATE TASK TO RM</span><span class="pill">NOTIFY CLINICAL ROLES</span><span class="pill">AUD-04</span>
+          <div class="meta"><strong>DEC-39</strong> · Severity-class-driven cascade — Class 1/2 recall always creates incident; DSU/FSN notify-only. Recipients + SLAs configured in <a href="livera_settings_mhra_alerts.html" style="color:var(--brand-d);font-weight:600;text-decoration:none;">MHRA gov.uk alerts</a>. CQC Reg 17 + GPhC Standard 1 evidence. <strong>DEC-36 protected</strong>.</div>
+        </div>
+        <div class="rule-vol"><strong>3</strong>fires</div>
+        <div class="rule-toggle" title="DEC-36 protected — cannot be disabled" style="cursor:not-allowed;opacity:.7;"></div>
+      </div>
+
+      <!-- Rule 6: vip → contact attribute -->
+      <div class="rule-row">
+        <span class="rule-trigger purp">vip</span>
+        <span class="rule-arrow">→</span>
+        <div class="rule-detail">Tag added to designate priority patient (e.g. healthcare professional, key referrer)</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action">
+          <span class="pill">SET PATIENT FLAG</span><span class="pill">PIN TO TOP</span>
+          <div class="meta">Sets <code>patient.is_vip = true</code> · pins to top of all admin queues · prescriber sees VIP badge in Clinical Check Queue.</div>
+        </div>
+        <div class="rule-vol"><strong>9</strong>fires</div>
+        <div class="rule-toggle" onclick="this.classList.toggle('off')"></div>
+      </div>
+
+      <!-- Rule 7: dose_query → prescriber notify -->
+      <div class="rule-row">
+        <span class="rule-trigger ok">dose_query</span>
+        <span class="rule-arrow">→</span>
+        <div class="rule-detail">Routine dose-related question (timing, missed dose, escalation eligibility) → does NOT block order, just routes to prescriber inbox</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action">
+          <span class="pill">NOTIFY PRESCRIBER</span><span class="pill">ROUTE: PRESCRIBER INBOX</span>
+          <div class="meta">Prescriber sees in their inbox view of conversations · no order action · 24h response SLA · BLD-INT-INTERCOM-01 outbound action posts contact note when prescriber replies.</div>
+        </div>
+        <div class="rule-vol"><strong>49</strong>fires</div>
+        <div class="rule-toggle" onclick="this.classList.toggle('off')"></div>
+      </div>
+    </div>
+
+    <!-- ============================ -->
+    <!-- AVAILABLE BUT NOT MAPPED      -->
+    <!-- ============================ -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📋 Tags in use without rules</div>
+        <div class="sub">Tags applied in Intercom that don't currently trigger any Livera action. Add a rule to wire these up.</div>
+      </div>
+
+      <div class="rule-row head">
+        <span>Tag in Intercom</span>
+        <span></span>
+        <span>Where it's used</span>
+        <span></span>
+        <span>Suggested action</span>
+        <span style="text-align:right">Tagged (30d)</span>
+        <span></span>
+      </div>
+
+      <div class="rule-row disabled">
+        <span class="rule-trigger ok">resolved</span>
+        <span class="rule-arrow">—</span>
+        <div class="rule-detail">Applied by admin when conversation closure ready · no action required (close-state already mirrored)</div>
+        <span class="rule-arrow"></span>
+        <div class="rule-action" style="font-size:11.5px;color:var(--t3);font-style:italic;">No rule needed · informational tag only</div>
+        <div class="rule-vol"><strong>847</strong>uses</div>
+        <span style="font-size:10px;color:var(--t3);text-align:center;">—</span>
+      </div>
+
+      <div class="rule-row">
+        <span class="rule-trigger info">website_query</span>
+        <span class="rule-arrow">—</span>
+        <div class="rule-detail">Pre-purchase patient asks about service · usually low priority</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action" style="font-size:11.5px;color:var(--t3);font-style:italic;"><a onclick="showToast('Stub · would open rule builder')" style="color:var(--brand);font-weight:600;cursor:pointer;text-decoration:none;">＋ Add rule</a> e.g. route to Sales queue</div>
+        <div class="rule-vol"><strong>234</strong>uses</div>
+        <span style="font-size:10px;color:var(--t3);text-align:center;">—</span>
+      </div>
+
+      <div class="rule-row">
+        <span class="rule-trigger info">delivery_query</span>
+        <span class="rule-arrow">—</span>
+        <div class="rule-detail">Patient query about courier / tracking · usually solved by linking to Primed dispatch tracking</div>
+        <span class="rule-arrow">⇒</span>
+        <div class="rule-action" style="font-size:11.5px;color:var(--t3);font-style:italic;"><a onclick="showToast('Stub · would open rule builder')" style="color:var(--brand);font-weight:600;cursor:pointer;text-decoration:none;">＋ Add rule</a> e.g. attach Primed dispatch state to conv as note</div>
+        <div class="rule-vol"><strong>61</strong>uses</div>
+        <span style="font-size:10px;color:var(--t3);text-align:center;">—</span>
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Intercom tag actions</strong> · BLD-INT-INTERCOM-02 (spec §13). Tag→action rules are clinic-configurable via this surface · 3 protected rules (severe_se · safeguarding · allergic_symptom) per DEC-36 cannot be disabled or downgraded by clinic admin without Owner sign-off · 4 customisable rules toggle independently · changes write CONFIG_INTERCOM_TAG_RULE entry to AUD-04 audit log. Visible to <code>Owner</code> and <code>RM</code> only — Admin sees execution log but cannot edit rules.
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+</script>
+</body>
+</html>

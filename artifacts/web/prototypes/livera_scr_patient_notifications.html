@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Patient notifications</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+.ctx-strip{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 18px;margin-bottom:18px;display:flex;gap:18px;align-items:center}
+.ctx-strip .pt-name{font-size:15px;font-weight:700;color:var(--t1);letter-spacing:-.2px}
+.ctx-strip .pt-meta{font-size:11px;color:var(--t3);font-family:'SF Mono',Menlo,monospace;margin-top:2px}
+.ctx-strip .pt-link{font-size:11px;color:var(--brand);text-decoration:none;font-weight:600;margin-left:auto}
+.ctx-strip .pt-link:hover{text-decoration:underline}
+
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--bdr);margin-bottom:18px;overflow-x:auto}
+.tab{padding:11px 18px;font-size:12.5px;font-weight:600;color:var(--t2);background:none;border:none;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;transition:.12s;white-space:nowrap}
+.tab:hover{color:var(--t1)}
+.tab.on{color:var(--brand);border-bottom-color:var(--brand)}
+.tab .ct{display:inline-block;font-size:10px;font-weight:700;background:var(--bdr);color:var(--t2);padding:1px 6px;border-radius:3px;margin-left:6px;letter-spacing:.3px}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#ffedd5 0%,#f97316 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-info .sub code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11.5px}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:.12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+
+/* Filter bar */
+.filter-bar{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.filter-bar .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3)}
+.filter-pill{padding:5px 11px;font-size:11.5px;font-weight:600;background:var(--bg);color:var(--t2);border:1px solid var(--bdr-d);border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:inherit;transition:.12s}
+.filter-pill:hover{border-color:var(--brand);color:var(--brand)}
+.filter-pill.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.filter-pill.on .count{background:rgba(255,255,255,.2);color:#fff}
+.filter-pill .count{font-size:10px;font-weight:700;background:var(--bdr);color:var(--t2);padding:1px 6px;border-radius:3px}
+.filter-bar .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.stat-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px}
+.stat-num{font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1.1}
+.stat-num.warn{color:var(--warn)}
+.stat-num.ok{color:var(--ok)}
+.stat-num.err{color:var(--err)}
+.stat-lbl{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+.stat-sub{font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4}
+
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+/* Notification feed */
+.fcm-row{display:grid;grid-template-columns:90px 60px 1fr 110px 100px 100px;gap:14px;padding:13px 18px;border-bottom:.5px solid var(--bdr);align-items:center;font-size:12.5px}
+.fcm-row:last-child{border-bottom:none}
+.fcm-row.head{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);padding-top:9px;padding-bottom:9px}
+.fcm-when{color:var(--t3);font-size:11px;font-variant-numeric:tabular-nums}
+.fcm-when strong{color:var(--t2);font-weight:600;display:block}
+.fcm-trigger{font-family:'SF Mono',Menlo,monospace;font-size:10.5px;color:var(--t1);background:#fff7ed;padding:2px 7px;border-radius:3px;border:.5px solid #fed7aa;width:fit-content;font-weight:700;letter-spacing:.3px}
+.fcm-trigger.always-on{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+.fcm-payload{font-size:12px;color:var(--t1);line-height:1.45}
+.fcm-payload .title{font-weight:600;color:var(--t1)}
+.fcm-payload .body{font-size:11px;color:var(--t2);margin-top:2px}
+.fcm-payload .meta{font-size:10.5px;color:var(--t3);margin-top:3px;font-family:'SF Mono',Menlo,monospace}
+.fcm-status{font-size:9.5px;font-weight:700;padding:3px 7px;border-radius:3px;letter-spacing:.4px;text-align:center;width:fit-content}
+.fcm-status.delivered{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.fcm-status.tapped{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.fcm-status.dismissed{background:var(--bg);color:var(--t3);border:.5px solid var(--bdr-d)}
+.fcm-status.failed{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.fcm-channel{font-size:10.5px;font-weight:600;text-align:center;color:var(--t2);display:flex;flex-direction:column;align-items:center;gap:2px}
+.fcm-channel .ico{font-size:14px}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <div class="ws"><button class="ws-trigger"><strong>VSC — Quanta Healthcare Ltd</strong><span class="ws-chev">▼</span></button></div>
+  <div class="role"><span>Qadir Hussain</span><span class="role-pill">Owner</span></div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html" class="active"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_patient_list.html">Patients</a>
+      <span class="sep">›</span>
+      <a href="livera_prototype_09_patient_profile.html">Sarah Cookland · PT-00198</a>
+      <span class="sep">›</span>
+      <span class="cur">Notifications sent</span>
+    </div>
+
+    <div class="ctx-strip">
+      <div>
+        <div class="pt-name">Sarah Cookland</div>
+        <div class="pt-meta">PT-00198 · F · 47 · Mounjaro · ORD-00441 in-flight</div>
+      </div>
+      <a href="livera_prototype_09_patient_profile.html" class="pt-link">← Back to patient profile</a>
+    </div>
+
+    <div class="tabs">
+      <button class="tab" onclick="window.location.href='livera_prototype_09_patient_profile.html'">Overview</button>
+      <button class="tab" onclick="showToast('Stub · existing tab')">Orders <span class="ct">3</span></button>
+      <button class="tab" onclick="showToast('Stub · existing tab')">Clinical <span class="ct">2</span></button>
+      <button class="tab" onclick="window.location.href='livera_scr_patient_documents.html'">Documents <span class="ct">9</span></button>
+      <button class="tab on">Notifications <span class="ct">23</span></button>
+      <button class="tab" onclick="showToast('Stub · existing tab')">Notes</button>
+      <button class="tab" onclick="showToast('Stub · existing tab')">Activity</button>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">🔔</div>
+      <div class="pg-info">
+        <h1>Notifications sent <span class="bld-pill">BLD-FCM-LOG-01</span></h1>
+        <div class="sub">All Firebase Cloud Messaging notifications sent to this patient · 14 trigger types · 9 always-on (clinical/care team), 5 user-controllable per spec §15. Delivery state, payload, response.</div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Stub · would export FCM log as CSV')">⤓ Export CSV</button>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num">23</div>
+        <div class="stat-lbl">Sent (lifetime)</div>
+        <div class="stat-sub">Across 14 trigger types</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num ok">21</div>
+        <div class="stat-lbl">Delivered</div>
+        <div class="stat-sub">91.3% delivery rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">14</div>
+        <div class="stat-lbl">Tapped through</div>
+        <div class="stat-sub">66.7% tap-through rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num err">2</div>
+        <div class="stat-lbl">Failed delivery</div>
+        <div class="stat-sub">FCM token expired · refreshed 28 Apr</div>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <span class="lbl">Filter</span>
+      <button class="filter-pill on">All <span class="count">23</span></button>
+      <button class="filter-pill">Always-on (clinical) <span class="count">14</span></button>
+      <button class="filter-pill">User-controllable <span class="count">9</span></button>
+      <button class="filter-pill">Failed <span class="count">2</span></button>
+      <span class="right">Total triggers configured: 14 · spec §15</span>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📜 Notification feed</div>
+        <div class="sub">Most recent first</div>
+        <div class="right">Showing 23 of 23 lifetime</div>
+      </div>
+      <div>
+        <div class="fcm-row head">
+          <span>When</span>
+          <span>Channel</span>
+          <span>Trigger · payload</span>
+          <span style="text-align:center">Trigger type</span>
+          <span style="text-align:center">Delivery</span>
+          <span style="text-align:center">Response</span>
+        </div>
+
+        <!-- 1. Order shipped (most recent) -->
+        <div class="fcm-row">
+          <span class="fcm-when"><strong>Today · 14:42</strong>2 min ago</span>
+          <div class="fcm-channel"><span class="ico">📱</span>iOS</div>
+          <div class="fcm-payload">
+            <div class="title">Your order is on its way</div>
+            <div class="body">"Tracking ref RM24TS9920884GB · expect delivery tomorrow"</div>
+            <div class="meta">trigger=#9 · order=ORD-00420 · variant=A</div>
+          </div>
+          <div style="text-align:center"><span class="fcm-trigger">FCM #9 SHIPPED</span></div>
+          <div style="text-align:center"><span class="fcm-status delivered">DELIVERED</span></div>
+          <div style="text-align:center"><span class="fcm-status tapped">TAPPED</span></div>
+        </div>
+
+        <!-- 2. Amendment received -->
+        <div class="fcm-row">
+          <span class="fcm-when"><strong>Today · 11:08</strong>3h ago</span>
+          <div class="fcm-channel"><span class="ico">📱</span>iOS</div>
+          <div class="fcm-payload">
+            <div class="title">Your amendment request was received</div>
+            <div class="body">"Dose change to 7.5mg sent for prescriber review · 24h to decision"</div>
+            <div class="meta">trigger=#6 · amendment=AMD-00091 · always-on</div>
+          </div>
+          <div style="text-align:center"><span class="fcm-trigger always-on">FCM #6 AMEND</span></div>
+          <div style="text-align:center"><span class="fcm-status delivered">DELIVERED</span></div>
+          <div style="text-align:center"><span class="fcm-status tapped">TAPPED</span></div>
+        </div>
+
+        <!-- 3. Reorder reminder -->
+        <div class="fcm-row">
+          <span class="fcm-when"><strong>Yesterday · 09:00</strong>1d ago</span>
+          <div class="fcm-channel"><span class="ico">🤖</span>Android</div>
+          <div class="fcm-payload">
+            <div class="title">Time to reorder?</div>
+            <div class="body">"Your current supply runs out in 5 days. Tap to start a reorder."</div>
+            <div class="meta">trigger=#5 · supply_remaining=5d · user-controllable</div>
+          </div>
+          <div style="text-align:center"><span class="fcm-trigger">FCM #5 REORDER</span></div>
+          <div style="text-align:center"><span class="fcm-status delivered">DELIVERED</span></div>
+          <div style="text-align:center"><span class="fcm-status tapped">TAPPED</span></div>
+        </div>
+
+        <!-- 4. Day 19 check-in -->
+        <div class="fcm-row">
+          <span class="fcm-when"><strong>5 May · 09:00</strong>5d ago</span>
+          <div class="fcm-channel"><span class="ico">📱</span>iOS</div>
+          <div class="fcm-payload">
+            <div class="title">How's your treatment going?</div>
+            <div class="body">"Tap to book a check-in call with your prescriber if you'd like."</div>
+            <div class="meta">trigger=#13 · day_X_nudge · day=19 · DEC-30 clinic-config</div>
+          </div>
+          <div style="text-align:center"><span class="fcm-trigger">FCM #13 DAY-X</span></div>
+          <div style="text-align:center"><span class="fcm-status delivered">DELIVERED</span></div>
+          <div style="text-align:center"><span class="fcm-status dismissed">DISMISSED</span></div>
+        </div>
+
+        <!-- 5. Order approved -->
+        <div class="fcm-row">
+          <span class="fcm-when"><strong>4 May · 14:38</strong>6d ago</span>
+          <div class="fcm-channel"><span class="ico">📱</span>iOS</div>
+          <div class="fcm-payload">
+            <div class="title">Your order is approved</div>
+            <div class="body">"Your prescriber approved your order · pharmacy now preparing"</div>
+            <div class="meta">trigger=#3 · order=ORD-00441 · always-on</div>
+          </div>
+          <div style="text-align:center"><span class="fcm-trigger always-on">FCM #3 APPROVED</span></div>
+          <div style="text-align:center"><span class="fcm-status delivered">DELIVERED</span></div>
+          <div style="text-align:center"><span class="fcm-status tapped">TAPPED</span></div>
+        </div>
+
+        <!-- 6. Clinical Check entered -->
+        <div class="fcm-row">
+          <span class="fcm-when"><strong>4 May · 14:22</strong>6d ago</span>
+          <div class="fcm-channel"><span class="ico">📱</span>iOS</div>
+          <div class="fcm-payload">
+            <div class="title">Order received — under clinical review</div>
+            <div class="body">"Your prescriber will review within 4 hours"</div>
+            <div class="meta">trigger=#2 · order=ORD-00441 · always-on</div>
+          </div>
+          <div style="text-align:center"><span class="fcm-trigger always-on">FCM #2 RECEIVED</span></div>
+          <div style="text-align:center"><span class="fcm-status delivered">DELIVERED</span></div>
+          <div style="text-align:center"><span class="fcm-status tapped">TAPPED</span></div>
+        </div>
+
+        <!-- 7. Failed delivery (token expired) -->
+        <div class="fcm-row" style="background:rgba(239,68,68,0.03);">
+          <span class="fcm-when"><strong>27 Apr · 16:12</strong>13d ago</span>
+          <div class="fcm-channel"><span class="ico">📱</span>iOS</div>
+          <div class="fcm-payload">
+            <div class="title">Your prescription is ready</div>
+            <div class="body">"Your pharmacy is dispatching today"</div>
+            <div class="meta">trigger=#9 · token_expired · re-registered 28 Apr</div>
+          </div>
+          <div style="text-align:center"><span class="fcm-trigger always-on">FCM #9 SHIPPED</span></div>
+          <div style="text-align:center"><span class="fcm-status failed">FAILED</span></div>
+          <div style="text-align:center"><span class="fcm-status dismissed">N/A</span></div>
+        </div>
+
+        <!-- 8. Education — week 2 content trigger -->
+        <div class="fcm-row">
+          <span class="fcm-when"><strong>11 Apr · 09:00</strong>29d ago</span>
+          <div class="fcm-channel"><span class="ico">📱</span>iOS</div>
+          <div class="fcm-payload">
+            <div class="title">Tip: managing GLP-1 nausea</div>
+            <div class="body">"3 simple things to make week 2 easier"</div>
+            <div class="meta">trigger=#10 · education_content · article_id=art_005</div>
+          </div>
+          <div style="text-align:center"><span class="fcm-trigger">FCM #10 EDU</span></div>
+          <div style="text-align:center"><span class="fcm-status delivered">DELIVERED</span></div>
+          <div style="text-align:center"><span class="fcm-status tapped">TAPPED</span></div>
+        </div>
+
+        <!-- 9. Marketing campaign (Omnisend hook) -->
+        <div class="fcm-row">
+          <span class="fcm-when"><strong>8 Apr · 09:00</strong>32d ago</span>
+          <div class="fcm-channel"><span class="ico">🤖</span>Android</div>
+          <div class="fcm-payload">
+            <div class="title">May newsletter — sustainable habits beyond GLP-1</div>
+            <div class="body">"From your VSC team · 5 min read"</div>
+            <div class="meta">trigger=#14 · omnisend_campaign · marketing_consent=true</div>
+          </div>
+          <div style="text-align:center"><span class="fcm-trigger">FCM #14 MARKETING</span></div>
+          <div style="text-align:center"><span class="fcm-status delivered">DELIVERED</span></div>
+          <div style="text-align:center"><span class="fcm-status tapped">TAPPED</span></div>
+        </div>
+
+        <!-- 10. Footer summary row -->
+        <div style="padding:14px 18px;background:var(--bg);font-size:11px;color:var(--t2);line-height:1.55;border-top:.5px dashed var(--bdr-d);">
+          <strong style="color:var(--t1);font-weight:600;">Showing top 9 of 23.</strong> Older entries: 4 onboarding (FCM #1), 3 reorder reminders (FCM #5), 2 dispatch updates (FCM #7, #8), 2 verification reminders (FCM #11), 1 incident-related (FCM #12 — moderate SE), 2 misc. Always-on triggers (clinical/care team) cannot be disabled by patient per spec §15.
+        </div>
+
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Notifications sent</strong> · BLD-FCM-LOG-01 (spec §15) · per-patient FCM log surfacing all 14 trigger types. <strong>Always-on triggers</strong> (FCM #2, #3, #4, #6, #7, #8, #9, #11, #12 — clinical and care team) cannot be disabled by patient. <strong>User-controllable triggers</strong> (FCM #1, #5, #10, #13, #14 — onboarding, reorder reminders, education, day-X check-in, marketing) respect patient app settings. Failed deliveries auto-retry on next FCM token refresh. Visible to <code>Owner</code>, <code>RM</code>, <code>Prescriber</code> · <code>Admin</code> sees delivery status only (not payload body). Export CSV produces an AUD-04 evidence bundle.
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+</script>
+</body>
+</html>

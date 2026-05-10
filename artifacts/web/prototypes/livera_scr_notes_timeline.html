@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Notes Timeline (BLD-4.1 → 4.5)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; }
+  .btn { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+
+  /* Layout: left context + right notes panel */
+  .content { flex: 1; display: flex; overflow: hidden; }
+  .ctx-col { width: 320px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); overflow-y: auto; padding: 18px 20px; }
+  .ctx-title { font-size: 18px; font-weight: 700; color: var(--text-1); letter-spacing: -0.3px; }
+  .ctx-meta { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+  .ctx-tabs { display: flex; gap: 4px; margin-top: 14px; padding: 3px; background: var(--surface-2); border-radius: var(--r-md); border: 0.5px solid var(--border-strong); width: fit-content; }
+  .ctx-tab { padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--text-2); border-radius: var(--r-sm); font-family: inherit; }
+  .ctx-tab.on { background: var(--surface); color: var(--brand-dark); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+
+  .ctx-section { margin-top: 22px; }
+  .ctx-sec-t { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; }
+  .dr { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+  .dk { font-size: 12px; color: var(--text-2); }
+  .dv { font-size: 12px; font-weight: 500; color: var(--text-1); text-align: right; }
+  .dv.g { color: var(--green); }
+
+  /* Right panel */
+  .notes-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .notes-head { padding: 16px 28px 0 28px; flex-shrink: 0; }
+  .notes-title { font-size: 22px; font-weight: 700; color: var(--text-1); letter-spacing: -0.3px; }
+  .notes-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; max-width: 660px; }
+
+  /* Filter strip */
+  .filter-strip { padding: 14px 28px; border-bottom: 0.5px solid var(--border); display: flex; gap: 10px; align-items: center; flex-shrink: 0; flex-wrap: wrap; background: var(--surface); margin-top: 16px; }
+  .filter-pill { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); background: var(--surface); color: var(--text-2); font-family: inherit; display: flex; align-items: center; gap: 6px; }
+  .filter-pill:hover { background: var(--surface-2); }
+  .filter-pill.on { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .filter-pill .count { font-size: 10px; opacity: 0.7; }
+  .filter-spacer { flex: 1; }
+  .filter-search { padding: 5px 10px; border-radius: var(--r-md); border: 0.5px solid var(--border-strong); font-size: 12px; font-family: inherit; min-width: 200px; background: var(--surface-2); }
+
+  /* Timeline */
+  .timeline { flex: 1; overflow-y: auto; padding: 14px 28px 32px 28px; }
+  .day-group { margin-bottom: 22px; }
+  .day-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; padding: 6px 10px; background: var(--surface-2); border-radius: var(--r-sm); display: inline-block; }
+
+  .note { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); margin-bottom: 10px; overflow: hidden; transition: border-color 0.15s; }
+  .note:hover { border-color: var(--border-strong); }
+  .note-clinical { border-left: 3px solid var(--brand); }
+  .note-admin   { border-left: 3px solid var(--purple); }
+  .note-system  { border-left: 3px solid var(--text-3); background: var(--surface-2); }
+
+  .note-head { padding: 10px 14px 8px 14px; display: flex; align-items: center; gap: 10px; }
+  .note-author { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+  .av { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; flex-shrink: 0; }
+  .av-clin { background: var(--brand-dark); }
+  .av-adm  { background: var(--purple); }
+  .av-sys  { background: var(--text-3); }
+  .note-author-info { min-width: 0; }
+  .note-author-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .note-author-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  .note-tags { display: flex; gap: 4px; align-items: center; margin-left: auto; flex-shrink: 0; }
+  .tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 0.5px solid; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
+  .tag-clinical { background: var(--brand-light); color: var(--brand-dark); border-color: rgba(99,102,241,0.3); }
+  .tag-admin    { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+  .tag-system   { background: var(--surface-2); color: var(--text-3); border-color: var(--border-strong); }
+  .tag-type     { background: var(--surface-2); color: var(--text-2); border-color: var(--border-strong); font-weight: 500; }
+  .tag-type.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .tag-type.red   { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .tag-type.green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .tag-migrated { background: #fef3c7; color: var(--amber); border-color: var(--amber-border); font-style: italic; text-transform: none; letter-spacing: 0; font-weight: 500; }
+
+  .note-time { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .note-body { padding: 0 14px 12px 14px; font-size: 13px; color: var(--text-1); line-height: 1.55; }
+  .note-attached { padding: 8px 14px; background: var(--surface-2); border-top: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-2); }
+  .note-attached a { color: var(--brand-dark); text-decoration: none; font-weight: 500; }
+  .note-attached a:hover { text-decoration: underline; }
+  .note-migrated-banner { padding: 6px 14px; background: #fffbeb; border-top: 0.5px solid var(--amber-border); font-size: 11px; color: var(--amber); display: flex; align-items: center; gap: 6px; }
+
+  /* FAB */
+  .fab { position: fixed; bottom: 28px; right: 28px; z-index: 100; width: 52px; height: 52px; border-radius: 50%; background: var(--brand-dark); color: #fff; border: none; cursor: pointer; font-size: 22px; box-shadow: 0 4px 20px rgba(67,56,202,0.4); transition: all 0.2s; font-family: inherit; }
+  .fab:hover { transform: scale(1.05); background: #3730a3; }
+
+  /* Modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(15,15,22,0.55); z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--r-lg); width: 100%; max-width: 540px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  .modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .modal-icon { width: 32px; height: 32px; border-radius: 50%; background: var(--purple-bg); color: var(--purple); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .modal-close { background: transparent; border: none; cursor: pointer; font-size: 18px; color: var(--text-3); padding: 4px 8px; border-radius: var(--r-sm); font-family: inherit; }
+  .modal-close:hover { background: var(--surface-2); color: var(--text-1); }
+  .modal-body { padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .modal-foot { padding: 14px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--surface-2); }
+
+  .field-group { display: flex; flex-direction: column; gap: 6px; }
+  .field-label { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; }
+  .field-input, .field-select, .field-textarea { padding: 9px 12px; font-size: 13px; border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); font-family: inherit; background: var(--surface); color: var(--text-1); width: 100%; }
+  .field-textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+  .field-input:focus, .field-select:focus, .field-textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+  .field-help { font-size: 11px; color: var(--text-3); margin-top: -2px; }
+  .scope-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .scope-card { padding: 10px 12px; border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); cursor: pointer; transition: all 0.12s; }
+  .scope-card.on { border-color: var(--brand); background: var(--brand-light); }
+  .scope-card-title { font-size: 12px; font-weight: 600; color: var(--text-1); display: flex; align-items: center; gap: 6px; }
+  .scope-card-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; line-height: 1.4; }
+  .scope-card.on .scope-card-title { color: var(--brand-dark); }
+
+  /* Schema card */
+  .schema-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); margin: 0 28px 22px 28px; overflow: hidden; }
+  .schema-head { padding: 14px 18px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .schema-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .schema-sub { font-size: 11px; color: var(--text-3); }
+  .schema-body { padding: 14px 18px; }
+  .schema-grid { display: grid; grid-template-columns: 200px 1fr; gap: 6px 14px; font-size: 12px; }
+  .schema-key { font-family: ui-monospace, 'SF Mono', monospace; color: var(--brand-dark); font-size: 11px; }
+  .schema-val { color: var(--text-2); line-height: 1.5; }
+  .schema-val code { font-family: ui-monospace, 'SF Mono', monospace; font-size: 11px; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; color: var(--text-1); }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; }
+  .toast.show { display: flex; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html" class="active"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_patient_list.html">Patients</a>
+        <span class="sep">/</span>
+        <a href="livera_prototype_09_patient_profile.html">Sarah Cookland</a>
+        <span class="sep">/</span>
+        <span class="cur">Notes</span>
+      </div>
+      <div class="topbar-right">
+        <button class="btn">Export to PDF</button>
+        <button class="btn primary" onclick="openModal()">+ Add admin note</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Left context column -->
+      <div class="ctx-col">
+        <div class="ctx-title">Sarah Cookland</div>
+        <div class="ctx-meta">50y · F · Reorder · 6 of 6 check-ins</div>
+
+        <div class="ctx-tabs">
+          <button class="ctx-tab">Profile</button>
+          <button class="ctx-tab">Orders</button>
+          <button class="ctx-tab on">Notes</button>
+          <button class="ctx-tab">GP letters</button>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-sec-t">Notes summary</div>
+          <div class="dr"><span class="dk">Total notes</span><span class="dv">14</span></div>
+          <div class="dr"><span class="dk">Clinical</span><span class="dv" style="color:var(--brand-dark);">6</span></div>
+          <div class="dr"><span class="dk">Admin</span><span class="dv" style="color:var(--purple);">5</span></div>
+          <div class="dr"><span class="dk">System</span><span class="dv" style="color:var(--text-3);">3</span></div>
+          <div class="dr" style="margin-top:6px;padding-top:6px;border-top:0.5px solid var(--border);"><span class="dk">Migrated from "General"</span><span class="dv" style="color:var(--amber);">2</span></div>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-sec-t">Current order context</div>
+          <div class="dr"><span class="dk">Order</span><span class="dv">ORD-00441</span></div>
+          <div class="dr"><span class="dk">Product</span><span class="dv">Mounjaro 5mg</span></div>
+          <div class="dr"><span class="dk">Status</span><span class="dv g">Approved</span></div>
+          <div class="dr"><span class="dk">Subscription</span><span class="dv g">Active · SUB-00124</span></div>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-sec-t">Quick filters</div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
+            <div style="padding:6px 10px;background:var(--brand-light);color:var(--brand-dark);border-radius:var(--r-sm);cursor:pointer;font-weight:500;">📋 Notes attached to ORD-00441</div>
+            <div style="padding:6px 10px;background:var(--surface-2);border-radius:var(--r-sm);cursor:pointer;color:var(--text-2);">⚠️ Clinical concerns only</div>
+            <div style="padding:6px 10px;background:var(--surface-2);border-radius:var(--r-sm);cursor:pointer;color:var(--text-2);">📞 Patient contact log</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes timeline column -->
+      <div class="notes-col">
+
+        <div class="notes-head">
+          <div class="notes-title">Notes timeline</div>
+          <div class="notes-sub">Unified chronological view of clinical and admin notes for this patient. Clinical notes are written by prescribers and clinicians; admin notes are written by support staff. Both render in one feed but are filterable by source. <strong>BLD-4.3</strong> · BLD-4.4 removed the legacy "General" clinical type — see migrated entries below.</div>
+        </div>
+
+        <!-- Filter strip -->
+        <div class="filter-strip">
+          <button class="filter-pill on" onclick="setFilter(this,'all')">All <span class="count">14</span></button>
+          <button class="filter-pill" onclick="setFilter(this,'clinical')">📘 Clinical <span class="count">6</span></button>
+          <button class="filter-pill" onclick="setFilter(this,'admin')">🟣 Admin <span class="count">5</span></button>
+          <button class="filter-pill" onclick="setFilter(this,'system')">⚙ System <span class="count">3</span></button>
+          <div class="filter-spacer"></div>
+          <input class="filter-search" type="text" placeholder="🔍 Search notes…" oninput="searchNotes(this.value)">
+          <button class="btn">Sort: Newest first ⌄</button>
+        </div>
+
+        <!-- Schema reference (BLD-4.1) -->
+        <div class="schema-card">
+          <div class="schema-head">
+            <div class="schema-title">📦 admin_note entity (BLD-4.1)</div>
+            <div class="schema-sub">For Yohan · new entity introduced alongside existing clinical_note</div>
+          </div>
+          <div class="schema-body">
+            <div class="schema-grid">
+              <div class="schema-key">note_id</div>
+              <div class="schema-val">UUID · primary key · format <code>an_XXXXXXXX</code></div>
+              <div class="schema-key">workspace_id</div>
+              <div class="schema-val">FK → workspaces · for tenant isolation</div>
+              <div class="schema-key">patient_id</div>
+              <div class="schema-val">FK → patients · required · indexed</div>
+              <div class="schema-key">order_id</div>
+              <div class="schema-val">FK → orders · <em>optional</em> · when present, note is attached to a specific order</div>
+              <div class="schema-key">author_id</div>
+              <div class="schema-val">FK → users · the admin/support staff member who wrote the note</div>
+              <div class="schema-key">author_role</div>
+              <div class="schema-val">enum: <code>admin</code> | <code>support</code> | <code>operations</code> · denormalised at write time</div>
+              <div class="schema-key">type</div>
+              <div class="schema-val">enum: <code>contact_log</code> | <code>order_amendment</code> | <code>shipping_issue</code> | <code>billing</code> | <code>safeguarding_referral</code> | <code>other</code></div>
+              <div class="schema-key">body</div>
+              <div class="schema-val">TEXT · max 5000 chars · plain text only (no rich text in V1)</div>
+              <div class="schema-key">visible_to_clinician</div>
+              <div class="schema-val">boolean · default <code>true</code> · when false, hidden from prescriber view</div>
+              <div class="schema-key">created_at</div>
+              <div class="schema-val">timestamptz · server-generated</div>
+              <div class="schema-key">updated_at</div>
+              <div class="schema-val">timestamptz · for edit history</div>
+              <div class="schema-key">migrated_from</div>
+              <div class="schema-val"><em>nullable</em> · BLD-4.5: when migrated from a clinical_note "General" entry, contains the original <code>clinical_note.id</code></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timeline body -->
+        <div class="timeline">
+
+          <!-- ─────────── Today ─────────── -->
+          <div class="day-group">
+            <div class="day-label">Today · 30 Apr 2026</div>
+
+            <!-- Admin note: order amendment -->
+            <div class="note note-admin">
+              <div class="note-head">
+                <div class="note-author">
+                  <div class="av av-adm">QH</div>
+                  <div class="note-author-info">
+                    <div class="note-author-name">Qadir Hussain</div>
+                    <div class="note-author-role">Admin</div>
+                  </div>
+                </div>
+                <div class="note-tags">
+                  <span class="tag tag-admin">Admin note</span>
+                  <span class="tag tag-type">Order amendment</span>
+                </div>
+                <div class="note-time">14:22</div>
+              </div>
+              <div class="note-body">
+                Patient called to confirm delivery address change to 14 Parkside Avenue, Leeds, LS18 4FJ (was previously 22 Hill Road). Address updated on profile before order approval. Patient confirmed new address is correct.
+              </div>
+              <div class="note-attached">
+                📎 Attached to <a href="livera_prototype_10_order_detail_admin.html">ORD-00441</a> · pre-approval amendment · <strong>visible to prescriber</strong>
+              </div>
+            </div>
+
+            <!-- Clinical note: assessment -->
+            <div class="note note-clinical">
+              <div class="note-head">
+                <div class="note-author">
+                  <div class="av av-clin">CM</div>
+                  <div class="note-author-info">
+                    <div class="note-author-name">Claire Moynehan</div>
+                    <div class="note-author-role">Nurse Prescriber · NMC 1234567</div>
+                  </div>
+                </div>
+                <div class="note-tags">
+                  <span class="tag tag-clinical">Clinical note</span>
+                  <span class="tag tag-type green">Assessment</span>
+                </div>
+                <div class="note-time">10:14</div>
+              </div>
+              <div class="note-body">
+                Reviewed reorder. Weight 85.3kg from 89.4kg start (4.6% loss · 18 weeks). Below 5% NICE target but trending downward; patient reports good adherence and tolerable side effects (mild bruising at injection site only). Cardiac history reviewed — stable, no contraindications. <strong>Continue Mounjaro 5mg, no dose change.</strong> Re-review at next reorder.
+              </div>
+              <div class="note-attached">
+                📎 Attached to <a href="livera_prototype_10_order_detail_admin.html">ORD-00441</a> · approval rationale
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── 2 days ago ─────────── -->
+          <div class="day-group">
+            <div class="day-label">28 Apr 2026 · Tue</div>
+
+            <!-- Admin note: contact log -->
+            <div class="note note-admin">
+              <div class="note-head">
+                <div class="note-author">
+                  <div class="av av-adm">SM</div>
+                  <div class="note-author-info">
+                    <div class="note-author-name">Sarah Mitchell</div>
+                    <div class="note-author-role">Support · operations</div>
+                  </div>
+                </div>
+                <div class="note-tags">
+                  <span class="tag tag-admin">Admin note</span>
+                  <span class="tag tag-type">Contact log</span>
+                </div>
+                <div class="note-time">16:48</div>
+              </div>
+              <div class="note-body">
+                Inbound Intercom · patient asked when next reorder window opens. Confirmed she's eligible to reorder from 04 May. Sent reorder reminder template. No clinical questions raised.
+              </div>
+              <div class="note-attached">
+                🔗 Linked to Intercom conversation #IC-29481 · <strong>not</strong> attached to a specific order
+              </div>
+            </div>
+
+            <!-- System note -->
+            <div class="note note-system">
+              <div class="note-head">
+                <div class="note-author">
+                  <div class="av av-sys">⚙</div>
+                  <div class="note-author-info">
+                    <div class="note-author-name">System</div>
+                    <div class="note-author-role">Auto-generated</div>
+                  </div>
+                </div>
+                <div class="note-tags">
+                  <span class="tag tag-system">System</span>
+                </div>
+                <div class="note-time">09:00</div>
+              </div>
+              <div class="note-body">
+                Reorder reminder sent · Omnisend template <code style="font-size:11px;background:var(--surface);padding:1px 5px;border-radius:3px;">tpl_reorder_window_open_v2</code> · delivery confirmed.
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── Earlier this week ─────────── -->
+          <div class="day-group">
+            <div class="day-label">22 Apr 2026 · Wed</div>
+
+            <!-- Admin note: shipping issue -->
+            <div class="note note-admin">
+              <div class="note-head">
+                <div class="note-author">
+                  <div class="av av-adm">SM</div>
+                  <div class="note-author-info">
+                    <div class="note-author-name">Sarah Mitchell</div>
+                    <div class="note-author-role">Support · operations</div>
+                  </div>
+                </div>
+                <div class="note-tags">
+                  <span class="tag tag-admin">Admin note</span>
+                  <span class="tag tag-type amber">Shipping issue</span>
+                </div>
+                <div class="note-time">11:30</div>
+              </div>
+              <div class="note-body">
+                Royal Mail tracking shows previous order (ORD-00408) marked "delivered to safe place" but patient hasn't located it. Spoke with patient — checked porch, neighbour. No package found. Lodging Royal Mail enquiry; if not resolved by 25 Apr, will request Primed reissue at clinic cost.
+              </div>
+              <div class="note-attached">
+                📎 Attached to <a href="livera_prototype_10_order_detail_admin.html">ORD-00408</a> · Royal Mail ref RM-8819234
+              </div>
+            </div>
+
+            <!-- Clinical: dose adjustment -->
+            <div class="note note-clinical">
+              <div class="note-head">
+                <div class="note-author">
+                  <div class="av av-clin">CM</div>
+                  <div class="note-author-info">
+                    <div class="note-author-name">Claire Moynehan</div>
+                    <div class="note-author-role">Nurse Prescriber</div>
+                  </div>
+                </div>
+                <div class="note-tags">
+                  <span class="tag tag-clinical">Clinical note</span>
+                  <span class="tag tag-type">Dose review</span>
+                </div>
+                <div class="note-time">09:02</div>
+              </div>
+              <div class="note-body">
+                Side effect review — reported mild bruising at injection site, no other concerns. Advised on injection technique; rotate sites between abdomen, thigh, upper arm. No dose change at this point.
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────── Migrated entries (BLD-4.5) ─────────── -->
+          <div class="day-group">
+            <div class="day-label">14 Apr 2026 · Tue</div>
+
+            <!-- Migrated note 1: was General → now contact_log (admin) -->
+            <div class="note note-admin">
+              <div class="note-migrated-banner">
+                ⚠ Migrated from clinical_note type:"General" by BLD-4.5 migration · 30 Apr 2026 · original <code style="font-size:10px;">cn_a92f1d</code>
+              </div>
+              <div class="note-head">
+                <div class="note-author">
+                  <div class="av av-adm">SM</div>
+                  <div class="note-author-info">
+                    <div class="note-author-name">Sarah Mitchell</div>
+                    <div class="note-author-role">Support · operations</div>
+                  </div>
+                </div>
+                <div class="note-tags">
+                  <span class="tag tag-admin">Admin note</span>
+                  <span class="tag tag-type">Contact log</span>
+                  <span class="tag tag-migrated">migrated</span>
+                </div>
+                <div class="note-time">15:18</div>
+              </div>
+              <div class="note-body">
+                Patient called requesting earlier reorder than scheduled — said she'll be travelling 1–8 May. Explained that reorder is locked to subscription cycle (next eligible 28 Apr) and confirmed delivery address would still be Leeds. Patient happy to wait.
+              </div>
+              <div class="note-attached">
+                📎 Originally attached to ORD-00408 · author was tagged "support" so reclassified as <code style="font-size:11px;">contact_log</code> on migration
+              </div>
+            </div>
+          </div>
+
+          <div class="day-group">
+            <div class="day-label">07 Apr 2026 · Mon</div>
+
+            <!-- Migrated note 2: was General → now stayed clinical with type "other" -->
+            <div class="note note-clinical">
+              <div class="note-migrated-banner">
+                ⚠ Migrated from clinical_note type:"General" by BLD-4.5 migration · 30 Apr 2026 · original <code style="font-size:10px;">cn_b71e3a</code>
+              </div>
+              <div class="note-head">
+                <div class="note-author">
+                  <div class="av av-clin">CM</div>
+                  <div class="note-author-info">
+                    <div class="note-author-name">Claire Moynehan</div>
+                    <div class="note-author-role">Nurse Prescriber</div>
+                  </div>
+                </div>
+                <div class="note-tags">
+                  <span class="tag tag-clinical">Clinical note</span>
+                  <span class="tag tag-type">Other</span>
+                  <span class="tag tag-migrated">migrated</span>
+                </div>
+                <div class="note-time">11:42</div>
+              </div>
+              <div class="note-body">
+                Reviewed patient's question on alcohol intake mid-treatment. Confirmed no absolute contraindication but encouraged moderation. No clinical action taken.
+              </div>
+              <div class="note-attached">
+                ✏️ Author was a clinician → kept as clinical_note · type reclassified from <code style="font-size:11px;">"general"</code> to <code style="font-size:11px;">"other"</code>
+              </div>
+            </div>
+
+            <!-- Clinical: initial assessment -->
+            <div class="note note-clinical">
+              <div class="note-head">
+                <div class="note-author">
+                  <div class="av av-clin">CM</div>
+                  <div class="note-author-info">
+                    <div class="note-author-name">Claire Moynehan</div>
+                    <div class="note-author-role">Nurse Prescriber</div>
+                  </div>
+                </div>
+                <div class="note-tags">
+                  <span class="tag tag-clinical">Clinical note</span>
+                  <span class="tag tag-type green">Initial assessment</span>
+                </div>
+                <div class="note-time">08:45</div>
+              </div>
+              <div class="note-body">
+                First clinical review. BMI 29.5 with cardiac history (controlled, on statins). NICE comorbidity pathway eligible. Approved to commence Mounjaro 2.5mg starter dose. GP letter sent same day.
+              </div>
+              <div class="note-attached">
+                📎 Attached to <a href="livera_prototype_10_order_detail_admin.html">ORD-00301</a> · initial prescription decision
+              </div>
+            </div>
+          </div>
+
+          <!-- BLD-4.4 / 4.5 migration banner at bottom -->
+          <div style="margin-top:18px;padding:14px 18px;background:var(--blue-bg);border:0.5px solid var(--blue-border);border-radius:var(--r-md);">
+            <div style="font-size:13px;font-weight:600;color:var(--blue);margin-bottom:6px;">📋 Migration completed — BLD-4.4 + BLD-4.5</div>
+            <div style="font-size:12px;color:#1e3a8a;line-height:1.6;">
+              The <code style="background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;font-size:11px;">"General"</code> clinical note type was removed on 30 Apr 2026. <strong>2 existing General notes</strong> for this patient were migrated automatically. Migration rule: notes authored by a <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">support</code>/<code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">admin</code>/<code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">operations</code> role were reclassified as <strong>admin_note</strong> with best-fit type inference (contact_log / order_amendment / shipping_issue / billing) based on body keywords; notes authored by a <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">clinician</code>/<code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">prescriber</code> role kept as <strong>clinical_note</strong> with type changed to <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">"other"</code>. The original <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">clinical_note.id</code> is preserved on each migrated record via <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">migrated_from</code> for audit. Migration is one-shot, idempotent, and writes a single AUD-04 batch event covering all migrated rows.
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- BLD-4.2 — Admin Note FAB -->
+    <button class="fab" onclick="openModal()" title="Add admin note">+</button>
+
+    <!-- BLD-4.2 — Admin Note Modal -->
+    <div class="modal-backdrop" id="modal-backdrop">
+      <div class="modal">
+        <div class="modal-head">
+          <div class="modal-icon">📝</div>
+          <div class="modal-title">New admin note · Sarah Cookland</div>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+
+          <div class="field-group">
+            <div class="field-label">Type</div>
+            <select class="field-select">
+              <option value="contact_log">Contact log — phone, email, Intercom</option>
+              <option value="order_amendment">Order amendment — address, dose, cancel</option>
+              <option value="shipping_issue">Shipping issue — Royal Mail, redelivery</option>
+              <option value="billing">Billing — refund query, payment</option>
+              <option value="safeguarding_referral">Safeguarding referral</option>
+              <option value="other">Other</option>
+            </select>
+            <div class="field-help">Required · drives downstream filters and reporting · BLD-4.1</div>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">Scope</div>
+            <div class="scope-row">
+              <div class="scope-card on" onclick="setScope(this,'patient')">
+                <div class="scope-card-title">👤 Patient-level</div>
+                <div class="scope-card-sub">Note appears on the patient profile only · not tied to a specific order</div>
+              </div>
+              <div class="scope-card" onclick="setScope(this,'order')">
+                <div class="scope-card-title">📦 Order-level</div>
+                <div class="scope-card-sub">Note attaches to ORD-00441 · appears on order detail and patient profile</div>
+              </div>
+            </div>
+            <div class="field-help">order_id is optional in the schema — when set, note appears on both order detail and patient profile</div>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">Note</div>
+            <textarea class="field-textarea" placeholder="What happened, what was agreed, what's the next action?"></textarea>
+            <div class="field-help">Plain text · 5000 char max · keep it factual</div>
+          </div>
+
+          <div class="field-group">
+            <div class="field-label">Visibility</div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text-1);">
+              <input type="checkbox" checked style="width:14px;height:14px;cursor:pointer;">
+              <span>Visible to prescriber on order review screen</span>
+            </label>
+            <div class="field-help">Default on · uncheck only for non-clinical operational notes that don't aid clinical decision-making</div>
+          </div>
+
+        </div>
+        <div class="modal-foot">
+          <button class="btn" onclick="closeModal()">Cancel</button>
+          <button class="btn primary" onclick="saveNote()">Save admin note</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>Chunk 4 · Notes Timeline · Patient Sarah Cookland</span>
+      <span class="at">BLD-4.1</span>
+      <span>admin_note entity (12 fields · including order_id nullable + migrated_from for audit) · separate from clinical_note · joined at read time</span>
+      <span class="at">BLD-4.2</span>
+      <span>Admin Note FAB modal · type + scope + body + visibility flag · invokable from patient profile + order detail</span>
+      <span class="at">BLD-4.3</span>
+      <span>Unified timeline · clinical (indigo border) + admin (purple border) + system (grey) · filter pills + search · grouped by day</span>
+      <span class="at">BLD-4.4</span>
+      <span>"General" type removed from clinical_note type enum · UI no longer offers it · DB constraint added</span>
+      <span class="at">BLD-4.5</span>
+      <span>Migration: 2 existing General notes auto-classified by author role · clinician → clinical_note type:"other" · support → admin_note with type inferred · audit batch event · idempotent</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  function openModal() {
+    document.getElementById('modal-backdrop').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('modal-backdrop').classList.remove('open');
+  }
+  document.getElementById('modal-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'modal-backdrop') closeModal();
+  });
+  function setScope(el, scope) {
+    document.querySelectorAll('.scope-card').forEach(c => c.classList.remove('on'));
+    el.classList.add('on');
+  }
+  function setFilter(btn, kind) {
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('on'));
+    btn.classList.add('on');
+    const all = document.querySelectorAll('.note');
+    all.forEach(n => {
+      if (kind === 'all') { n.style.display = ''; return; }
+      const visible = n.classList.contains('note-' + kind);
+      n.style.display = visible ? '' : 'none';
+    });
+    // hide day groups with no visible notes
+    document.querySelectorAll('.day-group').forEach(g => {
+      const visible = Array.from(g.querySelectorAll('.note')).some(n => n.style.display !== 'none');
+      g.style.display = visible ? '' : 'none';
+    });
+  }
+  function searchNotes(val) {
+    const q = val.toLowerCase().trim();
+    document.querySelectorAll('.note').forEach(n => {
+      const text = n.textContent.toLowerCase();
+      n.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+    document.querySelectorAll('.day-group').forEach(g => {
+      const visible = Array.from(g.querySelectorAll('.note')).some(n => n.style.display !== 'none');
+      g.style.display = visible ? '' : 'none';
+    });
+  }
+  function saveNote() {
+    closeModal();
+    const t = document.getElementById('toast');
+    t.innerHTML = '✓ Admin note saved · timeline updated';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+  // ESC to close
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

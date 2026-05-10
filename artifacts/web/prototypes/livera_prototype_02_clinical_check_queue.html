@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Clinical Check Queue (SCR-020) · Prototype 02</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+
+  :root {
+    --brand: #6366f1;
+    --brand-light: #eef2ff;
+    --brand-mid: #818cf8;
+    --brand-dark: #4338ca;
+    --surface: #ffffff;
+    --surface-2: #f9f9f9;
+    --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08);
+    --border-strong: rgba(0,0,0,0.14);
+    --text-1: #0d0d0d;
+    --text-2: #5c5c5c;
+    --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #a32d2d; --red-bg: #fef2f2; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px;
+  }
+
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { width: 224px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sidebar-logo { padding: 16px 18px; border-bottom: 0.5px solid var(--border); font-size: 14px; font-weight: 600; color: var(--text-1); letter-spacing: -0.4px; display: flex; align-items: center; gap: 8px; }
+  .logo-mark { width: 24px; height: 24px; border-radius: 6px; background: var(--brand); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; }
+  .sidebar-inner { flex: 1; overflow-y: auto; padding: 8px; }
+  .nav-section-label { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-item { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: var(--radius-md); font-size: 13px; color: var(--text-2); cursor: pointer; user-select: none; }
+  .nav-item:hover { background: var(--surface-2); color: var(--text-1); }
+  .nav-item.active { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nav-item.sub { padding-left: 28px; font-size: 12px; }
+  .nav-item.sub.active-sub { color: var(--brand-dark); font-weight: 500; background: var(--brand-light); }
+  .nav-icon { width: 16px; height: 16px; opacity: 0.6; flex-shrink: 0; }
+  .nav-item.active .nav-icon, .nav-item.sub.active-sub .nav-icon { opacity: 1; }
+  .nav-badge { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .nav-badge.red { background: var(--red-bg); color: var(--red); }
+  .sidebar-footer { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); }
+  .sidebar-footer-name { font-size: 12px; font-weight: 500; color: var(--text-1); }
+  .sidebar-footer-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .page-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+  .page-sub { font-size: 12px; color: var(--text-3); margin-left: 4px; }
+
+  /* Stats bar */
+  .stats-bar { display: flex; gap: 0; border-bottom: 0.5px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  .stat-item { padding: 10px 20px; display: flex; align-items: center; gap: 8px; border-right: 0.5px solid var(--border); cursor: pointer; }
+  .stat-item:hover { background: var(--surface-2); }
+  .stat-item.active-filter { background: var(--brand-light); }
+  .stat-num { font-size: 18px; font-weight: 600; color: var(--text-1); line-height: 1; }
+  .stat-num.red { color: var(--red); }
+  .stat-num.amber { color: var(--amber); }
+  .stat-num.green { color: var(--green); }
+  .stat-label { font-size: 11px; color: var(--text-2); }
+  .stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Filters bar */
+  .filters-bar { padding: 10px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .search-input { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 0.5px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface-2); flex: 1; max-width: 280px; }
+  .search-input input { border: none; background: transparent; font-size: 13px; color: var(--text-1); outline: none; font-family: inherit; width: 100%; }
+  .search-input input::placeholder { color: var(--text-3); }
+  .filter-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 999px; border: 0.5px solid var(--border-strong); background: var(--surface); font-size: 12px; color: var(--text-2); cursor: pointer; user-select: none; }
+  .filter-pill:hover { border-color: var(--brand-mid); color: var(--text-1); }
+  .filter-pill.active { background: var(--brand-light); border-color: var(--brand); color: var(--brand-dark); font-weight: 500; }
+  .filter-divider { width: 1px; height: 20px; background: var(--border-strong); margin: 0 4px; }
+  .sort-btn { margin-left: auto; display: flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: var(--radius-md); border: 0.5px solid var(--border-strong); background: var(--surface); font-size: 12px; color: var(--text-2); cursor: pointer; }
+  .sort-btn:hover { background: var(--surface-2); }
+
+  /* Table */
+  .table-wrap { flex: 1; overflow-y: auto; padding: 0; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { position: sticky; top: 0; z-index: 10; }
+  thead tr { background: var(--surface-2); border-bottom: 0.5px solid var(--border-strong); }
+  th { padding: 9px 16px; font-size: 11px; font-weight: 600; color: var(--text-3); text-align: left; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; user-select: none; }
+  th.sortable { cursor: pointer; }
+  th.sortable:hover { color: var(--text-2); }
+  th.sorted { color: var(--brand-dark); }
+  th:first-child { padding-left: 24px; }
+  th:last-child { padding-right: 24px; }
+  tbody tr { border-bottom: 0.5px solid var(--border); background: var(--surface); cursor: pointer; transition: background 0.1s; }
+  tbody tr:hover { background: #fafaff; }
+  tbody tr.flagged { background: #fffefb; }
+  tbody tr.flagged:hover { background: #fff9e6; }
+  tbody tr.critical { background: var(--red-bg); }
+  tbody tr.critical:hover { background: #fee9e9; }
+  td { padding: 11px 16px; font-size: 13px; color: var(--text-1); vertical-align: middle; }
+  td:first-child { padding-left: 24px; }
+  td:last-child { padding-right: 24px; }
+
+  /* Patient cell */
+  .patient-cell { display: flex; align-items: center; gap: 10px; }
+  .patient-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--brand-light); color: var(--brand-dark); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+  .patient-avatar.female { background: #fce7f3; color: #9d174d; }
+  .patient-avatar.male { background: #e0f2fe; color: #0369a1; }
+  .patient-name { font-size: 13px; font-weight: 500; color: var(--text-1); }
+  .patient-id { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Queue age */
+  .age-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .age-green { background: var(--green-bg); color: var(--green); }
+  .age-amber { background: var(--amber-bg); color: var(--amber); }
+  .age-red { background: var(--red-bg); color: var(--red); }
+
+  /* Flag chips */
+  .flag-row { display: flex; gap: 4px; flex-wrap: wrap; }
+  .flag-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .flag-chip.amber { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
+  .flag-chip.red { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+  .flag-chip.blue { background: var(--blue-bg); color: var(--blue); border: 0.5px solid var(--blue-border); }
+  .flag-chip.purple { background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-border); }
+
+  /* Product pill */
+  .product-pill { display: inline-flex; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 500; border: 0.5px solid; }
+  .mounjaro { background: #fdf4ff; color: #7e22ce; border-color: #e9d5ff; }
+  .wegovy { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .saxenda { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+
+  /* AI badge */
+  .ai-ready { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-border); }
+  .ai-pending { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; font-size: 10px; color: var(--text-3); border: 0.5px solid var(--border); }
+
+  /* CTA */
+  .review-btn { padding: 5px 14px; border-radius: var(--radius-md); border: 0.5px solid var(--brand); background: var(--brand-light); color: var(--brand-dark); font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .review-btn:hover { background: #e0e7ff; }
+  .review-btn.urgent { background: var(--red-bg); border-color: var(--red-border); color: var(--red); }
+  .review-btn.urgent:hover { background: #fee2e2; }
+
+  /* Empty state */
+  .empty-state { padding: 60px 24px; text-align: center; }
+  .empty-title { font-size: 15px; font-weight: 500; color: var(--text-1); margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; color: var(--text-3); }
+
+  /* Detail slide-over */
+  .slideover { position: fixed; top: 0; right: 0; bottom: 0; width: 480px; background: var(--surface); border-left: 0.5px solid var(--border-strong); box-shadow: -8px 0 32px rgba(0,0,0,0.08); z-index: 100; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); }
+  .slideover.open { transform: translateX(0); }
+  .slideover-header { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .slideover-title { font-size: 14px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .close-btn { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 0.5px solid var(--border-strong); background: var(--surface-2); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; color: var(--text-2); }
+  .close-btn:hover { background: var(--surface-3); }
+  .slideover-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+  .slideover-footer { padding: 14px 20px; border-top: 0.5px solid var(--border); display: flex; gap: 8px; flex-shrink: 0; }
+  .btn { padding: 8px 18px; border-radius: var(--radius-md); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid; font-family: inherit; }
+  .btn-primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); flex: 1; text-align: center; }
+  .btn-primary:hover { background: #3730a3; }
+  .btn-ghost { background: var(--surface); color: var(--text-2); border-color: var(--border-strong); }
+  .btn-ghost:hover { background: var(--surface-2); }
+
+  /* Slide-over patient preview */
+  .preview-section { margin-bottom: 16px; }
+  .preview-label { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
+  .preview-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; }
+  .preview-key { color: var(--text-2); }
+  .preview-val { font-weight: 500; color: var(--text-1); }
+  .preview-val.green { color: var(--green); }
+  .preview-val.amber { color: var(--amber); }
+  .preview-val.red { color: var(--red); }
+  .preview-divider { height: 0.5px; background: var(--border); margin: 12px 0; }
+
+  /* AI summary preview in slideover */
+  .ai-preview-box { background: var(--purple-bg); border: 0.5px solid var(--purple-border); border-radius: var(--radius-md); padding: 12px 14px; margin-top: 8px; }
+  .ai-preview-label { font-size: 10px; font-weight: 600; color: var(--purple); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .ai-preview-text { font-size: 12px; color: #3b0764; line-height: 1.6; }
+
+  /* === BLD-2.9 — Latest coaching log entry card === */
+  .coaching-log-card { background: var(--brand-light); border: 0.5px solid var(--brand-mid); border-radius: var(--radius-md); padding: 12px 14px; margin-top: 8px; position: relative; }
+  .coaching-log-label { font-size: 10px; font-weight: 600; color: var(--brand-dark); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .coaching-log-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .coaching-log-coach { font-size: 12px; font-weight: 600; color: var(--brand-dark); }
+  .coaching-log-date { font-size: 11px; color: var(--text-3); }
+  .coaching-log-type-chip { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.4px; background: var(--surface); color: var(--brand-dark); border: 0.5px solid var(--brand-mid); }
+  .coaching-log-summary { font-size: 12px; color: var(--text-1); line-height: 1.55; margin-bottom: 8px; }
+  .coaching-log-obs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+  .obs-chip { font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 4px; background: var(--surface); border: 0.5px solid var(--border); color: var(--text-2); }
+  .obs-chip.green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .obs-chip.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .obs-chip.red { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+  .coaching-log-link { font-size: 11px; color: var(--brand-dark); font-weight: 500; cursor: pointer; text-decoration: none; }
+  .coaching-log-link:hover { text-decoration: underline; }
+
+  /* BLD-2.9 — hide coaching log card on VSC */
+  body[data-workspace="vsc"] .coaching-log-card { display: none !important; }
+  body[data-workspace="vsc"] .coaching-log-section-label { display: none !important; }
+
+  /* Backdrop */
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.2); z-index: 90; display: none; }
+  .backdrop.show { display: block; }
+
+  /* Annotation bar */
+  .annotation-bar { background: #1e1b4b; color: #c7d2fe; padding: 9px 24px; font-size: 11px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; flex-wrap: wrap; }
+  .ann-label { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .ann-tag { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* Workspace switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border,rgba(0,0,0,0.08)); transition:background .12s; position:relative; }
+  .ws-switcher:hover { background:var(--surface-2,#f9f9f9); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1,#0d0d0d); letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ws-sub  { font-size:10px; color:var(--text-3,#9ca3af); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3,#9ca3af); flex-shrink:0; }
+  .ws-menu { display:none; position:absolute; top:54px; left:8px; right:8px; background:var(--surface,#fff); border:0.5px solid var(--border-strong,rgba(0,0,0,0.13)); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:500; overflow:hidden; }
+  .ws-menu.open { display:block; }
+  .ws-menu-item { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; transition:background .1s; }
+  .ws-menu-item:hover { background:var(--surface-2,#f9f9f9); }
+  .ws-menu-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ws-menu-name { font-size:12px; font-weight:600; color:var(--text-1,#0d0d0d); }
+  .ws-menu-sub  { font-size:10px; color:var(--text-3,#9ca3af); margin-top:1px; }
+  .ws-menu-check { font-size:12px; color:#4338ca; font-weight:700; flex-shrink:0; }
+
+  /* ── BLD-Amendments: Clinical safety knobs in slide-over ── */
+  .nice-checklist { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .nice-row { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 6px; cursor: pointer; user-select: none; transition: all 0.1s; }
+  .nice-row:hover { background: #f0f0f0; border-color: var(--border-strong); }
+  .nice-row.checked { background: var(--green-bg); border-color: var(--green-border); }
+  .nice-row.checked .nice-cb { background: var(--green); border-color: var(--green); color: #fff; }
+  .nice-row.checked .nice-text { color: #166534; }
+  .nice-cb { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border-strong); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--surface); margin-top: 1px; }
+  .nice-text { font-size: 12px; color: var(--text-1); line-height: 1.45; flex: 1; }
+  .nice-text strong { font-weight: 600; }
+  .nice-progress { font-size: 10px; color: var(--text-3); padding: 1px 7px; background: var(--surface-2); border-radius: 999px; border: 0.5px solid var(--border-strong); margin-left: auto; font-weight: 600; }
+  .nice-progress.complete { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+
+  /* Dose escalation gate */
+  .gate-card { padding: 11px 12px; border-radius: var(--radius-md); margin-top: 4px; border: 0.5px solid; display: flex; flex-direction: column; gap: 6px; }
+  .gate-card.eligible { background: var(--green-bg); border-color: var(--green-border); }
+  .gate-card.blocked { background: var(--red-bg); border-color: var(--red-border); }
+  .gate-card.pending { background: var(--amber-bg); border-color: var(--amber-border); }
+  .gate-head { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .gate-card.eligible .gate-head { color: var(--green); }
+  .gate-card.blocked .gate-head { color: var(--red); }
+  .gate-card.pending .gate-head { color: var(--amber); }
+  .gate-list { font-size: 11px; color: var(--text-2); line-height: 1.6; }
+  .gate-list .ok { color: var(--green); font-weight: 600; }
+  .gate-list .miss { color: var(--red); font-weight: 600; }
+  .gate-evidence { font-size: 11px; color: var(--text-3); padding-top: 4px; border-top: 0.5px solid rgba(0,0,0,0.05); margin-top: 2px; }
+  .gate-evidence a { color: var(--brand-dark, #4338ca); cursor: pointer; }
+  .gate-evidence a:hover { text-decoration: underline; }
+
+  /* Weight trajectory mini-sparkline */
+  .traj-card { display: flex; gap: 12px; align-items: center; padding: 10px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--radius-md); margin-top: 4px; }
+  .traj-stats { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+  .traj-stat-label { font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; }
+  .traj-stat-val { font-size: 13px; font-weight: 700; color: var(--text-1); letter-spacing: -0.3px; }
+  .traj-stat-val.green { color: var(--green); }
+  .traj-stat-val.amber { color: var(--amber); }
+  .traj-spark { flex: 1; min-width: 0; height: 44px; }
+  .traj-spark svg { width: 100%; height: 100%; display: block; }
+  .traj-points { font-size: 10px; color: var(--text-3); display: flex; justify-content: space-between; margin-top: 2px; }
+
+  /* BMI AI verification badge */
+  .bmi-ai { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+  .bmi-ai.high { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-border); }
+  .bmi-ai.med { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); }
+  .bmi-ai.low { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+
+  /* Queue age indicator on row */
+  .queue-age-pill { display: inline-flex; padding: 1px 7px; font-size: 10px; font-weight: 600; border-radius: 999px; border: 0.5px solid; margin-left: 6px; vertical-align: middle; }
+  .queue-age-pill.fresh { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .queue-age-pill.warm  { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .queue-age-pill.cold  { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+
+  /* BLD-VERIFY-EXPIRY-01 — 7-day verification countdown (spec §5) */
+  /* Only renders when verification is pending. Auto-expire on day 8 → order moves to Expired (auth lapsed). */
+  .verify-expiry-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 10px; font-weight: 700; border-radius: 999px; border: 0.5px solid; margin-left: 6px; vertical-align: middle; letter-spacing: .3px; }
+  .verify-expiry-pill.fresh { background: #f0fdfa; color: #0d9488; border-color: #99f6e4; }
+  .verify-expiry-pill.midway { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .verify-expiry-pill.urgent { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+  .verify-expiry-pill .clock { font-size: 9px; opacity: .85; line-height: 1; }
+
+  /* Mandatory clinical notes */
+  .notes-card { margin-top: 4px; }
+  .notes-textarea { width: 100%; padding: 9px 11px; border: 1.5px solid var(--border-strong); border-radius: 6px; font-size: 12px; font-family: inherit; line-height: 1.5; outline: none; resize: vertical; min-height: 70px; color: var(--text-1); background: var(--surface); }
+  .notes-textarea:focus { border-color: var(--brand-dark, #4338ca); }
+  .notes-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--text-3); }
+  .notes-required { color: var(--red); font-weight: 600; }
+  .notes-required.ok { color: var(--green); }
+
+  /* Footer buttons (Approve/Decline) */
+  .footer-decline { padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); background: var(--surface); color: var(--text-2); font-family: inherit; }
+  .footer-decline:hover { background: var(--red-bg); border-color: var(--red-border); color: var(--red); }
+  .footer-approve { flex: 1; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: #16a34a; color: #fff; font-family: inherit; }
+  .footer-approve:hover { background: #15803d; }
+  .footer-approve:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; border: 0.5px solid var(--border-strong); }
+  .footer-approve:disabled:hover { background: var(--surface-2); }
+
+  /* Decline modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal-card { background: var(--surface); border-radius: 12px; width: 480px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,0.2); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; }
+  .modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .modal-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--red-bg); color: var(--red); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .modal-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer; font-size: 14px; color: var(--text-3); display: flex; align-items: center; justify-content: center; }
+  .modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .modal-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .modal-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .reason-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .reason-card { padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 6px; cursor: pointer; transition: all 0.1s; display: flex; align-items: flex-start; gap: 8px; background: var(--surface); }
+  .reason-card:hover { border-color: var(--brand-mid, #818cf8); background: #eef2ff; }
+  .reason-card.selected { border-color: var(--brand-dark, #4338ca); background: #eef2ff; border-width: 1.5px; padding: 9.5px 11.5px; }
+  .reason-card input { margin-top: 2px; flex-shrink: 0; accent-color: #4338ca; }
+  .reason-name { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .reason-desc { font-size: 10px; color: var(--text-3); margin-top: 1px; line-height: 1.3; }
+  .modal-textarea { width: 100%; padding: 9px 11px; border: 1.5px solid var(--border-strong); border-radius: 6px; font-size: 12px; font-family: inherit; line-height: 1.5; outline: none; resize: vertical; min-height: 70px; color: var(--text-1); background: var(--surface); }
+
+  /* Toast (simple) */
+  .ck-toast { position: fixed; bottom: 28px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 300; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .ck-toast.show { display: flex; }
+
+  /* ════════════════════════════════════════════════════════════════ */
+  /* GROUP 6 — Primed Flag Mirror (BLD-16.3) chip styling             */
+  /* Canonical visual language: severity-coloured pill with code +    */
+  /* short-name. Used on Clinical Check Queue column, Order Detail    */
+  /* header chip row, and Clinical Evidence "Primed Flag Risk" card.  */
+  /* ════════════════════════════════════════════════════════════════ */
+  .pf-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 7px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+    border: 1px solid; cursor: default; white-space: nowrap;
+    line-height: 1.4;
+  }
+  .pf-chip .code { font-weight: 800; opacity: 0.9; font-variant-numeric: tabular-nums; }
+  .pf-chip .name { font-weight: 600; }
+  .pf-chip.crit  { background: #7f1d1d; color: #fff; border-color: #7f1d1d; }     /* CRITICAL — E2 only */
+  .pf-chip.high  { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }  /* HIGH */
+  .pf-chip.med   { background: #fffbeb; color: #92400e; border-color: #fde68a; }  /* MEDIUM */
+  .pf-chip.disp  { background: #f5f5f4; color: #57534e; border-color: #d6d3d1; }  /* Display-only — non-mirrored */
+
+  /* Compact count chip for table column */
+  .pf-cell { display: inline-flex; align-items: center; gap: 5px; }
+  .pf-cell .count { font-size: 12px; font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+  .pf-cell .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    border: 1px solid;
+    box-shadow: inset 0 0 0 1.5px #fff;
+  }
+  .pf-cell .dot.crit { background: #7f1d1d; border-color: #7f1d1d; }
+  .pf-cell .dot.high { background: #ef4444; border-color: #b91c1c; }
+  .pf-cell .dot.med  { background: #f59e0b; border-color: #b45309; }
+  .pf-cell .dot.disp { background: #a8a29e; border-color: #78716c; }
+  .pf-cell.empty { color: var(--text-3); font-size: 11px; font-style: italic; }
+
+  /* Header chip row in slide-over (mirrors Order Detail header chip row) */
+  .pf-header-row {
+    display: flex; flex-wrap: wrap; gap: 5px;
+    padding: 8px 0 0; margin-top: 6px;
+    border-top: 1px dashed var(--border);
+  }
+  .pf-header-row .pf-label {
+    font-size: 9px; font-weight: 700; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-right: 3px; padding-top: 3px;
+  }
+
+  /* Primed Flag Risk card — preview-section variant (slide-over) */
+  .preview-section.pf-risk { border-left: 3px solid #ef4444; padding-left: 10px; margin-left: -13px; }
+  .preview-section.pf-risk.crit-flag { border-left-color: #7f1d1d; }
+  .preview-section.pf-risk.med-only { border-left-color: #f59e0b; }
+  .pf-risk-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .pf-risk-item {
+    background: #fafafa; border: 1px solid var(--border);
+    border-radius: 6px; padding: 9px 10px;
+    display: grid; grid-template-columns: auto 1fr; gap: 9px;
+    align-items: start;
+  }
+  .pf-risk-item .pf-chip { align-self: start; margin-top: 1px; }
+  .pf-risk-item .pf-body .pf-trigger { font-size: 11.5px; color: var(--text-1); font-weight: 600; line-height: 1.35; margin-bottom: 3px; }
+  .pf-risk-item .pf-body .pf-primed { font-size: 10.5px; color: var(--text-2); line-height: 1.4; }
+  .pf-risk-item .pf-body .pf-primed strong { color: var(--text-1); font-weight: 600; }
+  .pf-risk-item .pf-body .pf-cta {
+    display: inline-flex; margin-top: 6px;
+    font-size: 10.5px; font-weight: 600; color: var(--brand);
+    text-decoration: none; padding: 3px 8px;
+    background: var(--brand-light); border-radius: 4px;
+  }
+  .pf-risk-item .pf-body .pf-cta:hover { background: var(--brand); color: #fff; }
+  .pf-risk-item.crit { background: #fef2f2; border-color: #fca5a5; }
+  .pf-risk-item.med  { background: #fffbeb; border-color: #fde68a; }
+
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Charlotte Williams · Prescriber</span></div>
+</header>
+
+<div class="shell">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html" class="active"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div>
+        <span class="page-title">Clinical Check</span>
+        <span class="page-sub">Orders awaiting prescriber review</span>
+      </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="stats-bar">
+      <div class="stat-item active-filter" onclick="filterAge('all')">
+        <div>
+          <div class="stat-num">5</div>
+          <div class="stat-label">Total in queue</div>
+        </div>
+      </div>
+      <div class="stat-item" onclick="filterAge('green')">
+        <div class="stat-dot" style="background:var(--green);"></div>
+        <div>
+          <div class="stat-num green">1</div>
+          <div class="stat-label">Under 4h</div>
+        </div>
+      </div>
+      <div class="stat-item" onclick="filterAge('amber')">
+        <div class="stat-dot" style="background:var(--amber);"></div>
+        <div>
+          <div class="stat-num amber">1</div>
+          <div class="stat-label">4–8h</div>
+        </div>
+      </div>
+      <div class="stat-item" onclick="filterAge('red')">
+        <div class="stat-dot" style="background:var(--red);"></div>
+        <div>
+          <div class="stat-num red">3</div>
+          <div class="stat-label">Over 8h</div>
+        </div>
+      </div>
+      <div class="stat-item" style="border-right:none;margin-left:auto;">
+        <div>
+          <div class="stat-num amber">3</div>
+          <div class="stat-label">Flagged orders</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters bar -->
+    <div class="filters-bar">
+      <div class="search-input">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#9ca3af" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M11 11l3 3"/></svg>
+        <input type="text" placeholder="Search patient name or order ID…" oninput="searchOrders(this.value)">
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-pill active" onclick="setFilter('all', this)">All orders</div>
+      <div class="filter-pill" onclick="setFilter('flagged', this)">Flagged only</div>
+      <div class="filter-pill" onclick="setFilter('mounjaro', this)">Mounjaro</div>
+      <div class="filter-pill" onclick="setFilter('wegovy', this)">Wegovy</div>
+      <div class="filter-pill" onclick="setFilter('dose-increase', this)">Dose increase</div>
+      <div class="sort-btn" onclick="toggleSort()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M4 8h8M6 12h4"/></svg>
+        Sort: Waiting (oldest first)
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable">Patient</th>
+            <th class="sortable sorted">⬆ Waiting</th>
+            <th>Medication</th>
+            <th>Order type</th>
+            <th title="Group 6 — Clinical Flag engine (BLD-16.3). Clinic-owned flags raised at submission. Codes shown where they align with Primed Annex E.">Clinical Flags</th>
+            <th>Flags</th>
+            <th>AI summary</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="order-table-body">
+          <!-- Rows injected by JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Annotation bar -->
+    <div class="annotation-bar">
+      <span class="ann-label">UX notes</span>
+      <span>SCR-020 · Clinical Check Queue with prescriber slide-over</span>
+      <span class="ann-tag">BLD-Amendments</span>
+      <span>NICE CG189 checklist · Dose escalation gate · Weight trajectory · BMI AI verification · Queue age pill · Mandatory clinical notes (10+ chars before approve) · Decline-with-reason modal absorbs discontinuation flow</span>
+      <span class="ann-tag">V1.2 Group 5</span>
+      <span>Click any order row → slide-over · Click NICE items to toggle · Type 10 chars in notes to enable Approve · Click Decline for reason modal</span>
+    </div>
+  </div>
+</div>
+
+<!-- Slide-over preview -->
+<div class="backdrop" id="backdrop" onclick="closeSlideOver()"></div>
+<div class="slideover" id="slideover">
+  <div class="slideover-header">
+    <div class="slideover-title" id="so-title">Order preview</div>
+    <div class="close-btn" onclick="closeSlideOver()">✕</div>
+  </div>
+  <div class="slideover-body" id="so-body">
+    <!-- Injected by JS -->
+  </div>
+  <div class="slideover-footer">
+    <button class="btn btn-ghost" onclick="closeSlideOver()">Close</button>
+    <button class="btn btn-primary" onclick="openOrderReview()">Open full review →</button>
+  </div>
+</div>
+
+<!-- BLD-Amendments: Decline-with-reason modal (absorbs discontinuation flow) -->
+<div class="modal-overlay" id="decline-modal" onclick="if(event.target.id==='decline-modal')closeDeclineModal()">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-icon">✕</div>
+      <div class="modal-title">Decline order — clinical reason required</div>
+      <button class="modal-close" onclick="closeDeclineModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-2);line-height:1.5;">
+        Declining this order creates a clinical record on the patient profile, optionally triggers a discontinuation letter, and creates a follow-up task for clinic admin. <strong>Required for audit:</strong> reason + clinical justification.
+      </div>
+
+      <div class="modal-label">Reason</div>
+      <div class="reason-grid">
+        <div class="reason-card" onclick="selectDeclineReason(this)">
+          <input type="radio" name="decline-reason">
+          <div>
+            <div class="reason-name">Side effect</div>
+            <div class="reason-desc">Patient reported intolerable SE</div>
+          </div>
+        </div>
+        <div class="reason-card" onclick="selectDeclineReason(this)">
+          <input type="radio" name="decline-reason">
+          <div>
+            <div class="reason-name">Contraindication</div>
+            <div class="reason-desc">New clinical risk identified</div>
+          </div>
+        </div>
+        <div class="reason-card" onclick="selectDeclineReason(this)">
+          <input type="radio" name="decline-reason">
+          <div>
+            <div class="reason-name">BMI threshold reached</div>
+            <div class="reason-desc">Patient at or below stop criteria</div>
+          </div>
+        </div>
+        <div class="reason-card" onclick="selectDeclineReason(this)">
+          <input type="radio" name="decline-reason">
+          <div>
+            <div class="reason-name">Patient request</div>
+            <div class="reason-desc">Patient asked to discontinue</div>
+          </div>
+        </div>
+        <div class="reason-card" onclick="selectDeclineReason(this)">
+          <input type="radio" name="decline-reason">
+          <div>
+            <div class="reason-name">Lost to follow-up</div>
+            <div class="reason-desc">Unable to verify safety</div>
+          </div>
+        </div>
+        <div class="reason-card" onclick="selectDeclineReason(this)">
+          <input type="radio" name="decline-reason">
+          <div>
+            <div class="reason-name">Clinical decision (other)</div>
+            <div class="reason-desc">Free-text in justification</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-label" style="margin-top:8px;">Clinical justification</div>
+      <textarea class="modal-textarea" placeholder="Document the reasoning. This will be saved to the patient record and is visible at audit. Required."></textarea>
+
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text-1);cursor:pointer;background:var(--surface-2);padding:9px 11px;border-radius:6px;border:0.5px solid var(--border);">
+        <input type="checkbox" id="decline-letter" style="margin-top:2px;accent-color:#4338ca;">
+        <div>
+          <div style="font-weight:600;">Trigger discontinuation letter</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:1px;">Sends a clinically appropriate discontinuation message to the patient · queues a GP notification if consent on file</div>
+        </div>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeDeclineModal()">Cancel</button>
+      <button class="btn" style="background:var(--red);color:#fff;" onclick="submitDecline()">Decline order</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const orders = [
+    {
+      id: 'ORD-00441', initials: 'SC', gender: 'female',
+      name: 'Sarah Cookland', patientId: 'PT-00198',
+      ageH: 26, ageDisplay: '26h', ageCls: 'age-red',
+      product: 'Mounjaro', productCls: 'mounjaro',
+      type: 'Reorder', dose: '5mg → 7.5mg',
+      flags: [
+        { label: 'Dose increase', cls: 'amber' },
+        { label: 'Cardiac history', cls: 'amber' },
+        { label: 'BMI 29.5', cls: 'amber' }
+      ],
+      aiReady: true, rowCls: 'flagged',
+      bmi: '29.5', weightLost: '3.6kg (4.1%)', sumsub: '✓ Verified',
+      aiText: 'Patient meets comorbidity pathway (hypertension). Dose increase eligibility confirmed at 6 weeks. Cardiac history (SVT ablation, resolved) reviewed — not a contraindication. All verifications complete.',
+      // BLD-Amendments: clinical safety knobs
+      bmiAI: { confidence: 'high', label: '94% AI', note: 'Photo verified · matches self-report' },
+      weightHistory: [88.9, 87.4, 86.1, 85.6, 85.3], // 5 readings, oldest first
+      doseEscalation: {
+        applies: true,
+        eligible: true,
+        weeksAtCurrentDose: 6,
+        weeksRequired: 4,
+        weightLossPct: 4.1,
+        weightLossRequired: 'Trending toward 5%',
+        priorDoseEvidence: { uploaded: true, source: 'Reorder questionnaire Q4 photo · 23 Apr', confirmed: true }
+      },
+      niceCheck: [
+        { item: 'BMI ≥27.5 with comorbidity (hypertension confirmed)', checked: true, key: 'nice1' },
+        { item: 'Patient willing to receive treatment + monitoring', checked: true, key: 'nice2' },
+        { item: 'No contraindications (pancreatitis / MTC / MEN2)', checked: true, key: 'nice3' },
+        { item: 'Lifestyle conversation documented this cycle', checked: false, key: 'nice4' },
+        { item: 'Reviewed for stop criteria (5% loss at 6 months)', checked: false, key: 'nice5' }
+      ],
+      // BLD-2.9 — latest coaching log
+      latestCoachingLog: {
+        coach: 'Sarah Wentworth',
+        date: '23 Apr 2026',
+        type: 'Routine check-in',
+        summary: 'Week 6 routine check-in. Tolerating 5mg well, no significant side effects since week 2. Patient asking about dose increase — provided NICE pathway info. Mood positive, adherence excellent.',
+        observations: [
+          { label: 'Mood: Positive', cls: 'green' },
+          { label: 'Adherence: Excellent', cls: 'green' },
+          { label: 'No side effects', cls: 'green' },
+          { label: 'Weight: -3.6kg', cls: 'green' }
+        ]
+      },
+      // BLD-16.3 — Primed Flag Mirror (Group 6 / V1.2 §10.5)
+      primedFlags: [
+        { code: 'B4', name: 'Low BMI Repeat', sev: 'med', mirrored: true,
+          trigger: 'BMI 29.5 on reorder · drop of 5.4 points from start (34.9 → 29.5) exceeds 5-point threshold',
+          primedAction: 'Primed will likely <strong>request clinical justification</strong> for continuation at current BMI band. Pre-attached proactive note recommended.',
+          template: 'Patient presents with BMI 29.5 at week 6, having lost 3.6kg (4.1%) since starting Mounjaro. Clinical decision to continue 5mg→7.5mg dose escalation supported by: (1) hypertension comorbidity confirmed, (2) trending toward 5% NICE target, (3) excellent tolerability and adherence per coaching log of 23 Apr. Continuation aligns with NICE CG189 pathway.' }
+      ]
+    },
+    {
+      id: 'ORD-00447', initials: 'RH', gender: 'female',
+      name: 'Rachel Hewson', patientId: 'PT-00201',
+      ageH: 51, ageDisplay: '51h', ageCls: 'age-red',
+      product: 'Wegovy', productCls: 'wegovy',
+      type: 'First order', dose: '0.25mg',
+      flags: [
+        { label: 'Safeguarding', cls: 'red' },
+        { label: 'Eating disorder disclosed', cls: 'red' }
+      ],
+      aiReady: false, rowCls: 'critical',
+      bmi: '31.2', weightLost: '—', sumsub: '✓ Verified',
+      aiText: '',
+      // BLD-Amendments
+      bmiAI: { confidence: 'med', label: '78% AI', note: 'Photo legible · weight unreadable on scale' },
+      weightHistory: [], // first order
+      doseEscalation: { applies: false },
+      niceCheck: [
+        { item: 'BMI ≥27.5 (with comorbidity) or BMI ≥30', checked: true, key: 'nice1' },
+        { item: 'No active eating disorder', checked: false, key: 'nice2', critical: true },
+        { item: 'Safeguarding concerns reviewed', checked: false, key: 'nice3', critical: true },
+        { item: 'Patient willing to receive treatment + monitoring', checked: false, key: 'nice4' },
+        { item: 'No contraindications (pancreatitis / MTC / MEN2)', checked: false, key: 'nice5' }
+      ],
+      // No coaching log — first order
+      latestCoachingLog: null,
+      // BLD-16.3 — no Primed Annex E flags fire (BMI 31.2 ≥30, correct starting dose, etc.)
+      // Note: 'Eating disorder disclosed' is a Livera clinical safeguarding flag, not an Annex E mirrored flag.
+      primedFlags: []
+    },
+    {
+      id: 'ORD-00449', initials: 'PT', gender: 'male',
+      name: 'Paul Thornton', patientId: 'PT-00189',
+      ageH: 36, ageDisplay: '36h', ageCls: 'age-red',
+      product: 'Mounjaro', productCls: 'mounjaro',
+      type: 'Reorder', dose: '5mg',
+      flags: [
+        { label: 'Duplicate address', cls: 'blue' }
+      ],
+      aiReady: true, rowCls: 'flagged',
+      bmi: '33.1', weightLost: '2.1kg (2.8%)', sumsub: '✓ Verified',
+      aiText: 'Standard reorder. Duplicate delivery address flagged — matches one other account. Prescriber acknowledgement required before approval. All clinical criteria met.',
+      // BLD-Amendments
+      bmiAI: { confidence: 'high', label: '96% AI', note: 'Photo verified' },
+      weightHistory: [76.2, 75.5, 74.9, 74.4, 74.1],
+      doseEscalation: { applies: false },
+      niceCheck: [
+        { item: 'BMI ≥27.5 with comorbidity, or BMI ≥30', checked: true, key: 'nice1' },
+        { item: 'Patient willing to receive treatment + monitoring', checked: true, key: 'nice2' },
+        { item: 'No contraindications (pancreatitis / MTC / MEN2)', checked: true, key: 'nice3' },
+        { item: 'Lifestyle conversation documented this cycle', checked: false, key: 'nice4' },
+        { item: 'Reviewed for stop criteria (5% loss at 6 months)', checked: false, key: 'nice5' }
+      ],
+      latestCoachingLog: {
+        coach: 'Sarah Wentworth',
+        date: '22 Apr 2026',
+        type: 'Ad-hoc',
+        summary: 'Patient reached out about plateau in weight loss at week 8. Discussed lifestyle factors — sleep poor (4-5h/night, shift work), water intake low. Encouraged conversation with prescriber about dose increase if appropriate at next review.',
+        observations: [
+          { label: 'Mood: Concerned', cls: 'amber' },
+          { label: 'Adherence: Good', cls: 'green' },
+          { label: 'Sleep: Poor', cls: 'amber' },
+          { label: 'Weight: -2.1kg (plateau)', cls: 'amber' }
+        ]
+      },
+      // BLD-16.3 — D3 is display-only (not in Livera's 8-flag mirror per DEC-20)
+      primedFlags: [
+        { code: 'D3', name: 'Address Conflict', sev: 'disp', mirrored: false,
+          trigger: 'Delivery address matches one other active account · D-series flag is dispensing-side only',
+          primedAction: 'Primed will check at dispatch — no action required from Livera prescriber. Proactive note <strong>not</strong> applicable for display-only flags.' }
+      ]
+    },
+    {
+      id: 'ORD-00452', initials: 'JB', gender: 'female',
+      name: 'Julia Barker', patientId: 'PT-00210',
+      ageH: 8, ageDisplay: '8h', ageCls: 'age-amber',
+      product: 'Wegovy', productCls: 'wegovy',
+      type: 'Reorder', dose: '0.5mg',
+      flags: [],
+      aiReady: true, rowCls: '',
+      bmi: '30.8', weightLost: '4.2kg (5.1%)', sumsub: '✓ Verified',
+      aiText: 'Straightforward reorder. Patient achieving 5.1% weight loss at 12 weeks — above NICE target. No flags, no contraindications. All consent and verification complete.',
+      // BLD-Amendments
+      bmiAI: { confidence: 'high', label: '98% AI', note: 'Photo verified · clean reading' },
+      weightHistory: [82.4, 81.0, 79.6, 78.9, 78.2],
+      doseEscalation: { applies: false },
+      niceCheck: [
+        { item: 'BMI ≥27.5 (target met)', checked: true, key: 'nice1' },
+        { item: 'Patient willing to receive treatment + monitoring', checked: true, key: 'nice2' },
+        { item: 'No contraindications', checked: true, key: 'nice3' },
+        { item: 'Achieving NICE 5% target at 12 weeks', checked: true, key: 'nice4' },
+        { item: 'Reviewed for stop criteria', checked: false, key: 'nice5' }
+      ],
+      latestCoachingLog: {
+        coach: 'Sarah Wentworth',
+        date: '20 Apr 2026',
+        type: 'Routine check-in',
+        summary: 'Week 12 routine check-in. Excellent progress — patient hit 5.1% weight loss target. Reports feeling more energetic, no side effects. Continuing dose. Reviewed maintenance strategy for week 16.',
+        observations: [
+          { label: 'Mood: Excellent', cls: 'green' },
+          { label: 'Adherence: Excellent', cls: 'green' },
+          { label: 'No side effects', cls: 'green' },
+          { label: 'Weight: -4.2kg', cls: 'green' }
+        ]
+      },
+      // BLD-16.3 — clean reorder, no flags
+      primedFlags: []
+    },
+    {
+      id: 'ORD-00455', initials: 'MK', gender: 'female',
+      name: 'Maria Kowalski', patientId: 'PT-00215',
+      ageH: 3, ageDisplay: '3h', ageCls: 'age-green',
+      product: 'Mounjaro', productCls: 'mounjaro',
+      type: 'First order', dose: '2.5mg',
+      flags: [],
+      aiReady: false, rowCls: '',
+      bmi: '34.5', weightLost: '—', sumsub: '✓ Verified',
+      aiText: '',
+      // BLD-Amendments
+      bmiAI: { confidence: 'high', label: '92% AI', note: 'Photo verified · clean reading' },
+      weightHistory: [],
+      doseEscalation: { applies: false },
+      niceCheck: [
+        { item: 'BMI ≥27.5 with comorbidity, or BMI ≥30 (BMI 34.5 ✓)', checked: true, key: 'nice1' },
+        { item: 'No active eating disorder', checked: true, key: 'nice2' },
+        { item: 'Patient willing to receive treatment + monitoring', checked: true, key: 'nice3' },
+        { item: 'No contraindications (pancreatitis / MTC / MEN2)', checked: false, key: 'nice4' },
+        { item: 'Lifestyle conversation documented', checked: false, key: 'nice5' }
+      ],
+      // No coaching log — first order
+      latestCoachingLog: null,
+      // BLD-16.3 — first order with correct starting dose 2.5mg, BMI 34.5 — no flags
+      primedFlags: []
+    },
+
+    // BLD-VERIFY-EXPIRY-01 — synthetic row demonstrating 7-day verification countdown (spec §5)
+    {
+      id: 'ORD-00461', patientId: 'PT-00226', name: 'Lauren Mitchell', initials: 'LM', gender: 'female',
+      ageH: 1, ageDisplay: '1h', ageCls: 'age-green',
+      product: 'Wegovy', productCls: 'wegovy',
+      type: 'First order', dose: '0.25mg',
+      flags: [
+        { label: 'Awaiting Sumsub upload', cls: 'amber' },
+        { label: 'Verification day 5/7', cls: 'amber' }
+      ],
+      aiReady: false, rowCls: '',
+      bmi: 'Pending', weightLost: '—', sumsub: '⏳ Pending — day 5 of 7',
+      // BLD-VERIFY-EXPIRY-01 — fields driving the countdown pill
+      verification: {
+        status: 'pending',
+        startedAt: '06 May 2026 · 11:14',
+        expiresAt: '13 May 2026 · 11:14',
+        daysRemaining: 2,
+        daysElapsed: 5,
+        documentSubmitted: false,
+        bmiSubmitted: true
+      },
+      aiText: 'Order is in verification window — Sumsub ID upload still outstanding. Clinical Check cannot proceed until verification complete. Auto-expire on day 8 (13 May 11:14) → order moves to Expired (auth lapsed) state. Patient FCM #11 sent on day 3, will repeat on day 6 and day 7.',
+      bmiAI: { confidence: 'med', label: '76% AI', note: 'BMI photo accepted · ID document still pending' },
+      weightHistory: [],
+      doseEscalation: { applies: false },
+      niceCheck: [
+        { item: 'BMI ≥27.5 with comorbidity, or BMI ≥30', checked: false, key: 'nice1', blocker: 'verification_pending' },
+        { item: 'No active eating disorder', checked: false, key: 'nice2', blocker: 'verification_pending' },
+        { item: 'Patient willing to receive treatment + monitoring', checked: false, key: 'nice3', blocker: 'verification_pending' },
+        { item: 'No contraindications (pancreatitis / MTC / MEN2)', checked: false, key: 'nice4', blocker: 'verification_pending' },
+        { item: 'Lifestyle conversation documented', checked: false, key: 'nice5', blocker: 'verification_pending' }
+      ],
+      latestCoachingLog: null,
+      primedFlags: []
+    }
+  ];
+
+  let currentFilter = 'all';
+  let currentSearch = '';
+  let selectedOrder = null;
+
+  function renderTable(list) {
+    const tbody = document.getElementById('order-table-body');
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-title">No orders match this filter</div><div class="empty-sub">Try adjusting the filter or search term</div></div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(o => {
+      // BLD-VERIFY-EXPIRY-01 — render countdown pill if verification pending
+      let verifyPill = '';
+      if (o.verification?.status === 'pending') {
+        const d = o.verification.daysRemaining;
+        const cls = d >= 4 ? 'fresh' : (d >= 2 ? 'midway' : 'urgent');
+        const icon = d <= 1 ? '⚠' : '⏳';
+        verifyPill = `<span class="verify-expiry-pill ${cls}" title="Verification window expires ${o.verification.expiresAt} · auto-moves to Expired (auth lapsed) on day 8"><span class="clock">${icon}</span>${d}d left to verify</span>`;
+      }
+      return `
+      <tr class="${o.rowCls}" onclick="openSlideOver('${o.id}')">
+        <td>
+          <div class="patient-cell">
+            <div class="patient-avatar ${o.gender}">${o.initials}</div>
+            <div>
+              <div class="patient-name">${o.name}${verifyPill}</div>
+              <div class="patient-id">${o.patientId} · ${o.id}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div class="age-pill ${o.ageCls}">
+            ${o.ageCls === 'age-red' ? '⚠' : o.ageCls === 'age-amber' ? '⏱' : '✓'}
+            ${o.ageDisplay}
+          </div>
+        </td>
+        <td>
+          <div class="product-pill ${o.productCls}">${o.product}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:3px;">${o.dose}</div>
+        </td>
+        <td>
+          <div style="font-size:13px;color:var(--text-1);">${o.type}</div>
+        </td>
+        <td>
+          ${renderPrimedFlagCell(o.primedFlags || [])}
+        </td>
+        <td>
+          <div class="flag-row">
+            ${o.flags.length === 0
+              ? '<span style="font-size:11px;color:var(--text-3);">No flags</span>'
+              : o.flags.map(f => `<div class="flag-chip ${f.cls}">${f.label}</div>`).join('')
+            }
+          </div>
+        </td>
+        <td>
+          ${o.aiReady
+            ? `<div class="ai-ready">✦ Ready</div>`
+            : `<div class="ai-pending">Generating…</div>`
+          }
+        </td>
+        <td>
+          <button class="review-btn ${o.rowCls === 'critical' ? 'urgent' : ''}" onclick="event.stopPropagation();openSlideOver('${o.id}')">
+            ${o.rowCls === 'critical' ? 'Review urgently' : 'Review →'}
+          </button>
+        </td>
+      </tr>
+    `;
+    }).join('');
+  }
+
+  // BLD-16.3 — render the Primed Flags table cell (count + most-severe-color dot)
+  function renderPrimedFlagCell(flags) {
+    if (!flags || flags.length === 0) {
+      return '<span class="pf-cell empty">— None —</span>';
+    }
+    // Severity precedence: crit > high > med > disp
+    const sevOrder = ['crit', 'high', 'med', 'disp'];
+    const mostSevere = flags.reduce((acc, f) => {
+      const aIdx = sevOrder.indexOf(acc.sev);
+      const fIdx = sevOrder.indexOf(f.sev);
+      return fIdx < aIdx ? f : acc;
+    }, flags[0]);
+    // Show codes as chips (compact) — spec calls for "count + most-severe-color chip"
+    // We do count + dot + chip codes for richer info at a glance
+    const chipsHtml = flags.map(f => `<span class="pf-chip ${f.sev}" title="${f.name}"><span class="code">${f.code}</span></span>`).join('');
+    return `<div class="pf-cell">
+      <span class="dot ${mostSevere.sev}"></span>
+      <span class="count">${flags.length}</span>
+      ${chipsHtml}
+    </div>`;
+  }
+
+  function getFiltered() {
+    return orders.filter(o => {
+      const matchSearch = currentSearch === '' ||
+        o.name.toLowerCase().includes(currentSearch.toLowerCase()) ||
+        o.id.toLowerCase().includes(currentSearch.toLowerCase());
+      const matchFilter =
+        currentFilter === 'all' ? true :
+        currentFilter === 'flagged' ? o.flags.length > 0 :
+        currentFilter === 'mounjaro' ? o.product === 'Mounjaro' :
+        currentFilter === 'wegovy' ? o.product === 'Wegovy' :
+        currentFilter === 'dose-increase' ? o.type === 'Reorder' && o.dose.includes('→') :
+        currentFilter === 'green' ? o.ageH < 24 :
+        currentFilter === 'amber' ? (o.ageH >= 24 && o.ageH <= 48) :
+        currentFilter === 'red' ? o.ageH > 48 : true;
+      return matchSearch && matchFilter;
+    });
+  }
+
+  function setFilter(f, el) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    renderTable(getFiltered());
+  }
+
+  function filterAge(cls) {
+    currentFilter = cls;
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    renderTable(getFiltered());
+  }
+
+  function searchOrders(val) {
+    currentSearch = val;
+    renderTable(getFiltered());
+  }
+
+  function toggleSort() {}
+
+  function openSlideOver(orderId) {
+    const o = orders.find(x => x.id === orderId);
+    selectedOrder = o;
+    document.getElementById('so-title').textContent = o.name + ' · ' + o.id;
+    const urgentBanner = o.rowCls === 'critical'
+      ? `<div style="padding:10px 12px;background:var(--red-bg);border:0.5px solid var(--red-border);border-radius:var(--radius-md);margin-bottom:14px;">
+           <div style="font-size:12px;font-weight:600;color:var(--red);">🛑 Safeguarding block active</div>
+           <div style="font-size:11px;color:#7f1d1d;margin-top:3px;">Eating disorder disclosed. Order blocked until prescriber reviews and lifts block with documented clinical note.</div>
+         </div>` : '';
+
+    // BLD-2.9 — Latest coaching log entry card (FeelTru reorders only, with log present)
+    const currentWS = document.body.getAttribute('data-workspace');
+    const showCoachingLog = currentWS === 'feeltru' && o.type === 'Reorder' && o.latestCoachingLog;
+    const coachingLogCard = showCoachingLog ? `
+      <div class="preview-divider"></div>
+      <div class="preview-section">
+        <div class="preview-label coaching-log-section-label">⬡ Latest coaching log entry</div>
+        <div class="coaching-log-card">
+          <div class="coaching-log-meta">
+            <span class="coaching-log-coach">${o.latestCoachingLog.coach}</span>
+            <span class="coaching-log-date">${o.latestCoachingLog.date}</span>
+            <span class="coaching-log-type-chip">${o.latestCoachingLog.type}</span>
+          </div>
+          <div class="coaching-log-summary">${o.latestCoachingLog.summary}</div>
+          <div class="coaching-log-obs">
+            ${o.latestCoachingLog.observations.map(obs => `<span class="obs-chip ${obs.cls}">${obs.label}</span>`).join('')}
+          </div>
+          <a class="coaching-log-link" onclick="window.location='livera_prototype_09_patient_profile.html#coaching-log'">View full coaching log →</a>
+        </div>
+      </div>
+    ` : '';
+
+    // BLD-Amendments: BMI AI badge inline next to BMI value
+    const bmiAIBadge = o.bmiAI
+      ? `<span class="bmi-ai ${o.bmiAI.confidence}" title="${o.bmiAI.note}">⊕ ${o.bmiAI.label}</span>`
+      : '';
+
+    // BLD-Amendments: Queue age pill summary in header
+    const ageCat = o.ageH < 24 ? 'fresh' : (o.ageH < 48 ? 'warm' : 'cold');
+    const ageLabel = o.ageH < 24 ? 'Fresh' : (o.ageH < 48 ? 'Warming' : 'Breached');
+    const queueAgePill = `<span class="queue-age-pill ${ageCat}">${ageLabel} · ${o.ageDisplay}</span>`;
+
+    // BLD-16.3 — Primed Flag Risk card (Group 6 / V1.2 §10.5)
+    // Surfaces: (1) chip row inside header card, (2) full risk card at top of slide-over
+    const pfFlags = o.primedFlags || [];
+    const pfHeaderChips = pfFlags.length > 0 ? `
+      <div class="pf-header-row">
+        <span class="pf-label">Flags raised:</span>
+        ${pfFlags.map(f => `<span class="pf-chip ${f.sev}" title="${f.name} — ${f.trigger}"><span class="code">${f.code}</span><span class="name">${f.name}</span></span>`).join('')}
+      </div>` : '';
+    const pfRiskCard = pfFlags.length > 0 ? (() => {
+      const hasMirrored = pfFlags.some(f => f.mirrored);
+      const hasCrit = pfFlags.some(f => f.sev === 'crit');
+      const hasOnlyMed = pfFlags.every(f => f.sev === 'med' || f.sev === 'disp');
+      const cardCls = hasCrit ? 'crit-flag' : (hasOnlyMed ? 'med-only' : '');
+      return `
+      <div class="preview-divider"></div>
+      <div class="preview-section pf-risk ${cardCls}">
+        <div class="preview-label" style="display:flex;align-items:center;gap:8px;">
+          🚩 Clinical Flag Risk
+          <span style="font-size:9px;font-weight:700;background:#f0fdfa;color:#0d9488;padding:2px 6px;border-radius:3px;letter-spacing:.4px;border:1px solid #99f6e4;">G6 · BLD-16.3</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-2);margin-top:3px;line-height:1.45;">
+          ${hasMirrored
+            ? 'Livera predicts Primed will fire ' + pfFlags.filter(f => f.mirrored).length + ' flag(s) on this order. Pre-attached proactive notes reduce intervention burden.'
+            : 'Display-only flags shown below. No action required from prescriber — Primed will handle dispensing-side checks.'}
+        </div>
+        <div class="pf-risk-list">
+          ${pfFlags.map(f => `
+            <div class="pf-risk-item ${f.sev}">
+              <span class="pf-chip ${f.sev}"><span class="code">${f.code}</span><span class="name">${f.name}</span></span>
+              <div class="pf-body">
+                <div class="pf-trigger">${f.trigger}</div>
+                <div class="pf-primed">${f.primedAction}</div>
+                ${f.mirrored && f.template ? `<a class="pf-cta" onclick="event.preventDefault();alert('BLD-16.4 — Approval-time prompt modal would open here with this template prefilled. Demo flow not yet wired.');return false;">✎ Author proactive note</a>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+    })() : '';
+
+    // BLD-Amendments: NICE CG189 checklist
+    const niceCount = (o.niceCheck || []).filter(n => n.checked).length;
+    const niceTotal = (o.niceCheck || []).length;
+    const niceProgressCls = niceCount === niceTotal ? 'complete' : '';
+    const niceSection = (o.niceCheck && o.niceCheck.length > 0) ? `
+      <div class="preview-divider"></div>
+      <div class="preview-section">
+        <div class="preview-label" style="display:flex;align-items:center;gap:6px;">
+          ⚕ NICE CG189 checklist
+          <span class="nice-progress ${niceProgressCls}">${niceCount}/${niceTotal}${niceCount === niceTotal ? ' complete' : ''}</span>
+        </div>
+        <div class="nice-checklist">
+          ${o.niceCheck.map(n => `
+            <div class="nice-row ${n.checked ? 'checked' : ''}" onclick="toggleNiceItem('${o.id}','${n.key}')">
+              <div class="nice-cb">${n.checked ? '✓' : ''}</div>
+              <div class="nice-text">${n.critical ? '<strong style="color:var(--red);">CRITICAL · </strong>' : ''}${n.item}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : '';
+
+    // BLD-Amendments: Dose escalation gate (only when applicable)
+    const doseEscalationCard = (o.doseEscalation && o.doseEscalation.applies) ? (() => {
+      const de = o.doseEscalation;
+      const cls = de.eligible ? 'eligible' : (de.priorDoseEvidence?.uploaded === false ? 'blocked' : 'pending');
+      const head = de.eligible ? '✓ Dose escalation: eligible' : (cls === 'blocked' ? '✕ Dose escalation: blocked' : '⏳ Dose escalation: pending');
+      const weeksOk = de.weeksAtCurrentDose >= de.weeksRequired;
+      const lossOk = de.weightLossPct >= 5 || de.weightLossRequired?.includes('Trending');
+      const evOk = de.priorDoseEvidence?.uploaded;
+      return `
+      <div class="preview-divider"></div>
+      <div class="preview-section">
+        <div class="preview-label">⬆ Dose escalation gate</div>
+        <div class="gate-card ${cls}">
+          <div class="gate-head">${head}</div>
+          <div class="gate-list">
+            <div><span class="${weeksOk ? 'ok' : 'miss'}">${weeksOk ? '✓' : '✕'}</span> Weeks at current dose: <strong>${de.weeksAtCurrentDose}</strong> (≥${de.weeksRequired} required)</div>
+            <div><span class="${lossOk ? 'ok' : 'miss'}">${lossOk ? '✓' : '✕'}</span> Weight loss: <strong>${de.weightLossPct}%</strong> ${de.weightLossRequired || '(≥5% target)'}</div>
+            <div><span class="${evOk ? 'ok' : 'miss'}">${evOk ? '✓' : '✕'}</span> Prior-dose evidence: <strong>${evOk ? 'Uploaded' : 'Required'}</strong></div>
+          </div>
+          ${de.priorDoseEvidence?.uploaded ? `<div class="gate-evidence">📎 ${de.priorDoseEvidence.source} · <a onclick="ckToast('Opens evidence preview')">View</a></div>` : ''}
+        </div>
+      </div>`;
+    })() : '';
+
+    // BLD-Amendments: Weight trajectory mini-sparkline
+    const trajCard = (o.weightHistory && o.weightHistory.length > 1) ? (() => {
+      const w = o.weightHistory;
+      const min = Math.min(...w), max = Math.max(...w), range = (max - min) || 1;
+      const pts = w.map((v, i) => {
+        const x = (i / (w.length - 1)) * 100;
+        const y = 100 - ((v - min) / range) * 80 - 10;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+      const lossKg = (w[0] - w[w.length - 1]).toFixed(1);
+      const lossPct = (((w[0] - w[w.length - 1]) / w[0]) * 100).toFixed(1);
+      const lossCls = parseFloat(lossPct) >= 5 ? 'green' : 'amber';
+      return `
+      <div class="preview-divider"></div>
+      <div class="preview-section">
+        <div class="preview-label">📉 Weight trajectory · last ${w.length} readings</div>
+        <div class="traj-card">
+          <div class="traj-stats">
+            <div>
+              <div class="traj-stat-label">Start</div>
+              <div class="traj-stat-val">${w[0]}kg</div>
+            </div>
+          </div>
+          <div class="traj-spark">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+              <polyline points="${pts}" fill="none" stroke="var(--brand-dark, #4338ca)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+              ${w.map((v, i) => {
+                const x = (i / (w.length - 1)) * 100;
+                const y = 100 - ((v - min) / range) * 80 - 10;
+                return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.4" fill="var(--brand-dark, #4338ca)" vector-effect="non-scaling-stroke"/>`;
+              }).join('')}
+            </svg>
+          </div>
+          <div class="traj-stats" style="text-align:right;">
+            <div>
+              <div class="traj-stat-label">Now · loss</div>
+              <div class="traj-stat-val">${w[w.length - 1]}kg</div>
+              <div class="traj-stat-val ${lossCls}" style="font-size:11px;">↓${lossKg}kg · ${lossPct}%</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    })() : '';
+
+    document.getElementById('so-body').innerHTML = `
+      ${urgentBanner}
+      <div class="preview-section">
+        <div class="preview-label">Order details</div>
+        <div class="preview-row"><span class="preview-key">Order ID</span><span class="preview-val">${o.id}</span></div>
+        <div class="preview-row"><span class="preview-key">Type</span><span class="preview-val">${o.type}</span></div>
+        <div class="preview-row"><span class="preview-key">Medication</span><span class="preview-val">${o.product} · ${o.dose}</span></div>
+        <div class="preview-row"><span class="preview-key">Submitted</span><span class="preview-val">${o.ageDisplay} ago ${queueAgePill}</span></div>
+        ${pfHeaderChips}
+      </div>
+      <div class="preview-divider"></div>
+      <div class="preview-section">
+        <div class="preview-label">Patient snapshot</div>
+        <div class="preview-row"><span class="preview-key">BMI</span><span class="preview-val ${parseFloat(o.bmi) < 30 ? 'amber' : ''}">${o.bmi}${bmiAIBadge}</span></div>
+        <div class="preview-row"><span class="preview-key">Weight lost</span><span class="preview-val green">${o.weightLost}</span></div>
+        <div class="preview-row"><span class="preview-key">SumSub</span><span class="preview-val ${o.verification?.status === 'pending' ? 'amber' : 'green'}">${o.sumsub}</span></div>
+        ${o.verification?.status === 'pending' ? `
+        <div style="margin-top:8px;padding:10px 12px;background:${o.verification.daysRemaining <= 1 ? 'var(--red-bg)' : 'var(--amber-bg)'};border:.5px solid ${o.verification.daysRemaining <= 1 ? 'var(--red-border)' : 'var(--amber-border)'};border-radius:6px;font-size:11px;line-height:1.5;">
+          <div style="display:flex;align-items:center;gap:6px;font-weight:700;color:${o.verification.daysRemaining <= 1 ? 'var(--red)' : 'var(--amber)'};margin-bottom:4px;">
+            ⏳ Verification window · ${o.verification.daysRemaining} day${o.verification.daysRemaining === 1 ? '' : 's'} remaining
+            <span style="margin-left:auto;font-size:9px;font-weight:700;background:#f0fdfa;color:#0d9488;padding:1px 6px;border-radius:3px;letter-spacing:.4px;border:.5px solid #99f6e4;">BLD-VERIFY-EXPIRY-01</span>
+          </div>
+          <div style="color:var(--text-2);">
+            Started <strong style="color:var(--text-1);">${o.verification.startedAt}</strong> · expires <strong style="color:var(--text-1);">${o.verification.expiresAt}</strong>
+            <div style="margin-top:4px;">
+              ${o.verification.bmiSubmitted ? '<span style="color:var(--green);">✓ BMI submitted</span>' : '<span style="color:var(--red);">✕ BMI outstanding</span>'} ·
+              ${o.verification.documentSubmitted ? '<span style="color:var(--green);">✓ ID document submitted</span>' : '<span style="color:var(--red);">✕ ID document outstanding</span>'}
+            </div>
+            <div style="margin-top:5px;font-style:italic;color:var(--text-3);">Spec §5: 7-day verification window enforced platform-wide. Day 8 → order auto-moves to Expired (auth lapsed). FCM #11 reminder sent days 3, 6, 7.</div>
+          </div>
+        </div>` : ''}
+      </div>
+      ${pfRiskCard}
+      ${o.flags.length > 0 ? `
+      <div class="preview-divider"></div>
+      <div class="preview-section">
+        <div class="preview-label">Flags</div>
+        <div class="flag-row" style="margin-top:4px;">
+          ${o.flags.map(f => `<div class="flag-chip ${f.cls}">${f.label}</div>`).join('')}
+        </div>
+      </div>` : ''}
+      ${niceSection}
+      ${doseEscalationCard}
+      ${trajCard}
+      ${coachingLogCard}
+      ${o.aiReady ? `
+      <div class="preview-divider"></div>
+      <div class="preview-section">
+        <div class="preview-label">AI summary preview</div>
+        <div class="ai-preview-box">
+          <div class="ai-preview-label">✦ Generated from patient record</div>
+          <div class="ai-preview-text">${o.aiText}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:6px;">Full summary with edit and confirm available in the order review screen.</div>
+      </div>` : `
+      <div class="preview-divider"></div>
+      <div class="preview-section">
+        <div class="preview-label">AI summary</div>
+        <div style="font-size:12px;color:var(--text-3);padding:10px;background:var(--surface-2);border-radius:var(--radius-md);">Generating in background… will be ready when you open the full review.</div>
+      </div>`}
+      <!-- BLD-Amendments: Mandatory clinical notes -->
+      <div class="preview-divider"></div>
+      <div class="preview-section">
+        <div class="preview-label">📝 Clinical notes <span style="color:var(--red);font-weight:600;">required</span></div>
+        <div class="notes-card">
+          <textarea id="ck-notes" class="notes-textarea" placeholder="Document your clinical reasoning for this decision. Required before approval — appears on the patient record and is auditable." oninput="validateApproveButton()"></textarea>
+          <div class="notes-meta">
+            <span id="ck-notes-state" class="notes-required">⚠ Notes required to approve</span>
+            <span id="ck-notes-count" style="color:var(--text-3);">0 chars</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Re-render footer (Decline + Approve disabled-until-notes)
+    document.querySelector('.slideover-footer').innerHTML = `
+      <button class="footer-decline" onclick="openDeclineModal()">✕ Decline</button>
+      <button class="btn btn-ghost" onclick="openOrderReview()">Open full review →</button>
+      <button class="footer-approve" id="ck-approve-btn" disabled onclick="approveOrder()">✓ Approve</button>
+    `;
+
+    document.getElementById('slideover').classList.add('open');
+    document.getElementById('backdrop').classList.add('show');
+  }
+
+  // BLD-Amendments: Toggle a NICE item — re-renders entire slide-over to refresh count + tag
+  function toggleNiceItem(orderId, key) {
+    const o = orders.find(x => x.id === orderId);
+    if (!o || !o.niceCheck) return;
+    const item = o.niceCheck.find(n => n.key === key);
+    if (item) item.checked = !item.checked;
+    // Save current notes value before re-render
+    const notesVal = document.getElementById('ck-notes')?.value || '';
+    openSlideOver(orderId);
+    // Restore notes after re-render
+    if (notesVal) {
+      document.getElementById('ck-notes').value = notesVal;
+      validateApproveButton();
+    }
+  }
+
+  // BLD-Amendments: Approve gate — only enable when ≥10 chars of clinical notes typed
+  function validateApproveButton() {
+    const ta = document.getElementById('ck-notes');
+    const btn = document.getElementById('ck-approve-btn');
+    const state = document.getElementById('ck-notes-state');
+    const count = document.getElementById('ck-notes-count');
+    if (!ta || !btn) return;
+    const len = ta.value.trim().length;
+    count.textContent = `${len} chars`;
+    if (len >= 10) {
+      btn.disabled = false;
+      state.textContent = '✓ Notes meet minimum length';
+      state.className = 'notes-required ok';
+    } else {
+      btn.disabled = true;
+      state.textContent = `⚠ Notes required to approve (${10 - len} more chars)`;
+      state.className = 'notes-required';
+    }
+  }
+
+  function approveOrder() {
+    if (!selectedOrder) return;
+    closeSlideOver();
+    ckToast(`✓ Approved ${selectedOrder.id} · clinical notes saved to patient record`);
+  }
+
+  // BLD-Amendments: Decline-with-reason modal (absorbs discontinuation flow)
+  function openDeclineModal() {
+    document.getElementById('decline-modal').classList.add('show');
+  }
+  function closeDeclineModal() {
+    document.getElementById('decline-modal').classList.remove('show');
+  }
+  function selectDeclineReason(card) {
+    document.querySelectorAll('.reason-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    card.querySelector('input').checked = true;
+  }
+  function submitDecline() {
+    const selected = document.querySelector('.reason-card.selected');
+    if (!selected) {
+      ckToast('Select a reason before declining', true);
+      return;
+    }
+    const reason = selected.querySelector('.reason-name').textContent;
+    const triggerLetter = document.getElementById('decline-letter')?.checked;
+    closeDeclineModal();
+    closeSlideOver();
+    ckToast(`✕ Order declined — ${reason}${triggerLetter ? ' · discontinuation letter queued' : ''} · task created`);
+  }
+
+  // BLD-Amendments: Simple toast helper
+  function ckToast(msg, isError) {
+    let toast = document.getElementById('ck-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'ck-toast';
+      toast.className = 'ck-toast';
+      document.body.appendChild(toast);
+    }
+    const icon = isError ? '<span style="color:#f87171;">✕</span>' : '<span style="color:#10b981;">✓</span>';
+    toast.innerHTML = icon + ' ' + msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2800);
+  }
+
+
+  function closeSlideOver() {
+    document.getElementById('slideover').classList.remove('open');
+    document.getElementById('backdrop').classList.remove('show');
+    selectedOrder = null;
+  }
+
+  function openOrderReview() {
+    window.open('livera_prototype_01b_order_review_ai_notes.html', '_blank');
+  }
+
+  // Workspace switcher
+  function toggleWSMenu() { document.getElementById('wsMenu').classList.toggle('open'); }
+  document.addEventListener('click', function(e) { if (!e.target.closest('#wsSwitcher') && !e.target.closest('#wsMenu')) document.getElementById('wsMenu').classList.remove('open'); });
+  function setWorkspace(ws) {
+    document.body.setAttribute('data-workspace', ws);
+    document.getElementById('wsMenu').classList.remove('open');
+    if (ws === 'feeltru') {
+      document.getElementById('wsName').textContent = 'FeelTru';
+      document.getElementById('check-feeltru').style.opacity = '1';
+      document.getElementById('check-vsc').style.opacity = '0';
+    } else {
+      document.getElementById('wsName').textContent = 'VSC';
+      document.getElementById('check-feeltru').style.opacity = '0';
+      document.getElementById('check-vsc').style.opacity = '1';
+    }
+    // BLD-2.9 — re-render slideover if open (so coaching log card shows/hides on workspace switch)
+    if (selectedOrder) openSlideOver(selectedOrder.id);
+  }
+
+  // Initial render
+  renderTable(getFiltered());
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

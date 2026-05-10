@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — AUD-02 Consent and Cancellation (BLD-12.3)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca;
+    --surface: #ffffff; --surface-2: #f9f9f9;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row.on { background: var(--blue-bg); color: var(--blue); font-weight: 500; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .pill { display: inline-flex; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 0.5px solid; align-items: center; gap: 5px; }
+  .p-dev { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .btn { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+
+  .content { flex: 1; overflow-y: auto; padding: 22px 28px 28px; }
+  .page-head { margin-bottom: 18px; display: flex; align-items: flex-start; gap: 14px; }
+  .audit-num { width: 48px; height: 48px; border-radius: 10px; background: var(--blue-bg); color: var(--blue); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; flex-shrink: 0; font-family: ui-monospace,'SF Mono',monospace; }
+  .page-head-text { flex: 1; }
+  .page-title { font-size: 22px; font-weight: 700; color: var(--text-1); letter-spacing: -0.4px; }
+  .page-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; max-width: 760px; }
+
+  /* V1.1 rename callout */
+  .rename-banner { padding: 10px 14px; background: var(--purple-bg); border: 0.5px solid var(--purple-border); border-radius: var(--r-md); margin-bottom: 18px; font-size: 12px; color: var(--purple); line-height: 1.5; display: flex; align-items: center; gap: 10px; }
+  .rename-banner strong { font-weight: 700; }
+
+  /* Section heading */
+  .sec-head { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 10px; margin-top: 22px; display: flex; align-items: center; gap: 8px; }
+  .sec-head:first-child { margin-top: 0; }
+  .sec-head::after { content:''; flex:1; height:0.5px; background:var(--border); }
+
+  /* Two-section layout: consent + cancellation */
+  .audit-section { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); margin-bottom: 18px; overflow: hidden; }
+  .audit-section-head { padding: 14px 18px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 12px; background: var(--surface-2); }
+  .audit-section-icon { font-size: 18px; }
+  .audit-section-title { font-size: 14px; font-weight: 700; color: var(--text-1); flex: 1; }
+  .audit-section-stat { font-size: 12px; color: var(--text-2); }
+  .audit-section-body { padding: 14px 18px; }
+
+  /* Stat row */
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat-tile { padding: 10px 12px; background: var(--surface-2); border-radius: var(--r-sm); border: 0.5px solid var(--border); }
+  .stat-tile-l { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-tile-v { font-size: 20px; font-weight: 700; color: var(--text-1); margin-top: 4px; letter-spacing: -0.3px; }
+  .stat-tile-v.ok { color: var(--green); }
+  .stat-tile-v.warn { color: var(--amber); }
+  .stat-tile-v.err { color: var(--red-mid); }
+  .stat-tile-m { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; text-align: left; background: var(--surface-2); border-top: 0.5px solid var(--border); border-bottom: 0.5px solid var(--border); white-space: nowrap; }
+  td { padding: 10px 12px; color: var(--text-1); border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface-2); }
+  .pat-id { font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; color: var(--brand-dark); font-weight: 500; }
+  .ord-id { font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; color: var(--brand-dark); font-weight: 500; }
+  .v-pill { font-family: ui-monospace,'SF Mono',monospace; font-size: 10px; padding: 2px 7px; border-radius: 999px; border: 0.5px solid; font-weight: 600; }
+  .v-pill.current { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .v-pill.stale { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .v-pill.missing { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .outcome-pill { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px; border: 0.5px solid; text-transform: uppercase; letter-spacing: 0.4px; }
+  .outcome-pill.ok { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .outcome-pill.bad { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .outcome-pill.review { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+
+  /* Filter strip */
+  .filter-strip { display: flex; gap: 8px; padding: 12px 16px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); align-items: center; flex-wrap: wrap; }
+  .filter-pill { padding: 4px 11px; border-radius: 999px; font-size: 11px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); background: var(--surface); color: var(--text-2); font-family: inherit; }
+  .filter-pill.on { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+
+  /* Consent version reference */
+  .version-ref { padding: 12px 14px; background: var(--blue-bg); border: 0.5px solid var(--blue-border); border-radius: var(--r-md); font-size: 12px; color: #1e3a8a; line-height: 1.55; }
+  .version-ref strong { font-weight: 700; }
+  .version-ref code { font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; background: rgba(255,255,255,0.6); padding: 1px 5px; border-radius: 3px; color: #1e3a8a; }
+
+  /* Export footer */
+  .export-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); padding: 14px 18px; display: flex; align-items: center; gap: 14px; }
+  .export-info { flex: 1; font-size: 12px; color: var(--text-2); line-height: 1.5; }
+  .export-info strong { color: var(--text-1); font-weight: 600; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html" class="active"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_scr_audits_settings.html">Audits</a>
+        <span class="sep">/</span>
+        <span class="cur">AUD-02 Consent and Cancellation</span>
+      </div>
+      <div class="topbar-right">
+        <div class="pill p-dev">⏳ In dev · BLD-12.3</div>
+        <button class="btn">Export CSV</button>
+        <button class="btn primary">📄 Export PDF</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="page-head">
+        <div class="audit-num">02</div>
+        <div class="page-head-text">
+          <div class="page-title">Consent and Cancellation</div>
+          <div class="page-sub">Quarterly check that every active patient has a valid signed consent on the current consent version, and that any cancellation requests within the period were handled correctly. Auto-generated tables of consent gaps and cancellation outcomes — no manual sampling required.</div>
+        </div>
+      </div>
+
+      <!-- V1.1 rename callout -->
+      <div class="rename-banner">
+        <span style="font-size:14px;">📝</span>
+        <div><strong>V1.1 rename:</strong> this audit was previously "AUD-02 Consent and Cooling-Off". Renamed to "Consent and Cancellation" because the Consumer Contracts Regulations 14-day cooling-off period does not apply to clinical prescribing services. Cancellation refers to in-treatment cancellation requests covered by clinic terms.</div>
+      </div>
+
+      <!-- ─────────────── PART A · CONSENT ─────────────── -->
+      <div class="audit-section">
+        <div class="audit-section-head">
+          <span class="audit-section-icon">✍️</span>
+          <div class="audit-section-title">Part A · Consent coverage</div>
+          <div class="audit-section-stat">Q2 2026 · 30 active patients</div>
+        </div>
+        <div class="audit-section-body">
+
+          <!-- Consent stats -->
+          <div class="stat-row">
+            <div class="stat-tile">
+              <div class="stat-tile-l">Active patients</div>
+              <div class="stat-tile-v">30</div>
+              <div class="stat-tile-m">in scope</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-tile-l">Current version</div>
+              <div class="stat-tile-v ok">28</div>
+              <div class="stat-tile-m">93.3% on v2.1</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-tile-l">Stale version</div>
+              <div class="stat-tile-v warn">2</div>
+              <div class="stat-tile-m">on prior version · re-consent due</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-tile-l">Missing consent</div>
+              <div class="stat-tile-v ok">0</div>
+              <div class="stat-tile-m">none — all patients have a record</div>
+            </div>
+          </div>
+
+          <!-- Version reference -->
+          <div class="version-ref">
+            <strong>Current consent version:</strong> <code>v2.1</code> · effective from <strong>15 Mar 2026</strong> · sha <code>c8a2f1d3</code>. Patients on prior versions must re-consent on next login. Re-consent flow gated server-side via <code>required_consent_version</code> on login response.
+          </div>
+
+          <!-- Consent gaps table -->
+          <div style="margin-top:14px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Patients with stale or missing consent</div>
+            <div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Patient</th>
+                    <th>Last consented version</th>
+                    <th>Captured at</th>
+                    <th>Days stale</th>
+                    <th>Last login</th>
+                    <th>Outcome</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Eleanor Vance · <span class="pat-id">pat_ev_0312</span></td>
+                    <td><span class="v-pill stale">v2.0</span></td>
+                    <td>04 Feb 2026</td>
+                    <td>46 days stale</td>
+                    <td>22 Apr 2026</td>
+                    <td><span class="outcome-pill review">Re-consent on next login</span></td>
+                  </tr>
+                  <tr>
+                    <td>Helen Foster · <span class="pat-id">pat_hf_0419</span></td>
+                    <td><span class="v-pill stale">v2.0</span></td>
+                    <td>11 Feb 2026</td>
+                    <td>39 days stale</td>
+                    <td>19 Apr 2026</td>
+                    <td><span class="outcome-pill review">Re-consent on next login</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5;">No outstanding remediation. Both patients will be prompted on next login to accept v2.1 before any further clinical action proceeds.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ─────────────── PART B · CANCELLATION ─────────────── -->
+      <div class="audit-section">
+        <div class="audit-section-head">
+          <span class="audit-section-icon">🚫</span>
+          <div class="audit-section-title">Part B · Cancellation handling</div>
+          <div class="audit-section-stat">Q2 2026 · 4 cancellation requests</div>
+        </div>
+        <div class="audit-section-body">
+
+          <div class="stat-row">
+            <div class="stat-tile">
+              <div class="stat-tile-l">Cancellation requests</div>
+              <div class="stat-tile-v">4</div>
+              <div class="stat-tile-m">in period</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-tile-l">Pre-approval (auto)</div>
+              <div class="stat-tile-v ok">3</div>
+              <div class="stat-tile-m">handled correctly · BLD-5.3</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-tile-l">Post-approval (manual)</div>
+              <div class="stat-tile-v">1</div>
+              <div class="stat-tile-m">routed via refund flow</div>
+            </div>
+            <div class="stat-tile">
+              <div class="stat-tile-l">Variances</div>
+              <div class="stat-tile-v ok">0</div>
+              <div class="stat-tile-m">no off-protocol handling</div>
+            </div>
+          </div>
+
+          <!-- Cancellation table -->
+          <div style="margin-top:14px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">All cancellation requests in period</div>
+            <div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;">
+
+              <div class="filter-strip">
+                <button class="filter-pill on">All <span style="opacity:0.7;">4</span></button>
+                <button class="filter-pill">Pre-approval <span style="opacity:0.7;">3</span></button>
+                <button class="filter-pill">Post-approval <span style="opacity:0.7;">1</span></button>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Date requested</th>
+                    <th>Status at request</th>
+                    <th>Patient</th>
+                    <th>Channel</th>
+                    <th>Outcome</th>
+                    <th>Refund</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="ord-id">ORD-00428</span></td>
+                    <td>26 Apr · 11:14</td>
+                    <td>Clinical Check</td>
+                    <td>Maria Santos</td>
+                    <td>Patient app</td>
+                    <td><span class="outcome-pill ok">✓ Cancelled · auth released</span></td>
+                    <td>£0 (auth-only)</td>
+                  </tr>
+                  <tr>
+                    <td><span class="ord-id">ORD-00422</span></td>
+                    <td>20 Apr · 09:08</td>
+                    <td>Clinical Check</td>
+                    <td>Lisa Brent</td>
+                    <td>Patient app</td>
+                    <td><span class="outcome-pill ok">✓ Cancelled · auth released</span></td>
+                    <td>£0 (auth-only)</td>
+                  </tr>
+                  <tr>
+                    <td><span class="ord-id">ORD-00415</span></td>
+                    <td>14 Apr · 16:32</td>
+                    <td>Intervention</td>
+                    <td>Anna Bryant</td>
+                    <td>Intercom</td>
+                    <td><span class="outcome-pill ok">✓ Cancelled · auth released</span></td>
+                    <td>£0 (auth-only)</td>
+                  </tr>
+                  <tr>
+                    <td><span class="ord-id">ORD-00408</span></td>
+                    <td>10 Apr · 14:22</td>
+                    <td>Approved</td>
+                    <td>Rachel Kim</td>
+                    <td>Phone</td>
+                    <td><span class="outcome-pill ok">✓ Refunded via post-approval flow</span></td>
+                    <td>£189.00 refund</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5;">
+              <strong style="color:var(--text-1);">Protocol check:</strong> 3 pre-approval cancellations correctly routed via the BLD-5.3 amendment-window endpoint (Ryft auth released, no charge). 1 post-approval cancellation correctly escalated to manual refund (separate <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">POST /orders/{id}/refund</code> endpoint), patient refunded £189.00 within 7 working days per clinic terms. No variances.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Export footer -->
+      <div class="export-card">
+        <div class="export-info">
+          <strong>Export bundle (BLD-12.3):</strong> PDF cover + CSV with two sheets — <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">consent_coverage</code> (one row per active patient) and <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">cancellations</code> (one row per request). Stored in S3 <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">audits/feeltru/aud-02/Q2-2026/</code> with SHA-256 checksums. AUD-04 audit-log entry written.
+        </div>
+        <button class="btn">Export CSV</button>
+        <button class="btn primary">📄 Export PDF</button>
+      </div>
+
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>BLD-12.3 · AUD-02 Consent and Cancellation · two-part audit · auto-generated tables · no manual sampling</span>
+      <span class="at">Part A</span>
+      <span>Consent coverage · all active patients · current_consent_version vs patient.consent_version · stale/missing flagged · re-consent enforced on next login</span>
+      <span class="at">Part B</span>
+      <span>Cancellation outcomes · all requests in period · pre-approval (BLD-5.3 auto) vs post-approval (manual refund) · variance check</span>
+      <span class="at">V1.1 rename</span>
+      <span>Cooling-Off → Cancellation · CCR 14-day right does not apply to clinical prescribing services</span>
+    </div>
+  </div>
+</div>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

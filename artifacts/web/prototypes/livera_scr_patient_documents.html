@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Patient Documents</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+/* Patient context strip */
+.ctx-strip{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 18px;margin-bottom:18px;display:flex;gap:18px;align-items:center}
+.ctx-strip .pt-name{font-size:15px;font-weight:700;color:var(--t1);letter-spacing:-.2px}
+.ctx-strip .pt-meta{font-size:11px;color:var(--t3);font-family:'SF Mono',Menlo,monospace;margin-top:2px}
+.ctx-strip .pt-link{font-size:11px;color:var(--brand);text-decoration:none;font-weight:600;margin-left:auto}
+.ctx-strip .pt-link:hover{text-decoration:underline}
+
+/* Tabs (mirroring patient profile tabs) */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--bdr);margin-bottom:18px;overflow-x:auto}
+.tab{padding:11px 18px;font-size:12.5px;font-weight:600;color:var(--t2);background:none;border:none;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;transition:.12s;white-space:nowrap}
+.tab:hover{color:var(--t1)}
+.tab.on{color:var(--brand);border-bottom-color:var(--brand)}
+.tab .ct{display:inline-block;font-size:10px;font-weight:700;background:var(--bdr);color:var(--t2);padding:1px 6px;border-radius:3px;margin-left:6px;letter-spacing:.3px}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#dbeafe 0%,#3b82f6 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:.12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+
+/* Show voided toggle */
+.toggle-row{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface);border:1px solid var(--bdr-d);border-radius:6px}
+.toggle-row .lbl{font-size:11.5px;font-weight:600;color:var(--t2)}
+.tog{width:36px;height:20px;background:var(--ok);border-radius:999px;position:relative;cursor:pointer;flex-shrink:0;transition:.18s}
+.tog::after{content:'';width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:3px;right:3px;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tog.off{background:var(--t3)}
+.tog.off::after{right:auto;left:3px}
+
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+/* Document table */
+.doc-row{display:grid;grid-template-columns:80px 1fr 130px 110px 110px 110px;gap:12px;padding:12px 18px;border-bottom:1px solid var(--bdr);align-items:center;font-size:12.5px}
+.doc-row:last-child{border-bottom:none}
+.doc-row:hover{background:var(--brand-l)}
+.doc-row.voided{opacity:.55;background:rgba(148,163,184,0.04)}
+.doc-row.voided .doc-num{text-decoration:line-through;color:var(--t3)}
+.doc-row.voided .doc-amount{text-decoration:line-through}
+.doc-icon{width:48px;height:60px;border-radius:4px;background:linear-gradient(180deg,#fff 0%,#f8fafc 100%);border:1px solid var(--bdr);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--t3);position:relative}
+.doc-icon.pdf{color:#dc2626;background:#fff;border-color:#fecaca}
+.doc-icon.live::after{content:'';position:absolute;top:-3px;right:-3px;width:8px;height:8px;border-radius:50%;background:var(--ok);border:1.5px solid #fff;box-shadow:0 0 0 1px var(--ok-bdr)}
+.doc-num{font-size:13px;font-weight:600;color:var(--t1);font-family:'SF Mono',Menlo,monospace}
+.doc-meta{font-size:10.5px;color:var(--t3);margin-top:2px}
+.doc-amount{font-size:13px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+.doc-status{font-size:10px;font-weight:700;padding:3px 8px;border-radius:3px;letter-spacing:.4px;width:fit-content}
+.doc-status.live{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.doc-status.voided{background:#f1f5f9;color:var(--t3);border:.5px solid var(--bdr-d)}
+.doc-status.voided::before{content:'⊘ '}
+.doc-status.replaced{background:#f1f5f9;color:var(--t2);border:.5px solid var(--bdr-d)}
+.doc-actions{display:flex;gap:6px;justify-content:flex-end}
+.doc-actions a{font-size:11px;color:var(--brand);text-decoration:none;font-weight:600;padding:4px 8px;border-radius:4px}
+.doc-actions a:hover{background:var(--brand-l)}
+.doc-rel{font-size:11px;color:var(--t2);font-style:italic;line-height:1.4}
+.doc-rel a{color:var(--brand);text-decoration:none;font-weight:600}
+.doc-rel a:hover{text-decoration:underline}
+
+/* Banner */
+.banner{background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:flex-start;gap:12px}
+.banner .ic{width:32px;height:32px;border-radius:8px;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.banner .text{font-size:12px;color:var(--info);line-height:1.5}
+.banner .text strong{color:var(--t1);font-weight:600;display:block;margin-bottom:2px}
+.banner .text code{font-family:'SF Mono',Menlo,monospace;background:rgba(59,130,246,0.1);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Workspace switcher */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <div class="ws">
+    <button class="ws-trigger"><strong>VSC — Quanta Healthcare Ltd</strong><span class="ws-chev">▼</span></button>
+  </div>
+  <div class="role"><span>Qadir Hussain</span><span class="role-pill">Owner</span></div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html" class="active"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_patient_list.html">Patients</a>
+      <span class="sep">›</span>
+      <a href="livera_prototype_09_patient_profile.html">Sarah Cookland · PT-00198</a>
+      <span class="sep">›</span>
+      <span class="cur">Documents</span>
+    </div>
+
+    <!-- Patient context strip -->
+    <div class="ctx-strip">
+      <div>
+        <div class="pt-name">Sarah Cookland</div>
+        <div class="pt-meta">PT-00198 · F · 47 · Mounjaro · ORD-00441 in-flight</div>
+      </div>
+      <a href="livera_prototype_09_patient_profile.html" class="pt-link">← Back to patient profile</a>
+    </div>
+
+    <!-- Section tabs (mirroring patient profile tabs structure) -->
+    <div class="tabs">
+      <button class="tab" onclick="window.location.href='livera_prototype_09_patient_profile.html'">Overview</button>
+      <button class="tab" onclick="showToast('Stub · existing tab')">Orders <span class="ct">3</span></button>
+      <button class="tab" onclick="showToast('Stub · existing tab')">Clinical <span class="ct">2</span></button>
+      <button class="tab on">Documents <span class="ct">9</span></button>
+      <button class="tab" onclick="showToast('Stub · existing tab')">Notes</button>
+      <button class="tab" onclick="showToast('Stub · existing tab')">Activity</button>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">📄</div>
+      <div class="pg-info">
+        <h1>Documents <span class="bld-pill">BLD-AMEND-05</span></h1>
+        <div class="sub">Invoices, prescriptions, GP letters, and consent documents for this patient. Voided documents are preserved with the void marker for forensic reconstruction — never deleted.</div>
+      </div>
+      <div class="pg-actions">
+        <div class="toggle-row">
+          <span class="lbl">Show voided</span>
+          <div class="tog" id="tog-voided" onclick="toggleVoided()"></div>
+        </div>
+        <button class="btn" onclick="showToast('Stub · would export AUD-04 audit bundle (live + voided + amendment chain)')">⤓ Export AUD-04 bundle</button>
+      </div>
+    </div>
+
+    <div class="banner">
+      <div class="ic">i</div>
+      <div class="text">
+        <strong>Voided invoices preserved per AUD-04</strong>
+        Spec §10: <em>"Original voided with 'Amended' label (preserved in audit trail), new invoice generated, both visible in Account &gt; Documents."</em> Voided invoices are not deleted — they remain queryable for forensic reconstruction. Toggle <strong>Show voided</strong> off when exporting for compliance audit (default in audit export = off; default in admin view = on). Click any voided row to see what replaced it.
+      </div>
+    </div>
+
+    <!-- Invoices section -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🧾 Invoices</div>
+        <div class="sub">Live = currently valid · Voided = replaced by amendment</div>
+        <div class="right">3 documents (1 live · 2 voided)</div>
+      </div>
+      <div id="invoices-list">
+
+        <!-- INV-00441-A1 (live, replacement after AMD-00088 supply increase) -->
+        <div class="doc-row">
+          <div class="doc-icon pdf live">📄</div>
+          <div>
+            <div class="doc-num">INV-00441-A1</div>
+            <div class="doc-meta">Issued 04 May 2026 · 14:38 · supersedes INV-00441 (voided)</div>
+            <div class="doc-rel" style="margin-top:4px;">Replacement after <a href="livera_prototype_10_order_detail_admin.html">AMD-00088</a> · supply increase 1mo → 3mo</div>
+          </div>
+          <div class="doc-amount">£449.00</div>
+          <div><span class="doc-status live">LIVE</span></div>
+          <div class="doc-meta">PDF · 124 KB</div>
+          <div class="doc-actions">
+            <a onclick="showToast('Stub · would download PDF')">Download</a>
+            <a onclick="showToast('Stub · would preview PDF inline')">Preview</a>
+          </div>
+        </div>
+
+        <!-- INV-00441 (voided after AMD-00088 supply increase) -->
+        <div class="doc-row voided" data-voided="true">
+          <div class="doc-icon pdf">📄</div>
+          <div>
+            <div class="doc-num">INV-00441</div>
+            <div class="doc-meta">Issued 02 May 2026 · 09:14 · voided 04 May at amendment</div>
+            <div class="doc-rel" style="margin-top:4px;">Voided · replaced by <a href="#">INV-00441-A1</a> (supply increase amendment)</div>
+          </div>
+          <div class="doc-amount">£199.00</div>
+          <div><span class="doc-status voided">VOIDED — AMENDED</span></div>
+          <div class="doc-meta">PDF · 121 KB</div>
+          <div class="doc-actions">
+            <a onclick="showToast('Stub · would download PDF (voided watermark applied)')">Download</a>
+          </div>
+        </div>
+
+        <!-- INV-00388 (older, voided after dose decrease) -->
+        <div class="doc-row voided" data-voided="true">
+          <div class="doc-icon pdf">📄</div>
+          <div>
+            <div class="doc-num">INV-00388</div>
+            <div class="doc-meta">Issued 02 Apr 2026 · 11:24 · voided 04 May at amendment</div>
+            <div class="doc-rel" style="margin-top:4px;">Voided · replaced by <a href="#">INV-00388-A1</a> (dose decrease 7.5mg → 5mg refund)</div>
+          </div>
+          <div class="doc-amount">£229.00</div>
+          <div><span class="doc-status voided">VOIDED — AMENDED</span></div>
+          <div class="doc-meta">PDF · 119 KB</div>
+          <div class="doc-actions">
+            <a onclick="showToast('Stub · would download PDF (voided watermark applied)')">Download</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Prescriptions section -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">℞ Prescriptions</div>
+        <div class="sub">Single source of truth from Primed · Livera renders/co-brands · never generates</div>
+        <div class="right">3 documents (1 live · 2 voided)</div>
+      </div>
+      <div>
+
+        <div class="doc-row">
+          <div class="doc-icon pdf live">℞</div>
+          <div>
+            <div class="doc-num">PRX-00441-A1</div>
+            <div class="doc-meta">Issued 04 May 2026 · 14:39 · 7.5mg Mounjaro · 4 pens · prescriber Claire Moynehan</div>
+            <div class="doc-rel" style="margin-top:4px;">Currently dispensing at Primed · supersedes PRX-00441 (5mg)</div>
+          </div>
+          <div class="doc-amount" style="font-size:11px;color:var(--t2);font-weight:600;">7.5mg × 4</div>
+          <div><span class="doc-status live">LIVE</span></div>
+          <div class="doc-meta">PDF · 89 KB</div>
+          <div class="doc-actions">
+            <a onclick="showToast('Stub · would download Primed-watermarked PDF')">Download</a>
+          </div>
+        </div>
+
+        <div class="doc-row voided" data-voided="true">
+          <div class="doc-icon pdf">℞</div>
+          <div>
+            <div class="doc-num">PRX-00441</div>
+            <div class="doc-meta">Issued 04 May 2026 · 14:23 · 5mg Mounjaro · 4 pens · prescriber Claire Moynehan</div>
+            <div class="doc-rel" style="margin-top:4px;">Voided 14:38 same day · replaced by <a href="#">PRX-00441-A1</a> after dose increase amendment</div>
+          </div>
+          <div class="doc-amount" style="font-size:11px;color:var(--t2);font-weight:600;">5mg × 4</div>
+          <div><span class="doc-status voided">VOIDED — AMENDED</span></div>
+          <div class="doc-meta">PDF · 89 KB</div>
+          <div class="doc-actions">
+            <a onclick="showToast('Stub · would download voided Rx with Primed audit watermark')">Download</a>
+          </div>
+        </div>
+
+        <div class="doc-row voided" data-voided="true">
+          <div class="doc-icon pdf">℞</div>
+          <div>
+            <div class="doc-num">PRX-00388</div>
+            <div class="doc-meta">Issued 02 Apr 2026 · 11:25 · 7.5mg Mounjaro · 4 pens · prescriber Claire Moynehan</div>
+            <div class="doc-rel" style="margin-top:4px;">Voided · replaced by <a href="#">PRX-00388-A1</a> after dose decrease (tolerance issue)</div>
+          </div>
+          <div class="doc-amount" style="font-size:11px;color:var(--t2);font-weight:600;">7.5mg × 4</div>
+          <div><span class="doc-status voided">VOIDED — AMENDED</span></div>
+          <div class="doc-meta">PDF · 89 KB</div>
+          <div class="doc-actions">
+            <a onclick="showToast('Stub · would download voided Rx')">Download</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- GP Letters section -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">✉ GP letters</div>
+        <div class="sub">Sent to Robin Lane H&amp;W (consent on record) · 28 Jan 2026</div>
+        <div class="right">3 letters · all live</div>
+      </div>
+      <div>
+
+        <div class="doc-row">
+          <div class="doc-icon pdf live">✉</div>
+          <div>
+            <div class="doc-num">GPL-00441</div>
+            <div class="doc-meta">Sent 04 May 2026 · 14:42 · re: dose increase 5mg → 7.5mg · prescriber Claire Moynehan</div>
+            <div class="doc-rel" style="margin-top:4px;">Triggered by approval of <a href="#">ORD-00441</a> · GP consent verified · Postmark delivered</div>
+          </div>
+          <div class="doc-amount" style="font-size:11px;color:var(--t2);font-weight:600;">—</div>
+          <div><span class="doc-status live">SENT</span></div>
+          <div class="doc-meta">PDF · 64 KB</div>
+          <div class="doc-actions">
+            <a onclick="showToast('Stub · would download GP letter PDF')">Download</a>
+            <a onclick="showToast('Stub · would resend via Postmark')">Resend</a>
+          </div>
+        </div>
+
+        <div class="doc-row">
+          <div class="doc-icon pdf live">✉</div>
+          <div>
+            <div class="doc-num">GPL-00388</div>
+            <div class="doc-meta">Sent 02 Apr 2026 · 11:30 · re: dose decrease 7.5mg → 5mg · prescriber Claire Moynehan</div>
+            <div class="doc-rel" style="margin-top:4px;">Triggered by amendment AMD-00086 · GP consent verified · Postmark delivered</div>
+          </div>
+          <div class="doc-amount" style="font-size:11px;color:var(--t2);font-weight:600;">—</div>
+          <div><span class="doc-status live">SENT</span></div>
+          <div class="doc-meta">PDF · 62 KB</div>
+          <div class="doc-actions">
+            <a onclick="showToast('Stub · would download GP letter PDF')">Download</a>
+          </div>
+        </div>
+
+        <div class="doc-row">
+          <div class="doc-icon pdf live">✉</div>
+          <div>
+            <div class="doc-num">GPL-INITIAL</div>
+            <div class="doc-meta">Sent 28 Jan 2026 · 16:12 · re: treatment commencement (first prescription) · prescriber Claire Moynehan</div>
+            <div class="doc-rel" style="margin-top:4px;">Triggered by first-order approval · GP consent captured at registration</div>
+          </div>
+          <div class="doc-amount" style="font-size:11px;color:var(--t2);font-weight:600;">—</div>
+          <div><span class="doc-status live">SENT</span></div>
+          <div class="doc-meta">PDF · 71 KB</div>
+          <div class="doc-actions">
+            <a onclick="showToast('Stub · would download GP letter PDF')">Download</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Patient documents</strong> · BLD-AMEND-05 (DEC-36 / spec §10) · invoice voiding & replacement pattern. Voided documents are preserved indefinitely with the void marker — never deleted. Both voided and live documents export in the AUD-04 audit log. The "Show voided" toggle defaults to <strong>on</strong> for admin view (full forensic visibility) and <strong>off</strong> for compliance audit export (live-only by default to align with current GP records). Visible to <code>Owner</code>, <code>RM</code>, <code>Prescriber</code> · all other roles see live documents only.
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+
+let showVoided = true;
+
+function toggleVoided(){
+  const tog = document.getElementById('tog-voided');
+  tog.classList.toggle('off');
+  showVoided = !tog.classList.contains('off');
+  document.querySelectorAll('[data-voided="true"]').forEach(row => {
+    row.style.display = showVoided ? '' : 'none';
+  });
+  showToast(showVoided ? 'Showing voided documents (admin view)' : 'Hiding voided documents (audit export view)');
+}
+</script>
+</body>
+</html>

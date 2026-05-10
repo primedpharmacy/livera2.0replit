@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — GP Letter Templates</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f0ef; color: #0f172a; font-size: 14px; line-height: 1.5; }
+:root {
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b;
+  --surface:#fff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5;
+  --warn:#f59e0b; --warn-bg:#fffbeb;
+  --err:#ef4444; --err-bg:#fef2f2;
+  --info:#3b82f6; --info-bg:#eff6ff;
+  --proto:#0d9488; --proto-bg:#f0fdfa;
+}
+
+.topnav{background:#1e1b4b;color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,#818cf8,#6366f1);border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+
+.shell { display:flex; min-height:calc(100vh - 36px) }
+.main { flex:1; padding:24px 30px; max-width:1280px; min-width:0 }
+
+.topbar { display:flex; align-items:flex-start; gap:12px; margin-bottom:18px; }
+.topbar .bc { font-size:11px; color:var(--t3); margin-bottom:4px; }
+.topbar .bc a { color:var(--brand); text-decoration:none; }
+.topbar .ttl { font-size:20px; font-weight:700; letter-spacing:-0.4px; color:var(--t1); }
+.topbar .sub { font-size:13px; color:var(--t2); margin-top:2px; }
+.topbar-right { margin-left:auto; display:flex; gap:8px; }
+.btn { padding:7px 14px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:0.5px solid var(--bdr-d); background:var(--surface); color:var(--t2); font-family:inherit; transition:all .12s; }
+.btn:hover { background:var(--brand-l); color:var(--brand-d); border-color:var(--brand-mid); }
+.btn.primary { background:var(--brand-d); color:#fff; border-color:var(--brand-d); }
+.btn.primary:hover { background:#3730a3; }
+
+.banner { background:var(--proto-bg); border:0.5px solid var(--proto); border-radius:8px; padding:12px 16px; margin-bottom:18px; display:flex; gap:12px; align-items:flex-start; }
+.banner .ic { width:24px; height:24px; border-radius:50%; background:var(--proto); color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:13px; font-weight:700; }
+.banner .text { font-size:12.5px; color:var(--t1); line-height:1.5; }
+.banner .text strong { display:block; margin-bottom:2px; }
+
+/* Two-column layout: list on left, editor on right */
+.template-layout { display:grid; grid-template-columns:340px 1fr; gap:18px; align-items:flex-start; }
+.template-list-card { background:var(--surface); border:0.5px solid var(--bdr); border-radius:10px; overflow:hidden; }
+.tlc-head { padding:12px 16px; border-bottom:0.5px solid var(--bdr); display:flex; justify-content:space-between; align-items:center; }
+.tlc-head .ttl { font-size:13px; font-weight:700; color:var(--t1); }
+.tlc-head .sub { font-size:10px; color:var(--t3); margin-top:1px; }
+.tlc-list { max-height:600px; overflow-y:auto; }
+.tl-item { padding:12px 16px; border-bottom:0.5px solid var(--bdr); cursor:pointer; transition:all .12s; }
+.tl-item:hover { background:var(--brand-l); }
+.tl-item.active { background:var(--brand-l); border-left:3px solid var(--brand); padding-left:13px; }
+.tl-item .name { font-size:13px; font-weight:600; color:var(--t1); }
+.tl-item .desc { font-size:11px; color:var(--t2); margin-top:2px; line-height:1.4; }
+.tl-item .meta { font-size:10px; color:var(--t3); margin-top:6px; display:flex; gap:8px; }
+.tl-item .meta .badge { background:var(--bdr); padding:1px 6px; border-radius:4px; font-weight:600; }
+.tl-item .meta .badge.archived { background:#f3f4f6; color:#6b7280; }
+
+.editor-card { background:var(--surface); border:0.5px solid var(--bdr); border-radius:10px; }
+.ec-head { padding:14px 18px; border-bottom:0.5px solid var(--bdr); display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.ec-head .ttl { font-size:14px; font-weight:700; color:var(--t1); }
+.ec-head .sub { font-size:11px; color:var(--t3); margin-top:1px; }
+.ec-body { padding:18px; }
+.field { margin-bottom:14px; }
+.field-label { font-size:11px; font-weight:700; color:var(--t2); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:5px; }
+.field input[type=text], .field textarea {
+  width:100%; padding:8px 10px; border:0.5px solid var(--bdr-d); border-radius:6px;
+  font-family:inherit; font-size:13px; color:var(--t1); background:var(--surface); outline:none;
+}
+.field input[type=text]:focus, .field textarea:focus { border-color:var(--brand); }
+.field textarea { font-family:'SF Mono', Monaco, 'Inconsolata', monospace; font-size:12.5px; line-height:1.6; resize:vertical; min-height:280px; }
+.field-help { font-size:11px; color:var(--t3); margin-top:4px; }
+
+.merge-fields { background:#faf5ff; border:0.5px solid #e9d5ff; border-radius:6px; padding:10px 14px; margin-bottom:14px; }
+.merge-fields .lbl { font-size:10px; font-weight:700; color:#7e22ce; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+.merge-fields .chips { display:flex; flex-wrap:wrap; gap:5px; }
+.merge-chip { font-size:10.5px; font-family:monospace; background:#fff; border:0.5px solid #e9d5ff; padding:2px 7px; border-radius:4px; cursor:pointer; color:#7e22ce; transition:all .12s; }
+.merge-chip:hover { background:#7e22ce; color:#fff; }
+
+.empty-state { padding:60px 20px; text-align:center; color:var(--t3); }
+.empty-state .ic { font-size:32px; margin-bottom:12px; opacity:0.6; }
+.empty-state .ttl { font-size:14px; font-weight:600; color:var(--t2); margin-bottom:4px; }
+.empty-state .sub { font-size:12px; }
+
+.action-footer { padding:12px 18px; border-top:0.5px solid var(--bdr); display:flex; gap:8px; align-items:center; }
+.action-footer .meta { font-size:11px; color:var(--t3); margin-right:auto; }
+
+.workspace-strip { background:var(--brand-l); border:0.5px solid var(--brand-mid); border-radius:6px; padding:8px 12px; margin-bottom:14px; display:flex; align-items:center; gap:8px; font-size:12px; }
+.workspace-strip .pill { background:var(--brand-d); color:#fff; padding:1px 7px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.3px; }
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Charlotte Williams · Prescriber</span></div>
+</header>
+
+<div class="shell">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="bc"><a href="livera_settings_landing.html">Settings</a> › GP Letter Templates</div>
+        <div class="ttl">GP Letter Templates</div>
+        <div class="sub">Reusable content snippets that prescribers can pull into the letter compose screen · per-clinic library</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn" onclick="window.location.href='livera_prototype_14_gp_letters.html'">← Back to GP Letters</button>
+        <button class="btn primary" onclick="newTemplate()">＋ New template</button>
+      </div>
+    </div>
+
+    <div class="workspace-strip">
+      <span class="pill">VSC</span>
+      <span style="color:var(--t2)">These templates are visible only in this workspace. FeelTru manages its own template library separately.</span>
+    </div>
+
+    <div class="banner">
+      <div class="ic">i</div>
+      <div class="text">
+        <strong>Templates are content shortcuts, not letter types.</strong>
+        Each template is a saved piece of content the prescriber can pull into a new letter. There's no automatic letter-type detection. The prescriber chooses what content to use for each letter, edits as needed, and sends. Use merge fields like <code style="background:#fff;padding:1px 4px;border-radius:3px;font-size:11px;">{{patient_name}}</code> for personalisation.
+      </div>
+    </div>
+
+    <div class="template-layout">
+
+      <!-- Left: template list -->
+      <div class="template-list-card">
+        <div class="tlc-head">
+          <div>
+            <div class="ttl">Templates</div>
+            <div class="sub" id="template-count">— templates</div>
+          </div>
+        </div>
+        <div class="tlc-list" id="template-list"></div>
+      </div>
+
+      <!-- Right: editor -->
+      <div class="editor-card" id="editor-card">
+        <div class="empty-state" id="empty-state">
+          <div class="ic">📑</div>
+          <div class="ttl">No template selected</div>
+          <div class="sub">Pick one from the list, or create a new template.</div>
+        </div>
+
+        <div id="editor-form" style="display:none;">
+          <div class="ec-head">
+            <div>
+              <div class="ttl" id="editor-title">Edit template</div>
+              <div class="sub" id="editor-meta">—</div>
+            </div>
+            <button class="btn" id="archive-btn" onclick="toggleArchive()">Archive</button>
+          </div>
+
+          <div class="ec-body">
+            <div class="field">
+              <label class="field-label">Template name</label>
+              <input type="text" id="t-name" placeholder="e.g. First prescription notification">
+              <div class="field-help">Internal name shown in the picker on the compose screen. Keep it short.</div>
+            </div>
+
+            <div class="field">
+              <label class="field-label">Description (optional)</label>
+              <input type="text" id="t-desc" placeholder="e.g. Standard letter sent to GP at start of treatment">
+              <div class="field-help">What this template is for. Helps colleagues choose the right one.</div>
+            </div>
+
+            <div class="merge-fields">
+              <div class="lbl">Available merge fields — click to copy</div>
+              <div class="chips">
+                <span class="merge-chip" onclick="copyMerge(this)">{{patient_name}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{patient_dob}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{patient_address}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{prescriber_name}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{prescriber_role}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{prescriber_nmc}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{treatment}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{dose}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{order_id}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{order_date}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{bmi}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{gp_name}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{gp_address}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{clinic_name}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{clinic_address}}</span>
+                <span class="merge-chip" onclick="copyMerge(this)">{{today}}</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field-label">Template content</label>
+              <textarea id="t-body" placeholder="Type or paste your template content here. Use merge fields to insert patient/order details when the letter is composed."></textarea>
+              <div class="field-help">Markdown supported. The prescriber can edit any part of this when composing the actual letter.</div>
+            </div>
+          </div>
+
+          <div class="action-footer">
+            <span class="meta" id="meta-line">—</span>
+            <button class="btn" onclick="discardChanges()">Discard</button>
+            <button class="btn primary" onclick="saveTemplate()">💾 Save template</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+const TEMPLATES = [
+  {
+    id: 'tpl-001',
+    name: 'First prescription — Mounjaro initiation',
+    desc: 'Standard letter sent to GP when patient starts Mounjaro for the first time',
+    body: `Dear Dr {{gp_name}},
+
+I am writing to inform you that your patient {{patient_name}} (DOB {{patient_dob}}) has commenced treatment with {{treatment}} {{dose}} for weight management at {{clinic_name}}.
+
+Treatment was initiated on {{order_date}} following a comprehensive assessment that included:
+- Confirmation of BMI eligibility ({{bmi}})
+- Review of past medical history
+- Identity and consent verification
+
+The patient has been counselled on potential side effects, and follow-up is arranged through our clinic. The patient has consented to this letter being sent to you.
+
+Please contact us if you have any concerns or queries.
+
+Yours sincerely,
+{{prescriber_name}}
+{{prescriber_role}} · NMC {{prescriber_nmc}}
+{{clinic_name}}
+{{clinic_address}}`,
+    createdBy: 'Charlotte Williams · PIP',
+    createdAt: '2026-02-15',
+    updatedBy: 'Charlotte Williams · PIP',
+    updatedAt: '2026-04-22',
+    archived: false,
+  },
+  {
+    id: 'tpl-002',
+    name: 'First prescription — Wegovy initiation',
+    desc: 'Standard letter sent to GP when patient starts Wegovy for the first time',
+    body: `Dear Dr {{gp_name}},
+
+I am writing to inform you that your patient {{patient_name}} (DOB {{patient_dob}}) has commenced treatment with Wegovy (semaglutide) {{dose}} for weight management at {{clinic_name}}.
+
+Treatment was initiated on {{order_date}} following NICE-aligned assessment criteria. BMI at initiation was {{bmi}}.
+
+The patient has consented to this notification. They have been counselled on side-effect profile and dose escalation schedule.
+
+Please feel free to contact me directly with any concerns.
+
+Yours sincerely,
+{{prescriber_name}}
+{{prescriber_role}}
+{{clinic_name}}`,
+    createdBy: 'Charlotte Williams · PIP',
+    createdAt: '2026-02-15',
+    updatedBy: 'Charlotte Williams · PIP',
+    updatedAt: '2026-04-22',
+    archived: false,
+  },
+  {
+    id: 'tpl-003',
+    name: 'Dose escalation notification',
+    desc: 'When a patient escalates to a higher GLP-1 dose',
+    body: `Dear Dr {{gp_name}},
+
+This is to update you that {{patient_name}} has had their {{treatment}} dose escalated to {{dose}} on {{order_date}}, in line with the standard titration schedule.
+
+Tolerability has been satisfactory and weight-loss progression is being monitored.
+
+Yours sincerely,
+{{prescriber_name}}
+{{prescriber_role}}
+{{clinic_name}}`,
+    createdBy: 'Charlotte Williams · PIP',
+    createdAt: '2026-03-08',
+    updatedBy: 'Charlotte Williams · PIP',
+    updatedAt: '2026-03-08',
+    archived: false,
+  },
+  {
+    id: 'tpl-004',
+    name: 'Treatment discontinuation',
+    desc: 'When treatment is stopped (patient choice, side effects, or clinical reason)',
+    body: `Dear Dr {{gp_name}},
+
+I am writing to inform you that {{patient_name}} has discontinued {{treatment}} as of {{today}}.
+
+[Reason for discontinuation — please edit before sending]
+
+The patient is no longer under our care for this medication. Please update your records.
+
+Yours sincerely,
+{{prescriber_name}}
+{{prescriber_role}}
+{{clinic_name}}`,
+    createdBy: 'Charlotte Williams · PIP',
+    createdAt: '2026-03-12',
+    updatedBy: 'Charlotte Williams · PIP',
+    updatedAt: '2026-03-12',
+    archived: false,
+  },
+  {
+    id: 'tpl-005',
+    name: 'Safeguarding referral',
+    desc: 'When a safeguarding concern needs to be raised with the GP',
+    body: `Dear Dr {{gp_name}},
+
+This letter concerns your patient {{patient_name}} (DOB {{patient_dob}}).
+
+[Detail of safeguarding concern — please edit carefully before sending]
+
+I would appreciate your assessment and any follow-up you feel is appropriate. I am happy to discuss this case in more detail.
+
+Yours sincerely,
+{{prescriber_name}}
+{{prescriber_role}}
+{{clinic_name}}`,
+    createdBy: 'Charlotte Williams · PIP',
+    createdAt: '2026-04-01',
+    updatedBy: 'Charlotte Williams · PIP',
+    updatedAt: '2026-04-01',
+    archived: false,
+  },
+  {
+    id: 'tpl-006',
+    name: '[ARCHIVED] Old initial Rx (pre-Apr 2026)',
+    desc: 'Superseded by tpl-001 / tpl-002',
+    body: '(Archived — kept for audit reference)',
+    createdBy: 'Claire Moynehan',
+    createdAt: '2026-03-04',
+    updatedBy: 'Charlotte Williams · PIP',
+    updatedAt: '2026-04-22',
+    archived: true,
+  },
+];
+
+let activeTemplateId = null;
+let isDirty = false;
+
+function renderList() {
+  const list = document.getElementById('template-list');
+  const visible = TEMPLATES;
+  document.getElementById('template-count').textContent = `${visible.filter(t => !t.archived).length} active · ${visible.filter(t => t.archived).length} archived`;
+  
+  list.innerHTML = visible.map(t => `
+    <div class="tl-item ${activeTemplateId === t.id ? 'active' : ''}" onclick="selectTemplate('${t.id}')">
+      <div class="name">${t.name}</div>
+      <div class="desc">${t.desc}</div>
+      <div class="meta">
+        <span class="badge ${t.archived ? 'archived' : ''}">${t.archived ? 'Archived' : 'Active'}</span>
+        <span>Updated ${t.updatedAt}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectTemplate(id) {
+  if (isDirty && !confirm('You have unsaved changes. Discard?')) return;
+  activeTemplateId = id;
+  isDirty = false;
+  
+  const t = TEMPLATES.find(x => x.id === id);
+  if (!t) return;
+  
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('editor-form').style.display = 'block';
+  document.getElementById('editor-title').textContent = t.name;
+  document.getElementById('editor-meta').textContent = `${t.id} · last updated ${t.updatedAt} by ${t.updatedBy}`;
+  document.getElementById('t-name').value = t.name;
+  document.getElementById('t-desc').value = t.desc;
+  document.getElementById('t-body').value = t.body;
+  document.getElementById('meta-line').textContent = `Created ${t.createdAt} by ${t.createdBy}`;
+  document.getElementById('archive-btn').textContent = t.archived ? 'Restore' : 'Archive';
+  
+  renderList();
+}
+
+function newTemplate() {
+  if (isDirty && !confirm('You have unsaved changes. Discard?')) return;
+  activeTemplateId = 'new';
+  isDirty = false;
+  
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('editor-form').style.display = 'block';
+  document.getElementById('editor-title').textContent = 'New template';
+  document.getElementById('editor-meta').textContent = '(unsaved)';
+  document.getElementById('t-name').value = '';
+  document.getElementById('t-desc').value = '';
+  document.getElementById('t-body').value = '';
+  document.getElementById('meta-line').textContent = '(new template)';
+  document.getElementById('archive-btn').textContent = 'Archive';
+  document.getElementById('archive-btn').style.display = 'none';
+  
+  renderList();
+}
+
+function saveTemplate() {
+  alert('Stub: template saved.\n\nName: ' + document.getElementById('t-name').value + '\nAudit: saved by Charlotte Williams · ' + new Date().toLocaleString());
+  isDirty = false;
+}
+
+function discardChanges() {
+  if (!confirm('Discard all changes?')) return;
+  if (activeTemplateId === 'new') {
+    activeTemplateId = null;
+    document.getElementById('empty-state').style.display = 'block';
+    document.getElementById('editor-form').style.display = 'none';
+  } else {
+    selectTemplate(activeTemplateId);
+  }
+  isDirty = false;
+}
+
+function toggleArchive() {
+  const t = TEMPLATES.find(x => x.id === activeTemplateId);
+  if (!t) return;
+  const action = t.archived ? 'restore' : 'archive';
+  if (!confirm(`${action[0].toUpperCase() + action.slice(1)} this template? Audit logged.`)) return;
+  alert(`Stub: template ${action}d.`);
+}
+
+function copyMerge(el) {
+  navigator.clipboard?.writeText(el.textContent);
+  el.style.background = '#7e22ce';
+  el.style.color = '#fff';
+  setTimeout(() => { el.style.background=''; el.style.color=''; }, 600);
+}
+
+['t-name', 't-desc', 't-body'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => { isDirty = true; });
+});
+
+renderList();
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

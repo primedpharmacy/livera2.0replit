@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Consultation types</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --surface:#ffffff; --bg:#f1f0ef; --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --coach:#0ea5e9; --coach-bg:#e0f2fe; --coach-bdr:#7dd3fc;
+  --welcome:#8b5cf6; --welcome-bg:#f5f3ff; --welcome-bdr:#c4b5fd;
+  --clinical:#10b981; --clinical-bg:#ecfdf5; --clinical-bdr:#86efac;
+  --followup:#f59e0b; --followup-bg:#fffbeb; --followup-bdr:#fde68a;
+}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--coach),var(--brand-d));display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;color:#fff}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-info .sub code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11.5px}
+.pg-info .sub a{color:var(--brand);text-decoration:none;font-weight:600}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:.12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);color:#fff}
+
+.notice{background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;gap:10px;font-size:12.5px;color:#1e3a8a;line-height:1.5}
+.notice strong{display:block;margin-bottom:3px;color:#1e40af}
+
+/* Type cards */
+.types-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.type-card{background:var(--surface);border:1px solid var(--bdr);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.type-card.disabled{opacity:.6;background:#fafafa}
+.type-card-h{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px}
+.type-card-h .icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex-shrink:0}
+.type-card-h .icon.coach{background:var(--coach)}
+.type-card-h .icon.welcome{background:var(--welcome)}
+.type-card-h .icon.clinical{background:var(--clinical)}
+.type-card-h .icon.followup{background:var(--followup)}
+.type-card-h .name{flex:1}
+.type-card-h .name .nm{font-size:14px;font-weight:700;color:var(--t1)}
+.type-card-h .name .nsub{font-size:11px;color:var(--t2);margin-top:2px}
+.type-card-h .toggle{flex-shrink:0}
+.toggle{display:inline-flex;align-items:center;gap:0}
+.toggle input{appearance:none;width:34px;height:20px;background:#cbd5e1;border-radius:999px;position:relative;cursor:pointer;transition:.15s;flex-shrink:0}
+.toggle input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.15s}
+.toggle input:checked{background:var(--brand)}
+.toggle input:checked::after{left:16px}
+.type-card-b{padding:16px 18px;flex:1}
+.type-card-b .row{display:grid;grid-template-columns:120px 1fr;gap:8px 14px;font-size:12.5px;align-items:center;margin-bottom:9px}
+.type-card-b .row:last-child{margin-bottom:0}
+.type-card-b .lbl{color:var(--t2);font-weight:600;font-size:11.5px}
+.type-card-b .val{color:var(--t1)}
+.type-card-b select,.type-card-b input[type=number],.type-card-b input[type=text]{padding:5px 9px;border:1px solid var(--bdr-d);border-radius:5px;font-size:12px;font-family:inherit;background:#fff;width:100%}
+.type-card-b .pills{display:inline-flex;gap:5px;flex-wrap:wrap}
+.type-card-b .pill{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:3px;background:var(--bg);color:var(--t2);border:0.5px solid var(--bdr)}
+.type-card-b .pill.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-bdr)}
+.type-card-b .pill.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-bdr)}
+.type-card-b .pill.disabled{background:#f3f4f6;color:var(--t3)}
+.type-card-b .pill.gmeet{background:#e0f7f4;color:#00897b;border-color:#99f6e4}
+.type-card-b .pill.intercom{background:#eff6ff;color:#286efa;border-color:#bfdbfe}
+.type-card-f{padding:10px 18px;border-top:0.5px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;background:#fafafa}
+.type-card-f .stats{font-size:11px;color:var(--t3)}
+.type-card-f a{font-size:11px;color:var(--brand);text-decoration:none;font-weight:600}
+
+/* Add-new card */
+.add-card{background:var(--surface);border:1.5px dashed var(--bdr-d);border-radius:10px;padding:30px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--t3);transition:.15s}
+.add-card:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-l)}
+.add-card .ai{font-size:32px;margin-bottom:6px}
+.add-card .at{font-size:13px;font-weight:600}
+.add-card .as{font-size:11px;margin-top:3px}
+
+/* Provider section */
+.provider-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.prov-card{background:var(--surface);border:1px solid var(--bdr);border-radius:10px;padding:14px 16px}
+.prov-card.connected{border-color:var(--ok-bdr);background:linear-gradient(180deg,var(--ok-bg) 0%,var(--surface) 60%)}
+.prov-card.pending{opacity:.7}
+.prov-h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.prov-icon{width:30px;height:30px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--bg);font-size:14px}
+.prov-name{font-size:13px;font-weight:700;color:var(--t1);flex:1}
+.prov-status{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px}
+.prov-status.connected{background:var(--ok-bg);color:var(--ok);border:0.5px solid var(--ok-bdr)}
+.prov-status.pending{background:var(--warn-bg);color:var(--warn);border:0.5px solid var(--warn-bdr)}
+.prov-status.disabled{background:#f3f4f6;color:var(--t3);border:0.5px solid var(--bdr)}
+.prov-card .pdesc{font-size:11.5px;color:var(--t2);line-height:1.5;margin-bottom:8px}
+.prov-card .plink{font-size:11px;color:var(--brand-d);font-weight:600;text-decoration:none}
+
+.foot-banner{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 18px;font-size:12px;color:var(--t2);line-height:1.55;margin-top:24px}
+.foot-banner code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11px}
+.foot-banner a{color:var(--brand-d);text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <button class="ws-trigger"><span>Workspace:</span><strong>FeelTru</strong><span style="margin-left:6px">▼</span></button>
+  <div class="role"><span>Role:</span><span class="role-pill">Owner</span></div>
+</div>
+
+<div class="layout">
+
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients</a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders</a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check</a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments</a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks</a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls</a>
+    <a href="livera_scr_schedule_calendar.html"><span class="ico">📅</span>Schedule</a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints</a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents</a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Livera</a><span class="sep">›</span>
+      <a href="livera_settings_landing.html">Settings</a><span class="sep">›</span>
+      <span class="cur">Consultation types</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">📅</div>
+      <div class="pg-info">
+        <h1>
+          Consultation types
+          <span class="bld-pill">BLD-CONS-SETTINGS-01</span>
+        </h1>
+        <div class="sub">
+          Define what consultation types this clinic offers, the modality and provider for each, default duration, and recording posture · DEC-40 · Foundation for the <a href="livera_scr_schedule_calendar.html">Schedule</a> + <a href="livera_scr_consultation_detail.html">Consultation detail</a> screens
+        </div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn">Cancel</button>
+        <button class="btn primary">Save changes</button>
+      </div>
+    </div>
+
+    <div class="notice">
+      <span style="font-size:18px;">📋</span>
+      <div>
+        <strong>How consultation types work</strong>
+        Each type is a template — defines modality (video/phone/chat), provider (Google Meet, Intercom Phone), default duration, who can deliver it (which roles), how patients book it (admin-scheduled vs patient-self-served via Calendly), and recording posture. Patients see only the types you enable. Disabling a type hides it from new bookings but preserves all historical records. Changes audit-logged to AUD-04.
+      </div>
+    </div>
+
+    <div class="types-grid">
+
+      <!-- Welcome call -->
+      <div class="type-card">
+        <div class="type-card-h">
+          <div class="icon welcome">📞</div>
+          <div class="name">
+            <div class="nm">Welcome call</div>
+            <div class="nsub">First-order welcome contact · admin-led</div>
+          </div>
+          <span class="toggle"><input type="checkbox" checked></span>
+        </div>
+        <div class="type-card-b">
+          <div class="row">
+            <span class="lbl">Modality</span>
+            <span class="val">
+              <select><option>Phone</option><option>Video</option><option>Chat</option></select>
+            </span>
+          </div>
+          <div class="row">
+            <span class="lbl">Provider</span>
+            <span class="val">
+              <select><option>Intercom Phone (pending eligibility)</option><option>Twilio Voice (fallback)</option><option>Off-platform mobile</option></select>
+            </span>
+          </div>
+          <div class="row">
+            <span class="lbl">Duration</span>
+            <span class="val"><input type="number" value="30" min="5" max="120" style="width:70px"> min</span>
+          </div>
+          <div class="row">
+            <span class="lbl">Delivered by</span>
+            <span class="val"><span class="pills"><span class="pill">Admin</span><span class="pill">Owner</span></span></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Booking model</span>
+            <span class="val">
+              <select><option>Admin-scheduled (default)</option><option>Patient self-book via Calendly</option></select>
+            </span>
+          </div>
+          <div class="row">
+            <span class="lbl">Trigger</span>
+            <span class="val" style="font-size:11.5px">Auto-queued on first dispatch · routed to Welcome Call Queue</span>
+          </div>
+          <div class="row">
+            <span class="lbl">Recording</span>
+            <span class="val"><span class="pill disabled">Disabled</span> <span style="font-size:11px;color:var(--t3);margin-left:6px">V1 default per DEC-40</span></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Identity check</span>
+            <span class="val"><span class="pill warn">Verbal verification</span></span>
+          </div>
+        </div>
+        <div class="type-card-f">
+          <span class="stats">3 scheduled this week · avg 28min · 92% completed</span>
+          <a href="livera_scr_welcome_call_queue.html">Open queue →</a>
+        </div>
+      </div>
+
+      <!-- Coaching session -->
+      <div class="type-card">
+        <div class="type-card-h">
+          <div class="icon coach">🎥</div>
+          <div class="name">
+            <div class="nm">Coaching session</div>
+            <div class="nsub">Routine check-in with coach · patient self-books</div>
+          </div>
+          <span class="toggle"><input type="checkbox" checked></span>
+        </div>
+        <div class="type-card-b">
+          <div class="row">
+            <span class="lbl">Modality</span>
+            <span class="val"><select><option>Video</option><option>Phone</option></select></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Provider</span>
+            <span class="val"><select><option>Google Meet (via Calendly)</option><option>Whereby Embedded (V1.5)</option></select></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Duration</span>
+            <span class="val"><input type="number" value="30" min="5" max="120" style="width:70px"> min</span>
+          </div>
+          <div class="row">
+            <span class="lbl">Delivered by</span>
+            <span class="val"><span class="pills"><span class="pill">Coach</span></span></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Booking model</span>
+            <span class="val"><select><option>Patient self-book via Calendly</option><option>Admin-scheduled</option></select></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Trigger</span>
+            <span class="val" style="font-size:11.5px">Patient invited via email/FCM after first dispatch (FeelTru pull model)</span>
+          </div>
+          <div class="row">
+            <span class="lbl">Recording</span>
+            <span class="val"><span class="pill disabled">Disabled</span></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Clinical handover</span>
+            <span class="val" style="font-size:11.5px">Coach can flag clinical concerns to prescriber via coaching log</span>
+          </div>
+        </div>
+        <div class="type-card-f">
+          <span class="stats">5 scheduled this week · avg 28min · 1 no-show (28 Feb)</span>
+          <a href="livera_scr40_coach_dashboard.html">Coach dashboard →</a>
+        </div>
+      </div>
+
+      <!-- Clinical consult -->
+      <div class="type-card">
+        <div class="type-card-h">
+          <div class="icon clinical">🎥</div>
+          <div class="name">
+            <div class="nm">Clinical consult</div>
+            <div class="nsub">Prescriber-led · prescribing decisions</div>
+          </div>
+          <span class="toggle"><input type="checkbox" checked></span>
+        </div>
+        <div class="type-card-b">
+          <div class="row">
+            <span class="lbl">Modality</span>
+            <span class="val"><select><option>Video (preferred)</option><option>Phone</option></select></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Provider</span>
+            <span class="val"><select><option>Google Meet (via Calendly)</option></select></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Duration</span>
+            <span class="val"><input type="number" value="45" min="15" max="120" style="width:70px"> min</span>
+          </div>
+          <div class="row">
+            <span class="lbl">Delivered by</span>
+            <span class="val"><span class="pills"><span class="pill">Prescriber</span></span></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Booking model</span>
+            <span class="val"><select><option>Triggered by Clinical Check flag</option><option>Patient self-book via Calendly</option><option>Admin-scheduled</option></select></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Pre-consult</span>
+            <span class="val" style="font-size:11.5px">Auto-compiled patient summary (BLD-CONS-DETAIL-01)</span>
+          </div>
+          <div class="row">
+            <span class="lbl">Recording</span>
+            <span class="val"><span class="pill disabled">Disabled</span> <span style="font-size:11px;color:var(--t3);margin-left:6px">DEC-40 V1 — clinical note is record</span></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Identity check</span>
+            <span class="val"><span class="pill warn">Verbal + visual</span> <span style="font-size:11px;color:var(--t3);margin-left:6px">DEC-40 mandatory</span></span>
+          </div>
+        </div>
+        <div class="type-card-f">
+          <span class="stats">2 scheduled this week · avg 42min · 1 cancellation (P. Wells)</span>
+          <a href="livera_scr_consultation_detail.html">Sample detail →</a>
+        </div>
+      </div>
+
+      <!-- Follow-up -->
+      <div class="type-card">
+        <div class="type-card-h">
+          <div class="icon followup">📞</div>
+          <div class="name">
+            <div class="nm">Follow-up</div>
+            <div class="nsub">Post-incident or post-decision check-in</div>
+          </div>
+          <span class="toggle"><input type="checkbox" checked></span>
+        </div>
+        <div class="type-card-b">
+          <div class="row">
+            <span class="lbl">Modality</span>
+            <span class="val"><select><option>Phone</option><option>Video</option></select></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Provider</span>
+            <span class="val"><select><option>Intercom Phone</option><option>Google Meet (video)</option></select></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Duration</span>
+            <span class="val"><input type="number" value="20" min="5" max="60" style="width:70px"> min</span>
+          </div>
+          <div class="row">
+            <span class="lbl">Delivered by</span>
+            <span class="val"><span class="pills"><span class="pill">Prescriber</span><span class="pill">Admin</span></span></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Booking model</span>
+            <span class="val"><select><option>Admin-scheduled (manual)</option><option>Auto-booked from incident</option></select></span>
+          </div>
+          <div class="row">
+            <span class="lbl">Trigger</span>
+            <span class="val" style="font-size:11.5px">Triggered manually or auto from severity-Severe incidents</span>
+          </div>
+          <div class="row">
+            <span class="lbl">Recording</span>
+            <span class="val"><span class="pill disabled">Disabled</span></span>
+          </div>
+        </div>
+        <div class="type-card-f">
+          <span class="stats">1 scheduled this week · avg 18min · 100% completed (12mo)</span>
+          <a href="#">Open follow-ups →</a>
+        </div>
+      </div>
+
+      <!-- Disabled / future types preview -->
+      <div class="type-card disabled">
+        <div class="type-card-h">
+          <div class="icon" style="background:var(--t3)">💉</div>
+          <div class="name">
+            <div class="nm">Aesthetics consult</div>
+            <div class="nsub">For future aesthetics vertical · not enabled</div>
+          </div>
+          <span class="toggle"><input type="checkbox"></span>
+        </div>
+        <div class="type-card-b">
+          <div style="font-size:12px;color:var(--t2);line-height:1.5;padding:14px 0">
+            Type is defined in the Livera platform catalogue but not enabled for this clinic. Enable to add to the Schedule. Defaults: 30min video consult via Google Meet, delivered by Prescriber, recording disabled. Can be customised after enabling.
+          </div>
+        </div>
+        <div class="type-card-f">
+          <span class="stats">Available · not enabled for FeelTru</span>
+          <a href="#">Configure →</a>
+        </div>
+      </div>
+
+      <div class="add-card">
+        <div class="ai">+</div>
+        <div class="at">Add custom consultation type</div>
+        <div class="as">Define a new type for this clinic</div>
+      </div>
+
+    </div>
+
+    <h2 style="font-size:14px;font-weight:700;color:var(--t1);margin:30px 0 14px;letter-spacing:-0.2px">Connected providers</h2>
+
+    <div class="provider-grid">
+
+      <div class="prov-card connected">
+        <div class="prov-h">
+          <div class="prov-icon">📅</div>
+          <div class="prov-name">Calendly</div>
+          <span class="prov-status connected">✓ Connected</span>
+        </div>
+        <div class="pdesc">Scheduling layer · invitee.created/canceled/no_show webhooks live · per-clinic event types defined</div>
+        <a href="livera_settings_calendly.html" class="plink">Configure →</a>
+      </div>
+
+      <div class="prov-card connected">
+        <div class="prov-h">
+          <div class="prov-icon">
+            <svg width="18" height="18" viewBox="0 0 87 72" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#00897B" d="M49.5 36 59 46.7l12.7 8.1 2.2-18.8-2.2-18.4L58.7 24.8z"/>
+              <path fill="#0066DA" d="M0 51.5V64.5c0 3 2.4 5.4 5.4 5.4h14L22 60l-2.7-9.4H10z"/>
+              <path fill="#E94235" d="M19.4 2 0 21.4l9.4 9 9.9 1.6V21.4z"/>
+              <path fill="#FFBA00" d="M19.4 21.4H0v29.1h19.4z"/>
+              <path fill="#188038" d="M81.6 9.7 71.7 17.5v37.3l9.9 7.7c2.7 0 5.4-2.4 5.4-5.4v-42c0-3-2.7-5.4-5.4-5.4z"/>
+              <path fill="#1967D2" d="M59 24.8v22.4l-9.5-10.3v-12c0-3 2.4-5.4 5.4-5.4h21.8l-2.7 5.4z"/>
+              <path fill="#34A853" d="M19.4 70h35.5c3 0 5.4-2.4 5.4-5.4v-9.8L49.5 47.2 38.7 38l-19.3 1.7z"/>
+            </svg>
+          </div>
+          <div class="prov-name">Google Workspace</div>
+          <span class="prov-status connected">✓ Business Standard</span>
+        </div>
+        <div class="pdesc">Google Meet via Calendly OAuth · DPA on file · recording disabled at admin level · DEC-40 compliance</div>
+        <a href="livera_settings_google_workspace.html" class="plink">Configure →</a>
+      </div>
+
+      <div class="prov-card pending">
+        <div class="prov-h">
+          <div class="prov-icon">📞</div>
+          <div class="prov-name">Intercom Phone</div>
+          <span class="prov-status pending">⏳ Pending eligibility</span>
+        </div>
+        <div class="pdesc">Voice provider for welcome calls + follow-ups · awaiting workspace eligibility confirmation (DISC-INTERCOM-PHONE-01)</div>
+        <a href="livera_settings_intercom.html" class="plink">Configure →</a>
+      </div>
+
+      <div class="prov-card">
+        <div class="prov-h">
+          <div class="prov-icon">📞</div>
+          <div class="prov-name">Twilio Voice</div>
+          <span class="prov-status disabled">Not configured</span>
+        </div>
+        <div class="pdesc">Fallback voice provider if Intercom Phone eligibility lapses · per-minute pricing · UK numbers</div>
+        <a href="#" class="plink">Set up →</a>
+      </div>
+
+      <div class="prov-card">
+        <div class="prov-h">
+          <div class="prov-icon">🎥</div>
+          <div class="prov-name">Whereby Embedded</div>
+          <span class="prov-status disabled">V1.5</span>
+        </div>
+        <div class="pdesc">In-app embedded video for branded patient experience · UK-hosted · alternative to Google Meet · queued for V1.5</div>
+        <a href="#" class="plink">Roadmap →</a>
+      </div>
+
+      <div class="prov-card">
+        <div class="prov-h">
+          <div class="prov-icon">🎙️</div>
+          <div class="prov-name">Transcription</div>
+          <span class="prov-status disabled">V1.5</span>
+        </div>
+        <div class="pdesc">Heidi Health (clinical) + Whisper+Claude (general) for AI-assisted clinical notes from consultation transcripts · deferred to Phase 2</div>
+        <a href="#" class="plink">Roadmap →</a>
+      </div>
+
+    </div>
+
+    <div class="foot-banner">
+      <strong>Consultation types · BLD-CONS-SETTINGS-01 · DEC-40</strong> · Each type is a template feeding the unified <code>consultation</code> entity. Modality, provider, duration, recording posture, and identity check requirements are configurable per type per clinic. Types can be enabled/disabled without affecting historical records. Changes audit-logged to AUD-04 · CONFIG_CONSULTATION_TYPE entries. Visible to <code>Owner</code> and <code>RM</code> only — operational roles see consultation types as read-only on the Schedule. Companion screens: <a href="livera_scr_schedule_calendar.html">Schedule ↗</a> · <a href="livera_scr_consultation_detail.html">Consultation detail ↗</a> · <a href="livera_settings_google_workspace.html">Google Workspace integration ↗</a> · <a href="livera_settings_calendly.html">Calendly settings ↗</a>
+    </div>
+
+  </main>
+</div>
+
+</body>
+</html>

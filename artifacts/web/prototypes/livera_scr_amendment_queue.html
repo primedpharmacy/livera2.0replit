@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Amendment Requests</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb .cur{color:var(--t1);font-weight:600}
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#fef3c7 0%,#f59e0b 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(4, 1fr);gap:14px;margin-bottom:18px}
+.stat-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px}
+.stat-num{font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1.1}
+.stat-num.warn{color:var(--warn)}
+.stat-num.err{color:var(--err)}
+.stat-lbl{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+.stat-sub{font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4}
+
+/* Filter pills */
+.filter-bar{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.filter-bar .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3)}
+.filter-pill{padding:5px 11px;font-size:11.5px;font-weight:600;background:var(--bg);color:var(--t2);border:1px solid var(--bdr-d);border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:inherit;transition:.12s}
+.filter-pill:hover{border-color:var(--brand);color:var(--brand)}
+.filter-pill.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.filter-pill.on .count{background:rgba(255,255,255,.2);color:#fff}
+.filter-pill .count{font-size:10px;font-weight:700;background:var(--bdr);color:var(--t2);padding:1px 6px;border-radius:3px}
+.filter-bar .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+/* Queue table */
+.queue{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;overflow:hidden}
+.q-head{display:grid;grid-template-columns:200px 130px 1fr 120px 120px 110px;gap:12px;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--bdr);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3)}
+.q-row{display:grid;grid-template-columns:200px 130px 1fr 120px 120px 110px;gap:12px;padding:14px 16px;border-bottom:1px solid var(--bdr);align-items:center;cursor:pointer;transition:background .12s}
+.q-row:last-child{border-bottom:none}
+.q-row:hover{background:var(--brand-l)}
+.q-row.warm{background:rgba(245,158,11,0.04)}
+.q-row.warm:hover{background:rgba(245,158,11,0.10)}
+.q-row.breach{background:rgba(239,68,68,0.05)}
+.q-row.breach:hover{background:rgba(239,68,68,0.10)}
+
+.q-patient .name{font-size:13px;font-weight:600;color:var(--t1)}
+.q-patient .meta{font-size:10.5px;color:var(--t3);font-family:'SF Mono',Menlo,monospace;margin-top:2px}
+.q-patient .order{font-size:10.5px;color:var(--brand);font-family:'SF Mono',Menlo,monospace;margin-top:2px}
+
+.amend-type{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:4px;display:inline-flex;align-items:center;gap:5px;width:fit-content}
+.amend-type.dose-up{background:#fef3c7;color:#92400e;border:.5px solid #fde68a}
+.amend-type.med-switch{background:#e0f2fe;color:#0369a1;border:.5px solid #bae6fd}
+
+.amend-detail{font-size:12px;color:var(--t1);line-height:1.4}
+.amend-detail .arrow{color:var(--brand);font-weight:700;margin:0 6px}
+.amend-detail .reason{font-size:11px;color:var(--t2);margin-top:3px;font-style:italic;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+.payment-delta{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.payment-delta.charge{color:var(--warn)}
+.payment-delta.refund{color:var(--ok)}
+.payment-delta .lbl{font-size:9.5px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;display:block}
+
+.sla-cell{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.sla-cell.ok{color:var(--ok)}
+.sla-cell.warn{color:var(--warn)}
+.sla-cell.breach{color:var(--err)}
+.sla-cell .lbl{font-size:9.5px;font-weight:500;color:var(--t3);text-transform:uppercase;letter-spacing:.3px;margin-top:2px;display:block;font-weight:600}
+
+.q-action{text-align:right}
+.q-action .arrow-btn{font-size:11px;font-weight:600;color:var(--brand);padding:6px 10px;border:1px solid var(--brand);border-radius:6px;background:var(--surface);transition:.12s;display:inline-flex;align-items:center;gap:5px}
+.q-row:hover .arrow-btn{background:var(--brand);color:#fff}
+
+.empty{padding:60px 30px;text-align:center;color:var(--t3)}
+.empty .ico{font-size:36px;margin-bottom:10px}
+.empty .ttl{font-size:14px;font-weight:600;color:var(--t2);margin-bottom:4px}
+.empty .desc{font-size:12px;color:var(--t3)}
+
+/* Banner */
+.banner{background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:8px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:flex-start;gap:12px}
+.banner .ic{width:32px;height:32px;border-radius:8px;background:var(--info);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.banner .text{font-size:12px;color:var(--info);line-height:1.5}
+.banner .text strong{color:var(--t1);font-weight:600;display:block;margin-bottom:2px}
+.banner .text code{font-family:'SF Mono',Menlo,monospace;background:var(--info-bg);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Workspace switcher (canonical) */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;max-width:400px;width:92%;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.ws-confirm-head{padding:14px 18px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:30px;height:30px;border-radius:6px;background:#fef3c7;color:#d97706;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.ws-confirm-head h3{font-size:14px;color:#0f172a;font-weight:700}
+.ws-confirm-body{padding:14px 18px;font-size:12.5px;color:#475569;line-height:1.5}
+.ws-confirm-body p{margin-bottom:8px}
+.ws-confirm-foot{padding:10px 14px;background:#f9fafb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{font-size:12px;font-weight:600;padding:7px 14px;border-radius:6px;border:0.5px solid #d1d5db;background:#fff;color:#475569;cursor:pointer;font-family:inherit}
+.ws-confirm-foot button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <div class="ws">
+    <button class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-haspopup="true" aria-expanded="false">
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▼</span>
+    </button>
+    <div class="ws-popover" id="ws-popover">
+      <div class="wsp-section">
+        <div class="wsp-label">Current workspace</div>
+        <div class="wsp-current">
+          <div class="wsp-mark">VS</div>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · Pharmacist Independent Prescriber model</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd')">
+          <div class="wsp-mark alt">FT</div>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.</div>
+    </div>
+  </div>
+  <div class="role">
+    <span>Claire Moynehan</span>
+    <span class="role-pill">Prescriber</span>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html" class="active"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb"><span class="cur">Amendment requests</span></div>
+
+    <div class="pg-head">
+      <div class="pg-icon">🔄</div>
+      <div class="pg-info">
+        <h1>Amendment requests <span class="bld-pill">BLD-AMEND-01</span></h1>
+        <div class="sub">Held orders awaiting prescriber decision. <strong>Dose increase ≥4w</strong> and <strong>medication switch</strong> amendments enter this queue. Immediate amendments (dose decrease, supply changes) skip review and don't appear here.</div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Stub · would open Amendment SLA settings')">⚙ SLA settings</button>
+      </div>
+    </div>
+
+    <div class="banner">
+      <div class="ic">i</div>
+      <div class="text">
+        <strong>Distinct from Clinical Check Queue</strong>
+        These are <strong>existing approved orders</strong> where the patient has requested a change requiring prescriber review. Decisions are dose-increase or medication-switch only — not first-order approvals. SLA: 24h to decide. Server-side enforcement via <code>amendment_window=pre_dispensed</code> (DEC-01) — the API rejects amendments at <code>order.status=dispatched</code> regardless of UI state.
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-num">5</div>
+        <div class="stat-lbl">Held amendments</div>
+        <div class="stat-sub">Awaiting prescriber decision</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num warn">2</div>
+        <div class="stat-lbl">Warm (>12h)</div>
+        <div class="stat-sub">Amber tint applied</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num err">1</div>
+        <div class="stat-lbl">Breached (>24h)</div>
+        <div class="stat-sub">Red tint · escalate immediately</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">2.3h</div>
+        <div class="stat-lbl">Avg time to decision</div>
+        <div class="stat-sub">Last 7 days</div>
+      </div>
+    </div>
+
+    <!-- Filter pills -->
+    <div class="filter-bar">
+      <span class="lbl">Filter</span>
+      <button class="filter-pill on" onclick="setFilter('all', this)">All <span class="count">5</span></button>
+      <button class="filter-pill" onclick="setFilter('dose-up', this)">Dose increase <span class="count">3</span></button>
+      <button class="filter-pill" onclick="setFilter('med-switch', this)">Medication switch <span class="count">2</span></button>
+      <button class="filter-pill" onclick="setFilter('warm', this)">Awaiting &gt;12h <span class="count">2</span></button>
+      <span class="right">Auto-refresh every 60s · last refreshed 14:32</span>
+    </div>
+
+    <!-- Queue -->
+    <div class="queue">
+      <div class="q-head">
+        <span>Patient</span>
+        <span>Type</span>
+        <span>Amendment</span>
+        <span>Payment delta</span>
+        <span>SLA</span>
+        <span style="text-align:right">Action</span>
+      </div>
+
+      <!-- Row 1: Sarah Cookland — dose increase, recent -->
+      <div class="q-row" onclick="window.location.href='livera_scr_amendment_decision.html'">
+        <div class="q-patient">
+          <div class="name">Sarah Cookland</div>
+          <div class="meta">PT-00198 · F · 47</div>
+          <div class="order">ORD-00441</div>
+        </div>
+        <div><span class="amend-type dose-up">↑ Dose increase</span></div>
+        <div class="amend-detail">
+          <strong>Mounjaro 5mg</strong> <span class="arrow">→</span> <strong>7.5mg</strong>
+          <div class="reason">"Plateau on current dose, would like to discuss step up. Have been on 5mg for 6 weeks."</div>
+        </div>
+        <div class="payment-delta charge">+£30.00<span class="lbl">Capture pending</span></div>
+        <div class="sla-cell ok">3h 22m<span class="lbl">of 24h SLA</span></div>
+        <div class="q-action"><span class="arrow-btn">Decide →</span></div>
+      </div>
+
+      <!-- Row 2: Emily Watkins — medication switch, warm -->
+      <div class="q-row warm" onclick="showToast('Stub · would open decision screen for Emily Watkins')">
+        <div class="q-patient">
+          <div class="name">Emily Watkins</div>
+          <div class="meta">PT-00204 · F · 39</div>
+          <div class="order">ORD-00447</div>
+        </div>
+        <div><span class="amend-type med-switch">⇄ Med switch</span></div>
+        <div class="amend-detail">
+          <strong>Mounjaro 7.5mg</strong> <span class="arrow">→</span> <strong>Wegovy 1.0mg</strong>
+          <div class="reason">"Tolerating Mounjaro fine but would like to try Wegovy as my colleague has had great results. No side effects on current treatment."</div>
+        </div>
+        <div class="payment-delta charge">+£10.00<span class="lbl">Capture pending</span></div>
+        <div class="sla-cell warn">14h 08m<span class="lbl">of 24h SLA</span></div>
+        <div class="q-action"><span class="arrow-btn">Decide →</span></div>
+      </div>
+
+      <!-- Row 3: Beth Aldridge — dose increase, recent -->
+      <div class="q-row" onclick="showToast('Stub · would open decision screen for Beth Aldridge')">
+        <div class="q-patient">
+          <div class="name">Beth Aldridge</div>
+          <div class="meta">PT-00187 · F · 52</div>
+          <div class="order">ORD-00432</div>
+        </div>
+        <div><span class="amend-type dose-up">↑ Dose increase</span></div>
+        <div class="amend-detail">
+          <strong>Wegovy 0.5mg</strong> <span class="arrow">→</span> <strong>1.0mg</strong>
+          <div class="reason">"Have been on 0.5mg for 5 weeks, ready to step up per the schedule."</div>
+        </div>
+        <div class="payment-delta charge">+£0.00<span class="lbl">No price change</span></div>
+        <div class="sla-cell ok">5h 12m<span class="lbl">of 24h SLA</span></div>
+        <div class="q-action"><span class="arrow-btn">Decide →</span></div>
+      </div>
+
+      <!-- Row 4: Marcus Tomlinson — medication switch, warm -->
+      <div class="q-row warm" onclick="showToast('Stub · would open decision screen for Marcus Tomlinson')">
+        <div class="q-patient">
+          <div class="name">Marcus Tomlinson</div>
+          <div class="meta">PT-00163 · M · 44</div>
+          <div class="order">ORD-00408</div>
+        </div>
+        <div><span class="amend-type med-switch">⇄ Med switch</span></div>
+        <div class="amend-detail">
+          <strong>Wegovy 1.7mg</strong> <span class="arrow">→</span> <strong>Mounjaro 10mg</strong>
+          <div class="reason">"Plateau on Wegovy, also experiencing significant nausea. Would like to try Mounjaro per discussion at last consultation."</div>
+        </div>
+        <div class="payment-delta charge">+£10.00<span class="lbl">Capture pending</span></div>
+        <div class="sla-cell warn">18h 47m<span class="lbl">of 24h SLA</span></div>
+        <div class="q-action"><span class="arrow-btn">Decide →</span></div>
+      </div>
+
+      <!-- Row 5: David Reid — dose increase, breached -->
+      <div class="q-row breach" onclick="showToast('Stub · would open decision screen for David Reid')">
+        <div class="q-patient">
+          <div class="name">David Reid</div>
+          <div class="meta">PT-00142 · M · 51</div>
+          <div class="order">ORD-00388</div>
+        </div>
+        <div><span class="amend-type dose-up">↑ Dose increase</span></div>
+        <div class="amend-detail">
+          <strong>Mounjaro 10mg</strong> <span class="arrow">→</span> <strong>12.5mg</strong>
+          <div class="reason">"Hit the target plateau. Want to step up to next dose. No new side effects, weight loss has stalled for 3 weeks."</div>
+        </div>
+        <div class="payment-delta charge">+£30.00<span class="lbl">Capture pending</span></div>
+        <div class="sla-cell breach">26h 34m<span class="lbl">⚠ BREACHED</span></div>
+        <div class="q-action"><span class="arrow-btn">Decide →</span></div>
+      </div>
+
+    </div>
+
+    <div class="perm-note">
+      <strong>Amendment requests</strong> · BLD-AMEND-01 (DEC-36 / spec §10) · prescriber-facing queue for held orders. Visible to <code>Owner</code>, <code>RM</code>, <code>Prescriber</code> · all other roles hidden. Decisions invoke server-side amendment endpoints (<code>POST /amendments/&lt;id&gt;/decide</code>); Livera enforces <code>amendment_window</code> regardless of client state. SLA: 24h to decision (warm at 12h, breach at 24h) — clinic-customisable per BLD-SLA-CONFIG-01. Auto-refresh 60s. Filter state preserved per session. Click any row to open the Amendment Decision screen.
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head"><span class="ico">⇄</span><h3>Switch workspace?</h3></div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+function setFilter(key, btn){
+  document.querySelectorAll('.filter-pill').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on');
+  showToast('Filter: ' + btn.textContent.split(' ')[0]);
+}
+
+// Workspace switcher (canonical)
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover'); if(!p) return;
+  p.classList.toggle('open');
+  e.currentTarget.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){ document.getElementById('ws-confirm-overlay').classList.remove('open'); }
+function executeWsSwitch(){
+  alert('Demo stub: would sign out and reload into ' + document.getElementById('ws-confirm-target').textContent + '.');
+  closeWsConfirm();
+}
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Team members</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4;--gov:#a855f7;--gov-bg:#faf5ff;--gov-bdr:#e9d5ff}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+.main{flex:1;padding:24px 30px;max-width:1180px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}.crumb .cur{color:var(--t1);font-weight:600}
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#fce7f3 0%,#db2777 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+
+/* Filter bar */
+.filter-bar{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.filter-bar .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3)}
+.fb-group{display:flex;gap:0;border:1px solid var(--bdr-d);border-radius:6px;overflow:hidden}
+.fb-btn{padding:5px 11px;font-size:11px;background:var(--surface);color:var(--t2);border:none;cursor:pointer;font-family:inherit;border-right:1px solid var(--bdr-d);transition:all .12s}
+.fb-btn:last-child{border-right:none}
+.fb-btn.on{background:var(--brand);color:#fff}
+.fb-btn:hover:not(.on){background:var(--brand-l);color:var(--brand-d)}
+.filter-bar .search{margin-left:auto;padding:5px 10px;font-size:11.5px;border:1px solid var(--bdr-d);border-radius:5px;font-family:inherit;width:200px;background:var(--bg)}
+.filter-bar .search:focus{outline:none;border-color:var(--brand);background:var(--surface)}
+
+.team-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--bdr);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;margin-bottom:18px}
+.team-stat{background:var(--surface);padding:12px 14px}
+.team-stat .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3)}
+.team-stat .val{font-size:22px;font-weight:700;color:var(--t1);line-height:1;margin-top:5px;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.team-stat .meta{font-size:10px;color:var(--t2);margin-top:4px;line-height:1.35}
+
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+.tm-head{background:var(--bg);display:grid;grid-template-columns:42px 1.6fr 130px 90px 130px 110px 70px;padding:9px 18px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);border-bottom:1px solid var(--bdr);align-items:center;gap:0}
+.tm-row{display:grid;grid-template-columns:42px 1.6fr 130px 90px 130px 110px 70px;padding:11px 18px;border-bottom:1px solid var(--bdr);font-size:12.5px;align-items:center;gap:0;cursor:pointer;transition:background .12s}
+.tm-row:hover{background:var(--brand-l)}
+.tm-row:last-child{border-bottom:none}
+.tm-row .av{width:32px;height:32px;border-radius:50%;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:-.2px;flex-shrink:0}
+.tm-row .nm-block .nm{color:var(--t1);font-weight:600;line-height:1.2}
+.tm-row .nm-block .em{font-size:11px;color:var(--t3);margin-top:1px}
+.tm-row .role-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:3px;letter-spacing:.3px;width:fit-content}
+.tm-row .role-pill.owner{background:var(--gov-bg);color:var(--gov);border:.5px solid var(--gov-bdr)}
+.tm-row .role-pill.rm{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.tm-row .role-pill.admin{background:var(--brand-l);color:var(--brand-d);border:.5px solid var(--brand-mid)}
+.tm-row .role-pill.prescriber{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.tm-row .role-pill.coach{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.tm-row .role-pill.pharmacist{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.tm-row .clinic{font-size:11.5px;color:var(--t2)}
+.tm-row .clinic strong{color:var(--t1);font-weight:600}
+.tm-row .last-login{font-size:11px;color:var(--t3);font-variant-numeric:tabular-nums}
+.tm-row .stat{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.3px;width:fit-content;display:flex;align-items:center;gap:4px}
+.tm-row .stat::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
+.tm-row .stat.active{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.tm-row .stat.invited{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.tm-row .stat.suspended{background:var(--bg);color:var(--t3);border:.5px solid var(--bdr-d)}
+.tm-row .actions{text-align:right;font-size:11px;font-weight:600;color:var(--brand);cursor:pointer}
+
+.invite-card{background:var(--brand-l);border:1px solid var(--brand-mid);border-radius:8px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px}
+.invite-card .ic{width:40px;height:40px;border-radius:8px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700}
+.invite-card .text{flex:1}
+.invite-card .text .ttl{font-size:13px;font-weight:600;color:var(--t1)}
+.invite-card .text .desc{font-size:11.5px;color:var(--t2);margin-top:2px}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Dashboard</a><span class="sep">›</span>
+      <a href="livera_settings_landing.html">Settings</a><span class="sep">›</span>
+      <span class="cur">Team members</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">👥</div>
+      <div class="pg-info">
+        <h1>Team members <span class="bld-pill">BLD-1.x</span></h1>
+        <div class="sub">Invited users across both clinics · role assignment, status, last activity. Roles drive Permissions Matrix (BLD-16.7).</div>
+      </div>
+      <div class="pg-actions">
+        <a class="btn" href="livera_scr_roles_permissions.html">🔐 Permissions matrix</a>
+        <button class="btn primary" onclick="showToast('Stub · invite modal — email + role + clinic')">+ Invite member</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="team-stats">
+      <div class="team-stat">
+        <div class="lbl">Total members</div>
+        <div class="val">11</div>
+        <div class="meta">Across both clinics</div>
+      </div>
+      <div class="team-stat">
+        <div class="lbl">Active</div>
+        <div class="val" style="color:var(--ok)">9</div>
+        <div class="meta">Logged in last 30 days</div>
+      </div>
+      <div class="team-stat">
+        <div class="lbl">Invited</div>
+        <div class="val" style="color:var(--warn)">1</div>
+        <div class="meta">Awaiting first sign-in</div>
+      </div>
+      <div class="team-stat">
+        <div class="lbl">Suspended</div>
+        <div class="val" style="color:var(--t3)">1</div>
+        <div class="meta">Access revoked, retained for audit</div>
+      </div>
+      <div class="team-stat">
+        <div class="lbl">Prescribers</div>
+        <div class="val" style="color:var(--info)">5</div>
+        <div class="meta">PIP + NP combined</div>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <span class="lbl">Clinic</span>
+      <div class="fb-group">
+        <button class="fb-btn on">Both</button>
+        <button class="fb-btn">VSC</button>
+        <button class="fb-btn">FeelTru</button>
+      </div>
+      <span class="lbl" style="margin-left:8px">Role</span>
+      <div class="fb-group">
+        <button class="fb-btn on">All</button>
+        <button class="fb-btn">Owner</button>
+        <button class="fb-btn">RM</button>
+        <button class="fb-btn">Admin</button>
+        <button class="fb-btn">Prescriber</button>
+        <button class="fb-btn">Coach</button>
+      </div>
+      <span class="lbl" style="margin-left:8px">Status</span>
+      <div class="fb-group">
+        <button class="fb-btn on">All</button>
+        <button class="fb-btn">Active</button>
+        <button class="fb-btn">Invited</button>
+      </div>
+      <input class="search" placeholder="Search by name or email…">
+    </div>
+
+    <!-- Team list -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">👥 Members · 11 listed</div>
+        <div class="sub">Click any row to open user detail · roles editable · removal requires Owner approval</div>
+      </div>
+      <div style="padding:0">
+        <div class="tm-head">
+          <span></span>
+          <span>Member</span>
+          <span>Role</span>
+          <span>Clinic</span>
+          <span>Last login</span>
+          <span>Status</span>
+          <span style="text-align:right">Actions</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open Qadir profile')">
+          <span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span>
+          <span class="nm-block"><div class="nm">Qadir Hussain</div><div class="em">qadir@incognia.health</div></span>
+          <span><span class="role-pill owner">OWNER</span></span>
+          <span class="clinic"><strong>Both</strong></span>
+          <span class="last-login">Online now</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open Mobeen profile')">
+          <span class="av" style="background:linear-gradient(135deg,#fda4af,#be123c)">MA</span>
+          <span class="nm-block"><div class="nm">Mobeen Alam</div><div class="em">mobeen@feeltru.com</div></span>
+          <span><span class="role-pill rm">RM</span></span>
+          <span class="clinic"><strong>FeelTru</strong> + VSC observer</span>
+          <span class="last-login">2h ago</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open Charlotte profile')">
+          <span class="av" style="background:linear-gradient(135deg,#a5b4fc,#4338ca)">CW</span>
+          <span class="nm-block"><div class="nm">Charlotte Williams</div><div class="em">charlotte@thevirtualslimmingclinic.co.uk</div></span>
+          <span><span class="role-pill prescriber">PRESCRIBER</span></span>
+          <span class="clinic"><strong>VSC</strong> · PIP lead</span>
+          <span class="last-login">14:38 today</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open Claire profile')">
+          <span class="av" style="background:linear-gradient(135deg,#fbcfe8,#db2777)">CM</span>
+          <span class="nm-block"><div class="nm">Claire Moynehan</div><div class="em">claire@feeltru.com</div></span>
+          <span><span class="role-pill prescriber">PRESCRIBER</span></span>
+          <span class="clinic"><strong>FeelTru</strong> · NMC 1234567</span>
+          <span class="last-login">12:42 today</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open Olwyn profile')">
+          <span class="av" style="background:linear-gradient(135deg,#fcd34d,#b45309)">OS</span>
+          <span class="nm-block"><div class="nm">Olwyn Sutcliffe</div><div class="em">olwyn@feeltru.com</div></span>
+          <span><span class="role-pill coach">COACH</span></span>
+          <span class="clinic"><strong>FeelTru</strong></span>
+          <span class="last-login">11:14 today</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open Shahid profile')">
+          <span class="av" style="background:linear-gradient(135deg,#86efac,#15803d)">SM</span>
+          <span class="nm-block"><div class="nm">Shahid Mahmood</div><div class="em">shahid@primedpharmacy.co.uk</div></span>
+          <span><span class="role-pill pharmacist">PHARMACIST</span></span>
+          <span class="clinic"><strong>Both</strong> · Superintendent</span>
+          <span class="last-login">Yesterday 17:22</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open James profile')">
+          <span class="av" style="background:linear-gradient(135deg,#a5b4fc,#4338ca)">JK</span>
+          <span class="nm-block"><div class="nm">James Kirby</div><div class="em">jkirby@locumlink.com</div></span>
+          <span><span class="role-pill prescriber">PRESCRIBER</span></span>
+          <span class="clinic"><strong>VSC</strong> · PIP locum</span>
+          <span class="last-login">10:08 today</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open Rebecca profile')">
+          <span class="av" style="background:linear-gradient(135deg,#bbf7d0,#15803d)">RP</span>
+          <span class="nm-block"><div class="nm">Rebecca Patel</div><div class="em">rpatel@locumlink.com</div></span>
+          <span><span class="role-pill prescriber">PRESCRIBER</span></span>
+          <span class="clinic"><strong>VSC</strong> · PIP locum</span>
+          <span class="last-login">Yesterday 14:30</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open David profile')">
+          <span class="av" style="background:linear-gradient(135deg,#fed7aa,#c2410c)">DH</span>
+          <span class="nm-block"><div class="nm">David Holloway</div><div class="em">dholloway@locumlink.com</div></span>
+          <span><span class="role-pill prescriber">PRESCRIBER</span></span>
+          <span class="clinic"><strong>VSC</strong> · PIP locum</span>
+          <span class="last-login">3d ago</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open Punam profile')">
+          <span class="av" style="background:linear-gradient(135deg,#c4b5fd,#5b21b6)">PS</span>
+          <span class="nm-block"><div class="nm">Punam Sharma</div><div class="em">punam@incognia.health</div></span>
+          <span><span class="role-pill admin">ADMIN</span></span>
+          <span class="clinic"><strong>Both</strong> · ops</span>
+          <span class="last-login">09:44 today</span>
+          <span><span class="stat active">ACTIVE</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Edit')">Edit →</span>
+        </div>
+
+        <div class="tm-row" onclick="showToast('Open Thivera profile')">
+          <span class="av" style="background:linear-gradient(135deg,#fcd34d,#b45309)">TC</span>
+          <span class="nm-block"><div class="nm">Thivera Chandrapala</div><div class="em">thivera@incognia.health</div></span>
+          <span><span class="role-pill admin">ADMIN</span></span>
+          <span class="clinic"><strong>Both</strong> · GTM</span>
+          <span class="last-login">Pending invite</span>
+          <span><span class="stat invited">INVITED</span></span>
+          <span class="actions" onclick="event.stopPropagation();showToast('Resend invite')">Resend</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Role legend -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🔐 Role definitions</div>
+        <div class="sub">Roles drive the Permissions Matrix · BLD-16.7</div>
+        <div class="right"><a href="livera_scr_roles_permissions.html" style="color:var(--brand);text-decoration:none;font-weight:600;font-size:11px">Open full matrix →</a></div>
+      </div>
+      <div style="padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;font-size:11.5px;line-height:1.6">
+        <div><span class="role-pill owner" style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:3px;background:var(--gov-bg);color:var(--gov);border:.5px solid var(--gov-bdr);margin-right:6px">OWNER</span> Full read/write across all surfaces · clinic config · billing · sole role that can transfer ownership</div>
+        <div><span class="role-pill rm" style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:3px;background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr);margin-right:6px">RM</span> Registered Manager (CQC) · same as Owner minus billing · CQC governance owner</div>
+        <div><span class="role-pill admin" style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:3px;background:var(--brand-l);color:var(--brand-d);border:.5px solid var(--brand-mid);margin-right:6px">ADMIN</span> Read-only on most surfaces · cannot configure · can manage tasks and patient comms</div>
+        <div><span class="role-pill prescriber" style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:3px;background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr);margin-right:6px">PRESCRIBER</span> Clinical Check Queue · order approve/decline · GP letters · BMI evidence · proactive notes</div>
+        <div><span class="role-pill coach" style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:3px;background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr);margin-right:6px">COACH</span> Welcome Call Queue · coaching log · patient profile (assigned only) · no clinical decisions</div>
+        <div><span class="role-pill pharmacist" style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:3px;background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr);margin-right:6px">PHARMACIST</span> Pharmacy Comms tab · Group 6 surfaces · audit reports (read-only)</div>
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Team members</strong> · BLD-1.x · invited users with roles. Suspended users retain audit visibility but cannot sign in. Removing a member requires Owner approval and audit-logs the reason. Visible to <code>Owner</code> and <code>RM</code> · all other roles hidden. Editing roles or clinic assignments propagates within 5 minutes.
+    </div>
+
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

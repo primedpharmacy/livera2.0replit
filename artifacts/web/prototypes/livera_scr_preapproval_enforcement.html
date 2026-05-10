@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Amendment Window Enforcement (BLD-5.3)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+
+  .content { flex: 1; overflow-y: auto; padding: 24px 32px 32px; }
+  .page-head { margin-bottom: 22px; }
+  .page-title { font-size: 24px; font-weight: 700; color: var(--text-1); letter-spacing: -0.4px; }
+  .page-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; max-width: 760px; }
+
+  /* Status banner */
+  .status-banner { padding: 14px 18px; border-radius: var(--r-lg); margin-bottom: 22px; display: flex; align-items: center; gap: 14px; background: var(--brand-light); border: 0.5px solid rgba(99,102,241,0.3); }
+  .status-icon { font-size: 22px; flex-shrink: 0; }
+  .status-info { flex: 1; }
+  .status-title { font-size: 14px; font-weight: 700; color: var(--brand-dark); }
+  .status-sub { font-size: 12px; color: var(--text-2); margin-top: 3px; line-height: 1.5; }
+
+  /* Section heading */
+  .sec-head { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 10px; margin-top: 20px; display: flex; align-items: center; gap: 8px; }
+  .sec-head:first-child { margin-top: 0; }
+  .sec-head::after { content:''; flex:1; height:0.5px; background:var(--border); }
+
+  /* State machine card */
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); margin-bottom: 14px; overflow: hidden; }
+  .card-head { padding: 12px 18px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .card-sub { font-size: 11px; color: var(--text-3); }
+  .card-body { padding: 16px 18px; }
+
+  /* State machine viz */
+  .states { display: flex; align-items: stretch; gap: 0; padding: 12px 0; }
+  .state-cell { flex: 1; padding: 12px 10px; text-align: center; border-radius: var(--r-md); position: relative; min-width: 0; }
+  .state-cell.allow { background: var(--green-bg); border: 1px solid var(--green-border); }
+  .state-cell.block { background: var(--red-bg); border: 1px solid var(--red-border); }
+  .state-name { font-size: 12px; font-weight: 700; color: var(--text-1); }
+  .state-sub { font-size: 10px; color: var(--text-3); margin-top: 3px; }
+  .state-rule { font-size: 10px; font-weight: 600; margin-top: 6px; padding: 3px 8px; border-radius: 999px; display: inline-block; }
+  .state-rule.allow { background: #16a34a; color: #fff; }
+  .state-rule.block { background: #dc2626; color: #fff; }
+  .state-arrow { display: flex; align-items: center; justify-content: center; padding: 0 4px; color: var(--text-3); font-size: 16px; flex-shrink: 0; }
+
+  /* Endpoint table */
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; background: var(--surface-2); border-bottom: 0.5px solid var(--border); }
+  td { padding: 12px 14px; font-size: 12px; color: var(--text-1); border-bottom: 0.5px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .ep-method { font-family: ui-monospace, 'SF Mono', monospace; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: var(--brand-light); color: var(--brand-dark); display: inline-block; }
+  .ep-path { font-family: ui-monospace, 'SF Mono', monospace; font-size: 11px; color: var(--text-1); margin-top: 4px; word-break: break-all; }
+  .ep-allowed { display: flex; flex-wrap: wrap; gap: 3px; }
+  .ep-allowed-chip { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-border); white-space: nowrap; font-weight: 500; }
+  .ep-side { font-size: 11px; color: var(--text-2); line-height: 1.5; }
+  .ep-side code { font-family: ui-monospace, 'SF Mono', monospace; font-size: 10px; background: var(--surface-2); padding: 1px 4px; border-radius: 3px; color: var(--brand-dark); }
+
+  /* Code block */
+  .code-block { padding: 14px 16px; background: #1e1b4b; color: #c7d2fe; border-radius: var(--r-md); font-family: ui-monospace, 'SF Mono', monospace; font-size: 11px; line-height: 1.6; overflow-x: auto; white-space: pre; margin: 0; }
+  .code-comment { color: #818cf8; opacity: 0.75; }
+  .code-key { color: #a5b4fc; }
+  .code-str { color: #fcd34d; }
+  .code-num { color: #86efac; }
+
+  /* Test fixtures grid */
+  .fixtures { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .fixture { padding: 14px 16px; border-radius: var(--r-md); border: 0.5px solid; }
+  .fixture-pass { background: var(--green-bg); border-color: var(--green-border); }
+  .fixture-fail { background: var(--red-bg); border-color: var(--red-border); }
+  .fixture-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .fixture-icon { font-size: 16px; flex-shrink: 0; }
+  .fixture-title { font-size: 12px; font-weight: 700; flex: 1; }
+  .fixture-pass .fixture-title { color: var(--green); }
+  .fixture-fail .fixture-title { color: var(--red); }
+  .fixture-result { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .fixture-pass .fixture-result { background: #16a34a; color: #fff; }
+  .fixture-fail .fixture-result { background: #dc2626; color: #fff; }
+  .fixture-body { font-size: 11px; line-height: 1.55; color: var(--text-1); }
+  .fixture-step { display: flex; gap: 6px; margin-top: 4px; }
+  .fixture-step-k { font-weight: 600; color: var(--text-3); min-width: 60px; flex-shrink: 0; }
+  .fixture-step-v { color: var(--text-1); flex: 1; }
+  .fixture-pass .fixture-step-v code, .fixture-fail .fixture-step-v code { font-family: ui-monospace,'SF Mono',monospace; font-size: 10px; background: rgba(255,255,255,0.5); padding: 1px 4px; border-radius: 3px; }
+
+  /* Activity log */
+  .audit-row { padding: 10px 14px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); margin-bottom: 8px; }
+  .audit-row.blocked { background: var(--red-bg); border-color: var(--red-border); }
+  .audit-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .audit-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 999px; }
+  .audit-tag.blocked { background: #dc2626; color: #fff; }
+  .audit-time { font-size: 11px; color: var(--text-3); margin-left: auto; }
+  .audit-text { font-size: 12px; color: var(--text-1); }
+  .audit-evidence { margin-top: 6px; padding: 8px 10px; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-sm); font-family: ui-monospace,'SF Mono',monospace; font-size: 10px; line-height: 1.5; color: var(--text-2); }
+  .audit-evidence .k { color: var(--text-3); }
+  .audit-evidence .v { color: var(--text-1); font-weight: 500; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html" class="active"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_settings_landing.html">Settings</a>
+        <span class="sep">/</span>
+        <a href="livera_settings_landing.html">Operations</a>
+        <span class="sep">/</span>
+        <span class="cur">Amendment window enforcement</span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="page-head">
+        <div class="page-title">Amendment window enforcement</div>
+        <div class="page-sub">Server-side enforcement of the amendment window. Once an order reaches the locked state defined by <code style="background:var(--surface-2);padding:1px 5px;border-radius:3px;font-size:12px;">clinic_config.amendment_window</code>, no amendment endpoints will mutate the order — the API rejects with 403. Enforcement is evaluated server-side regardless of what the client sends, including UI state. <strong>DEC-01 locked:</strong> both VSC and FeelTru run on <code style="background:var(--surface-2);padding:1px 5px;border-radius:3px;font-size:12px;">pre_dispensed</code> (lock at Primed dispensing event). <code style="background:var(--surface-2);padding:1px 5px;border-radius:3px;font-size:12px;">pre_approval</code> retained as a config option for future third-party clinics without Primed API connection.</div>
+      </div>
+
+      <!-- Status banner -->
+      <div class="status-banner">
+        <div class="status-icon">🛡</div>
+        <div class="status-info">
+          <div class="status-title">Server-side enforcement is ACTIVE</div>
+          <div class="status-sub">All four amendment endpoints check <code style="background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;font-size:11px;">order.status</code> before mutating. Client-side gating is a UX nicety — the API is the source of truth. Past 30 days: <strong>2 attempts blocked</strong>, both correctly rejected with 403. No false negatives recorded.</div>
+        </div>
+      </div>
+
+      <!-- State machine -->
+      <div class="sec-head">State machine — when can an order be amended?</div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="states">
+            <div class="state-cell allow">
+              <div class="state-name">Clinical Check</div>
+              <div class="state-sub">Awaiting prescriber</div>
+              <div class="state-rule allow">✓ AMEND</div>
+            </div>
+            <div class="state-arrow">→</div>
+            <div class="state-cell allow">
+              <div class="state-name">Intervention</div>
+              <div class="state-sub">Flagged · paused</div>
+              <div class="state-rule allow">✓ AMEND</div>
+            </div>
+            <div class="state-arrow">→</div>
+            <div class="state-cell block">
+              <div class="state-name">Approved</div>
+              <div class="state-sub">Decision made</div>
+              <div class="state-rule block">✕ BLOCK</div>
+            </div>
+            <div class="state-arrow">→</div>
+            <div class="state-cell block">
+              <div class="state-name">Processing</div>
+              <div class="state-sub">Primed dispensing</div>
+              <div class="state-rule block">✕ BLOCK</div>
+            </div>
+            <div class="state-arrow">→</div>
+            <div class="state-cell block">
+              <div class="state-name">Dispatched</div>
+              <div class="state-sub">In transit</div>
+              <div class="state-rule block">✕ BLOCK</div>
+            </div>
+            <div class="state-arrow">→</div>
+            <div class="state-cell block">
+              <div class="state-name">Delivered</div>
+              <div class="state-sub">Complete</div>
+              <div class="state-rule block">✕ BLOCK</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding:10px 14px;background:var(--surface-2);border-radius:var(--r-sm);font-size:12px;color:var(--text-2);line-height:1.6;">
+            <strong style="color:var(--text-1);">The rule:</strong> under <code style="background:var(--surface);padding:1px 5px;border-radius:3px;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--brand-dark);">pre_dispensed</code> (DEC-01 locked, applies to both VSC and FeelTru), amendments are permitted while <code style="background:var(--surface);padding:1px 5px;border-radius:3px;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--brand-dark);">order.status ∈ ('clinical-check', 'intervention', 'approved', 'in-dispensing')</code>. Once Primed dispatches the order, the amendment window closes. Cancellations after dispatch require a Ryft refund flow — that's a separate code path with its own audit trail, not an "amendment". For dose-increase and medication-switch amendments, the order moves back to a held state pending prescriber decision; the dispatch is paused until decision.
+          </div>
+        </div>
+      </div>
+
+      <!-- Endpoints -->
+      <div class="sec-head">Amendment endpoints — guard logic</div>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:24%;">Endpoint</th>
+              <th style="width:22%;">Allowed states</th>
+              <th>Server guard</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="ep-method">PATCH</div>
+                <div class="ep-path">/orders/{id}/dose</div>
+              </td>
+              <td>
+                <div class="ep-allowed">
+                  <span class="ep-allowed-chip">clinical-check</span>
+                  <span class="ep-allowed-chip">intervention</span>
+                  <span class="ep-allowed-chip">approved</span>
+                  <span class="ep-allowed-chip">in-dispensing</span>
+                </div>
+              </td>
+              <td>
+                <div class="ep-side">Mutates dose in place. Dose decrease applies immediately (no prescriber review, Ryft refund processed). Dose increase requires ≥4 weeks on current dose AND prescriber review (order moves to held state, Ryft charge captured on approval). Dose increase &lt;4 weeks is rejected by client UI; server still enforces with 403 if attempted.<br>Guard: <code>requireOrderStatus(['clinical-check','intervention','approved','in-dispensing'])</code></div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="ep-method">PATCH</div>
+                <div class="ep-path">/orders/{id}/shipping-address</div>
+              </td>
+              <td>
+                <div class="ep-allowed">
+                  <span class="ep-allowed-chip">clinical-check</span>
+                  <span class="ep-allowed-chip">intervention</span>
+                  <span class="ep-allowed-chip">approved</span>
+                  <span class="ep-allowed-chip">in-dispensing</span>
+                </div>
+              </td>
+              <td>
+                <div class="ep-side">Updates the shipping address on the patient record before dispatch. After Primed dispatches, address is locked into the courier record — admins must contact the courier directly.<br>Guard: <code>requireOrderStatus(['clinical-check','intervention','approved','in-dispensing'])</code></div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="ep-method">PATCH</div>
+                <div class="ep-path">/orders/{id}/items</div>
+              </td>
+              <td>
+                <div class="ep-allowed">
+                  <span class="ep-allowed-chip">clinical-check</span>
+                  <span class="ep-allowed-chip">intervention</span>
+                  <span class="ep-allowed-chip">approved</span>
+                  <span class="ep-allowed-chip">in-dispensing</span>
+                </div>
+              </td>
+              <td>
+                <div class="ep-side">Add or remove add-ons (e.g. cold-chain packaging upgrade). Pure pre-dispatch change.<br>Guard: <code>requireOrderStatus(['clinical-check','intervention','approved','in-dispensing'])</code></div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="ep-method" style="background:var(--red-bg);color:var(--red-mid);">DELETE</div>
+                <div class="ep-path">/orders/{id}</div>
+              </td>
+              <td>
+                <div class="ep-allowed">
+                  <span class="ep-allowed-chip">clinical-check</span>
+                  <span class="ep-allowed-chip">intervention</span>
+                  <span class="ep-allowed-chip">approved</span>
+                  <span class="ep-allowed-chip">in-dispensing</span>
+                </div>
+              </td>
+              <td>
+                <div class="ep-side">Pre-dispatch cancel — if no charge has been captured yet (status = clinical-check or intervention), Ryft auth is released. If charge has been captured (status = approved or in-dispensing), Ryft refund is initiated. Post-dispatch cancellation goes through a separate <code>POST /orders/{id}/refund</code> endpoint with its own guards.<br>Guard: <code>requireOrderStatus(['clinical-check','intervention','approved','in-dispensing'])</code></div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Server middleware code -->
+      <div class="sec-head">Server middleware — single source of truth</div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">requireOrderStatus middleware</div>
+          <div class="card-sub">Express-style pseudocode · same shape works for any framework</div>
+        </div>
+        <div class="card-body">
+<pre class="code-block"><span class="code-comment">// All four amendment endpoints mount this guard before their handler.</span>
+<span class="code-comment">// Guard runs after auth, before any DB write.</span>
+
+<span class="code-key">function</span> requireOrderStatus(allowed) {
+  <span class="code-key">return async</span> (req, res, next) =&gt; {
+    <span class="code-key">const</span> order = <span class="code-key">await</span> db.orders.findOne({
+      id: req.params.id,
+      workspace_id: req.auth.workspace_id   <span class="code-comment">// tenant isolation</span>
+    });
+
+    <span class="code-key">if</span> (!order) <span class="code-key">return</span> res.status(<span class="code-num">404</span>).json({ error: <span class="code-str">'order_not_found'</span> });
+
+    <span class="code-key">if</span> (!allowed.includes(order.status)) {
+      <span class="code-comment">// BLD-5.3 enforcement — log + reject</span>
+      <span class="code-key">await</span> auditLog.write({
+        type: <span class="code-str">'amendment_blocked'</span>,
+        order_id: order.id,
+        attempted_by: req.auth.user_id,
+        endpoint: req.method + <span class="code-str">' '</span> + req.route.path,
+        order_status: order.status,
+        allowed_states: allowed,
+        request_payload: redactPII(req.body),
+        timestamp: <span class="code-key">new</span> Date().toISOString()
+      });
+      <span class="code-key">return</span> res.status(<span class="code-num">403</span>).json({
+        error: <span class="code-str">'amendment_window_closed'</span>,
+        order_status: order.status,
+        message: <span class="code-str">'Order has been dispatched and can no longer be amended.'</span>,
+        next_action: <span class="code-str">'contact_primed_or_use_refund_endpoint'</span>
+      });
+    }
+
+    req.order = order;
+    next();
+  };
+}
+
+<span class="code-comment">// Mount on each amendment route:</span>
+router.patch(<span class="code-str">'/orders/:id/dose'</span>,        requireAuth, requireOrderStatus([<span class="code-str">'clinical-check'</span>,<span class="code-str">'intervention'</span>,<span class="code-str">'approved'</span>,<span class="code-str">'in-dispensing'</span>]), handler);
+router.patch(<span class="code-str">'/orders/:id/shipping-address'</span>, requireAuth, requireOrderStatus([<span class="code-str">'clinical-check'</span>,<span class="code-str">'intervention'</span>,<span class="code-str">'approved'</span>,<span class="code-str">'in-dispensing'</span>]), handler);
+router.patch(<span class="code-str">'/orders/:id/items'</span>,       requireAuth, requireOrderStatus([<span class="code-str">'clinical-check'</span>,<span class="code-str">'intervention'</span>,<span class="code-str">'approved'</span>,<span class="code-str">'in-dispensing'</span>]), handler);
+router.delete(<span class="code-str">'/orders/:id'</span>,             requireAuth, requireOrderStatus([<span class="code-str">'clinical-check'</span>,<span class="code-str">'intervention'</span>,<span class="code-str">'approved'</span>,<span class="code-str">'in-dispensing'</span>]), handler);
+</pre>
+        </div>
+      </div>
+
+      <!-- Test fixtures -->
+      <div class="sec-head">Test fixtures — must pass before merge</div>
+
+      <div class="fixtures">
+
+        <!-- Pass case 1 -->
+        <div class="fixture fixture-pass">
+          <div class="fixture-head">
+            <div class="fixture-icon">✓</div>
+            <div class="fixture-title">Address change while in Clinical Check</div>
+            <div class="fixture-result">200</div>
+          </div>
+          <div class="fixture-body">
+            <div class="fixture-step"><span class="fixture-step-k">Setup:</span><span class="fixture-step-v">Order ORD-T001 · status <code>clinical-check</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Request:</span><span class="fixture-step-v"><code>PATCH /orders/ORD-T001/shipping-address</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Expect:</span><span class="fixture-step-v">200 OK · address updated · activity log entry written</span></div>
+          </div>
+        </div>
+
+        <!-- Pass case 2 -->
+        <div class="fixture fixture-pass">
+          <div class="fixture-head">
+            <div class="fixture-icon">✓</div>
+            <div class="fixture-title">Cancel while in Intervention</div>
+            <div class="fixture-result">200</div>
+          </div>
+          <div class="fixture-body">
+            <div class="fixture-step"><span class="fixture-step-k">Setup:</span><span class="fixture-step-v">Order ORD-T002 · status <code>intervention</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Request:</span><span class="fixture-step-v"><code>DELETE /orders/ORD-T002</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Expect:</span><span class="fixture-step-v">200 OK · order cancelled · Ryft auth released (REL-XXXX written to order)</span></div>
+          </div>
+        </div>
+
+        <!-- Pass case 3 (was Fail under pre_approval; under pre_dispensed this is now allowed) -->
+        <div class="fixture fixture-pass">
+          <div class="fixture-head">
+            <div class="fixture-icon">✓</div>
+            <div class="fixture-title">Address change after Approval (still pre-dispatch)</div>
+            <div class="fixture-result">200</div>
+          </div>
+          <div class="fixture-body">
+            <div class="fixture-step"><span class="fixture-step-k">Setup:</span><span class="fixture-step-v">Order ORD-T003 · status <code>approved</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Request:</span><span class="fixture-step-v"><code>PATCH /orders/ORD-T003/shipping-address</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Expect:</span><span class="fixture-step-v">200 OK · address updated · activity log entry written · Primed receives address change via API before dispatch</span></div>
+          </div>
+        </div>
+
+        <!-- Fail case 2 -->
+        <div class="fixture fixture-fail">
+          <div class="fixture-head">
+            <div class="fixture-icon">✕</div>
+            <div class="fixture-title">Dose change after Dispatch</div>
+            <div class="fixture-result">403</div>
+          </div>
+          <div class="fixture-body">
+            <div class="fixture-step"><span class="fixture-step-k">Setup:</span><span class="fixture-step-v">Order ORD-T004 · status <code>dispatched</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Request:</span><span class="fixture-step-v"><code>PATCH /orders/ORD-T004/dose</code> · body <code>{ dose: '7.5mg' }</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Expect:</span><span class="fixture-step-v">403 · audit log entry · response includes <code>next_action: 'contact_primed_or_use_refund_endpoint'</code></span></div>
+          </div>
+        </div>
+
+        <!-- Fail case 3 -->
+        <div class="fixture fixture-fail">
+          <div class="fixture-head">
+            <div class="fixture-icon">✕</div>
+            <div class="fixture-title">Cancel after Delivery</div>
+            <div class="fixture-result">403</div>
+          </div>
+          <div class="fixture-body">
+            <div class="fixture-step"><span class="fixture-step-k">Setup:</span><span class="fixture-step-v">Order ORD-T005 · status <code>delivered</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Request:</span><span class="fixture-step-v"><code>DELETE /orders/ORD-T005</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Expect:</span><span class="fixture-step-v">403 · post-delivery refund/return must use a different endpoint</span></div>
+          </div>
+        </div>
+
+        <!-- Fail case 4: client tries to bypass post-dispatch lock -->
+        <div class="fixture fixture-fail">
+          <div class="fixture-head">
+            <div class="fixture-icon">✕</div>
+            <div class="fixture-title">Client sends override flag after dispatch</div>
+            <div class="fixture-result">403</div>
+          </div>
+          <div class="fixture-body">
+            <div class="fixture-step"><span class="fixture-step-k">Setup:</span><span class="fixture-step-v">Order ORD-T006 · status <code>dispatched</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Request:</span><span class="fixture-step-v"><code>PATCH /orders/ORD-T006/dose</code> · body <code>{ dose: '5mg', force: true }</code></span></div>
+            <div class="fixture-step"><span class="fixture-step-k">Expect:</span><span class="fixture-step-v">403 · server ignores all client-side flags · post-dispatch is locked, the rule is non-negotiable</span></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Audit log examples -->
+      <div class="sec-head">Activity log — blocked attempts</div>
+
+      <div class="card">
+        <div class="card-body" style="padding:14px 18px;">
+          <div style="font-size:12px;color:var(--text-2);margin-bottom:12px;line-height:1.55;">
+            Every blocked attempt writes to the order's activity log <em>and</em> the workspace audit log (AUD-04). This is the evidence trail for governance reviews — it shows that enforcement is active and working.
+          </div>
+
+          <div class="audit-row blocked">
+            <div class="audit-head">
+              <span class="audit-tag blocked">⛔ BLOCKED</span>
+              <span style="font-size:12px;font-weight:600;color:var(--text-1);">Address change attempted on dispatched order</span>
+              <span class="audit-time">28 Apr 2026 · 14:32</span>
+            </div>
+            <div class="audit-text">User <strong>Sarah Mitchell</strong> (support) attempted <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">PATCH /orders/ORD-00428/shipping-address</code> · order was already <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;color:var(--green);">dispatched</code> at 14:18 — 14 minutes earlier (Primed dispatch event closed the amendment window). Request rejected with 403.</div>
+            <div class="audit-evidence">
+              <div><span class="k">type:</span> <span class="v">amendment_blocked</span></div>
+              <div><span class="k">order_status:</span> <span class="v">dispatched</span></div>
+              <div><span class="k">allowed_states:</span> <span class="v">['clinical-check', 'intervention', 'approved', 'in-dispensing']</span></div>
+              <div><span class="k">attempted_by:</span> <span class="v">user_sm_8821</span></div>
+              <div><span class="k">endpoint:</span> <span class="v">PATCH /orders/:id/shipping-address</span></div>
+              <div><span class="k">response_code:</span> <span class="v">403</span></div>
+              <div><span class="k">audit_id:</span> <span class="v">AUD-04-blk-2814</span></div>
+            </div>
+          </div>
+
+          <div class="audit-row blocked">
+            <div class="audit-head">
+              <span class="audit-tag blocked">⛔ BLOCKED</span>
+              <span style="font-size:12px;font-weight:600;color:var(--text-1);">Dose change attempted on dispatched order</span>
+              <span class="audit-time">19 Apr 2026 · 11:08</span>
+            </div>
+            <div class="audit-text">User <strong>Qadir Hussain</strong> (admin) attempted <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">PATCH /orders/ORD-00367/dose</code> with body <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;">{ dose: '7.5mg' }</code> · order was <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px;color:var(--blue);">dispatched</code>. Request rejected with 403.</div>
+            <div class="audit-evidence">
+              <div><span class="k">type:</span> <span class="v">amendment_blocked</span></div>
+              <div><span class="k">order_status:</span> <span class="v">dispatched</span></div>
+              <div><span class="k">allowed_states:</span> <span class="v">['clinical-check', 'intervention']</span></div>
+              <div><span class="k">attempted_by:</span> <span class="v">user_qh_0001</span></div>
+              <div><span class="k">request_payload:</span> <span class="v">{ "dose": "7.5mg" }</span></div>
+              <div><span class="k">response_code:</span> <span class="v">403</span></div>
+              <div><span class="k">audit_id:</span> <span class="v">AUD-04-blk-2718</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Implementation reference -->
+      <div style="background:var(--blue-bg);border:0.5px solid var(--blue-border);border-radius:var(--r-md);padding:14px 18px;margin-top:18px;">
+        <div style="font-size:13px;font-weight:600;color:var(--blue);margin-bottom:6px;">Implementation reference for Yohan</div>
+        <div style="font-size:12px;color:#1e3a8a;line-height:1.6;">
+          <strong>(1)</strong> The middleware is the only place the rule lives — no per-handler duplication. <strong>(2)</strong> Tenant isolation by <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">workspace_id</code> happens in the same DB query, before status check — a 404 (not found) is returned for cross-tenant access attempts to avoid leaking order existence. <strong>(3)</strong> The audit_log write happens before the 403 response is sent — fire-and-forget would lose evidence. Use a transactional write or a queue with at-least-once delivery. <strong>(4)</strong> The list of allowed states comes from <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">clinic_config.amendment_window.allowed_states</code> — both VSC and FeelTru run <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">pre_dispensed</code> (DEC-01 locked, May 2026). The <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">pre_approval</code> mode is retained as a config option for future third-party clinics without a connected pharmacy API. <strong>(5)</strong> All six fixtures must pass in CI before BLD-5.3 is marked done.
+        </div>
+      </div>
+
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>BLD-5.3 · Server-side enforcement of pre-dispensed amendment window · 4 endpoints all guarded</span>
+      <span class="at">BLD-5.3</span>
+      <span>Allowed states: clinical-check, intervention, approved, in-dispensing · all other states return 403 with amendment_window_closed · activity log + AUD-04 audit on every blocked attempt</span>
+      <span class="at">AUD-04</span>
+      <span>Single middleware (requireOrderStatus) is the source of truth · client-side flags ignored · tenant isolation enforced first</span>
+      <span class="at">V1.1</span>
+      <span>amendment_window=pre_dispensed · applies to both VSC and FeelTru (DEC-01 locked) · pre_approval retained as config option for future third-party clinics</span>
+    </div>
+  </div>
+</div>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

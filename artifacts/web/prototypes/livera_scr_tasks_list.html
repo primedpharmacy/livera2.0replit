@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Tasks (BLD-13.2)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row:hover { background: var(--surface-2); }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .nb-red { margin-left: auto; background: var(--red-bg); color: var(--red-mid); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .nb-amber { margin-left: auto; background: var(--amber-bg); color: var(--amber); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  /* Topbar */
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+  .topbar-count { font-size: 12px; color: var(--text-3); }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: flex; align-items: center; gap: 5px; }
+  .btn-sm:hover { background: var(--surface-2); }
+  .btn-sm.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn-sm.primary:hover { background: #3730a3; }
+
+  /* KPI strip */
+  .kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 16px 24px 0; flex-shrink: 0; }
+  .kpi-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); padding: 12px 14px; }
+  .kpi-label { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .kpi-value { font-size: 22px; font-weight: 700; color: var(--text-1); line-height: 1; letter-spacing: -0.5px; }
+  .kpi-sub { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+  .kpi-card.alert { border-color: var(--red-border); background: var(--red-bg); }
+  .kpi-card.alert .kpi-value { color: var(--red-mid); }
+  .kpi-card.warn { border-color: var(--amber-border); background: var(--amber-bg); }
+  .kpi-card.warn .kpi-value { color: var(--amber); }
+
+  /* Tabs */
+  .tabs { display: flex; background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 24px; margin-top: 16px; flex-shrink: 0; overflow-x: auto; }
+  .tab { padding: 11px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; white-space: nowrap; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .tab:hover { color: var(--text-1); }
+  .tab.on { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 500; }
+  .tab-ct { background: var(--surface-2); color: var(--text-3); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; border: 0.5px solid var(--border-strong); }
+  .tab-ct.red { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .tab-ct.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+
+  /* Filter row */
+  .filter-row { padding: 10px 24px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+  .search-input { min-width: 240px; max-width: 320px; padding: 7px 12px; border: 0.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 12px; font-family: inherit; background: var(--surface); }
+  .filter-chip { padding: 5px 11px; border-radius: 999px; font-size: 11px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 5px; user-select: none; }
+  .filter-chip:hover { background: var(--surface); border-color: var(--brand-mid); color: var(--brand-dark); }
+  .filter-chip.on { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+
+  /* Content */
+  .content { flex: 1; overflow-y: auto; padding: 16px 24px 24px; }
+
+  /* Section card */
+  .scard { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .scard-head { padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .scard-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .scard-sub { font-size: 11px; color: var(--text-3); margin-left: auto; }
+
+  /* Tasks table */
+  .task-table { width: 100%; border-collapse: collapse; }
+  .task-table th { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; padding: 10px 14px; text-align: left; border-bottom: 0.5px solid var(--border); background: var(--surface-2); }
+  .task-table td { padding: 12px 14px; font-size: 13px; color: var(--text-1); border-bottom: 0.5px solid var(--border); vertical-align: top; }
+  .task-table tr:last-child td { border-bottom: none; }
+  .task-table tr:hover td { background: var(--surface-2); cursor: pointer; }
+
+  .task-id { font-size: 11px; color: var(--text-3); font-family: 'SF Mono', Menlo, monospace; }
+  .task-title { font-weight: 500; color: var(--text-1); margin-top: 2px; line-height: 1.4; }
+  .task-desc { font-size: 11px; color: var(--text-3); margin-top: 4px; line-height: 1.4; }
+
+  /* Pills */
+  .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; line-height: 1.4; white-space: nowrap; border: 0.5px solid; }
+  .pill .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .pill.todo { background: var(--surface-2); color: var(--text-2); border-color: var(--border-strong); }
+  .pill.todo .dot { background: var(--text-3); }
+  .pill.progress { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .pill.progress .dot { background: var(--blue); }
+  .pill.done { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .pill.done .dot { background: var(--green); }
+  .pill.blocked { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .pill.blocked .dot { background: var(--red-mid); }
+
+  /* Priority */
+  .prio { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; }
+  .prio.high { color: var(--red-mid); }
+  .prio.med { color: var(--amber); }
+  .prio.low { color: var(--text-3); }
+  .prio-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .prio.high .prio-dot { background: var(--red-mid); }
+  .prio.med .prio-dot { background: var(--amber); }
+  .prio.low .prio-dot { background: var(--text-3); }
+
+  /* Owner avatar */
+  .owner-cell { display: flex; align-items: center; gap: 8px; }
+  .av { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, var(--brand), var(--brand-dark)); color: #fff; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: -0.2px; }
+  .av.green { background: linear-gradient(135deg, #34d399, #059669); }
+  .av.amber { background: linear-gradient(135deg, #fbbf24, #d97706); }
+  .av.purple { background: linear-gradient(135deg, #a78bfa, #7c3aed); }
+  .owner-name { font-size: 12px; color: var(--text-1); font-weight: 500; }
+
+  /* Due cell */
+  .due-cell { display: flex; flex-direction: column; gap: 1px; }
+  .due-date { font-size: 12px; font-weight: 500; color: var(--text-1); }
+  .due-rel { font-size: 10px; color: var(--text-3); }
+  .due-rel.overdue { color: var(--red-mid); font-weight: 600; }
+  .due-rel.today { color: var(--amber); font-weight: 600; }
+
+  /* Linked badge */
+  .linked-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 500; background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-border); }
+  .linked-empty { color: var(--text-3); font-size: 11px; }
+
+  /* Team member picker (used in modals + popover) */
+  .picker { display: flex; flex-direction: column; gap: 0; max-height: 280px; overflow-y: auto; border: 0.5px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); }
+  .picker-search { padding: 8px 10px; border-bottom: 0.5px solid var(--border); background: var(--surface-2); position: sticky; top: 0; z-index: 1; }
+  .picker-search input { width: 100%; border: none; background: transparent; outline: none; font-size: 12px; font-family: inherit; color: var(--text-1); padding: 4px 6px; }
+  .picker-search input::placeholder { color: var(--text-3); }
+  .picker-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 0.5px solid var(--border); transition: background 0.1s; }
+  .picker-item:last-child { border-bottom: none; }
+  .picker-item:hover { background: var(--brand-light); }
+  .picker-item.selected { background: var(--brand-light); }
+  .picker-item.selected .picker-check { opacity: 1; }
+  .picker-item .av { width: 28px; height: 28px; font-size: 11px; flex-shrink: 0; }
+  .picker-info { flex: 1; min-width: 0; }
+  .picker-name { font-size: 12px; font-weight: 500; color: var(--text-1); }
+  .picker-meta { font-size: 10px; color: var(--text-3); margin-top: 1px; display: flex; gap: 6px; align-items: center; }
+  .picker-role { display: inline-flex; padding: 1px 6px; border-radius: 999px; font-size: 9px; font-weight: 600; line-height: 1.4; border: 0.5px solid; text-transform: uppercase; letter-spacing: 0.3px; }
+  .role-owner { background: var(--brand-light); color: var(--brand-dark); border-color: var(--brand-mid); }
+  .role-prescriber { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .role-coach { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .role-admin { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+  .role-clinician { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .role-superintendent { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .picker-check { font-size: 14px; color: var(--brand-dark); font-weight: 700; opacity: 0; flex-shrink: 0; }
+  .picker-empty { padding: 20px; text-align: center; color: var(--text-3); font-size: 12px; }
+
+  /* Inline reassign popover (anchored to owner cell on row) */
+  .pop-overlay { position: fixed; inset: 0; z-index: 250; display: none; }
+  .pop-overlay.show { display: block; }
+  .pop { position: absolute; background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: 0 12px 32px rgba(0,0,0,0.18); width: 320px; overflow: hidden; animation: popIn 0.15s ease; }
+  @keyframes popIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+  .pop-head { padding: 10px 14px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; background: var(--surface-2); }
+  .pop-title { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .pop-sub { font-size: 11px; color: var(--text-3); margin-left: auto; }
+  .pop-body { padding: 6px; }
+  .pop-body .picker { border: none; max-height: 240px; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* Workspace switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); transition:background .12s; position:relative; }
+  .ws-switcher:hover { background:var(--surface-2); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ws-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); flex-shrink:0; }
+  .ws-menu { display:none; position:absolute; top:54px; left:8px; right:8px; background:var(--surface); border:0.5px solid var(--border-strong); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:500; overflow:hidden; }
+  .ws-menu.open { display:block; }
+  .ws-menu-item { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; transition:background .1s; }
+  .ws-menu-item:hover { background:var(--surface-2); }
+  .ws-menu-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ws-menu-name { font-size:12px; font-weight:600; color:var(--text-1); }
+  .ws-menu-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-menu-check { font-size:12px; color:#4338ca; font-weight:700; flex-shrink:0; }
+
+  /* FAB */
+  .fab-wrap { position: fixed; bottom: 28px; right: 28px; z-index: 100; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .fab-main { width: 52px; height: 52px; border-radius: 50%; background: var(--brand-dark); color: #fff; border: none; cursor: pointer; font-size: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(67,56,202,0.4); transition: all 0.2s; font-family: inherit; }
+  .fab-main:hover { background: #3730a3; box-shadow: 0 6px 24px rgba(67,56,202,0.5); transform: scale(1.05); }
+  .fab-main.open { background: #374151; box-shadow: 0 4px 20px rgba(0,0,0,0.25); transform: rotate(45deg); }
+  .fab-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; opacity: 0; pointer-events: none; transform: translateY(10px); transition: all 0.2s ease; }
+  .fab-actions.open { opacity: 1; pointer-events: all; transform: translateY(0); }
+  .fab-action { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .fab-action-label { background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.2); opacity: 0; transform: translateX(8px); transition: all 0.15s ease; }
+  .fab-actions.open .fab-action-label { opacity: 1; transform: translateX(0); }
+  .fab-icon-btn { width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15); transition: transform 0.15s; flex-shrink: 0; }
+  .fab-icon-btn:hover { transform: scale(1.1); }
+  .fab-icon-btn.brand { background: var(--brand); }
+  .fab-icon-btn.green { background: #16a34a; }
+  .fab-icon-btn.amber { background: #d97706; }
+  .fab-icon-btn.purple { background: #7c3aed; }
+
+  /* FAB modal */
+  .fab-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .fab-modal-overlay.show { display: flex; }
+  .fab-modal { background: var(--surface); border-radius: var(--r-xl); width: 480px; max-width: 95vw; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: modalIn 0.2s ease; }
+  @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:none; } }
+  .fab-modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .fab-modal-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .fab-modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .fab-modal-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+  .fab-modal-close:hover { background: var(--surface-3); }
+  .fab-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+  .fab-modal-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .fab-input, .fab-select, .fab-textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 13px; font-family: inherit; color: var(--text-1); outline: none; }
+  .fab-input:focus, .fab-select:focus, .fab-textarea:focus { border-color: var(--brand); }
+  .fab-textarea { resize: none; min-height: 72px; line-height: 1.5; }
+  .fab-select { background: var(--surface); }
+  .fab-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: -4px; }
+  .fab-field { display: flex; flex-direction: column; gap: 5px; }
+  .fab-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fab-btn { padding: 8px 16px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .fab-btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .fab-btn.primary:hover { background: #3730a3; }
+  .fab-toast { position: fixed; bottom: 90px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 300; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .fab-toast.show { display: flex; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html" class="active"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">Tasks</div>
+      <div class="topbar-count" id="topbar-count">23 total · 8 active · 2 overdue</div>
+      <div class="topbar-actions">
+        <button class="btn-sm">⤓ Export</button>
+        <button class="btn-sm primary" onclick="openModal('newtask')">+ New task</button>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="kpi-strip">
+      <div class="kpi-card">
+        <div class="kpi-label">Total open</div>
+        <div class="kpi-value">8</div>
+        <div class="kpi-sub">Across 5 owners</div>
+      </div>
+      <div class="kpi-card alert">
+        <div class="kpi-label">Overdue</div>
+        <div class="kpi-value">2</div>
+        <div class="kpi-sub">Action today</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">Due today</div>
+        <div class="kpi-value">3</div>
+        <div class="kpi-sub">By 17:00</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Assigned to me</div>
+        <div class="kpi-value">4</div>
+        <div class="kpi-sub">Mobeen Alam</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Linked to records</div>
+        <div class="kpi-value">6</div>
+        <div class="kpi-sub">Patient · Order · Inc.</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab on" onclick="setFilter('all', this)">All <span class="tab-ct">23</span></div>
+      <div class="tab" onclick="setFilter('mine', this)">My tasks <span class="tab-ct">4</span></div>
+      <div class="tab" onclick="setFilter('overdue', this)">Overdue <span class="tab-ct red">2</span></div>
+      <div class="tab" onclick="setFilter('today', this)">Due today <span class="tab-ct amber">3</span></div>
+      <div class="tab" onclick="setFilter('active', this)">Active <span class="tab-ct">8</span></div>
+      <div class="tab" onclick="setFilter('done', this)">Done <span class="tab-ct">15</span></div>
+    </div>
+
+    <!-- Filter row -->
+    <div class="filter-row">
+      <input class="search-input" placeholder="Search by title, owner, linked record…" />
+      <span class="filter-chip on">Status: All</span>
+      <span class="filter-chip">Owner: Anyone</span>
+      <span class="filter-chip">Priority: Any</span>
+      <span class="filter-chip">Linked to: Any</span>
+      <span class="filter-chip">Due: Any time</span>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="scard">
+        <div class="scard-head">
+          <div class="scard-title">Tasks</div>
+          <div class="scard-sub" id="scard-count">8 active</div>
+        </div>
+        <table class="task-table">
+          <thead>
+            <tr>
+              <th style="width: 38%">Task</th>
+              <th style="width: 14%">Owner</th>
+              <th style="width: 10%">Priority</th>
+              <th style="width: 12%">Status</th>
+              <th style="width: 12%">Due</th>
+              <th style="width: 14%">Linked to</th>
+            </tr>
+          </thead>
+          <tbody id="taskTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Annotation -->
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-Tasks · Tasks list module · 6 tabs · KPI strip</span>
+      <span class="at">BLD-13.2</span>
+      <span>Owner / due date / status / linked-record polymorphic</span>
+      <span class="at">V1.2 Critical</span>
+      <span>Click row → Task Detail with activity log</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- FAB -->
+<div class="fab-wrap">
+  <div class="fab-actions" id="fab-actions">
+    <div class="fab-action" onclick="openModal('newtask')">
+      <div class="fab-action-label">New task</div>
+      <button class="fab-icon-btn brand">+</button>
+    </div>
+    <div class="fab-action" onclick="openModal('newcomplaint')">
+      <div class="fab-action-label">New complaint</div>
+      <button class="fab-icon-btn amber">⚖</button>
+    </div>
+    <div class="fab-action" onclick="openModal('newincident')">
+      <div class="fab-action-label">New incident</div>
+      <button class="fab-icon-btn green">⚠</button>
+    </div>
+  </div>
+  <button class="fab-main" id="fab-main" onclick="toggleFAB()">+</button>
+</div>
+
+<!-- Toast -->
+<div class="fab-toast" id="fab-toast"></div>
+
+<!-- Inline Reassign Popover -->
+<div class="pop-overlay" id="pop-overlay" onclick="closePop()">
+  <div class="pop" id="pop" onclick="event.stopPropagation()">
+    <div class="pop-head">
+      <div class="pop-title">Reassign task</div>
+      <div class="pop-sub" id="pop-sub"></div>
+    </div>
+    <div class="pop-body">
+      <div class="picker" id="pop-picker">
+        <div class="picker-search">
+          <input placeholder="Search team members…" oninput="filterPicker(this, 'pop-picker')" />
+        </div>
+        <div class="picker-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: New task -->
+<div class="fab-modal-overlay" id="modal-newtask" onclick="closeModalOutside(event,'modal-newtask')">
+  <div class="fab-modal">
+    <div class="fab-modal-head">
+      <div class="fab-modal-icon" style="background:var(--brand-light);">✓</div>
+      <div class="fab-modal-title">New task</div>
+      <button class="fab-modal-close" onclick="closeModal('newtask')">✕</button>
+    </div>
+    <div class="fab-modal-body">
+      <div class="fab-field">
+        <div class="fab-label">Title</div>
+        <input class="fab-input" id="newtask-title" placeholder="e.g. Chase pharmacist on dose change" />
+      </div>
+      <div class="fab-field">
+        <div class="fab-label">Description</div>
+        <textarea class="fab-textarea" id="newtask-desc" placeholder="Optional. Context, links, what 'done' looks like."></textarea>
+      </div>
+      <div class="fab-row">
+        <div class="fab-field" style="grid-column: 1 / -1;">
+          <div class="fab-label">Owner <span style="color:var(--text-3);text-transform:none;letter-spacing:0;font-weight:500;">· any team member</span></div>
+          <div class="picker" id="newtask-picker">
+            <div class="picker-search">
+              <input placeholder="Search team members…" oninput="filterPicker(this, 'newtask-picker')" />
+            </div>
+            <div class="picker-list"></div>
+          </div>
+        </div>
+      </div>
+      <div class="fab-row">
+        <div class="fab-field">
+          <div class="fab-label">Due date</div>
+          <input class="fab-input" type="date" id="newtask-due" />
+        </div>
+        <div class="fab-field">
+          <div class="fab-label">Priority</div>
+          <select class="fab-select" id="newtask-prio">
+            <option value="low">Low</option>
+            <option value="med" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+      <div class="fab-field">
+        <div class="fab-label">Linked to</div>
+        <select class="fab-select" id="newtask-linked">
+          <option value="none">None</option>
+          <option value="Patient|P-00214">Patient: Sarah Chen (P-00214)</option>
+          <option value="Order|ORD-01287">Order: ORD-01287</option>
+          <option value="Incident|INC-0042">Incident: INC-0042</option>
+          <option value="Complaint|CMP-0008">Complaint: CMP-0008</option>
+        </select>
+      </div>
+    </div>
+    <div class="fab-modal-foot">
+      <button class="fab-btn" onclick="closeModal('newtask')">Cancel</button>
+      <button class="fab-btn primary" onclick="submitNewTask()">Create task</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Clinic team members (clinic-config-driven) ──
+// In production this list comes from clinic_config.team for the active workspace.
+// FeelTru and VSC have different teams. Roles drive only visual chip — assignment is open to all roles.
+const TEAMS = {
+  feeltru: [
+    { id:'u-mobeen',  name:'Mobeen Alam',         init:'MA', avatar:'brand',  role:'owner',         roleLabel:'Owner / RM' },
+    { id:'u-qadir',   name:'Qadir Hussain',       init:'QH', avatar:'brand',  role:'owner',         roleLabel:'Owner' },
+    { id:'u-claire',  name:'Claire Moynehan',     init:'CM', avatar:'green',  role:'prescriber',    roleLabel:'Prescriber' },
+    { id:'u-olwyn',   name:'Olwyn Sutcliffe',     init:'OS', avatar:'amber',  role:'coach',         roleLabel:'Coach' },
+    { id:'u-thivera', name:'Thivera Chandrapala', init:'TC', avatar:'purple', role:'admin',         roleLabel:'GTM / Admin' },
+    { id:'u-shannon', name:'Shannon Townsend',    init:'ST', avatar:'purple', role:'admin',         roleLabel:'Customer Exec' },
+    { id:'u-shahid',  name:'Shahid Mahmood',      init:'SM', avatar:'green',  role:'superintendent',roleLabel:'Superintendent' },
+    { id:'u-yohan',   name:'Yohan Corera',        init:'YC', avatar:'purple', role:'admin',         roleLabel:'CTO' }
+  ],
+  vsc: [
+    { id:'u-mobeen',  name:'Mobeen Alam',         init:'MA', avatar:'brand',  role:'owner',         roleLabel:'Operations Lead' },
+    { id:'u-qadir',   name:'Qadir Hussain',       init:'QH', avatar:'brand',  role:'owner',         roleLabel:'Owner' },
+    { id:'u-naeem',   name:'Mohammed Naeem',      init:'MN', avatar:'green',  role:'admin',         roleLabel:'Operations' },
+    { id:'u-ali',     name:'Ali Abbas',           init:'AA', avatar:'green',  role:'prescriber',    roleLabel:'Pharmacy Manager' },
+    { id:'u-shahid',  name:'Shahid Mahmood',      init:'SM', avatar:'green',  role:'superintendent',roleLabel:'Superintendent' },
+    { id:'u-thivera', name:'Thivera Chandrapala', init:'TC', avatar:'purple', role:'admin',         roleLabel:'GTM / Admin' },
+    { id:'u-punam',   name:'Punam',               init:'PM', avatar:'purple', role:'admin',         roleLabel:'Sales' },
+    { id:'u-yohan',   name:'Yohan Corera',        init:'YC', avatar:'purple', role:'admin',         roleLabel:'CTO' }
+  ]
+};
+
+let currentWS = 'feeltru';
+function team(){ return TEAMS[currentWS]; }
+function findMember(id){ return team().find(m => m.id === id); }
+function findMemberByName(name){ return team().find(m => m.name === name); }
+
+// ── Tasks data ──
+const TASKS = [
+  { id:'TSK-0142', title:'Call Sarah Chen re: dose escalation request', desc:'Patient logged second-week side effect; review with prescriber before approving 0.5mg increase.', ownerId:'u-claire',  priority:'high', status:'progress', due:'04 May', dueRel:'today',    dueRelText:'Today',          linked:{type:'Order',     ref:'ORD-01287'} },
+  { id:'TSK-0141', title:'Chase Royal Mail on stuck dispatch',         desc:'Tracking shows no update since 02 May. Patient asking. Escalate via Postmark Pro.',         ownerId:'u-mobeen',  priority:'high', status:'todo',     due:'03 May', dueRel:'overdue',  dueRelText:'Overdue · 1d',   linked:{type:'Incident',  ref:'INC-0042'} },
+  { id:'TSK-0140', title:'Acknowledge complaint within SLA',           desc:'3-day acknowledge SLA expires 14:00 today. Email already drafted in Postmark.',                ownerId:'u-mobeen',  priority:'high', status:'todo',     due:'04 May', dueRel:'today',    dueRelText:'Today · by 14:00', linked:{type:'Complaint', ref:'CMP-0008'} },
+  { id:'TSK-0139', title:'Review NICE CG189 checklist exception flag', desc:'BMI just under threshold; need clinical rationale before approving.',                          ownerId:'u-claire',  priority:'med',  status:'todo',     due:'04 May', dueRel:'today',    dueRelText:'Today',          linked:{type:'Order',     ref:'ORD-01284'} },
+  { id:'TSK-0138', title:'Coach welcome call follow-up — Maria Santos', desc:'Patient missed first booking attempt. Resend Calendly link, log on coaching tab.',           ownerId:'u-olwyn',   priority:'med',  status:'progress', due:'06 May', dueRel:'',         dueRelText:'In 2 days',      linked:{type:'Patient',   ref:'P-00208'} },
+  { id:'TSK-0137', title:"Verify GP letter delivery for last week's batch", desc:'Check Postmark webhook events, raise any failed deliveries with prescriber.',             ownerId:'u-mobeen',  priority:'med',  status:'todo',     due:'05 May', dueRel:'',         dueRelText:'Tomorrow',       linked:null },
+  { id:'TSK-0136', title:'Update questionnaire branching for new ED safeguarding flag', desc:'Settings → Questionnaire Builder. Add flag at Q4 if BMI < 18.5 self-reported.', ownerId:'u-mobeen',  priority:'low',  status:'progress', due:'08 May', dueRel:'',         dueRelText:'In 4 days',      linked:null },
+  { id:'TSK-0135', title:'Sign off May governance pack',               desc:'CQC monthly review pack ready in Monday. Review and approve before circulation.',              ownerId:'u-mobeen',  priority:'med',  status:'todo',     due:'10 May', dueRel:'',         dueRelText:'In 6 days',      linked:null }
+];
+
+// Active filter (preserved across re-renders)
+let activeFilter = 'all';
+
+// ── Helpers ──
+function pillFor(s){ const lbl={todo:'To do',progress:'In progress',done:'Done',blocked:'Blocked'}; return `<span class="pill ${s}"><span class="dot"></span>${lbl[s]}</span>`; }
+function prioFor(p){ const lbl={high:'High',med:'Medium',low:'Low'}; return `<span class="prio ${p}"><span class="prio-dot"></span>${lbl[p]}</span>`; }
+function avFor(m){ if(!m) return ''; return `<div class="av ${m.avatar==='brand'?'':m.avatar}">${m.init}</div>`; }
+function linkedFor(l){ return l ? `<span class="linked-pill">${l.type} · ${l.ref}</span>` : `<span class="linked-empty">—</span>`; }
+function dueFor(t){ const cls = t.dueRel ? `due-rel ${t.dueRel}` : 'due-rel'; return `<div class="due-cell"><div class="due-date">${t.due}</div><div class="${cls}">${t.dueRelText}</div></div>`; }
+
+// ── Render task list ──
+function renderTasks(){
+  let list = TASKS.slice();
+  if(activeFilter==='mine')    list = list.filter(t=>t.ownerId==='u-mobeen');
+  else if(activeFilter==='overdue') list = list.filter(t=>t.dueRel==='overdue');
+  else if(activeFilter==='today')   list = list.filter(t=>t.dueRel==='today');
+  else if(activeFilter==='active')  list = list.filter(t=>t.status!=='done');
+  else if(activeFilter==='done')    list = list.filter(t=>t.status==='done');
+
+  const tb = document.getElementById('taskTbody');
+  if(list.length===0){
+    tb.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3);font-size:13px;">No tasks match this filter</td></tr>`;
+    document.getElementById('scard-count').textContent = '0 tasks';
+    return;
+  }
+  tb.innerHTML = list.map(t=>{
+    const owner = findMember(t.ownerId);
+    return `
+    <tr data-task-id="${t.id}" onclick="goToDetail('${t.id}')">
+      <td>
+        <div class="task-id">${t.id}</div>
+        <div class="task-title">${t.title}</div>
+        <div class="task-desc">${t.desc}</div>
+      </td>
+      <td onclick="event.stopPropagation();openReassignPop(event,'${t.id}')" style="cursor:pointer;" title="Click to reassign">
+        <div class="owner-cell">${avFor(owner)}<div class="owner-name">${owner ? owner.name : '—'}</div></div>
+      </td>
+      <td>${prioFor(t.priority)}</td>
+      <td>${pillFor(t.status)}</td>
+      <td>${dueFor(t)}</td>
+      <td>${linkedFor(t.linked)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('scard-count').textContent = `${list.length} ${list.length===1?'task':'tasks'}`;
+}
+
+function goToDetail(id){ window.location='livera_scr_task_detail.html'; }
+
+function setFilter(f, el){
+  activeFilter = f;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  renderTasks();
+}
+
+// ── People picker rendering ──
+// Renders into any container: `#newtask-picker`, `#pop-picker`, etc.
+// onSelect: function(member) called when a member is clicked.
+// selectedId: highlight current selection.
+function renderPicker(containerId, onSelect, selectedId){
+  const container = document.getElementById(containerId);
+  if(!container) return;
+  const list = container.querySelector('.picker-list');
+  list.innerHTML = team().map(m=>`
+    <div class="picker-item ${m.id===selectedId?'selected':''}" data-name="${m.name.toLowerCase()}" data-role="${m.roleLabel.toLowerCase()}" onclick="window.__pickerCallback('${containerId}','${m.id}')">
+      ${avFor(m)}
+      <div class="picker-info">
+        <div class="picker-name">${m.name}</div>
+        <div class="picker-meta"><span class="picker-role role-${m.role}">${m.roleLabel}</span></div>
+      </div>
+      <span class="picker-check">✓</span>
+    </div>
+  `).join('');
+  // Stash the callback per-container on window so the inline onclick works.
+  window.__pickerCallbacks = window.__pickerCallbacks || {};
+  window.__pickerCallbacks[containerId] = onSelect;
+}
+window.__pickerCallback = function(containerId, memberId){
+  const cb = (window.__pickerCallbacks||{})[containerId];
+  if(cb) cb(findMember(memberId));
+};
+
+function filterPicker(inputEl, containerId){
+  const q = inputEl.value.toLowerCase().trim();
+  document.querySelectorAll(`#${containerId} .picker-item`).forEach(it=>{
+    const hay = (it.dataset.name||'') + ' ' + (it.dataset.role||'');
+    it.style.display = hay.includes(q) ? '' : 'none';
+  });
+}
+
+// ── Inline reassign popover ──
+let popTaskId = null;
+function openReassignPop(evt, taskId){
+  popTaskId = taskId;
+  const t = TASKS.find(x=>x.id===taskId);
+  const overlay = document.getElementById('pop-overlay');
+  const pop = document.getElementById('pop');
+  document.getElementById('pop-sub').textContent = t.id;
+
+  // Position popover near the click target
+  const rect = evt.currentTarget.getBoundingClientRect();
+  const popWidth = 320;
+  let left = rect.left;
+  if(left + popWidth > window.innerWidth - 16) left = window.innerWidth - popWidth - 16;
+  let top = rect.bottom + 6;
+  pop.style.left = left + 'px';
+  pop.style.top  = top + 'px';
+
+  renderPicker('pop-picker', (member)=>{
+    const task = TASKS.find(x=>x.id===popTaskId);
+    if(task && member){
+      const prevOwner = findMember(task.ownerId);
+      task.ownerId = member.id;
+      renderTasks();
+      closePop();
+      showToast(`Reassigned ${task.id} from ${prevOwner.name} to ${member.name}`);
+    }
+  }, t.ownerId);
+
+  overlay.classList.add('show');
+}
+function closePop(){
+  document.getElementById('pop-overlay').classList.remove('show');
+  popTaskId = null;
+}
+
+// ── New task ──
+let newTaskOwnerId = null;
+function newTaskPickerCallback(m){
+  newTaskOwnerId = m.id;
+  // Re-render to show selected state, keeping same callback bound
+  renderPicker('newtask-picker', newTaskPickerCallback, m.id);
+}
+function initNewTaskPicker(){
+  newTaskOwnerId = 'u-mobeen';
+  renderPicker('newtask-picker', newTaskPickerCallback, newTaskOwnerId);
+}
+
+function submitNewTask(){
+  const title = document.getElementById('newtask-title').value.trim();
+  const desc  = document.getElementById('newtask-desc').value.trim();
+  const due   = document.getElementById('newtask-due').value;
+  const prio  = document.getElementById('newtask-prio').value;
+  const linkedRaw = document.getElementById('newtask-linked').value;
+
+  if(!title){ showToast('Title is required', true); return; }
+  if(!newTaskOwnerId){ showToast('Pick an owner', true); return; }
+
+  const linked = linkedRaw === 'none' ? null : (()=>{
+    const [type, ref] = linkedRaw.split('|');
+    return { type, ref };
+  })();
+
+  // Date formatting
+  let dueDisplay = '—', dueRel = '', dueRelText = '';
+  if(due){
+    const d = new Date(due);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+    dueDisplay = d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+    if(d < today){ dueRel = 'overdue'; dueRelText = 'Overdue'; }
+    else if(d.getTime() === today.getTime()){ dueRel = 'today'; dueRelText = 'Today'; }
+    else if(d.getTime() === tomorrow.getTime()){ dueRelText = 'Tomorrow'; }
+    else { const diff = Math.round((d-today)/86400000); dueRelText = `In ${diff} days`; }
+  } else {
+    dueDisplay = 'No due date';
+  }
+
+  const lastNum = parseInt(TASKS[0].id.split('-')[1],10);
+  const newId = 'TSK-' + String(lastNum + 1).padStart(4,'0');
+
+  TASKS.unshift({
+    id: newId,
+    title,
+    desc: desc || '—',
+    ownerId: newTaskOwnerId,
+    priority: prio,
+    status: 'todo',
+    due: dueDisplay,
+    dueRel,
+    dueRelText,
+    linked
+  });
+
+  // Reset modal
+  document.getElementById('newtask-title').value = '';
+  document.getElementById('newtask-desc').value = '';
+  document.getElementById('newtask-due').value = '';
+  document.getElementById('newtask-prio').value = 'med';
+  document.getElementById('newtask-linked').value = 'none';
+  newTaskOwnerId = 'u-mobeen';
+
+  closeModal('newtask');
+  renderTasks();
+
+  // Update topbar count
+  const open = TASKS.filter(t=>t.status!=='done').length;
+  const overdue = TASKS.filter(t=>t.dueRel==='overdue').length;
+  document.getElementById('topbar-count').textContent = `${TASKS.length} total · ${open} active · ${overdue} overdue`;
+
+  const owner = findMember(newTaskOwnerId);
+  showToast(`Task ${newId} created · assigned to ${owner.name}`);
+}
+
+// ── FAB ──
+let fabOpen = false;
+function toggleFAB(){ fabOpen = !fabOpen; document.getElementById('fab-main').classList.toggle('open', fabOpen); document.getElementById('fab-actions').classList.toggle('open', fabOpen); }
+function closeFAB(){ fabOpen = false; document.getElementById('fab-main').classList.remove('open'); document.getElementById('fab-actions').classList.remove('open'); }
+
+// ── Modals ──
+const modalMap = { newtask:'modal-newtask', newcomplaint:null, newincident:null };
+function openModal(k){
+  closeFAB();
+  const id = modalMap[k];
+  if(id){
+    document.getElementById(id).classList.add('show');
+    if(k==='newtask') initNewTaskPicker();
+  } else {
+    showToast(k+' modal — placeholder');
+  }
+}
+function closeModal(k){ const id = modalMap[k]; if(id) document.getElementById(id).classList.remove('show'); }
+function closeModalOutside(e, id){ if(e.target.id===id) document.getElementById(id).classList.remove('show'); }
+
+// ── Toast ──
+function showToast(msg, isError){
+  const t = document.getElementById('fab-toast');
+  const icon = isError ? '<span style="color:#f87171;">✕</span>' : '<span style="color:#10b981;">✓</span>';
+  t.innerHTML = icon + ' ' + msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2800);
+}
+function submitModal(k, msg){ closeModal(k); showToast(msg); }
+
+// ── Workspace switcher ──
+function toggleWSMenu(){ document.getElementById('wsMenu').classList.toggle('open'); }
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#wsSwitcher') && !e.target.closest('#wsMenu')) document.getElementById('wsMenu').classList.remove('open');
+});
+function setWorkspace(ws){
+  currentWS = ws;
+  document.body.setAttribute('data-workspace', ws);
+  document.getElementById('wsMenu').classList.remove('open');
+  if(ws==='feeltru'){
+    document.getElementById('wsName').textContent='FeelTru';
+    document.getElementById('check-feeltru').style.opacity='1';
+    document.getElementById('check-vsc').style.opacity='0';
+  } else {
+    document.getElementById('wsName').textContent='VSC';
+    document.getElementById('check-feeltru').style.opacity='0';
+    document.getElementById('check-vsc').style.opacity='1';
+    // VSC team is different — reassign tasks to a default owner if their assignee isn't on this clinic
+    TASKS.forEach(t=>{ if(!findMember(t.ownerId)) t.ownerId = 'u-mobeen'; });
+  }
+  renderTasks();
+  showToast(`Switched to ${ws==='feeltru'?'FeelTru':'VSC'} workspace`);
+}
+
+// Init
+document.body.setAttribute('data-workspace','feeltru');
+renderTasks();
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — MHRA gov.uk drug-device-alerts integration</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --surface:#ffffff; --bg:#f1f0ef; --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --mhra:#005a9c;
+  --gov:#0b0c0c;
+}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.info{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}
+.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}
+.crumb .cur{color:var(--t1);font-weight:600}
+
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:var(--gov);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;color:#fff;font-weight:800;letter-spacing:-0.5px;text-align:center;line-height:1.05}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info h1 .conn-pill{font-size:10px;font-weight:700;letter-spacing:.4px;background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr);padding:3px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+.pg-info h1 .conn-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 2px rgba(16,185,129,.18)}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-info .sub code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11.5px}
+.pg-info .sub a{color:var(--brand);text-decoration:none;font-weight:600}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:.12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);color:#fff}
+
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--bdr);margin-bottom:18px;overflow-x:auto}
+.tab{padding:11px 18px;font-size:12.5px;font-weight:600;color:var(--t2);background:none;border:none;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;transition:.12s;white-space:nowrap}
+.tab:hover{color:var(--t1)}
+.tab.on{color:var(--brand);border-bottom-color:var(--brand)}
+.tab .ct{display:inline-block;font-size:10px;font-weight:700;background:var(--bdr);color:var(--t2);padding:1px 6px;border-radius:3px;margin-left:6px;letter-spacing:.3px}
+.tab.on .ct{background:var(--brand-l);color:var(--brand)}
+
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.stat-card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 16px}
+.stat-num{font-size:24px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1.1}
+.stat-num.warn{color:var(--warn)}
+.stat-num.ok{color:var(--ok)}
+.stat-num.err{color:var(--err)}
+.stat-lbl{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-top:6px}
+.stat-sub{font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4}
+
+.section{background:var(--surface);border:1px solid var(--bdr);border-radius:10px;margin-bottom:18px;overflow:hidden}
+.section-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px;background:#fafafa}
+.section-head h2{font-size:14px;font-weight:700;color:var(--t1);flex:1}
+.section-head .right{font-size:11px;color:var(--t3)}
+.section-body{padding:18px}
+
+.kv-grid{display:grid;grid-template-columns:200px 1fr;gap:14px 18px;align-items:center;font-size:13px}
+.kv-grid > .lbl{color:var(--t2);font-weight:600;font-size:12px}
+.kv-grid > .lbl small{display:block;color:var(--t3);font-size:11px;font-weight:500;margin-top:2px}
+.kv-grid input[type=text],.kv-grid select,.kv-grid textarea{padding:8px 11px;border:1px solid var(--bdr-d);border-radius:6px;font-size:13px;font-family:inherit;background:#fff;width:100%;max-width:520px}
+.kv-grid input[type=text]:focus,.kv-grid select:focus,.kv-grid textarea:focus{outline:0;border-color:var(--brand)}
+
+.toggle{display:inline-flex;align-items:center;gap:9px;font-size:13px}
+.toggle input{appearance:none;width:34px;height:20px;background:#cbd5e1;border-radius:999px;position:relative;cursor:pointer;transition:.15s;flex-shrink:0}
+.toggle input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.15s}
+.toggle input:checked{background:var(--brand)}
+.toggle input:checked::after{left:16px}
+
+.drug-list{display:flex;flex-direction:column;gap:8px}
+.drug-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg);border:0.5px solid var(--bdr);border-radius:8px}
+.drug-row.locked{background:#fef3c7;border-color:#fde68a}
+.drug-name{font-size:13px;font-weight:600;color:var(--t1);flex:1}
+.drug-name .ing{font-size:11px;font-weight:500;color:var(--t2);margin-left:6px;font-family:'SF Mono',Menlo,monospace}
+.drug-name .bt{display:inline-block;background:#dc2626;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:6px;text-transform:uppercase;letter-spacing:.3px}
+.drug-meta{font-size:11px;color:var(--t3)}
+.drug-actions{display:flex;gap:6px;align-items:center}
+.drug-add{display:flex;gap:8px;margin-top:12px}
+.drug-add input{flex:1;padding:8px 11px;border:1px solid var(--bdr-d);border-radius:6px;font-size:13px;font-family:inherit;background:#fff}
+.drug-add button{padding:8px 14px;font-size:12px;font-weight:600;background:var(--brand);color:#fff;border:0;border-radius:6px;cursor:pointer}
+
+.routing-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.routing-table th{text-align:left;padding:10px 14px;background:var(--bg);font-weight:700;color:var(--t2);font-size:11px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--bdr)}
+.routing-table td{padding:12px 14px;border-bottom:0.5px solid var(--bdr);vertical-align:middle}
+.routing-table tr:last-child td{border-bottom:0}
+.routing-table .sev-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+.routing-table .sev-pill.c1{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.routing-table .sev-pill.c2{background:#fff7ed;color:#c2410c;border:.5px solid #fed7aa}
+.routing-table .sev-pill.c3{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.routing-table .sev-pill.c4{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.routing-table .sev-pill.dsu{background:#f3f4f6;color:var(--t2);border:.5px solid var(--bdr-d)}
+.routing-table .action-chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;margin-right:4px}
+.routing-table .action-chip.task{background:var(--brand-l);color:var(--brand-d)}
+.routing-table .action-chip.notify{background:var(--info-bg);color:var(--info)}
+.routing-table .action-chip.incident{background:var(--err-bg);color:var(--err)}
+.routing-table .action-chip.audit{background:#f5f3ff;color:#7c3aed}
+
+.recipient-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.recipient-card{padding:12px 14px;background:var(--bg);border:1px solid var(--bdr);border-radius:8px;cursor:pointer;transition:.12s}
+.recipient-card.on{background:var(--brand-l);border-color:var(--brand)}
+.recipient-card .role-name{font-size:13px;font-weight:700;color:var(--t1)}
+.recipient-card.on .role-name{color:var(--brand-d)}
+.recipient-card .role-count{font-size:11px;color:var(--t3);margin-top:2px}
+
+.alerts-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.alerts-table th{text-align:left;padding:10px 14px;background:var(--bg);font-weight:700;color:var(--t2);font-size:11px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--bdr)}
+.alerts-table td{padding:11px 14px;border-bottom:0.5px solid var(--bdr);vertical-align:top}
+.alerts-table tr:last-child td{border-bottom:0}
+.alerts-table tr:hover td{background:#fafafa}
+.alert-title{font-size:12.5px;font-weight:600;color:var(--t1);line-height:1.4}
+.alert-title a{color:var(--brand);text-decoration:none}
+.alert-title a:hover{text-decoration:underline}
+.alert-meta{font-size:11px;color:var(--t3);margin-top:3px;font-family:'SF Mono',Menlo,monospace}
+.alert-status-chip{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px}
+.alert-status-chip.routed{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.alert-status-chip.skipped{background:#f3f4f6;color:var(--t3);border:.5px solid var(--bdr-d)}
+.alert-status-chip.fail{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+
+.notice{background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;gap:10px;font-size:12.5px;color:var(--info);line-height:1.5}
+.notice strong{display:block;margin-bottom:3px;color:#1e3a8a}
+.notice.warn{background:var(--warn-bg);border-color:var(--warn-bdr);color:var(--warn)}
+.notice.warn strong{color:#78350f}
+
+.foot-banner{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:14px 18px;font-size:12px;color:var(--t2);line-height:1.55;margin-top:24px}
+.foot-banner code{font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11px}
+.foot-banner a{color:var(--brand-d);text-decoration:none;font-weight:600}
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="brand"><div class="lmark">L</div>Livera</div>
+  <div class="div"></div>
+  <button class="ws-trigger"><span>Workspace:</span><strong>VSC</strong><span class="ws-chev">▼</span></button>
+  <div class="role"><span>Role:</span><span class="role-pill">Owner</span></div>
+</div>
+
+<div class="layout">
+
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">🏠</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👥</span>Patients<span class="badge">487</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📋</span>Orders<span class="badge">22</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_amendment_queue.html"><span class="ico">🔄</span>Amendments<span class="badge info">5</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✅</span>Tasks<span class="badge">12</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge">5</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📩</span>Complaints<span class="badge warn">3</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">⚠</span>Incidents<span class="badge">8</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">✉</span>GP Letters</a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Livera</a><span class="sep">›</span>
+      <a href="livera_settings_landing.html">Settings</a><span class="sep">›</span>
+      <a href="livera_settings_landing.html#integrations">Integrations</a><span class="sep">›</span>
+      <span class="cur">MHRA gov.uk drug-device-alerts</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">GOV<br>UK</div>
+      <div class="pg-info">
+        <h1>
+          MHRA gov.uk alerts
+          <span class="bld-pill">BLD-INT-MHRA-01</span>
+          <span class="conn-pill"><span class="dot"></span>Polling</span>
+        </h1>
+        <div class="sub">
+          Daily poll of <a href="https://www.gov.uk/drug-device-alerts" target="_blank">gov.uk/drug-device-alerts</a> · matched alerts auto-create Intercom conversations tagged <code>mhra_alert</code> for routing through <a href="livera_settings_intercom_tag_actions.html">tag-action rules</a> · CQC Reg 17 + GPhC Standard 1 governance evidence · DEC-39
+        </div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn">Run poll now</button>
+        <button class="btn primary">Save changes</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab on" onclick="switchTab(this,'overview')">Overview</button>
+      <button class="tab" onclick="switchTab(this,'watchlist')">Drug watchlist <span class="ct">5</span></button>
+      <button class="tab" onclick="switchTab(this,'routing')">Severity routing</button>
+      <button class="tab" onclick="switchTab(this,'recipients')">Recipients</button>
+      <button class="tab" onclick="switchTab(this,'log')">Alert log <span class="ct">30d</span></button>
+    </div>
+
+    <!-- ───── Overview ───── -->
+    <div class="tab-pane" id="pane-overview">
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-num ok">14</div>
+          <div class="stat-lbl">Alerts processed (30d)</div>
+          <div class="stat-sub">All matched alerts routed successfully</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num warn">3</div>
+          <div class="stat-lbl">Matched, routed (30d)</div>
+          <div class="stat-sub">Tirzepatide DSU · Semaglutide FSN · Pen recall (Class 4)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">11</div>
+          <div class="stat-lbl">Skipped (no match)</div>
+          <div class="stat-sub">Alerts about non-watchlisted medicines/devices</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">04:00</div>
+          <div class="stat-lbl">Daily poll time</div>
+          <div class="stat-sub">UTC · last poll 10 May 04:01:18 BST · next 11 May 04:00</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Connection status</h2></div>
+        <div class="section-body">
+          <div class="kv-grid">
+            <div class="lbl">Feed source<small>Read-only · platform-locked</small></div>
+            <div><code style="font-family:'SF Mono',Menlo,monospace;background:var(--bg);padding:3px 7px;border-radius:4px;font-size:12px;">https://www.gov.uk/drug-device-alerts.atom</code></div>
+
+            <div class="lbl">Polling cadence<small>Cron schedule</small></div>
+            <div>
+              <select>
+                <option selected>Daily at 04:00 UTC (recommended)</option>
+                <option>Twice daily (04:00 and 16:00 UTC)</option>
+                <option>Hourly (high-vigilance — Class 1/2 recall periods)</option>
+              </select>
+            </div>
+
+            <div class="lbl">Status<small>Last successful poll</small></div>
+            <div style="font-family:'SF Mono',Menlo,monospace;font-size:12px;color:var(--ok);font-weight:600;">✓ 10 May 2026 04:01:18 BST · processed 6 entries · 1 matched · 5 skipped</div>
+
+            <div class="lbl">Etag tracking<small>Avoid duplicate processing</small></div>
+            <div>
+              <span class="toggle"><input type="checkbox" checked><span>Use feed Etag + Last-Modified to skip unchanged polls</span></span>
+            </div>
+
+            <div class="lbl">Failure alert<small>If poll fails N consecutive times</small></div>
+            <div>
+              <select>
+                <option>1 failure → notify Owner immediately</option>
+                <option selected>2 consecutive failures → notify Owner + RM</option>
+                <option>3 consecutive failures → escalate to incident</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Sources monitored</h2><div class="right">Future-extensible to additional regulatory feeds</div></div>
+        <div class="section-body">
+          <div class="kv-grid">
+            <div class="lbl">MHRA Drug & Device Alerts<small>gov.uk/drug-device-alerts</small></div>
+            <div><span class="toggle"><input type="checkbox" checked><span>Active · primary feed</span></span></div>
+
+            <div class="lbl">MHRA Drug Safety Update<small>Monthly bulletin · gov.uk/drug-safety-update</small></div>
+            <div><span class="toggle"><input type="checkbox"><span>Inactive · queued for V1.2.1</span></span></div>
+
+            <div class="lbl">Field Safety Notices (FSN)<small>Medical device-specific · gov.uk/field-safety-notices</small></div>
+            <div><span class="toggle"><input type="checkbox"><span>Inactive · queued for V1.2.1</span></span></div>
+
+            <div class="lbl">DHSC supply issues<small>Medicine supply notifications</small></div>
+            <div><span class="toggle"><input type="checkbox"><span>Inactive · routes to Primed sync if enabled</span></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="notice">
+        <span style="font-size:18px;">ℹ</span>
+        <div>
+          <strong>How matching works</strong>
+          gov.uk publishes alert text containing medicine names (active ingredient, brand, or both). Matcher extracts these tokens from the alert title and body, then checks against the per-clinic drug watchlist. A match creates an Intercom conversation in this clinic's workspace tagged <code>mhra_alert</code>; routing then runs through the standard tag-action rule on the <a href="livera_settings_intercom_tag_actions.html">Tag actions</a> screen. No match = silent skip with audit log entry.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ───── Drug watchlist ───── -->
+    <div class="tab-pane" id="pane-watchlist" style="display:none;">
+
+      <div class="notice">
+        <span style="font-size:18px;">💊</span>
+        <div>
+          <strong>Pre-populated from clinic product catalogue</strong>
+          On clinic onboarding, the watchlist is auto-seeded from the medicines configured in <code>clinic_config.products</code>. Add or remove entries here to refine. Changes audit-logged to AUD-04. Removing a watchlisted medicine does not retroactively delete past alerts — only future polls are affected.
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Watchlisted medicines · 5 active</h2><div class="right">Match against alert title + body (active ingredient OR brand)</div></div>
+        <div class="section-body">
+
+          <div class="drug-list">
+            <div class="drug-row locked">
+              <div class="drug-name">Mounjaro <span class="ing">tirzepatide</span><span class="bt">▼ Black Triangle</span></div>
+              <div class="drug-meta">Auto-watchlisted · in clinic_config.products · 1 alert match (30d)</div>
+              <div class="drug-actions"><span class="toggle"><input type="checkbox" checked><span style="font-size:11px;color:var(--t2);">Monitoring</span></span></div>
+            </div>
+            <div class="drug-row locked">
+              <div class="drug-name">Wegovy <span class="ing">semaglutide</span><span class="bt">▼ Black Triangle</span></div>
+              <div class="drug-meta">Auto-watchlisted · in clinic_config.products · 1 alert match (30d)</div>
+              <div class="drug-actions"><span class="toggle"><input type="checkbox" checked><span style="font-size:11px;color:var(--t2);">Monitoring</span></span></div>
+            </div>
+            <div class="drug-row">
+              <div class="drug-name">Saxenda <span class="ing">liraglutide</span></div>
+              <div class="drug-meta">Watchlisted manually · 0 alert matches (30d)</div>
+              <div class="drug-actions"><span class="toggle"><input type="checkbox" checked><span style="font-size:11px;color:var(--t2);">Monitoring</span></span></div>
+            </div>
+            <div class="drug-row">
+              <div class="drug-name">Ozempic <span class="ing">semaglutide</span></div>
+              <div class="drug-meta">Watchlisted manually · brand alias for semaglutide · 1 alert match (30d)</div>
+              <div class="drug-actions"><span class="toggle"><input type="checkbox" checked><span style="font-size:11px;color:var(--t2);">Monitoring</span></span></div>
+            </div>
+            <div class="drug-row">
+              <div class="drug-name">FlexPen / KwikPen / Cartridge devices <span class="ing">injection devices</span></div>
+              <div class="drug-meta">Device watchlist · catches FSNs even when active ingredient not named · 0 matches (30d)</div>
+              <div class="drug-actions"><span class="toggle"><input type="checkbox" checked><span style="font-size:11px;color:var(--t2);">Monitoring</span></span></div>
+            </div>
+          </div>
+
+          <div class="drug-add">
+            <input type="text" placeholder="Add medicine — brand or active ingredient (e.g. Rybelsus, dulaglutide)">
+            <button>Add to watchlist</button>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ───── Severity routing ───── -->
+    <div class="tab-pane" id="pane-routing" style="display:none;">
+
+      <div class="notice warn">
+        <span style="font-size:18px;">🛡</span>
+        <div>
+          <strong>DEC-36 protected</strong>
+          The <code>mhra_alert</code> tag-action rule cannot be disabled — only configured. This safeguards the regulatory cascade. Disabling notifications or removing recipient roles is not permitted; you can adjust which roles receive each severity, but at least one notification recipient is always required.
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Routing by alert classification</h2><div class="right">MHRA classification taxonomy</div></div>
+        <div class="section-body" style="padding:0;">
+          <table class="routing-table">
+            <thead>
+              <tr><th>Classification</th><th>Description</th><th style="width:280px;">Actions triggered</th><th style="width:60px;">Active</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="sev-pill c1">Class 1 recall</span></td>
+                <td>Action now · life-threatening or serious health risk · immediate quarantine of affected stock</td>
+                <td>
+                  <span class="action-chip incident">Create incident</span>
+                  <span class="action-chip task">Task to RM (4h SLA)</span>
+                  <span class="action-chip notify">Notify all recipients</span>
+                  <span class="action-chip audit">AUD-04</span>
+                </td>
+                <td><span class="toggle"><input type="checkbox" checked disabled></span></td>
+              </tr>
+              <tr>
+                <td><span class="sev-pill c2">Class 2 recall</span></td>
+                <td>Action within 48h · significant risk · stop using affected stock pending review</td>
+                <td>
+                  <span class="action-chip incident">Create incident</span>
+                  <span class="action-chip task">Task to RM (24h SLA)</span>
+                  <span class="action-chip notify">Notify all recipients</span>
+                  <span class="action-chip audit">AUD-04</span>
+                </td>
+                <td><span class="toggle"><input type="checkbox" checked disabled></span></td>
+              </tr>
+              <tr>
+                <td><span class="sev-pill c3">Class 3 recall</span></td>
+                <td>Action within 5 days · low risk · advisory recall, return existing stock at convenience</td>
+                <td>
+                  <span class="action-chip task">Task to RM (5d SLA)</span>
+                  <span class="action-chip notify">Notify all recipients</span>
+                  <span class="action-chip audit">AUD-04</span>
+                </td>
+                <td><span class="toggle"><input type="checkbox" checked></span></td>
+              </tr>
+              <tr>
+                <td><span class="sev-pill c4">Class 4 caution</span></td>
+                <td>Caution in use · informational only · update procedures or labelling</td>
+                <td>
+                  <span class="action-chip task">Task to RM (10d SLA)</span>
+                  <span class="action-chip notify">Notify clinical roles only</span>
+                  <span class="action-chip audit">AUD-04</span>
+                </td>
+                <td><span class="toggle"><input type="checkbox" checked></span></td>
+              </tr>
+              <tr>
+                <td><span class="sev-pill dsu">Drug Safety Update</span></td>
+                <td>Monthly safety bulletin · prescribing advice update · no immediate stock action</td>
+                <td>
+                  <span class="action-chip notify">Notify clinical roles only</span>
+                  <span class="action-chip audit">AUD-04</span>
+                </td>
+                <td><span class="toggle"><input type="checkbox" checked></span></td>
+              </tr>
+              <tr>
+                <td><span class="sev-pill dsu">Field Safety Notice</span></td>
+                <td>Manufacturer-issued device notice · check FSN-specific instructions</td>
+                <td>
+                  <span class="action-chip task">Task to RM (5d SLA)</span>
+                  <span class="action-chip notify">Notify all recipients</span>
+                  <span class="action-chip audit">AUD-04</span>
+                </td>
+                <td><span class="toggle"><input type="checkbox" checked></span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ───── Recipients ───── -->
+    <div class="tab-pane" id="pane-recipients" style="display:none;">
+
+      <div class="section">
+        <div class="section-head"><h2>Notification recipients by role</h2><div class="right">Roles auto-tagged on the Intercom conversation</div></div>
+        <div class="section-body">
+
+          <div class="recipient-grid">
+            <div class="recipient-card on">
+              <div class="role-name">✓ Owner</div>
+              <div class="role-count">1 person · Qadir Hussain</div>
+            </div>
+            <div class="recipient-card on">
+              <div class="role-name">✓ RM</div>
+              <div class="role-count">1 person · Qadir Hussain (acting)</div>
+            </div>
+            <div class="recipient-card on">
+              <div class="role-name">✓ Prescriber</div>
+              <div class="role-count">3 people · pharmacy IPs (VSC)</div>
+            </div>
+            <div class="recipient-card on">
+              <div class="role-name">✓ Superintendent Pharmacist</div>
+              <div class="role-count">1 person · Shahid Mahmood</div>
+            </div>
+            <div class="recipient-card">
+              <div class="role-name">Admin</div>
+              <div class="role-count">2 people · Punam, Shannon</div>
+            </div>
+            <div class="recipient-card">
+              <div class="role-name">Coach</div>
+              <div class="role-count">0 people · FeelTru only</div>
+            </div>
+            <div class="recipient-card">
+              <div class="role-name">Technician</div>
+              <div class="role-count">0 people</div>
+            </div>
+            <div class="recipient-card">
+              <div class="role-name">Manager</div>
+              <div class="role-count">0 people</div>
+            </div>
+          </div>
+
+          <div style="font-size:12px;color:var(--t3);margin-top:14px;line-height:1.5;">
+            Selected roles are auto-tagged on every <code>mhra_alert</code>-tagged Intercom conversation, ensuring all members of each role receive notification per their Intercom notification preferences. The conversation can also be assigned to a single individual for accountability — assignment defaults to RM but can be reassigned in Intercom.
+          </div>
+
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><h2>Acknowledgement requirements</h2><div class="right">CQC Reg 17 evidence trail</div></div>
+        <div class="section-body">
+          <div class="kv-grid">
+            <div class="lbl">RM acknowledgement<small>Required for Class 1, 2, 3 + FSN</small></div>
+            <div><span class="toggle"><input type="checkbox" checked><span>RM must acknowledge alert receipt within configured SLA · failure escalates to Owner</span></span></div>
+
+            <div class="lbl">Cascade-to-staff confirmation<small>RM confirms team is informed</small></div>
+            <div><span class="toggle"><input type="checkbox" checked><span>RM ticks confirmation in Intercom conversation when team has been briefed</span></span></div>
+
+            <div class="lbl">CQC evidence pack<small>Auto-attach to AUD-04</small></div>
+            <div><span class="toggle"><input type="checkbox" checked><span>Original alert + acknowledgement timestamps + cascade confirmation written to AUD-04 governance log</span></span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ───── Alert log ───── -->
+    <div class="tab-pane" id="pane-log" style="display:none;">
+
+      <div class="section">
+        <div class="section-head"><h2>Alerts processed · last 30 days</h2><div class="right">Showing 14 entries</div></div>
+        <div class="section-body" style="padding:0;">
+          <table class="alerts-table">
+            <thead>
+              <tr><th style="width:120px;">Polled at</th><th>Alert</th><th style="width:120px;">Class</th><th style="width:130px;">Match</th><th style="width:120px;">Status</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="color:var(--t2);">10 May 04:01</td>
+                <td>
+                  <div class="alert-title"><a href="https://www.gov.uk/drug-device-alerts" target="_blank">GLP-1 receptor agonists: reports of vision changes — additional monitoring required</a></div>
+                  <div class="alert-meta">MHRA/2026/04/30/DSU · semaglutide · tirzepatide · liraglutide</div>
+                </td>
+                <td><span class="sev-pill dsu">DSU</span></td>
+                <td><strong style="color:var(--ok);">3 watchlist hits</strong></td>
+                <td><span class="alert-status-chip routed">✓ Routed</span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--t2);">02 May 04:01</td>
+                <td>
+                  <div class="alert-title"><a href="https://www.gov.uk/drug-device-alerts" target="_blank">Tirzepatide (Mounjaro): report of severe pancreatitis cases · enhanced monitoring</a></div>
+                  <div class="alert-meta">MHRA/2026/04/02/DSU · tirzepatide</div>
+                </td>
+                <td><span class="sev-pill dsu">DSU</span></td>
+                <td><strong style="color:var(--ok);">Mounjaro / tirzepatide</strong></td>
+                <td><span class="alert-status-chip routed">✓ Routed</span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--t2);">28 Apr 04:01</td>
+                <td>
+                  <div class="alert-title"><a href="https://www.gov.uk/drug-device-alerts" target="_blank">FlexPen injection device — needle attachment guidance update</a></div>
+                  <div class="alert-meta">MHRA/2026/04/28/FSN · injection device</div>
+                </td>
+                <td><span class="sev-pill c4">Class 4</span></td>
+                <td><strong style="color:var(--ok);">Device watchlist</strong></td>
+                <td><span class="alert-status-chip routed">✓ Routed</span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--t2);">22 Apr 04:01</td>
+                <td>
+                  <div class="alert-title">Recall of paracetamol 500mg tablets — batch L24891 · particulate contamination</div>
+                  <div class="alert-meta">MHRA/2026/04/22/CMDh · paracetamol</div>
+                </td>
+                <td><span class="sev-pill c2">Class 2</span></td>
+                <td style="color:var(--t3);">No match</td>
+                <td><span class="alert-status-chip skipped">Skipped</span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--t2);">15 Apr 04:01</td>
+                <td>
+                  <div class="alert-title">Hospital infusion pump model X-742 — software update available</div>
+                  <div class="alert-meta">MHRA/2026/04/15/FSN · medical device</div>
+                </td>
+                <td><span class="sev-pill dsu">FSN</span></td>
+                <td style="color:var(--t3);">No match</td>
+                <td><span class="alert-status-chip skipped">Skipped</span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--t2);">10 Apr 04:01</td>
+                <td>
+                  <div class="alert-title"><a href="https://www.gov.uk/drug-device-alerts" target="_blank">Semaglutide pen devices — risk of dose mis-selection · revised user instructions</a></div>
+                  <div class="alert-meta">MHRA/2026/04/10/FSN · Wegovy / Ozempic / semaglutide</div>
+                </td>
+                <td><span class="sev-pill c4">Class 4</span></td>
+                <td><strong style="color:var(--ok);">Wegovy + Ozempic</strong></td>
+                <td><span class="alert-status-chip routed">✓ Routed</span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--t2);">03 Apr 04:01</td>
+                <td>
+                  <div class="alert-title">Recall of amoxicillin 250mg/5ml suspension · stability concerns</div>
+                  <div class="alert-meta">MHRA/2026/04/03/CMDh · amoxicillin</div>
+                </td>
+                <td><span class="sev-pill c3">Class 3</span></td>
+                <td style="color:var(--t3);">No match</td>
+                <td><span class="alert-status-chip skipped">Skipped</span></td>
+              </tr>
+              <tr>
+                <td style="color:var(--t2);">12 Apr 04:01</td>
+                <td>
+                  <div class="alert-title" style="color:var(--err);">[Earlier batch — error retried + recovered]</div>
+                  <div class="alert-meta">Feed timeout · retried at 04:08, succeeded · 0 alerts in retry batch</div>
+                </td>
+                <td>—</td>
+                <td>—</td>
+                <td><span class="alert-status-chip fail">Retried OK</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="foot-banner">
+      <strong>MHRA gov.uk drug-device-alerts integration</strong> · BLD-INT-MHRA-01 · DEC-39 · daily-poll integration with auto-routing through Intercom tag-action rules. Per-clinic drug watchlist (auto-seeded from <code>clinic_config.products</code>, manually editable). Severity-based routing (Class 1–4 + DSU + FSN) with enforced minimums (DEC-36 protection — cannot disable Class 1/2 incident creation). Recipients role-based with CQC Reg 17 acknowledgement evidence trail. Visible to <code>Owner</code>, <code>RM</code>. Configuration changes audit-logged to AUD-04. Companion BLDs: <a href="livera_settings_intercom_tag_actions.html">BLD-INT-MHRA-02 (tag-action rule)</a> · BLD-INT-MHRA-03 (Owner Dashboard rollup card).
+    </div>
+
+  </main>
+</div>
+
+<script>
+function switchTab(btn, key) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+  document.getElementById('pane-' + key).style.display = 'block';
+}
+</script>
+</body>
+</html>

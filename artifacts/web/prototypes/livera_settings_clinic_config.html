@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Clinic configuration</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4;--gov:#a855f7;--gov-bg:#faf5ff;--gov-bdr:#e9d5ff}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+.main{flex:1;padding:24px 30px;max-width:1180px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}.crumb .cur{color:var(--t1);font-weight:600}
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:24px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--brand-mid),var(--brand-d));display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:var(--brand-d);border-color:var(--brand-d);color:#fff}
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head .ttl{font-size:14px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+.card-body{padding:18px}
+.kv-grid{display:grid;grid-template-columns:220px 1fr;gap:0}
+.kv-row{display:contents}
+.kv-row .k{padding:11px 0;border-bottom:1px solid var(--bdr);font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;align-self:start}
+.kv-row .v{padding:11px 0;border-bottom:1px solid var(--bdr);font-size:13px;color:var(--t1)}
+.kv-row:last-child .k,.kv-row:last-child .v{border-bottom:none}
+.kv-row .v code{background:var(--brand-l);color:var(--brand-d);padding:2px 7px;border-radius:4px;font-size:11.5px;font-family:'SF Mono',Menlo,monospace}
+.kv-row .v .meta{font-size:11px;color:var(--t3);margin-top:3px}
+.kv-row .v select,.kv-row .v input[type="text"],.kv-row .v input[type="email"]{font-family:inherit;font-size:12.5px;padding:6px 9px;border:1px solid var(--bdr-d);border-radius:5px;color:var(--t1);background:var(--surface);min-width:280px}
+.kv-row .v.locked{color:var(--t2);font-style:italic}
+.kv-row .v.locked .lock{font-size:10px;background:var(--gov-bg);color:var(--gov);padding:2px 7px;border-radius:3px;font-weight:700;letter-spacing:.3px;margin-left:6px;border:.5px solid var(--gov-bdr)}
+.clinic-switcher{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:12px 18px;display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.clinic-switcher .cs-label{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px}
+.clinic-switcher .cs-tabs{display:flex;gap:1px;border:1px solid var(--bdr-d);border-radius:6px;overflow:hidden;margin-left:auto}
+.clinic-switcher .cs-tab{padding:6px 14px;font-size:12px;background:var(--surface);color:var(--t2);border:none;cursor:pointer;font-family:inherit;border-right:1px solid var(--bdr-d);transition:all .12s}
+.clinic-switcher .cs-tab:last-child{border-right:none}
+.clinic-switcher .cs-tab.on{background:var(--brand);color:#fff}
+.clinic-switcher .cs-tab:hover:not(.on){background:var(--brand-l);color:var(--brand-d)}
+.clinic-summary{background:var(--brand-l);border:1px solid var(--brand-mid);border-radius:8px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px}
+.clinic-summary .ic{width:42px;height:42px;border-radius:8px;background:linear-gradient(135deg,var(--brand-mid),var(--brand-d));color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex-shrink:0}
+.clinic-summary .info{flex:1;min-width:0}
+.clinic-summary .info .nm{font-size:14px;font-weight:700;color:var(--t1);letter-spacing:-.2px}
+.clinic-summary .info .meta{font-size:11.5px;color:var(--t2);margin-top:2px;line-height:1.45}
+.clinic-summary .info .meta strong{color:var(--t1);font-weight:600}
+.brand-preview{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.brand-input-block{padding:0}
+.brand-tile{height:80px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;letter-spacing:-.2px;text-shadow:0 1px 2px rgba(0,0,0,.15)}
+.brand-row{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:1px solid var(--bdr)}
+.brand-row:last-child{border-bottom:none}
+.brand-row .swatch{width:32px;height:32px;border-radius:6px;border:1px solid var(--bdr-d);flex-shrink:0}
+.brand-row .lbl{font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;min-width:120px}
+.brand-row .hex{font-family:'SF Mono',monospace;font-size:12.5px;color:var(--t1);font-weight:600}
+.brand-row input[type="text"]{font-family:'SF Mono',monospace;font-size:12px;padding:5px 8px;border:1px solid var(--bdr-d);border-radius:4px;width:90px}
+.amend-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.amend-card{border:1px solid var(--bdr);border-radius:8px;padding:14px;cursor:pointer;transition:all .15s}
+.amend-card.selected{border-color:var(--brand);background:var(--brand-l);box-shadow:0 0 0 1px var(--brand) inset}
+.amend-card .nm{font-size:13px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:6px}
+.amend-card .nm code{font-family:'SF Mono',monospace;font-size:10.5px;background:var(--bg);color:var(--t2);padding:1px 5px;border-radius:3px}
+.amend-card .desc{font-size:11.5px;color:var(--t2);margin-top:5px;line-height:1.45}
+.amend-card .applies{font-size:10px;color:var(--t3);margin-top:6px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.amend-card.selected .applies{color:var(--brand)}
+.tog-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--bdr)}
+.tog-row:last-child{border-bottom:none}
+.tog-row .info{flex:1}
+.tog-row .info .ttl{font-size:13px;color:var(--t1);font-weight:600}
+.tog-row .info .desc{font-size:11.5px;color:var(--t2);margin-top:2px;line-height:1.45}
+.tog-row .info .desc code{font-family:'SF Mono',monospace;font-size:11px;background:var(--bg);padding:1px 5px;border-radius:3px;color:var(--t2)}
+.tog{position:relative;width:38px;height:22px;background:var(--bdr-d);border-radius:999px;cursor:pointer;flex-shrink:0;transition:background .15s}
+.tog::after{content:'';position:absolute;left:2px;top:2px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s}
+.tog.on{background:var(--ok)}.tog.on::after{left:18px}
+.audit-row{display:grid;grid-template-columns:130px 1fr;gap:14px;padding:8px 18px;border-bottom:1px dashed var(--bdr);font-size:11.5px;align-items:start}
+.audit-row:last-child{border-bottom:none}
+.audit-row .when{color:var(--t3);font-variant-numeric:tabular-nums}
+.audit-row .what{color:var(--t1)}
+.audit-row .what strong{font-weight:600}
+.audit-row .what code{font-family:'SF Mono',monospace;font-size:10.5px;background:var(--bg);padding:1px 4px;border-radius:3px;color:var(--t2)}
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Dashboard</a><span class="sep">›</span>
+      <a href="livera_settings_landing.html">Settings</a><span class="sep">›</span>
+      <span class="cur">Clinic configuration</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">⚙</div>
+      <div class="pg-info">
+        <h1>Clinic configuration <span class="bld-pill">BLD-1.3</span></h1>
+        <div class="sub">
+          Workspace identity, brand tokens, prescribing model, amendment window, pharmacy connection. The architectural north star — these values drive how Livera behaves for this clinic.
+        </div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Stub · would download config as JSON')">⤓ Export JSON</button>
+        <button class="btn primary" onclick="showToast('Saved · all changes audit-logged · propagating within 5 min')">Save changes</button>
+      </div>
+    </div>
+
+    <!-- Clinic switcher -->
+    <div class="clinic-switcher">
+      <span class="cs-label">Editing config for:</span>
+      <div class="cs-tabs">
+        <button class="cs-tab on" onclick="showToast('Showing VSC config')">VSC <span style="opacity:.7">· clinic-001</span></button>
+        <button class="cs-tab" onclick="showToast('Switch to FeelTru config')">FeelTru <span style="opacity:.7">· clinic-002</span></button>
+      </div>
+    </div>
+
+    <!-- Clinic summary -->
+    <div class="clinic-summary">
+      <div class="ic">V</div>
+      <div class="info">
+        <div class="nm">VSC — Virtual Slimming Clinic</div>
+        <div class="meta">
+          <strong>Quanta Healthcare Ltd</strong> · Pharmacist Independent Prescriber model · <strong>Primed-API connected</strong> · amendment_window: <code>pre_dispensed</code> · CQC: not applicable · live since 18 Sep 2025
+        </div>
+      </div>
+    </div>
+
+    <!-- Identity -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🏥 Identity</div>
+        <div class="sub">Stable identifiers · changes here propagate to all integrations</div>
+      </div>
+      <div class="card-body" style="padding:0 18px">
+        <div class="kv-grid">
+          <div class="kv-row">
+            <div class="k">Clinic ID</div>
+            <div class="v locked"><code>clinic-001-vsc</code> <span class="lock">🔒 IMMUTABLE</span><div class="meta">Set at creation · cannot be changed · referenced by all clinical records</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Workspace ID</div>
+            <div class="v"><code>14</code><div class="meta">Internal Livera workspace identifier · used in API calls and webhook signatures</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Trading name</div>
+            <div class="v"><input type="text" value="Virtual Slimming Clinic"><div class="meta">Patient-facing name shown on prescriptions, emails, app</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Legal entity</div>
+            <div class="v"><input type="text" value="Quanta Healthcare Ltd" style="min-width:340px"><div class="meta">Companies House <code>13428710</code> · 70% Skild Ltd, 30% Certus Healthcare Ltd</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Reply-to email</div>
+            <div class="v"><input type="email" value="support@thevirtualslimmingclinic.co.uk"><div class="meta">Used as default reply-to on all patient emails sent via Postmark</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Primary domain</div>
+            <div class="v"><input type="text" value="thevirtualslimmingclinic.co.uk"><div class="meta">First-order traffic origin · DKIM/SPF aligned</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clinical model -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">⚕ Clinical model</div>
+        <div class="sub">Determines prescribing flow, CQC scope, amendment behaviour</div>
+      </div>
+      <div class="card-body" style="padding:0 18px">
+        <div class="kv-grid">
+          <div class="kv-row">
+            <div class="k">Prescriber type</div>
+            <div class="v">
+              <select>
+                <option selected>Pharmacist Independent Prescriber (PIP)</option>
+                <option>Nurse Prescriber (NP)</option>
+                <option>Doctor (GMC)</option>
+              </select>
+              <div class="meta">VSC uses Pharmacist Independent Prescriber model · CQC-exempt · pharmacy-led prescribing</div>
+            </div>
+          </div>
+          <div class="kv-row">
+            <div class="k">CQC registration</div>
+            <div class="v">
+              <select>
+                <option selected>Not applicable (CQC-exempt model)</option>
+                <option>Required (FeelTru-style)</option>
+              </select>
+              <div class="meta">VSC's pharmacist-led model is CQC-exempt · FeelTru's nurse prescriber model requires CQC registration</div>
+            </div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Treatment categories</div>
+            <div class="v"><code>weight_management</code> · GLP-1 (Wegovy, Mounjaro)<div class="meta">Other categories (HRT, mental health, men's health) added per <a href="livera_settings_landing.html#" style="color:var(--brand);font-weight:600">vertical content packs</a></div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Patient demographic</div>
+            <div class="v">
+              <select>
+                <option selected>Mixed gender · adults 18+</option>
+                <option>Women only · 30–55 (FeelTru)</option>
+              </select>
+              <div class="meta">FeelTru filters to women only at registration; redirects ineligible registrants to VSC</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coaching (DEC-34) — platform feature, per-clinic toggle -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📞 Coaching <code style="font-family:'SF Mono',monospace;font-size:10.5px;background:var(--bg);padding:1px 5px;border-radius:3px;color:var(--t3);margin-left:6px;">coaching_enabled</code></div>
+        <div class="sub">Platform feature · clinic-customisable per DEC-34 · pull-model patient self-book via Calendly</div>
+      </div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 220px;gap:24px;align-items:flex-start;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--t1);margin-bottom:6px;">Enable patient-bookable coaching</div>
+            <div style="font-size:12px;color:var(--t2);line-height:1.55;">
+              When ON: patient app surfaces coaching booking, automated email post-first-dispatch invites self-book, coach dashboard visible to coach-role users, coaching log captured per visit. When OFF: coaching surface hidden across patient + admin, no automated email, coach role users see read-only view.
+            </div>
+            <div style="margin-top:12px;padding:10px 12px;background:var(--info-bg);border:1px solid var(--info-bdr);border-radius:6px;font-size:11px;color:var(--info);line-height:1.5;">
+              <strong style="display:block;color:var(--t1);font-weight:600;margin-bottom:2px;">Different from welcome calls</strong>
+              Coaching = patient-initiated, self-booked via Calendly. Welcome calls = admin-initiated phone via Intercom. Both are platform features, but they're independent. Welcome calls don't require this toggle.
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px;">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--ok-bg);border:1px solid var(--ok-bdr);border-radius:8px;">
+              <div style="width:42px;height:24px;background:var(--ok);border-radius:999px;position:relative;cursor:pointer;" onclick="toggleCoaching(this)">
+                <div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;right:3px;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+              </div>
+              <div style="font-size:12px;font-weight:600;color:var(--ok);" id="coach-state">ON</div>
+            </div>
+            <div style="font-size:10.5px;color:var(--t3);text-align:right;line-height:1.4;">FeelTru: enabled<br>VSC: not yet enabled<br>New clinics: default OFF</div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--bdr);">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:10px;">Prerequisites for enabling</div>
+          <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;">
+            <div style="padding:10px 12px;background:var(--ok-bg);border:1px solid var(--ok-bdr);border-radius:6px;display:flex;align-items:flex-start;gap:8px;">
+              <div style="color:var(--ok);font-weight:700;flex-shrink:0;">✓</div>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--t1);">Calendly connected</div>
+                <div style="font-size:10.5px;color:var(--t2);margin-top:2px;line-height:1.4;">FeelTru Ltd · OAuth healthy · <a href="livera_settings_calendly.html" style="color:var(--brand);text-decoration:none;font-weight:600;">View →</a></div>
+              </div>
+            </div>
+            <div style="padding:10px 12px;background:var(--ok-bg);border:1px solid var(--ok-bdr);border-radius:6px;display:flex;align-items:flex-start;gap:8px;">
+              <div style="color:var(--ok);font-weight:700;flex-shrink:0;">✓</div>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--t1);">Coach role assigned</div>
+                <div style="font-size:10.5px;color:var(--t2);margin-top:2px;line-height:1.4;">1 user with Coach role: Olwyn Sutcliffe · <a href="livera_settings_team.html" style="color:var(--brand);text-decoration:none;font-weight:600;">View →</a></div>
+              </div>
+            </div>
+            <div style="padding:10px 12px;background:var(--ok-bg);border:1px solid var(--ok-bdr);border-radius:6px;display:flex;align-items:flex-start;gap:8px;">
+              <div style="color:var(--ok);font-weight:700;flex-shrink:0;">✓</div>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--t1);">Welcome email template</div>
+                <div style="font-size:10.5px;color:var(--t2);margin-top:2px;line-height:1.4;">tpl_first_dispatch_coaching · <a href="livera_settings_postmark.html" style="color:var(--brand);text-decoration:none;font-weight:600;">View →</a></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;padding:10px 12px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;font-size:11px;color:var(--t2);line-height:1.5;">
+          <strong style="color:var(--t1);font-weight:600;">VSC enabling notes:</strong> When VSC enables coaching, the same `coaching_log` table architecture is used — no schema migration. Calendly account must be connected (currently not connected for VSC). Coach must be added to team. Patient app picks up coaching surface on next session via clinic_config refresh.
+        </div>
+      </div>
+    </div>
+
+    <!-- Amendment window -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🔄 Amendment window</div>
+        <div class="sub">When patients can amend or cancel orders · enforced server-side regardless of UI state</div>
+      </div>
+      <div class="card-body">
+        <div class="amend-grid">
+          <div class="amend-card selected">
+            <div class="nm">Pre-dispensed <code>pre_dispensed</code></div>
+            <div class="desc">Amendments and cancellations possible up to the moment of pharmacy dispensing. Requires connected pharmacy API (Primed). Patient experience: rich, flexible.</div>
+            <div class="applies">VSC · CURRENT</div>
+          </div>
+          <div class="amend-card">
+            <div class="nm">Pre-approval <code>pre_approval</code></div>
+            <div class="desc">Amendments only possible before prescriber approval. Once approved, treated as immutable. Used when no pharmacy API connection exists.</div>
+            <div class="applies">— · not in use</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:10px 14px;background:var(--ok-bg, #ecfdf5);border:1px solid var(--ok-bdr, #a7f3d0);border-radius:6px;font-size:11.5px;color:var(--t2);line-height:1.45">
+          <strong style="color:var(--t1);font-weight:600;">DEC-01 locked:</strong> Both VSC and FeelTru run on <code style="font-family:'SF Mono',monospace;background:var(--bg);padding:1px 4px;border-radius:3px;color:var(--t2)">pre_dispensed</code>. Identical amendment window and approval logic. Both Primed-API-connected. Only architectural divergence is <code style="font-family:'SF Mono',monospace;background:var(--bg);padding:1px 4px;border-radius:3px;color:var(--t2)">coaching_enabled</code> flag. <code style="font-family:'SF Mono',monospace;background:var(--bg);padding:1px 4px;border-radius:3px;color:var(--t2)">pre_approval</code> retained as config option for future third-party clinics without Primed API.
+        </div>
+      </div>
+    </div>
+
+    <!-- Brand tokens -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🎨 Brand tokens</div>
+        <div class="sub">Injected at app build time · drive patient mobile and web theming</div>
+      </div>
+      <div class="card-body">
+        <div class="brand-preview">
+          <div class="brand-input-block">
+            <div class="brand-row">
+              <span class="swatch" style="background:#9697E8"></span>
+              <span class="lbl">primary</span>
+              <input type="text" value="#9697E8">
+              <span class="hex" style="margin-left:auto;font-size:11px;color:var(--t3)">lilac</span>
+            </div>
+            <div class="brand-row">
+              <span class="swatch" style="background:#4B5BA3"></span>
+              <span class="lbl">primary-dark</span>
+              <input type="text" value="#4B5BA3">
+              <span class="hex" style="margin-left:auto;font-size:11px;color:var(--t3)">indigo</span>
+            </div>
+            <div class="brand-row">
+              <span class="swatch" style="background:#F08E5F"></span>
+              <span class="lbl">accent</span>
+              <input type="text" value="#F08E5F">
+              <span class="hex" style="margin-left:auto;font-size:11px;color:var(--t3)">orange</span>
+            </div>
+            <div class="brand-row">
+              <span class="swatch" style="background:linear-gradient(135deg,#9697E8,#C09ED0,#F08E5F)"></span>
+              <span class="lbl">gradient</span>
+              <span class="hex" style="font-size:11px;color:var(--t2)">135deg → primary → C09ED0 → accent</span>
+            </div>
+            <div class="brand-row">
+              <span class="lbl">font</span>
+              <code style="font-family:'SF Mono',monospace;font-size:11px">Poppins</code>
+              <span style="font-size:11px;color:var(--t3);margin-left:auto">Patient mobile only · admin uses system font stack</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:8px">Live preview · patient mobile</div>
+            <div style="background:linear-gradient(135deg,#9697E8 0%,#C09ED0 50%,#F08E5F 100%);border-radius:14px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(150,151,232,.25)">
+              <div style="font-family:Poppins,sans-serif;font-size:18px;font-weight:700;letter-spacing:-.3px">Welcome back, Sarah</div>
+              <div style="font-family:Poppins,sans-serif;font-size:12px;opacity:.85;margin-top:4px">Your treatment is active · next dose Friday</div>
+              <div style="margin-top:14px;background:#fff;color:#4B5BA3;font-family:Poppins,sans-serif;font-size:11px;font-weight:600;padding:7px 12px;border-radius:999px;display:inline-block">Continue treatment →</div>
+            </div>
+            <div style="font-size:10px;color:var(--t3);margin-top:8px;line-height:1.45">Logo: <code style="font-family:'SF Mono',monospace;font-size:10px;background:var(--bg);padding:1px 5px;border-radius:3px">vsc_logo_mark.svg</code> · upload on next save</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pharmacy connection -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">💊 Pharmacy connection</div>
+        <div class="sub">Bound to Primed Pharmacy GPhC reg 1039469</div>
+      </div>
+      <div class="card-body" style="padding:0 18px">
+        <div class="kv-grid">
+          <div class="kv-row">
+            <div class="k">Pharmacy provider</div>
+            <div class="v"><strong>Primed Pharmacy</strong> · GPhC <code>1039469</code><div class="meta">Halifax-based · Schedule 4 CD authorised · Superintendent: Shahid Mahmood</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Pharmacy API connected</div>
+            <div class="v"><span style="color:var(--ok);font-weight:600">✓ Connected</span><div class="meta">Required for <code>pre_dispensed</code> amendment window · enables Group 6 BLD-16.1 Pharmacy Comms</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Default delivery</div>
+            <div class="v">
+              <select>
+                <option selected>Royal Mail Tracked 24 + Signed</option>
+                <option>Royal Mail Special Delivery 1pm (CD route)</option>
+              </select>
+              <div class="meta">Schedule 4 CDs auto-route to Special Delivery regardless of this default</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- External boards -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🔗 External board IDs</div>
+        <div class="sub">Where Livera writes incident, audit, and Group 6 events</div>
+      </div>
+      <div class="card-body" style="padding:0 18px">
+        <div class="kv-grid">
+          <div class="kv-row">
+            <div class="k">Monday incident board</div>
+            <div class="v"><input type="text" value="18402056019" style="min-width:200px"><div class="meta">Severe SE incidents auto-create items here</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Monday product tracker</div>
+            <div class="v"><input type="text" value="18296688407" style="min-width:200px"><div class="meta">Read-only reference · used by Livera Outcome Dashboard</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Monday incident workspace</div>
+            <div class="v"><input type="text" value="14510811" style="min-width:200px"><div class="meta">CQC governance workspace (FeelTru) · VSC shares its incident space</div></div>
+          </div>
+          <div class="kv-row">
+            <div class="k">Anthropic API key</div>
+            <div class="v"><span style="font-family:'SF Mono',monospace;color:var(--t2);background:var(--bg);padding:2px 8px;border-radius:4px;font-size:11.5px">●●●●●●●●●●●●●●●●●●●●●●●●5e21</span><div class="meta">Powers VSC Care AI · model <code>claude-sonnet-4-20250514</code> · system prompt requires Owner approval per release</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature toggles -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">🚦 Feature toggles</div>
+        <div class="sub">Per-clinic feature gates · changes propagate within 5 minutes</div>
+      </div>
+      <div class="card-body" style="padding:0 18px">
+        <div class="tog-row">
+          <div class="info">
+            <div class="ttl">Group 6 — Clinical Flag engine</div>
+            <div class="desc">Enable Annex E mirrored flags + proactive note authoring at approval (BLD-16.3, 16.4) · required for GPhC remediation evidence</div>
+          </div>
+          <div class="tog on" onclick="this.classList.toggle('on');showToast('Saved')"></div>
+        </div>
+        <div class="tog-row">
+          <div class="info">
+            <div class="ttl">BMI AI Validation</div>
+            <div class="desc">Three-up display on Clinical Evidence + dual-source weight chart (BLD-16.2) · requires AI photo extraction pipeline live</div>
+          </div>
+          <div class="tog on" onclick="this.classList.toggle('on');showToast('Saved')"></div>
+        </div>
+        <div class="tog-row">
+          <div class="info">
+            <div class="ttl">VSC Care AI assistant</div>
+            <div class="desc">In-app patient support powered by Anthropic Claude · standard system prompt with clinical guardrails</div>
+          </div>
+          <div class="tog on" onclick="this.classList.toggle('on');showToast('Saved')"></div>
+        </div>
+        <div class="tog-row">
+          <div class="info">
+            <div class="ttl">Patient self-service amendments</div>
+            <div class="desc">Allow patients to amend or cancel orders within the amendment window · without clinician involvement</div>
+          </div>
+          <div class="tog on" onclick="this.classList.toggle('on');showToast('Saved')"></div>
+        </div>
+        <div class="tog-row">
+          <div class="info">
+            <div class="ttl">Coaching log capture</div>
+            <div class="desc">Capture coaching calls, observations, follow-ups · auto-disables when <code>coaching_enabled = OFF</code></div>
+          </div>
+          <div class="tog" onclick="this.classList.toggle('on');showToast('Saved')"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent changes -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📜 Recent config changes</div>
+        <div class="sub">Audit-logged · Owner + RM only</div>
+      </div>
+      <div style="padding:0">
+        <div class="audit-row">
+          <span class="when">04 May · 09:14</span>
+          <span class="what"><strong>Qadir Hussain (Owner)</strong> enabled <code>BMI AI Validation</code> · Group 6 deployment</span>
+        </div>
+        <div class="audit-row">
+          <span class="when">28 Apr · 11:42</span>
+          <span class="what"><strong>Qadir Hussain (Owner)</strong> updated reply-to from <code>noreply@</code> → <code>support@</code></span>
+        </div>
+        <div class="audit-row">
+          <span class="when">22 Apr · 16:08</span>
+          <span class="what"><strong>Mobeen Alam (RM)</strong> updated brand <code>accent</code> from <code>#FFA86B</code> → <code>#F08E5F</code></span>
+        </div>
+        <div class="audit-row">
+          <span class="when">15 Apr · 14:30</span>
+          <span class="what"><strong>Qadir Hussain (Owner)</strong> enabled <code>Group 6 — Clinical Flag engine</code></span>
+        </div>
+        <div class="audit-row">
+          <span class="when">08 Apr · 10:00</span>
+          <span class="what"><strong>System</strong> initial config deployment for clinic-001-vsc</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="perm-note">
+      <strong>Clinic configuration</strong> · BLD-1.3 · the architectural north star. Every clinic-specific value is injected here, not hardcoded. Adding a new clinic requires configuration only, not platform changes. Visible to <code>Owner</code> and <code>RM</code> · all other roles hidden. Changes propagate to running services within 5 minutes; immutable identifiers (clinic_id, workspace_id) cannot be altered after creation.
+    </div>
+
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+
+function toggleCoaching(el){
+  var on = el.style.background !== 'var(--t3)' && !el.classList.contains('off');
+  if(on){
+    el.style.background = 'var(--t3)';
+    el.classList.add('off');
+    el.querySelector('div').style.right = 'auto';
+    el.querySelector('div').style.left = '3px';
+    document.getElementById('coach-state').textContent = 'OFF';
+    document.getElementById('coach-state').style.color = 'var(--t3)';
+    el.parentNode.style.background = 'var(--bg)';
+    el.parentNode.style.borderColor = 'var(--bdr-d)';
+    showToast('Coaching disabled · patient app coaching surface will hide on next session');
+  } else {
+    el.style.background = 'var(--ok)';
+    el.classList.remove('off');
+    el.querySelector('div').style.left = 'auto';
+    el.querySelector('div').style.right = '3px';
+    document.getElementById('coach-state').textContent = 'ON';
+    document.getElementById('coach-state').style.color = 'var(--ok)';
+    el.parentNode.style.background = 'var(--ok-bg)';
+    el.parentNode.style.borderColor = 'var(--ok-bdr)';
+    showToast('Coaching enabled · patient app will surface coaching booking on next session');
+  }
+}
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

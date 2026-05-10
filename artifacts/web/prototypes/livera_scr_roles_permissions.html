@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Settings · Roles &amp; Permissions</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --grey: #6b6b6b; --grey-bg: #f5f5f5; --grey-border: #d4d4d4;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row:hover { background: var(--surface-2); }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  /* Topbar */
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 6px; }
+  .btn-sm:hover { background: var(--surface-2); }
+  .btn-sm.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn-sm.primary:hover { background: #3730a3; }
+  .btn-sm[disabled] { opacity: 0.45; cursor: not-allowed; }
+  .btn-sm[disabled]:hover { background: var(--surface); border-color: var(--border-strong); }
+
+  .unsaved-indicator { font-size: 11px; padding: 3px 9px; border-radius: 999px; background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); font-weight: 600; display: none; align-items: center; gap: 5px; }
+  .unsaved-indicator.show { display: inline-flex; }
+
+  /* Header strip with Title + Tabs */
+  .page-head { padding: 18px 24px 0; background: var(--surface); border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+  .page-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .page-title { font-size: 19px; font-weight: 700; letter-spacing: -0.4px; color: var(--text-1); }
+  .page-version-pill { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: var(--brand-light); color: var(--brand-dark); border: 0.5px solid var(--brand-mid); font-weight: 600; }
+  .page-sub { font-size: 12px; color: var(--text-3); line-height: 1.5; max-width: 720px; margin-bottom: 10px; }
+  .tabs { display: flex; gap: 0; }
+  .tab { padding: 10px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; display: flex; align-items: center; gap: 6px; }
+  .tab:hover { color: var(--text-1); }
+  .tab.on { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 500; }
+  .tab-ct { background: var(--surface-2); color: var(--text-3); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; border: 0.5px solid var(--border-strong); }
+
+  /* Panels */
+  .panel { display: none; flex: 1; overflow: hidden; }
+  .panel.on { display: flex; flex-direction: column; }
+
+  /* MATRIX PANEL — 3 columns */
+  .matrix-shell { flex: 1; display: grid; grid-template-columns: 240px 220px 1fr; overflow: hidden; }
+
+  /* LEFT: roles list */
+  .roles-col { background: var(--surface); border-right: 0.5px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+  .roles-head { padding: 12px 14px; font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .roles-head .add-role { margin-left: auto; font-size: 11px; color: var(--brand-dark); cursor: pointer; font-weight: 500; }
+  .role-item { padding: 10px 14px; cursor: pointer; border-bottom: 0.5px solid var(--border); display: flex; flex-direction: column; gap: 3px; transition: background 0.1s; }
+  .role-item:hover { background: var(--surface-2); }
+  .role-item.on { background: var(--brand-light); border-left: 3px solid var(--brand); padding-left: 11px; }
+  .role-item-name { font-size: 13px; font-weight: 600; color: var(--text-1); display: flex; align-items: center; gap: 6px; }
+  .role-item-name .role-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .role-item-meta { font-size: 11px; color: var(--text-3); }
+  .role-item-locked-pill { font-size: 9px; padding: 1px 5px; background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); border-radius: 3px; font-weight: 700; letter-spacing: 0.3px; margin-left: auto; }
+
+  /* CENTRE: action category filter */
+  .cat-col { background: var(--surface-2); border-right: 0.5px solid var(--border); overflow-y: auto; padding: 8px; }
+  .cat-search { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: var(--r-md); padding: 6px 10px; margin-bottom: 8px; }
+  .cat-search input { flex: 1; border: none; outline: none; font-size: 12px; font-family: inherit; background: transparent; color: var(--text-1); }
+  .cat-search-icon { color: var(--text-3); font-size: 12px; }
+  .cat-item { padding: 9px 11px; border-radius: var(--r-md); cursor: pointer; font-size: 12px; color: var(--text-2); display: flex; align-items: center; justify-content: space-between; gap: 8px; transition: all 0.1s; margin-bottom: 2px; }
+  .cat-item:hover { background: var(--surface-3); }
+  .cat-item.on { background: var(--surface); border: 0.5px solid var(--brand-mid); color: var(--brand-dark); font-weight: 500; padding: 8.5px 10.5px; }
+  .cat-item-count { font-size: 10px; color: var(--text-3); }
+  .cat-item.on .cat-item-count { color: var(--brand-dark); }
+
+  /* RIGHT: permission grid */
+  .grid-col { background: var(--surface); overflow-y: auto; padding: 16px 24px 24px; }
+  .grid-section-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+  .grid-section-title { font-size: 15px; font-weight: 600; color: var(--text-1); letter-spacing: -0.2px; }
+  .grid-section-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; line-height: 1.5; }
+  .grid-section-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--brand-light); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); margin-bottom: 14px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+  .legend-dot { width: 14px; height: 14px; border-radius: 4px; border: 1px solid; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; }
+  .legend-dot.granted { background: #16a34a; border-color: #16a34a; color: #fff; }
+  .legend-dot.denied { background: var(--surface); border-color: var(--border-strong); color: var(--text-3); }
+  .legend-dot.locked-yes { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+  .legend-dot.locked-no { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+  .legend-dot.conditional { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
+
+  /* Permission rows */
+  .perm-list { display: flex; flex-direction: column; gap: 6px; }
+  .perm-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-md); transition: all 0.1s; }
+  .perm-row:hover { border-color: var(--border-strong); background: var(--surface-2); }
+  .perm-toggle { flex-shrink: 0; }
+  .perm-toggle .toggle { width: 36px; height: 20px; background: var(--border-strong); border-radius: 999px; position: relative; cursor: pointer; transition: background 0.15s; }
+  .perm-toggle .toggle::after { content: ''; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: transform 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+  .perm-toggle .toggle.on { background: #16a34a; }
+  .perm-toggle .toggle.on::after { transform: translateX(16px); }
+  .perm-toggle .toggle.locked-yes { background: #16a34a; cursor: not-allowed; opacity: 0.85; position: relative; }
+  .perm-toggle .toggle.locked-yes::after { transform: translateX(16px); }
+  .perm-toggle .toggle.locked-no { background: var(--red-mid); cursor: not-allowed; opacity: 0.55; }
+  .perm-toggle .toggle.locked-no::after { transform: none; }
+  .perm-toggle .lock-icon { font-size: 10px; color: var(--text-3); margin-top: 4px; text-align: center; display: block; }
+  .perm-toggle .conditional-tag { font-size: 9px; padding: 1px 5px; background: var(--amber-bg); color: var(--amber); border-radius: 3px; font-weight: 700; letter-spacing: 0.3px; display: inline-block; margin-top: 4px; border: 0.5px solid var(--amber-border); }
+
+  .perm-content { flex: 1; min-width: 0; }
+  .perm-name { font-size: 13px; font-weight: 600; color: var(--text-1); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .perm-name .perm-key { font-size: 10px; padding: 1px 6px; background: var(--surface-3); color: var(--text-3); border-radius: 3px; font-family: ui-monospace, 'SF Mono', monospace; font-weight: 500; }
+  .perm-name .perm-locked-badge { font-size: 9px; padding: 1px 5px; background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-border); border-radius: 3px; font-weight: 700; letter-spacing: 0.3px; }
+  .perm-name .perm-conditional-badge { font-size: 9px; padding: 1px 5px; background: var(--blue-bg); color: var(--blue); border: 0.5px solid var(--blue-border); border-radius: 3px; font-weight: 700; letter-spacing: 0.3px; }
+  .perm-name .perm-changed-badge { font-size: 9px; padding: 1px 5px; background: var(--brand-light); color: var(--brand-dark); border: 0.5px solid var(--brand-mid); border-radius: 3px; font-weight: 700; letter-spacing: 0.3px; }
+  .perm-desc { font-size: 11px; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
+  .perm-rationale { font-size: 11px; color: var(--text-3); margin-top: 6px; padding-top: 5px; border-top: 0.5px solid var(--border); line-height: 1.5; }
+  .perm-rationale strong { color: var(--text-2); font-weight: 600; }
+  .perm-rationale a { color: var(--brand-dark); cursor: pointer; }
+  .perm-rationale a:hover { text-decoration: underline; }
+
+  /* Per-row meta — last changed */
+  .perm-meta { font-size: 10px; color: var(--text-3); flex-shrink: 0; text-align: right; padding-top: 2px; }
+  .perm-meta strong { color: var(--text-2); font-weight: 500; }
+
+  /* AUDIT LOG PANEL */
+  .audit-shell { flex: 1; padding: 20px 24px; overflow-y: auto; background: var(--surface); }
+  .audit-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .audit-head { padding: 14px 18px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .audit-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .audit-sub { font-size: 11px; color: var(--text-3); }
+  .audit-list { padding: 6px 0; }
+  .audit-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 18px; border-bottom: 0.5px solid var(--border); }
+  .audit-row:last-child { border-bottom: none; }
+  .audit-icon { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+  .audit-icon.add { background: var(--green-bg); color: var(--green); }
+  .audit-icon.remove { background: var(--red-bg); color: var(--red-mid); }
+  .audit-icon.role { background: var(--brand-light); color: var(--brand-dark); }
+  .audit-body { flex: 1; min-width: 0; }
+  .audit-text { font-size: 12px; color: var(--text-1); line-height: 1.5; }
+  .audit-text strong { font-weight: 600; }
+  .audit-text .perm-key { font-size: 10px; padding: 1px 6px; background: var(--surface-2); color: var(--text-3); border-radius: 3px; font-family: ui-monospace, 'SF Mono', monospace; font-weight: 500; }
+  .audit-meta { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+  .audit-time { font-size: 11px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* WS switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); position:relative; }
+  .ws-switcher:hover { background:var(--surface-2); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); flex-shrink:0; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 28px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 300; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .toast.show { display: flex; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal-card { background: var(--surface); border-radius: 12px; width: 580px; max-width: 95vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .modal-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--brand-light); color: var(--brand-dark); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .modal-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer; font-size: 14px; color: var(--text-3); }
+  .modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .modal-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .modal-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Diff list in save modal */
+  .diff-block { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); padding: 4px; max-height: 320px; overflow-y: auto; }
+  .diff-row { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; border-bottom: 0.5px solid var(--border); }
+  .diff-row:last-child { border-bottom: none; }
+  .diff-icon { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .diff-icon.add { background: var(--green-bg); color: var(--green); }
+  .diff-icon.remove { background: var(--red-bg); color: var(--red-mid); }
+  .diff-text { flex: 1; font-size: 12px; color: var(--text-1); line-height: 1.4; }
+  .diff-text strong { font-weight: 600; }
+  .diff-text .perm-key { font-size: 10px; padding: 1px 5px; background: var(--surface-3); color: var(--text-3); border-radius: 3px; font-family: ui-monospace, 'SF Mono', monospace; }
+  .diff-text .role-tag { font-size: 10px; padding: 1px 6px; background: var(--brand-light); color: var(--brand-dark); border-radius: 3px; font-weight: 600; }
+
+  .empty-state { padding: 40px 20px; text-align: center; color: var(--text-3); font-size: 13px; }
+
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body data-workspace="feeltru">
+
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_settings_landing.html">Settings</a>
+        <span class="sep">/</span>
+        <span class="cur">Roles &amp; Permissions</span>
+      </div>
+      <div class="topbar-right">
+        <span class="unsaved-indicator" id="unsaved-indicator">⚠ <span id="unsaved-count">0</span> unsaved changes</span>
+        <button class="btn-sm" id="discard-btn" onclick="discardChanges()" disabled>Discard changes</button>
+        <button class="btn-sm primary" id="save-btn" onclick="openSaveModal()" disabled>Save changes →</button>
+      </div>
+    </div>
+
+    <!-- Page header + tabs -->
+    <div class="page-head">
+      <div class="page-title-row">
+        <div class="page-title">Roles &amp; Permissions</div>
+        <div class="page-version-pill">Matrix v1.1</div>
+      </div>
+      <div class="page-sub">Configure what each role can see and do across the platform. Permissions changes apply immediately for FeelTru workspace and are audit-logged. <strong>🔒 Locked permissions are regulator-mandated and cannot be unticked from this screen.</strong></div>
+      <div class="tabs">
+        <div class="tab on" id="t-matrix" onclick="showTab('matrix',this)">Permissions matrix <span class="tab-ct" id="ct-matrix">240</span></div>
+        <div class="tab" id="t-audit" onclick="showTab('audit',this)">Audit log <span class="tab-ct">12</span></div>
+      </div>
+    </div>
+
+    <!-- ── PANEL: MATRIX ── -->
+    <div class="panel on" id="panel-matrix">
+      <div class="matrix-shell">
+
+        <!-- LEFT: roles list -->
+        <div class="roles-col">
+          <div class="roles-head">
+            Roles
+            <span class="add-role" onclick="showToast('Opens new-role wizard — name, description, copy-from-existing-role')">+ New role</span>
+          </div>
+          <div id="roles-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- CENTRE: action category filter -->
+        <div class="cat-col">
+          <div class="cat-search">
+            <span class="cat-search-icon">🔍</span>
+            <input type="text" id="cat-search" placeholder="Search permissions…" oninput="filterPermissions(this.value)">
+          </div>
+          <div id="cat-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- RIGHT: permission grid -->
+        <div class="grid-col" id="grid-col">
+          <!-- Rendered by JS -->
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── PANEL: AUDIT ── -->
+    <div class="panel" id="panel-audit">
+      <div class="audit-shell">
+        <div class="audit-card">
+          <div class="audit-head">
+            <div class="audit-title">Permission change audit log</div>
+            <div class="audit-sub">Most recent 12 changes · FeelTru workspace · 7-year retention</div>
+            <button class="btn-sm" style="margin-left:auto;" onclick="showToast('Exports the full audit log as CSV')">⬇ Export</button>
+          </div>
+          <div class="audit-list" id="audit-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Annotation -->
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-Roles-Permissions · Settings → Roles &amp; Permissions · maps to Livera Permissions Matrix v1.1</span>
+      <span class="at">Permissions</span>
+      <span>3-pane: roles · action categories · permission grid · 🔒 locked items cannot be toggled · ⚙️ conditional items rule-based</span>
+      <span class="at">Audit</span>
+      <span>Every tick/untick logged: who, what, when, old/new value · 7-year retention · CQC inspection-ready</span>
+    </div>
+  </div>
+</div>
+
+<!-- Save modal -->
+<div class="modal-overlay" id="modal-save" onclick="if(event.target.id==='modal-save')closeModal('save')">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-icon">⤴</div>
+      <div class="modal-title">Save permission changes</div>
+      <button class="modal-close" onclick="closeModal('save')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-2);line-height:1.5;">
+        Saving <strong id="save-count">0</strong> changes to <strong>FeelTru</strong> workspace permissions.
+        Changes apply immediately. <strong>Every change is audit-logged with your user ID, timestamp, and old/new value.</strong>
+      </div>
+
+      <div class="modal-label">Changes since last save</div>
+      <div class="diff-block" id="save-diff"></div>
+
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;background:var(--surface-2);padding:9px 11px;border-radius:6px;border:0.5px solid var(--border);">
+        <input type="checkbox" id="save-notify" checked style="margin-top:2px;accent-color:var(--brand-dark);">
+        <div>
+          <div style="font-weight:600;">Notify affected users</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:1px;">Users whose role permissions change get an in-app notification next time they log in</div>
+        </div>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-sm" onclick="closeModal('save')">Cancel</button>
+      <button class="btn-sm primary" onclick="commitSave()">Save &amp; apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────
+// DATA — roles + actions + permissions
+// In production this all lives in the backend; here we simulate with JS
+// ─────────────────────────────────────────────
+
+const ROLES = [
+  { key: 'owner',          name: 'Owner',                 dot: '#4338ca', meta: 'Account-level — full access',           lockedRole: true,  user: 'Qadir Hussain' },
+  { key: 'rm',             name: 'CQC Registered Manager', dot: '#6366f1', meta: 'Governance + ops sign-off',             lockedRole: true,  user: 'Mobeen Alam' },
+  { key: 'prescriber',     name: 'Prescriber',            dot: '#16a34a', meta: 'Clinical decisions · NMC/GPhC',         lockedRole: true,  user: 'Claire Moynehan' },
+  { key: 'pharmacist',     name: 'Pharmacist',            dot: '#0891b2', meta: 'Pharmacy ops · dispensing',             lockedRole: false, user: 'Ali Abbas' },
+  { key: 'admin',          name: 'Admin',                 dot: '#a855f7', meta: 'Operations · patient management',       lockedRole: false, user: 'Thivera Chandrapala' },
+  { key: 'coach',          name: 'Coach',                 dot: '#f59e0b', meta: 'Coaching layer · FeelTru only',         lockedRole: false, user: 'Olwyn Sutcliffe' },
+  { key: 'superintendent', name: 'Superintendent',        dot: '#dc2626', meta: 'GPhC oversight · pharmacy governance',  lockedRole: true,  user: 'Shahid Mahmood' }
+];
+
+const CATEGORIES = [
+  { key: 'order_detail.view',     name: 'Order Detail · View',          icon: '👁',  count: 17 },
+  { key: 'order_detail.decision', name: 'Order Detail · Decision',      icon: '✓',  count: 8 },
+  { key: 'order_detail.post',     name: 'Order Detail · Post-decision', icon: '⏭', count: 14 },
+  { key: 'patient_profile',       name: 'Patient profile',              icon: '👤', count: 22 },
+  { key: 'orders_list',           name: 'Orders list',                  icon: '☰',  count: 7 },
+  { key: 'tasks',                 name: 'Tasks',                        icon: '✓',  count: 10 },
+  { key: 'welcome_calls',         name: 'Welcome calls',                icon: '📞', count: 6 },
+  { key: 'complaints',            name: 'Complaints',                   icon: '⚖',  count: 9 },
+  { key: 'incidents',             name: 'Incidents',                    icon: '⚠',  count: 9 },
+  { key: 'consultations',         name: 'Consultations',                icon: '📅', count: 7 },
+  { key: 'gp_letters',            name: 'GP letters',                   icon: '✉',  count: 7 },
+  { key: 'questionnaires',        name: 'Questionnaires',               icon: '📋', count: 9 },
+  { key: 'audits',                name: 'Audits (CQC)',                 icon: '⚕',  count: 7 },
+  { key: 'team_management',       name: 'Team management',              icon: '👥', count: 6 },
+  { key: 'settings',              name: 'Settings · Other',             icon: '⚙',  count: 16 },
+  { key: 'auth',                  name: 'Authentication',               icon: '🔑', count: 6 }
+];
+
+// Sample of full permissions matrix — reproduces a meaningful slice of v1.1
+// Format: key → { name, desc, rationale (locked-only), category, perRole: { role: state } }
+//   state: true | false | '🔒 true' | '🔒 false' | '⚙️ <expr>'
+const PERMISSIONS = {
+
+  // ─── Order Detail · Decision (the lockdown zone) ───
+  'order.approve': {
+    name: 'Approve order',
+    category: 'order_detail.decision',
+    desc: 'Click the Approve button on a Clinical Check order. Triggers Primed dispense, payment capture, audit log entry.',
+    rationale: 'MHRA / GPhC / CQC. Only a registered prescriber may clinically approve a prescription. Cannot be unticked from this screen.',
+    perRole: { owner:'🔒 false', rm:'🔒 false', prescriber:'🔒 true', pharmacist:'🔒 false', admin:'🔒 false', coach:'🔒 false', superintendent:'🔒 false' }
+  },
+  'order.decline': {
+    name: 'Decline order',
+    category: 'order_detail.decision',
+    desc: 'Decline a Clinical Check order with structured reason. Optionally triggers discontinuation letter.',
+    rationale: 'Same regulatory basis as approval. Clinical decision authority is prescriber-only.',
+    perRole: { owner:'🔒 false', rm:'🔒 false', prescriber:'🔒 true', pharmacist:'🔒 false', admin:'🔒 false', coach:'🔒 false', superintendent:'🔒 false' }
+  },
+  'nice.toggle': {
+    name: 'Toggle NICE CG189 checklist items',
+    category: 'order_detail.decision',
+    desc: 'Mark NICE CG189 items as confirmed during clinical review. Drives the platform severity matrix.',
+    rationale: 'Clinical decision data — only the registered prescriber can record clinical confirmations.',
+    perRole: { owner:'🔒 false', rm:'🔒 false', prescriber:'🔒 true', pharmacist:'🔒 false', admin:'🔒 false', coach:'🔒 false', superintendent:'🔒 false' }
+  },
+  'notes.edit': {
+    name: 'Edit clinical notes (during decision)',
+    category: 'order_detail.decision',
+    desc: 'Type into the mandatory clinical notes field while reviewing an order. Becomes immutable after approval.',
+    rationale: 'Clinical record integrity. Only the prescriber making the decision authors the notes.',
+    perRole: { owner:'🔒 false', rm:'🔒 false', prescriber:'🔒 true', pharmacist:'🔒 false', admin:'🔒 false', coach:'🔒 false', superintendent:'🔒 false' }
+  },
+  'ed.lift': {
+    name: 'Lift ED safeguarding hold',
+    category: 'order_detail.decision',
+    desc: 'Override the auto-block on orders flagged for eating disorder safeguarding (BMI < 18.5 self-reported).',
+    rationale: 'Clinical safety override. Only a prescriber can take responsibility for proceeding past a safeguarding flag.',
+    perRole: { owner:'🔒 false', rm:'🔒 false', prescriber:'🔒 true', pharmacist:'🔒 false', admin:'🔒 false', coach:'🔒 false', superintendent:'🔒 false' }
+  },
+  'ed.escalate': {
+    name: 'Escalate ED safeguarding to RM',
+    category: 'order_detail.decision',
+    desc: 'Flag a safeguarding concern internally to the Registered Manager. Creates an incident + Slack notification.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:true, superintendent:true }
+  },
+
+  // ─── Order Detail · View ───
+  'order.view': {
+    name: 'View Order Detail screen',
+    category: 'order_detail.view',
+    desc: 'Open and view the full Order Detail page. Same surface for every authorised role.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:true, superintendent:true }
+  },
+  'tab.clinical_evidence': {
+    name: 'View Clinical evidence tab',
+    category: 'order_detail.view',
+    desc: 'See NICE checklist, dose escalation gate, weight trajectory, BMI AI, prior-dose evidence, mandatory notes.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:false, superintendent:true }
+  },
+  'tab.prescription': {
+    name: 'View Prescription tab',
+    category: 'order_detail.view',
+    desc: 'See watermarked Rx PDF, dispense status, share-with options.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:false, superintendent:true }
+  },
+  'tab.activity': {
+    name: 'View Activity log tab',
+    category: 'order_detail.view',
+    desc: 'Chronological audit trail of every system + user event on this order.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:false, superintendent:true }
+  },
+  'tab.comms': {
+    name: 'View Patient comms tab',
+    category: 'order_detail.view',
+    desc: 'See Omnisend emails and Intercom conversations linked to this order.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:false, admin:true, coach:false, superintendent:false }
+  },
+  'photo.view': {
+    name: 'View photo evidence',
+    category: 'order_detail.view',
+    desc: 'View patient-uploaded weight scale, pen pack, or injection-site photos.',
+    rationale: 'Conditional on patient.photo_consent = "given". UK GDPR Article 9 — declined consent locks photos for ALL roles, including Owner.',
+    perRole: {
+      owner:'⚙️ if photo_consent = given',
+      rm:'⚙️ if photo_consent = given',
+      prescriber:'⚙️ if photo_consent = given',
+      pharmacist:'⚙️ if photo_consent = given',
+      admin:'⚙️ if photo_consent = given',
+      coach:false,
+      superintendent:'⚙️ if photo_consent = given'
+    }
+  },
+
+  // ─── Order Detail · Post-decision ───
+  'gp.send': {
+    name: 'Send GP letter',
+    category: 'order_detail.post',
+    desc: 'Compose and send a GP letter (with watermarked Rx attachment) to the patient\'s GP surgery.',
+    rationale: 'Conditional on patient.gp_communication_consent = "given". UK GDPR Article 9 — never sendable without consent.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:false, admin:true, coach:false, superintendent:false }
+  },
+  'order.override_decline': {
+    name: 'Override declined order (RM authority)',
+    category: 'order_detail.post',
+    desc: 'Re-open a declined order back to Clinical Check state for fresh prescriber review.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'order.cancel': {
+    name: 'Cancel order (pre-dispatch)',
+    category: 'order_detail.post',
+    desc: 'Cancel an approved order before Primed has dispensed. Releases payment authorisation. Amendment-window dependent.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:false, superintendent:false }
+  },
+  'order.refund': {
+    name: 'Refund order',
+    category: 'order_detail.post',
+    desc: 'Process a refund via Ryft. Triggers patient notification.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:true, coach:false, superintendent:false }
+  },
+  'rx.share_patient': {
+    name: 'Share Rx with patient',
+    category: 'order_detail.post',
+    desc: 'Send the watermarked prescription PDF to the patient via app/email.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:false, superintendent:true }
+  },
+  'rx.share_gp': {
+    name: 'Share Rx with GP',
+    category: 'order_detail.post',
+    desc: 'Send the watermarked prescription PDF to the patient\'s GP surgery.',
+    rationale: 'Conditional on patient.gp_communication_consent = "given". UK GDPR Article 9.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:false, superintendent:true }
+  },
+  'consent.request_update': {
+    name: 'Request consent update from patient',
+    category: 'order_detail.post',
+    desc: 'Send a non-coercive prompt asking the patient to update their consent preferences (treatment / GP / photo).',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:false, admin:true, coach:false, superintendent:false }
+  },
+  'order.reopen_cc': {
+    name: 'Re-open clinical check (RM only)',
+    category: 'order_detail.post',
+    desc: 'Move an approved or declined order back to Clinical Check state. Used for governance review.',
+    rationale: 'Restricted to RM — exists for governance/escalation oversight only. Not an Owner action.',
+    perRole: { owner:false, rm:true, prescriber:false, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+
+  // ─── Patient profile ───
+  'profile.view_clinical_record': {
+    name: 'View full clinical record',
+    category: 'patient_profile',
+    desc: 'Access height, weight, conditions, medications, allergies, full clinical history.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:false, superintendent:true }
+  },
+  'profile.view_clinical_record_excerpt': {
+    name: 'View clinical record excerpt (Coach view)',
+    category: 'patient_profile',
+    desc: 'Restricted clinical view: weight trajectory, mood/adherence chips, consultation history.',
+    rationale: 'Coach restricted view per matrix v1.1 §4.4. Coach does not see prescription detail or approval notes.',
+    perRole: { owner:false, rm:false, prescriber:false, pharmacist:false, admin:false, coach:'🔒 true', superintendent:false }
+  },
+  'profile.edit_clinical_record': {
+    name: 'Edit clinical record',
+    category: 'patient_profile',
+    desc: 'Update height, weight, conditions, medication list.',
+    rationale: 'Prescriber edit authority is locked — clinical record changes need clinical accountability.',
+    perRole: { owner:false, rm:true, prescriber:'🔒 true', pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'profile.update_treatment_status': {
+    name: 'Update treatment status (Active → Monitoring → Stopped)',
+    category: 'patient_profile',
+    desc: 'Move patient between treatment states. Linked to discontinuation flow.',
+    rationale: 'Clinical decision — only prescriber can update with regulatory accountability.',
+    perRole: { owner:false, rm:true, prescriber:'🔒 true', pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'profile.impersonate': {
+    name: 'Impersonate patient (log in as patient)',
+    category: 'patient_profile',
+    desc: 'Open the patient app as that patient for support / debugging.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:true, coach:false, superintendent:false }
+  },
+  'profile.intercom_reply': {
+    name: 'Reply to Intercom conversations',
+    category: 'patient_profile',
+    desc: 'Respond to patient messages via Intercom on the patient profile.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:false, admin:true, coach:true, superintendent:false }
+  },
+  'profile.add_coaching_log': {
+    name: 'Add coaching log entry',
+    category: 'patient_profile',
+    desc: 'Write a coaching log entry (FeelTru only, gated by clinic_config.coaching_enabled).',
+    rationale: 'Coaching log is the coach\'s primary clinical artefact. Locked to coach to ensure attribution.',
+    perRole: { owner:false, rm:true, prescriber:false, pharmacist:false, admin:false, coach:'🔒 true', superintendent:false }
+  },
+
+  // ─── Tasks ───
+  'tasks.create': {
+    name: 'Create task',
+    category: 'tasks',
+    desc: 'Create a new admin or clinical task. Assignable to anyone.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:true, superintendent:true }
+  },
+  'tasks.assign_anyone': {
+    name: 'Assign task to anyone',
+    category: 'tasks',
+    desc: 'Pick any team member as task owner regardless of role.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:true, admin:true, coach:true, superintendent:true }
+  },
+  'tasks.delete': {
+    name: 'Delete task',
+    category: 'tasks',
+    desc: 'Permanently delete a task. Audited.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:true, coach:false, superintendent:false }
+  },
+
+  // ─── Complaints ───
+  'complaints.acknowledge': {
+    name: 'Acknowledge complaint (3-day SLA)',
+    category: 'complaints',
+    desc: 'Mark a complaint as acknowledged within the 3-day NHS-aligned SLA.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:true, coach:false, superintendent:false }
+  },
+  'complaints.resolve': {
+    name: 'Resolve complaint (20-working-day SLA)',
+    category: 'complaints',
+    desc: 'Close a complaint with resolution summary + lesson learned.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:true, coach:false, superintendent:false }
+  },
+  'complaints.flag_external_escalation': {
+    name: 'Flag complaint as regulator-escalated externally',
+    category: 'complaints',
+    desc: 'Record on the audit trail that this complaint was escalated to a regulator (CQC, GPhC) by direct email outside the platform.',
+    rationale: 'Regulator escalation itself is NOT a Livera workflow — RM/Owner emails the regulator directly. This action only records that escalation happened, for audit completeness.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+
+  // ─── Incidents ───
+  'incidents.delete': {
+    name: 'Delete incident',
+    category: 'incidents',
+    desc: 'Permanently remove an incident.',
+    rationale: 'Incidents are immutable for CQC inspection trail. They can be archived but never deleted, regardless of role.',
+    perRole: { owner:'🔒 false', rm:'🔒 false', prescriber:'🔒 false', pharmacist:'🔒 false', admin:'🔒 false', coach:'🔒 false', superintendent:'🔒 false' }
+  },
+  'incidents.serious_signoff': {
+    name: 'Sign off serious incident',
+    category: 'incidents',
+    desc: 'Final clinical sign-off on a Serious Incident (SI). Reviewed by CQC.',
+    rationale: 'CQC nominated individual responsibility. Locked to RM by regulation.',
+    perRole: { owner:false, rm:'🔒 true', prescriber:false, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'incidents.notify_mhra': {
+    name: 'Notify MHRA (Yellow Card)',
+    category: 'incidents',
+    desc: 'Submit a Yellow Card pharmacovigilance report for a serious adverse event.',
+    perRole: { owner:true, rm:true, prescriber:true, pharmacist:false, admin:false, coach:false, superintendent:true }
+  },
+
+  // ─── GP Letters ───
+  'gp.send_no_consent': {
+    name: 'Send GP letter when patient consent = no',
+    category: 'gp_letters',
+    desc: 'Override GP letter consent guard.',
+    rationale: 'UK GDPR Article 9 forbids sharing health data with GP without explicit consent. No role override is permitted.',
+    perRole: { owner:'🔒 false', rm:'🔒 false', prescriber:'🔒 false', pharmacist:'🔒 false', admin:'🔒 false', coach:'🔒 false', superintendent:'🔒 false' }
+  },
+  'gp.create_template': {
+    name: 'Create new GP letter template',
+    category: 'gp_letters',
+    desc: 'Add a new reusable template to the GP letter template library.',
+    perRole: { owner:false, rm:true, prescriber:true, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+
+  // ─── Questionnaires ───
+  'questionnaires.publish': {
+    name: 'Publish new questionnaire version',
+    category: 'questionnaires',
+    desc: 'Publish a draft questionnaire as the new live version. Increments version.',
+    perRole: { owner:false, rm:true, prescriber:true, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'questionnaires.edit_severity_flags': {
+    name: 'Edit severity flags',
+    category: 'questionnaires',
+    desc: 'Set the severity (mild / moderate / severe) on questionnaire answer options.',
+    rationale: 'Severity flags drive the platform severity matrix (incident triggers, prescriber alerts, 999/A&E guidance). Patient-safety implication = prescriber sign-off required.',
+    perRole: { owner:false, rm:true, prescriber:'🔒 true', pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+
+  // ─── Settings · Other ───
+  'settings.amendment_window': {
+    name: 'Toggle clinic amendment_window (pre_approval ↔ pre_dispensed)',
+    category: 'settings',
+    desc: 'Switch the clinic between pre-approval and pre-dispensed amendment windows.',
+    rationale: 'Platform-locked. Switching to pre_dispensed requires Primed API access — toggling without it breaks the clinical pathway. Only Anthropic / Livera platform team can change.',
+    perRole: { owner:'🔒 false', rm:'🔒 false', prescriber:'🔒 false', pharmacist:'🔒 false', admin:'🔒 false', coach:'🔒 false', superintendent:'🔒 false' }
+  },
+  'settings.coaching_enabled': {
+    name: 'Toggle coaching_enabled (per clinic flag)',
+    category: 'settings',
+    desc: 'Enable or disable the coaching layer for this clinic. Hides Coach role and coaching log when disabled.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'settings.consent_text': {
+    name: 'Configure consent text (3-way consent)',
+    category: 'settings',
+    desc: 'Edit the patient-facing consent copy for clinical treatment, GP communication, and photo evidence.',
+    rationale: 'DCB0129 governance — consent text is a clinical safety configuration. Prescriber sign-off required.',
+    perRole: { owner:false, rm:true, prescriber:'🔒 true', pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'settings.welcome_call_sla': {
+    name: 'Configure welcome call SLA',
+    category: 'settings',
+    desc: 'Set the SLA for welcome calls after first paid order (default: 48h).',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'settings.dose_escalation_thresholds': {
+    name: 'Configure dose escalation thresholds',
+    category: 'settings',
+    desc: 'Set min weeks at dose, min weight loss %, prior-dose evidence requirement.',
+    rationale: 'Clinical safety thresholds drive the dose escalation gate. Locked to prescriber for clinical accountability.',
+    perRole: { owner:false, rm:true, prescriber:'🔒 true', pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+
+  // ─── Settings → Roles & Permissions (this screen!) ───
+  'permissions.view': {
+    name: 'View Roles &amp; Permissions screen',
+    category: 'settings',
+    desc: 'Open this screen.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'permissions.toggle': {
+    name: 'Toggle a configurable permission',
+    category: 'settings',
+    desc: 'Tick or untick a non-locked permission for any role.',
+    perRole: { owner:true, rm:true, prescriber:false, pharmacist:false, admin:false, coach:false, superintendent:false }
+  },
+  'permissions.toggle_locked': {
+    name: 'Toggle a 🔒 Locked permission',
+    category: 'settings',
+    desc: 'Override a regulator-locked permission.',
+    rationale: 'Locked permissions exist for CQC / GPhC / MHRA / GDPR compliance. They are not configurable from this screen by anyone — even Owner.',
+    perRole: { owner:'🔒 false', rm:'🔒 false', prescriber:'🔒 false', pharmacist:'🔒 false', admin:'🔒 false', coach:'🔒 false', superintendent:'🔒 false' }
+  }
+};
+
+// ─────────────────────────────────────────────
+// AUDIT LOG SAMPLE DATA
+// ─────────────────────────────────────────────
+const AUDIT_LOG = [
+  { kind: 'remove', actor: 'Mobeen Alam', actorRole: 'Owner / RM', text: 'Removed <strong>Send GP letter</strong> (<span class="perm-key">gp.send</span>) from <strong>Coach</strong> role', when: '02 May 2026 · 11:24', meta: 'Reason: tightening Coach scope to clinical context only · IP 82.16.4.231' },
+  { kind: 'add',    actor: 'Mobeen Alam', actorRole: 'Owner / RM', text: 'Granted <strong>Reply to Intercom conversations</strong> (<span class="perm-key">profile.intercom_reply</span>) to <strong>Coach</strong> role', when: '02 May 2026 · 11:23', meta: 'Reason: Olwyn requested ability to reply to all FeelTru patient convos · IP 82.16.4.231' },
+  { kind: 'add',    actor: 'Qadir Hussain', actorRole: 'Owner', text: 'Granted <strong>Configure welcome call SLA</strong> (<span class="perm-key">settings.welcome_call_sla</span>) to <strong>RM</strong> role', when: '28 Apr 2026 · 16:09', meta: 'Reason: standard governance handoff to Mobeen · IP 86.21.99.4' },
+  { kind: 'role',   actor: 'Qadir Hussain', actorRole: 'Owner', text: 'Created new role <strong>Customer Executive</strong>, copied permissions from <strong>Admin</strong>', when: '21 Apr 2026 · 10:14', meta: 'For Shannon Townsend B2B sales workflow · IP 86.21.99.4' },
+  { kind: 'remove', actor: 'Mobeen Alam', actorRole: 'Owner / RM', text: 'Removed <strong>Mark patient as VIP</strong> from <strong>Pharmacist</strong> role', when: '18 Apr 2026 · 09:01', meta: 'Pharmacy ops doesn\'t need VIP marking · IP 82.16.4.231' },
+  { kind: 'add',    actor: 'Mobeen Alam', actorRole: 'Owner / RM', text: 'Granted <strong>Add coaching log entry</strong> (<span class="perm-key">profile.add_coaching_log</span>) to <strong>Coach</strong> role', when: '12 Apr 2026 · 14:33', meta: 'Initial setup for Olwyn at FeelTru launch · IP 82.16.4.231' },
+  { kind: 'role',   actor: 'Qadir Hussain', actorRole: 'Owner', text: 'Created new role <strong>Coach</strong> for FeelTru workspace', when: '12 Apr 2026 · 14:30', meta: 'Coaching layer enabled · clinic_config.coaching_enabled = true · IP 86.21.99.4' },
+  { kind: 'add',    actor: 'Qadir Hussain', actorRole: 'Owner', text: 'Granted <strong>Cancel order (pre-dispatch)</strong> to <strong>Pharmacist</strong> role', when: '04 Apr 2026 · 11:48', meta: 'Allowing Primed pharmacy team to cancel orders pre-dispense · IP 86.21.99.4' },
+  { kind: 'remove', actor: 'Mobeen Alam', actorRole: 'Owner / RM', text: 'Removed <strong>Refund order</strong> from <strong>Prescriber</strong> role', when: '01 Apr 2026 · 15:22', meta: 'Refunds are an admin/finance action, not clinical · IP 82.16.4.231' },
+  { kind: 'add',    actor: 'Qadir Hussain', actorRole: 'Owner', text: 'Granted <strong>View KPI dashboard</strong> to <strong>Coach</strong> role', when: '28 Mar 2026 · 09:12', meta: 'Limited dashboard view (coaching KPIs only) · IP 86.21.99.4' },
+  { kind: 'role',   actor: 'Qadir Hussain', actorRole: 'Owner', text: 'Renamed role <strong>Manager</strong> to <strong>CQC Registered Manager (RM)</strong>', when: '15 Mar 2026 · 13:01', meta: 'Aligned with CQC nomenclature · IP 86.21.99.4' },
+  { kind: 'add',    actor: 'Qadir Hussain', actorRole: 'Owner', text: 'Initial permissions matrix v1.0 deployed', when: '01 Mar 2026 · 09:00', meta: 'Default permissions seeded across all roles · IP 86.21.99.4' }
+];
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let currentRole = 'rm';
+let currentCategory = 'order_detail.decision';
+let pendingChanges = {}; // { 'permissionKey:roleKey': newValue }
+let searchTerm = '';
+
+// ─────────────────────────────────────────────
+// RENDER: roles list
+// ─────────────────────────────────────────────
+function renderRoles() {
+  const list = document.getElementById('roles-list');
+  list.innerHTML = ROLES.map(r => `
+    <div class="role-item ${r.key === currentRole ? 'on' : ''}" onclick="selectRole('${r.key}')">
+      <div class="role-item-name">
+        <span class="role-dot" style="background:${r.dot};"></span>
+        ${r.name}
+        ${r.lockedRole ? '<span class="role-item-locked-pill" title="Built-in role — cannot be deleted">CORE</span>' : ''}
+      </div>
+      <div class="role-item-meta">${r.meta}</div>
+      <div class="role-item-meta" style="color:var(--text-3);font-style:italic;">→ ${r.user}</div>
+    </div>
+  `).join('');
+}
+
+function selectRole(key) {
+  currentRole = key;
+  renderRoles();
+  renderPermissionGrid();
+}
+
+// ─────────────────────────────────────────────
+// RENDER: category list
+// ─────────────────────────────────────────────
+function renderCategories() {
+  const list = document.getElementById('cat-list');
+  // Compute counts dynamically based on actual permissions in PERMISSIONS object
+  const counts = {};
+  Object.values(PERMISSIONS).forEach(p => {
+    counts[p.category] = (counts[p.category] || 0) + 1;
+  });
+  list.innerHTML = CATEGORIES.map(c => {
+    const dynCount = counts[c.key] || 0;
+    return `
+      <div class="cat-item ${c.key === currentCategory ? 'on' : ''}" onclick="selectCategory('${c.key}')">
+        <span>${c.icon} ${c.name}</span>
+        <span class="cat-item-count">${dynCount}</span>
+      </div>`;
+  }).join('');
+}
+
+function selectCategory(key) {
+  currentCategory = key;
+  searchTerm = '';
+  document.getElementById('cat-search').value = '';
+  renderCategories();
+  renderPermissionGrid();
+}
+
+// ─────────────────────────────────────────────
+// RENDER: permission grid (right pane)
+// ─────────────────────────────────────────────
+function renderPermissionGrid() {
+  const grid = document.getElementById('grid-col');
+  const role = ROLES.find(r => r.key === currentRole);
+  const category = CATEGORIES.find(c => c.key === currentCategory);
+
+  // Filter permissions by category + search
+  let perms = Object.entries(PERMISSIONS).filter(([key, p]) => {
+    if (searchTerm) {
+      const hay = (p.name + ' ' + (p.desc || '') + ' ' + key).toLowerCase();
+      return hay.includes(searchTerm.toLowerCase());
+    }
+    return p.category === currentCategory;
+  });
+
+  let html = `
+    <div class="grid-section-head">
+      <div class="grid-section-icon">${category.icon}</div>
+      <div style="flex:1;">
+        <div class="grid-section-title">${searchTerm ? `Search: "${searchTerm}"` : category.name}</div>
+        <div class="grid-section-sub">
+          ${searchTerm ? `${perms.length} matching permission${perms.length === 1 ? '' : 's'}` : `${perms.length} permission${perms.length === 1 ? '' : 's'} in this category`}
+          · Showing for role <strong style="color:var(--text-1);">${role.name}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot granted">✓</span> Granted (configurable)</div>
+      <div class="legend-item"><span class="legend-dot denied"></span> Not granted (configurable)</div>
+      <div class="legend-item"><span class="legend-dot locked-yes">🔒</span> Locked-on (regulatory)</div>
+      <div class="legend-item"><span class="legend-dot locked-no">🔒</span> Locked-off (regulatory)</div>
+      <div class="legend-item"><span class="legend-dot conditional">⚙</span> Conditional (runtime rule)</div>
+    </div>
+  `;
+
+  if (perms.length === 0) {
+    html += '<div class="empty-state">No permissions match this filter.</div>';
+  } else {
+    html += '<div class="perm-list">';
+    perms.forEach(([permKey, p]) => {
+      const value = getPermissionValue(permKey, currentRole);
+      const meta = parsePermissionValue(value);
+      const pendingKey = `${permKey}:${currentRole}`;
+      const isPending = pendingChanges.hasOwnProperty(pendingKey);
+
+      let toggleHtml = '';
+      let badges = '';
+
+      if (meta.locked) {
+        toggleHtml = `<div class="toggle ${meta.granted ? 'locked-yes' : 'locked-no'}" title="${escapeAttr(p.rationale || 'Regulator-locked')}"></div><span class="lock-icon">🔒</span>`;
+        badges += `<span class="perm-locked-badge">🔒 LOCKED ${meta.granted ? 'ON' : 'OFF'}</span>`;
+      } else if (meta.conditional) {
+        toggleHtml = `<div class="toggle ${meta.granted ? 'on' : ''}" style="cursor:not-allowed;opacity:0.7;" title="${escapeAttr(meta.expr)}"></div><span class="conditional-tag">⚙ RULE</span>`;
+        badges += `<span class="perm-conditional-badge">⚙ ${meta.expr}</span>`;
+      } else {
+        toggleHtml = `<div class="toggle ${meta.granted ? 'on' : ''}" onclick="togglePermission('${permKey}','${currentRole}')"></div>`;
+      }
+
+      if (isPending) badges += '<span class="perm-changed-badge">CHANGED</span>';
+
+      html += `
+        <div class="perm-row">
+          <div class="perm-toggle">${toggleHtml}</div>
+          <div class="perm-content">
+            <div class="perm-name">
+              ${p.name}
+              <span class="perm-key">${permKey}</span>
+              ${badges}
+            </div>
+            <div class="perm-desc">${p.desc || ''}</div>
+            ${p.rationale ? `<div class="perm-rationale"><strong>Rationale:</strong> ${p.rationale}</div>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+  }
+
+  grid.innerHTML = html;
+}
+
+function escapeAttr(s) {
+  if (!s) return '';
+  return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ─────────────────────────────────────────────
+// PERMISSION VALUE HELPERS
+// ─────────────────────────────────────────────
+function getPermissionValue(permKey, roleKey) {
+  const pendingKey = `${permKey}:${roleKey}`;
+  if (pendingChanges.hasOwnProperty(pendingKey)) return pendingChanges[pendingKey];
+  return (PERMISSIONS[permKey] || {}).perRole?.[roleKey];
+}
+
+function parsePermissionValue(value) {
+  if (value === true)  return { granted: true,  locked: false, conditional: false };
+  if (value === false) return { granted: false, locked: false, conditional: false };
+  if (value === '🔒 true')  return { granted: true,  locked: true,  conditional: false };
+  if (value === '🔒 false') return { granted: false, locked: true,  conditional: false };
+  if (typeof value === 'string' && value.startsWith('⚙️')) {
+    return { granted: true, locked: false, conditional: true, expr: value.replace('⚙️', '').trim() };
+  }
+  return { granted: false, locked: false, conditional: false };
+}
+
+// ─────────────────────────────────────────────
+// TOGGLE PERMISSION (configurable only)
+// ─────────────────────────────────────────────
+function togglePermission(permKey, roleKey) {
+  const original = (PERMISSIONS[permKey] || {}).perRole?.[roleKey];
+  const meta = parsePermissionValue(original);
+  if (meta.locked || meta.conditional) {
+    showToast('🔒 This permission is locked or rule-based and cannot be toggled', true);
+    return;
+  }
+  const pendingKey = `${permKey}:${roleKey}`;
+  const currentValue = getPermissionValue(permKey, roleKey);
+  const newValue = !currentValue;
+
+  // If toggling back to original, remove from pending
+  if (newValue === original) {
+    delete pendingChanges[pendingKey];
+  } else {
+    pendingChanges[pendingKey] = newValue;
+  }
+  updateUnsavedIndicator();
+  renderPermissionGrid();
+}
+
+function updateUnsavedIndicator() {
+  const count = Object.keys(pendingChanges).length;
+  const ind = document.getElementById('unsaved-indicator');
+  document.getElementById('unsaved-count').textContent = count;
+  if (count > 0) {
+    ind.classList.add('show');
+    document.getElementById('save-btn').removeAttribute('disabled');
+    document.getElementById('discard-btn').removeAttribute('disabled');
+  } else {
+    ind.classList.remove('show');
+    document.getElementById('save-btn').setAttribute('disabled', '');
+    document.getElementById('discard-btn').setAttribute('disabled', '');
+  }
+}
+
+function discardChanges() {
+  pendingChanges = {};
+  updateUnsavedIndicator();
+  renderPermissionGrid();
+  showToast('Discarded unsaved changes');
+}
+
+// ─────────────────────────────────────────────
+// SAVE FLOW
+// ─────────────────────────────────────────────
+function openSaveModal() {
+  const count = Object.keys(pendingChanges).length;
+  if (count === 0) return;
+  document.getElementById('save-count').textContent = count;
+  const diffEl = document.getElementById('save-diff');
+  diffEl.innerHTML = Object.entries(pendingChanges).map(([k, v]) => {
+    const [permKey, roleKey] = k.split(':');
+    const p = PERMISSIONS[permKey];
+    const role = ROLES.find(r => r.key === roleKey);
+    const kind = v === true ? 'add' : 'remove';
+    const verb = v === true ? 'Granted' : 'Removed';
+    return `
+      <div class="diff-row">
+        <div class="diff-icon ${kind}">${kind === 'add' ? '+' : '−'}</div>
+        <div class="diff-text">
+          <strong>${verb}</strong> <strong>${p.name}</strong> <span class="perm-key">${permKey}</span>
+          ${kind === 'add' ? 'to' : 'from'} <span class="role-tag">${role.name}</span>
+        </div>
+      </div>`;
+  }).join('');
+  document.getElementById('modal-save').classList.add('show');
+}
+
+function commitSave() {
+  // Apply pending changes to PERMISSIONS object (in production: API call → backend)
+  const count = Object.keys(pendingChanges).length;
+  Object.entries(pendingChanges).forEach(([k, v]) => {
+    const [permKey, roleKey] = k.split(':');
+    if (PERMISSIONS[permKey]) {
+      PERMISSIONS[permKey].perRole[roleKey] = v;
+    }
+  });
+
+  // Add to audit log (in production: backend writes audit row)
+  Object.entries(pendingChanges).forEach(([k, v]) => {
+    const [permKey, roleKey] = k.split(':');
+    const p = PERMISSIONS[permKey];
+    const role = ROLES.find(r => r.key === roleKey);
+    AUDIT_LOG.unshift({
+      kind: v === true ? 'add' : 'remove',
+      actor: 'Mobeen Alam',
+      actorRole: 'Owner / RM',
+      text: `${v === true ? 'Granted' : 'Removed'} <strong>${p.name}</strong> (<span class="perm-key">${permKey}</span>) ${v === true ? 'to' : 'from'} <strong>${role.name}</strong> role`,
+      when: 'Just now',
+      meta: 'IP 82.16.4.231 · Browser session id sess_8821' + Math.floor(Math.random() * 100)
+    });
+  });
+
+  pendingChanges = {};
+  updateUnsavedIndicator();
+  closeModal('save');
+  renderPermissionGrid();
+  renderAuditLog();
+  showToast(`✓ ${count} permission change${count === 1 ? '' : 's'} saved · audit logged · users notified`);
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG RENDER
+// ─────────────────────────────────────────────
+function renderAuditLog() {
+  const list = document.getElementById('audit-list');
+  list.innerHTML = AUDIT_LOG.map(a => {
+    const iconChar = a.kind === 'add' ? '+' : (a.kind === 'remove' ? '−' : '⚙');
+    return `
+      <div class="audit-row">
+        <div class="audit-icon ${a.kind}">${iconChar}</div>
+        <div class="audit-body">
+          <div class="audit-text">${a.text}</div>
+          <div class="audit-meta">${a.actor} · ${a.actorRole} · ${a.meta}</div>
+        </div>
+        <div class="audit-time">${a.when}</div>
+      </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────
+// SEARCH
+// ─────────────────────────────────────────────
+function filterPermissions(term) {
+  searchTerm = term.trim();
+  // If searching, deselect category visually
+  document.querySelectorAll('.cat-item').forEach(c => {
+    if (searchTerm) c.classList.remove('on');
+  });
+  if (!searchTerm) {
+    // Restore active category
+    document.querySelectorAll('.cat-item').forEach(c => {
+      if (c.querySelector('span').textContent.includes(CATEGORIES.find(x => x.key === currentCategory).name)) {
+        c.classList.add('on');
+      }
+    });
+  }
+  renderPermissionGrid();
+}
+
+// ─────────────────────────────────────────────
+// TABS
+// ─────────────────────────────────────────────
+function showTab(id, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('panel-' + id).classList.add('on');
+}
+
+// ─────────────────────────────────────────────
+// MODAL / TOAST
+// ─────────────────────────────────────────────
+function closeModal(k) { document.getElementById('modal-' + k).classList.remove('show'); }
+function showToast(msg, isError) {
+  const toast = document.getElementById('toast');
+  const icon = isError ? '<span style="color:#f87171;">✕</span>' : '<span style="color:#10b981;">✓</span>';
+  toast.innerHTML = icon + ' ' + msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2800);
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+renderRoles();
+renderCategories();
+renderPermissionGrid();
+renderAuditLog();
+
+// Update tab count
+document.getElementById('ct-matrix').textContent = Object.keys(PERMISSIONS).length;
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

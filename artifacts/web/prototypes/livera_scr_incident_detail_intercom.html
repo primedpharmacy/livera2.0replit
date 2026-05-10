@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Incident Detail · Intercom-origin (BLD-8.1, 8.3, 8.4)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --intercom: #0d6dff; --intercom-bg: #eff6ff;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .pill { display: inline-flex; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 0.5px solid; align-items: center; gap: 5px; }
+  .p-open { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .btn { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn.primary:hover { background: #3730a3; }
+  .btn.success { background: #16a34a; color: #fff; border-color: #16a34a; }
+  .btn.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  .content { flex: 1; overflow-y: auto; padding: 22px 28px 28px; }
+  .page-head { margin-bottom: 18px; }
+  .page-title { font-size: 22px; font-weight: 700; color: var(--text-1); letter-spacing: -0.4px; display: flex; align-items: center; gap: 12px; }
+  .origin-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--intercom-bg); color: var(--intercom); border: 0.5px solid #93c5fd; font-size: 11px; font-weight: 600; }
+  .page-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; max-width: 760px; }
+
+  /* Closure rule banner (BLD-8.4) */
+  .closure-banner { padding: 14px 18px; border-radius: var(--r-lg); margin-bottom: 18px; display: flex; align-items: center; gap: 14px; background: var(--amber-bg); border: 1.5px solid var(--amber-border); }
+  .closure-banner.cleared { background: var(--green-bg); border-color: var(--green-border); }
+  .closure-icon { font-size: 22px; flex-shrink: 0; }
+  .closure-info { flex: 1; }
+  .closure-title { font-size: 14px; font-weight: 700; color: var(--amber); }
+  .closure-banner.cleared .closure-title { color: var(--green); }
+  .closure-sub { font-size: 12px; color: var(--text-2); margin-top: 3px; line-height: 1.5; }
+
+  /* Two-col content */
+  .two-col { display: grid; grid-template-columns: 1fr 380px; gap: 18px; align-items: start; }
+
+  /* Card */
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); margin-bottom: 14px; overflow: hidden; }
+  .card-head { padding: 12px 18px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; display: flex; align-items: center; gap: 8px; }
+  .card-sub { font-size: 11px; color: var(--text-3); }
+  .card-body { padding: 16px 18px; }
+
+  .field-grid { display: grid; grid-template-columns: 140px 1fr; gap: 8px 14px; font-size: 12px; }
+  .field-k { color: var(--text-3); padding-top: 6px; }
+  .field-v { color: var(--text-1); font-weight: 500; padding-top: 6px; line-height: 1.5; }
+  .field-v code { font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; color: var(--text-1); }
+  .field-v.editable input, .field-v.editable select, .field-v.editable textarea { padding: 6px 10px; border: 0.5px solid var(--border-strong); border-radius: var(--r-sm); font-family: inherit; font-size: 12px; width: 100%; background: var(--surface); }
+  .field-v.editable textarea { min-height: 90px; resize: vertical; line-height: 1.5; }
+
+  .origin-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 0.5px solid; }
+  .origin-intercom { background: var(--intercom-bg); color: var(--intercom); border-color: #93c5fd; }
+  .origin-clinical { background: var(--brand-light); color: var(--brand-dark); border-color: rgba(99,102,241,0.3); }
+  .origin-patient { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+  .origin-system { background: var(--surface-2); color: var(--text-3); border-color: var(--border-strong); }
+
+  /* Intercom panel */
+  .intercom-card { border: 0.5px solid #93c5fd; }
+  .intercom-head { padding: 11px 16px; background: var(--intercom-bg); border-bottom: 0.5px solid #93c5fd; display: flex; align-items: center; gap: 10px; }
+  .intercom-icon { width: 28px; height: 28px; border-radius: 6px; background: var(--intercom); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
+  .intercom-title { font-size: 13px; font-weight: 700; color: var(--intercom); flex: 1; }
+  .intercom-status { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #fff; color: var(--intercom); border: 0.5px solid #93c5fd; }
+  .intercom-status.closed { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+
+  .conv-meta { padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; border-bottom: 0.5px solid var(--border); }
+  .conv-meta-row { display: flex; justify-content: space-between; font-size: 11px; }
+  .conv-meta-k { color: var(--text-3); }
+  .conv-meta-v { color: var(--text-1); font-weight: 500; }
+
+  .conv-msgs { padding: 12px 16px 6px 16px; max-height: 280px; overflow-y: auto; }
+  .conv-msg { display: flex; gap: 8px; margin-bottom: 10px; }
+  .conv-av { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
+  .conv-av.patient { background: var(--purple); }
+  .conv-av.support { background: var(--intercom); }
+  .conv-av.bot { background: var(--text-3); }
+  .conv-bubble { background: var(--surface-2); padding: 8px 11px; border-radius: var(--r-sm); font-size: 12px; line-height: 1.5; max-width: 280px; }
+  .conv-bubble.flagged { background: var(--red-bg); border: 0.5px solid var(--red-border); color: var(--red); }
+  .conv-msg-meta { font-size: 10px; color: var(--text-3); margin-top: 3px; }
+
+  /* Activity log */
+  .act-list { display: flex; flex-direction: column; }
+  .act-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .act-row:last-child { border-bottom: none; }
+  .act-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .act-body-c { flex: 1; }
+  .act-text { font-size: 12px; color: var(--text-1); line-height: 1.45; }
+  .act-text strong { font-weight: 500; }
+  .act-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .act-time { font-size: 11px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+
+  /* Schema card */
+  .schema-grid { display: grid; grid-template-columns: 200px 1fr; gap: 6px 14px; font-size: 12px; }
+  .schema-key { font-family: ui-monospace,'SF Mono',monospace; color: var(--brand-dark); font-size: 11px; }
+  .schema-val { color: var(--text-2); line-height: 1.5; }
+  .schema-val code { font-family: ui-monospace,'SF Mono',monospace; font-size: 11px; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; color: var(--text-1); }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 300; }
+  .toast.show { display: flex; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html" class="active"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_incidents_list.html">Incidents</a>
+        <span class="sep">/</span>
+        <span class="cur">INC-00347</span>
+      </div>
+      <div class="topbar-right">
+        <div class="pill p-open">⚠ Open · awaiting review</div>
+        <button class="btn">Edit</button>
+        <button class="btn amber">Mark on hold</button>
+        <button class="btn success" onclick="reviewIncident()">✓ Mark reviewed</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="page-head">
+        <div class="page-title">
+          INC-00347 · Suspected allergic reaction
+          <span class="origin-tag">
+            <span style="width:6px;height:6px;background:var(--intercom);border-radius:50%;display:inline-block;"></span>
+            Intercom-origin
+          </span>
+        </div>
+        <div class="page-sub">Auto-created from Intercom conversation flagged by support agent. Patient reported a symptom that triggered the AI-classifier as potentially clinical. The originating conversation cannot be closed in Intercom until this incident is reviewed by a clinician (BLD-8.4).</div>
+      </div>
+
+      <!-- BLD-8.4 closure rule banner -->
+      <div class="closure-banner" id="closure-banner">
+        <div class="closure-icon">🔒</div>
+        <div class="closure-info">
+          <div class="closure-title" id="closure-title">Intercom conversation locked — review required before closure</div>
+          <div class="closure-sub" id="closure-sub">
+            Conversation <strong>IC-29481</strong> is held open in Intercom. The Intercom <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">close</code> action returns 423 Locked until this incident is marked reviewed (status ∈ <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">resolved</code> | <code style="font-size:11px;background:rgba(255,255,255,0.5);padding:1px 5px;border-radius:3px;">closed</code>) by a clinician.
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+
+        <!-- Left column: incident details + activity -->
+        <div>
+
+          <!-- Incident core fields -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">📋 Incident details</div>
+              <div class="card-sub">SCR-012</div>
+            </div>
+            <div class="card-body">
+              <div class="field-grid">
+                <div class="field-k">Title</div>
+                <div class="field-v editable"><input type="text" value="Suspected allergic reaction — facial swelling reported"></div>
+
+                <div class="field-k">Type</div>
+                <div class="field-v editable">
+                  <select>
+                    <option selected>Allergy / adverse reaction</option>
+                    <option>Side effect — moderate</option>
+                    <option>Side effect — severe</option>
+                    <option>Medication error</option>
+                    <option>Dosing concern</option>
+                    <option>Safeguarding</option>
+                    <option>Other clinical</option>
+                  </select>
+                </div>
+
+                <div class="field-k">Origin</div>
+                <div class="field-v">
+                  <span class="origin-chip origin-intercom">💬 intercom</span>
+                  <span style="font-size:11px;color:var(--text-3);margin-left:8px;">BLD-8.1 · auto-set by webhook handler · cannot be edited</span>
+                </div>
+
+                <div class="field-k">Patient</div>
+                <div class="field-v"><a href="livera_prototype_09_patient_profile.html" style="color:var(--brand-dark);text-decoration:none;font-weight:500;">Sarah Cookland</a> · 50y · F</div>
+
+                <div class="field-k">Order</div>
+                <div class="field-v"><a href="livera_prototype_10_order_detail_admin.html" style="color:var(--brand-dark);text-decoration:none;font-weight:500;">ORD-00441</a> · Mounjaro 5mg · approved 30 Apr</div>
+
+                <div class="field-k">Severity</div>
+                <div class="field-v editable">
+                  <select>
+                    <option>Mild — no immediate clinical concern</option>
+                    <option selected>Moderate — review within 24h</option>
+                    <option>Severe — immediate clinical action</option>
+                  </select>
+                </div>
+
+                <div class="field-k">Description</div>
+                <div class="field-v editable">
+                  <textarea>Patient reported via Intercom chat at 14:32 today that her face felt "tight and a bit puffy" approximately 4 hours after this week's injection. No tongue/throat swelling, no breathing difficulty, no rash reported. Last dose: Mounjaro 5mg, 30 Apr 09:42. Auto-flagged by Intercom AI-classifier (allergic_symptom confidence 0.86) and escalated to incident by support.</textarea>
+                </div>
+
+                <div class="field-k">Created at</div>
+                <div class="field-v">30 Apr 2026 · 14:35:18 BST · <span style="color:var(--text-3);">2 mins after first message</span></div>
+
+                <div class="field-k">Created by</div>
+                <div class="field-v"><span class="origin-chip" style="background:var(--surface-2);color:var(--text-2);border-color:var(--border-strong);">⚙ system_intercom_webhook</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BLD-YC-01: MHRA Yellow Card prompt panel -->
+          <!-- Surfaces when: type = Allergy/adverse reaction OR severity = Severe -->
+          <!-- DEC-39 family · MHRA reporting governance · CQC Reg 17 evidence -->
+          <div class="card" style="border:1px solid #fde68a;background:#fffbeb;">
+            <div class="card-head" style="background:#fef3c7;border-bottom-color:#fde68a;">
+              <div class="card-title" style="color:#92400e;">🟡 MHRA Yellow Card — consider reporting</div>
+              <div class="card-sub" style="color:#92400e;">BLD-YC-01 · prescriber action</div>
+            </div>
+            <div class="card-body">
+
+              <!-- Why this is showing -->
+              <div style="padding:10px 12px;background:#fff;border:0.5px solid #fde68a;border-radius:8px;margin-bottom:14px;font-size:12px;color:#5c5c5c;line-height:1.55;">
+                <strong style="color:#92400e;">Why you're seeing this:</strong>
+                this incident is type <code style="background:#fef3c7;padding:1px 5px;border-radius:3px;color:#92400e;">Allergy / adverse reaction</code> on a prescription medicine.
+                MHRA Yellow Card reporting is a <strong>professional duty</strong> for any suspected adverse drug reaction, including known reactions where severity, frequency, or outcome is concerning.
+                <br><br>
+                <strong style="color:#92400e;">When to report:</strong>
+                serious or unexpected reactions, reactions in vulnerable patients (children, elderly, pregnancy), reactions to new/Black-Triangle medicines (Wegovy and Mounjaro both currently carry ▼).
+              </div>
+
+              <!-- Drug & Black Triangle indicator -->
+              <div style="display:flex;gap:12px;align-items:center;padding:10px 12px;background:#fff;border:0.5px solid #fde68a;border-radius:8px;margin-bottom:14px;">
+                <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;color:#92400e;flex-shrink:0;">Implicated medicine</div>
+                <div style="flex:1;font-size:13px;font-weight:600;color:#0d0d0d;">Mounjaro (tirzepatide) 5mg <span style="color:#dc2626;font-size:14px;margin-left:4px;">▼</span></div>
+                <div style="font-size:11px;color:#dc2626;font-weight:600;">Black Triangle — additional monitoring</div>
+              </div>
+
+              <!-- Decision: file or document not filing -->
+              <div style="font-size:12px;font-weight:600;color:#0d0d0d;margin-bottom:10px;">Prescriber decision</div>
+
+              <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+                <label style="display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1px solid var(--border-strong);border-radius:8px;background:#fff;cursor:pointer;">
+                  <input type="radio" name="yc_decision" value="will_file" style="margin-top:2px;">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:600;color:#0d0d0d;">Will file Yellow Card</div>
+                    <div style="font-size:11px;color:var(--text-2);margin-top:2px;line-height:1.45;">Use the official MHRA Yellow Card portal. Once filed, paste the reference below.</div>
+                  </div>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1px solid var(--border-strong);border-radius:8px;background:#fff;cursor:pointer;">
+                  <input type="radio" name="yc_decision" value="filed" checked style="margin-top:2px;">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:600;color:#0d0d0d;">Yellow Card already filed</div>
+                    <div style="font-size:11px;color:var(--text-2);margin-top:2px;line-height:1.45;">Filed at MHRA — reference recorded below.</div>
+                  </div>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1px solid var(--border-strong);border-radius:8px;background:#fff;cursor:pointer;">
+                  <input type="radio" name="yc_decision" value="not_required" style="margin-top:2px;">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:600;color:#0d0d0d;">Yellow Card not required</div>
+                    <div style="font-size:11px;color:var(--text-2);margin-top:2px;line-height:1.45;">Document clinical rationale below — kept on incident record for CQC/GPhC evidence.</div>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Reference / rationale capture -->
+              <div style="border-top:0.5px dashed #fde68a;padding-top:14px;">
+                <div style="display:grid;grid-template-columns:140px 1fr;gap:12px 14px;align-items:center;font-size:12px;">
+
+                  <div style="color:var(--text-2);font-weight:500;">Yellow Card reference</div>
+                  <div>
+                    <input type="text" value="YC-2026-04302731-MHRA" placeholder="e.g. YC-2026-XXXXXXXX-MHRA" style="width:100%;padding:7px 10px;border:0.5px solid var(--border-strong);border-radius:6px;font-size:12px;font-family:monospace;background:#fff;">
+                  </div>
+
+                  <div style="color:var(--text-2);font-weight:500;">Filed by</div>
+                  <div style="color:#0d0d0d;font-weight:500;">Claire Moynehan · NMC 1234567 · 30 Apr 2026 · 15:18 BST</div>
+
+                  <div style="color:var(--text-2);font-weight:500;align-self:start;padding-top:7px;">Clinical rationale</div>
+                  <div>
+                    <textarea style="width:100%;min-height:64px;padding:8px 10px;border:0.5px solid var(--border-strong);border-radius:6px;font-size:12px;font-family:inherit;line-height:1.5;background:#fff;resize:vertical;">Filed via MHRA Yellow Card portal. Suspected facial angioedema 4h post-injection of tirzepatide 5mg. No airway compromise. Patient advised to attend A&amp;E if any throat swelling or breathing difficulty. Reaction reportable per Black Triangle protocol — Wegovy and Mounjaro both subject to additional monitoring.</textarea>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <div style="display:flex;gap:8px;align-items:center;margin-top:16px;padding-top:14px;border-top:0.5px solid #fde68a;">
+                <a href="https://yellowcard.mhra.gov.uk" target="_blank" rel="noopener" class="btn" style="background:#fef3c7;color:#92400e;border-color:#fde68a;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+                  <span>↗</span> Open MHRA Yellow Card portal
+                </a>
+                <button class="btn primary" style="background:#92400e;border-color:#92400e;">Save Yellow Card record</button>
+                <div style="margin-left:auto;font-size:11px;color:var(--text-3);">Saving writes to incident audit log + AUD-04</div>
+              </div>
+
+            </div>
+          </div>
+          <!-- /BLD-YC-01 -->
+
+          <!-- Activity log (existing on canonical, extended with intercom events) -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">📋 Activity log</div>
+              <div class="card-sub">Includes Intercom-origin events</div>
+            </div>
+            <div class="card-body">
+              <div class="act-list">
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--intercom);"></div>
+                  <div class="act-body-c">
+                    <div class="act-text"><strong>Webhook received</strong> — Intercom <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">conversation.user.created</code> · classifier flagged as <em>allergic_symptom</em> (0.86)</div>
+                    <div class="act-meta">System · BLD-8.3 · signature verified · idempotency key icw_a8821e34</div>
+                  </div>
+                  <div class="act-time">14:33:02</div>
+                </div>
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--intercom);"></div>
+                  <div class="act-body-c">
+                    <div class="act-text"><strong>Incident auto-created</strong> — BLD-8.3 handler resolved patient ORD-00441 from Intercom <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">user_id sc_0419</code> · severity defaulted to <em>moderate</em> · origin set to <em>intercom</em></div>
+                    <div class="act-meta">System · type=allergic_reaction · status=open</div>
+                  </div>
+                  <div class="act-time">14:33:04</div>
+                </div>
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--intercom);"></div>
+                  <div class="act-body-c">
+                    <div class="act-text"><strong>Conversation lock applied</strong> — BLD-8.4 set <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">conversation.metadata.livera_incident_lock = INC-00347</code> via Intercom API</div>
+                    <div class="act-meta">System · Intercom returns 423 Locked on close attempts</div>
+                  </div>
+                  <div class="act-time">14:33:05</div>
+                </div>
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--brand);"></div>
+                  <div class="act-body-c">
+                    <div class="act-text"><strong>Prescriber notified</strong> — Claire Moynehan via Firebase push notification + email digest</div>
+                    <div class="act-meta">System · standard moderate-severity routing</div>
+                  </div>
+                  <div class="act-time">14:33:06</div>
+                </div>
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--text-3);"></div>
+                  <div class="act-body-c">
+                    <div class="act-text"><strong>Opened by Claire Moynehan</strong> — incident accessed via push notification</div>
+                    <div class="act-meta">User · cm@feeltru.com</div>
+                  </div>
+                  <div class="act-time">14:41:22</div>
+                </div>
+                <div class="act-row">
+                  <div class="act-dot" style="background:#f59e0b;"></div>
+                  <div class="act-body-c">
+                    <div class="act-text"><strong>MHRA Yellow Card filed</strong> — Claire Moynehan submitted to MHRA portal · ref <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">YC-2026-04302731-MHRA</code> · medicine: Mounjaro (tirzepatide) 5mg ▼</div>
+                    <div class="act-meta">User · BLD-YC-01 · written to incident audit log + AUD-04 governance log</div>
+                  </div>
+                  <div class="act-time">15:18:04</div>
+                </div>
+                <div id="act-pending" style="font-size:11px;color:var(--text-3);text-align:center;padding:10px;background:var(--surface-2);border-radius:var(--r-sm);margin-top:6px;">
+                  ⏳ Status changes, comments, and conversation closure will append to this log
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Schema doc (BLD-8.1) -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">📦 incident entity additions (BLD-8.1)</div>
+              <div class="card-sub">For Yohan · 4 new fields on existing incident table</div>
+            </div>
+            <div class="card-body">
+              <div class="schema-grid">
+                <div class="schema-key">incident_origin</div>
+                <div class="schema-val">enum: <code>clinical</code> | <code>patient_app</code> | <code>intercom</code> | <code>system</code> · NOT NULL · default <code>clinical</code> · indexed for filter queries · cannot be changed after write</div>
+                <div class="schema-key">intercom_conversation_id</div>
+                <div class="schema-val">String · nullable · format <code>IC-XXXXX</code> · only set when origin=intercom · index for reverse lookup</div>
+                <div class="schema-key">intercom_classifier_score</div>
+                <div class="schema-val">decimal(3,2) · nullable · the AI-classifier confidence at time of webhook · for audit and tuning</div>
+                <div class="schema-key">intercom_classifier_label</div>
+                <div class="schema-val">String · nullable · the classifier output label (e.g. <code>allergic_symptom</code>, <code>severe_se</code>, <code>safeguarding</code>) · for downstream reporting</div>
+                <div class="schema-key">created_by_system</div>
+                <div class="schema-val">String · nullable · for system-created incidents only · format <code>system_&lt;name&gt;</code> · works alongside <code>created_by_user_id</code> which becomes nullable</div>
+              </div>
+              <div style="margin-top:12px;padding:10px 12px;background:var(--surface-2);border-radius:var(--r-sm);font-size:11px;color:var(--text-2);line-height:1.5;">
+                <strong style="color:var(--text-1);">Migration:</strong> all existing incidents get <code>incident_origin = 'clinical'</code> by default. The 27 existing incidents in the FeelTru workspace will be backfilled in a single batch with an AUD-04 batch event covering all migrated rows.
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right column: Intercom panel -->
+        <div>
+
+          <!-- BLD-8.3 Intercom conversation panel -->
+          <div class="card intercom-card">
+            <div class="intercom-head">
+              <div class="intercom-icon">in</div>
+              <div class="intercom-title">Originating conversation</div>
+              <span class="intercom-status" id="intercom-status">🔒 Locked open</span>
+            </div>
+
+            <div class="conv-meta">
+              <div class="conv-meta-row"><span class="conv-meta-k">Conversation</span><span class="conv-meta-v"><code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;">IC-29481</code></span></div>
+              <div class="conv-meta-row"><span class="conv-meta-k">Started</span><span class="conv-meta-v">30 Apr · 14:32</span></div>
+              <div class="conv-meta-row"><span class="conv-meta-k">Patient</span><span class="conv-meta-v">Sarah Cookland</span></div>
+              <div class="conv-meta-row"><span class="conv-meta-k">Channel</span><span class="conv-meta-v">In-app messenger</span></div>
+              <div class="conv-meta-row"><span class="conv-meta-k">Classifier</span><span class="conv-meta-v" style="color:var(--red-mid);">⚠ allergic_symptom 0.86</span></div>
+              <div class="conv-meta-row"><span class="conv-meta-k">Webhook event</span><span class="conv-meta-v"><code style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;">conversation.user.created</code></span></div>
+              <div class="conv-meta-row"><span class="conv-meta-k">Idempotency</span><span class="conv-meta-v"><code style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;">icw_a8821e34</code></span></div>
+            </div>
+
+            <div class="conv-msgs">
+              <!-- Patient message (the trigger) -->
+              <div class="conv-msg">
+                <div class="conv-av patient">SC</div>
+                <div>
+                  <div class="conv-bubble flagged">
+                    Hi — I had my injection this morning and now my face feels tight and a bit puffy. Should I be worried?
+                  </div>
+                  <div class="conv-msg-meta">Sarah Cookland · 14:32 · ⚠ flagged by classifier</div>
+                </div>
+              </div>
+
+              <!-- Bot acknowledgement -->
+              <div class="conv-msg">
+                <div class="conv-av bot">AI</div>
+                <div>
+                  <div class="conv-bubble">
+                    Thanks for reaching out, Sarah. A care team member is being notified now and will reply shortly. If your symptoms worsen — difficulty breathing, swelling of tongue or throat — please call 999.
+                  </div>
+                  <div class="conv-msg-meta">FeelTru auto-reply · 14:32:08</div>
+                </div>
+              </div>
+
+              <!-- Support reply -->
+              <div class="conv-msg">
+                <div class="conv-av support">JD</div>
+                <div>
+                  <div class="conv-bubble">
+                    Hi Sarah — thank you for letting us know. I'm raising this with our prescriber straight away. Could you tell me how long ago the injection was, and whether you've had any rash, hives, or breathing issues?
+                  </div>
+                  <div class="conv-msg-meta">Jamie · Support · 14:34</div>
+                </div>
+              </div>
+
+              <!-- Patient followup -->
+              <div class="conv-msg">
+                <div class="conv-av patient">SC</div>
+                <div>
+                  <div class="conv-bubble">
+                    About 4 hours ago. No rash, no breathing problems, just feels a bit tight on the cheeks.
+                  </div>
+                  <div class="conv-msg-meta">Sarah Cookland · 14:36</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="padding:10px 14px;background:var(--surface-2);border-top:0.5px solid var(--border);font-size:11px;color:var(--text-2);line-height:1.5;">
+              💬 4 messages · last activity 14:36 · agent: Jamie · <a href="#" style="color:var(--intercom);text-decoration:none;font-weight:500;">Open in Intercom →</a>
+            </div>
+          </div>
+
+          <!-- BLD-8.4 closure rule explainer -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">🔒 Closure rule (BLD-8.4)</div>
+              <div class="card-sub">enforcement</div>
+            </div>
+            <div class="card-body" style="font-size:12px;color:var(--text-2);line-height:1.6;">
+              <p style="margin-bottom:10px;color:var(--text-1);">An Intercom-origin incident creates a <strong>two-way lock</strong>:</p>
+              <p style="margin-bottom:10px;">
+                <strong style="color:var(--text-1);">1. Intercom side</strong> · webhook handler stores <code style="font-size:11px;background:var(--surface-2);padding:1px 5px;border-radius:3px;">livera_incident_lock = INC-00347</code> in conversation metadata. Livera's Intercom app intercepts close attempts and returns 423 Locked with a message pointing the agent to the open incident.
+              </p>
+              <p style="margin-bottom:10px;">
+                <strong style="color:var(--text-1);">2. Livera side</strong> · when the incident transitions to <code style="font-size:11px;background:var(--surface-2);padding:1px 5px;border-radius:3px;">resolved</code> or <code style="font-size:11px;background:var(--surface-2);padding:1px 5px;border-radius:3px;">closed</code>, the save handler clears the metadata flag via Intercom API and (optionally) auto-closes the conversation.
+              </p>
+              <p style="padding:10px 12px;background:var(--amber-bg);border-left:3px solid var(--amber);border-radius:var(--r-sm);color:var(--amber);font-size:11px;">
+                ⚠ The lock survives Intercom restarts, agent handover, and conversation reassignment — it lives on the conversation record itself. Workspace admins cannot bypass it.
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-012 incident detail · variant for Intercom-origin incidents · merge into canonical SCR-012 with Yohan</span>
+      <span class="at">BLD-8.1</span>
+      <span>incident_origin field on incident entity · enum (clinical, patient_app, intercom, system) · 4 new fields total · existing 27 incidents backfilled</span>
+      <span class="at">BLD-8.3</span>
+      <span>Webhook handler creates incident from flagged Intercom conversation · resolves patient via Intercom user_id · sets origin=intercom and intercom_conversation_id</span>
+      <span class="at">BLD-8.4</span>
+      <span>Two-way closure lock · Intercom conversation cannot close until incident reviewed · Livera resolve action clears Intercom metadata flag</span>
+      <span class="at">AUD-04</span>
+      <span>All Intercom-origin events written to AUD-04 audit log with idempotency key from webhook</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  function reviewIncident() {
+    const banner = document.getElementById('closure-banner');
+    banner.classList.add('cleared');
+    document.getElementById('closure-title').textContent = '✓ Incident reviewed — Intercom lock cleared';
+    document.getElementById('closure-sub').innerHTML = 'Conversation <strong>IC-29481</strong> can now be closed in Intercom. The metadata flag has been cleared via API. Activity log updated.';
+    document.getElementById('intercom-status').textContent = 'Unlocked';
+    document.getElementById('intercom-status').classList.add('closed');
+    document.querySelector('.pill').className = 'pill';
+    document.querySelector('.pill').style.cssText = 'background:var(--green-bg);color:var(--green);border-color:var(--green-border);';
+    document.querySelector('.pill').textContent = '✓ Reviewed';
+
+    // append events
+    const list = document.querySelector('.act-list');
+    const pending = document.getElementById('act-pending');
+    const html = `
+      <div class="act-row">
+        <div class="act-dot" style="background:#16a34a;"></div>
+        <div class="act-body-c">
+          <div class="act-text"><strong>Status → reviewed</strong> · Claire Moynehan confirmed no clinical action needed · advised patient to monitor</div>
+          <div class="act-meta">User · cm@feeltru.com</div>
+        </div>
+        <div class="act-time">just now</div>
+      </div>
+      <div class="act-row">
+        <div class="act-dot" style="background:var(--intercom);"></div>
+        <div class="act-body-c">
+          <div class="act-text"><strong>Intercom lock cleared</strong> — BLD-8.4 cleared <code style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;background:var(--surface-2);padding:1px 4px;border-radius:3px;">conversation.metadata.livera_incident_lock</code> via API · IC-29481 now closeable</div>
+          <div class="act-meta">System · API call returned 200 OK</div>
+        </div>
+        <div class="act-time">just now</div>
+      </div>
+    `;
+    pending.insertAdjacentHTML('beforebegin', html);
+    pending.style.display = 'none';
+
+    const t = document.getElementById('toast');
+    t.innerHTML = '✓ Incident reviewed · Intercom conversation unlocked';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

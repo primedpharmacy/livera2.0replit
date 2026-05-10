@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Audit log</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+:root{--brand:#6366f1;--brand-d:#4338ca;--brand-l:#eef2ff;--brand-mid:#818cf8;--nav:#1e1b4b;--surface:#ffffff;--bg:#f1f0ef;--t1:#0f172a;--t2:#475569;--t3:#94a3b8;--bdr:#e2e8f0;--bdr-d:#cbd5e1;--ok:#10b981;--ok-bg:#ecfdf5;--ok-bdr:#a7f3d0;--warn:#f59e0b;--warn-bg:#fffbeb;--warn-bdr:#fde68a;--err:#ef4444;--err-bg:#fef2f2;--err-bdr:#fecaca;--info:#3b82f6;--info-bg:#eff6ff;--info-bdr:#bfdbfe;--proto:#0d9488;--proto-bg:#f0fdfa;--proto-bdr:#99f6e4;--gov:#a855f7;--gov-bg:#faf5ff;--gov-bdr:#e9d5ff}
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{color:rgba(255,255,255,.85)}.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600}
+.layout{display:flex;min-height:calc(100vh - 36px)}
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+.crumb{font-size:12px;color:var(--t3);margin-bottom:14px}
+.crumb a{color:var(--t2);text-decoration:none;font-weight:500}.crumb a:hover{color:var(--brand-d)}
+.crumb .sep{margin:0 6px}.crumb .cur{color:var(--t1);font-weight:600}
+.pg-head{display:flex;align-items:flex-start;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr);margin-bottom:18px}
+.pg-icon{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#e0e7ff 0%,#4338ca 100%);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.pg-info h1{font-size:22px;font-weight:700;color:var(--t1);letter-spacing:-.4px;line-height:1.2;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pg-info h1 .bld-pill{font-size:9px;font-weight:700;letter-spacing:.4px;background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr);padding:2px 7px;border-radius:3px}
+.pg-info .sub{font-size:13px;color:var(--t2);margin-top:5px;line-height:1.55}
+.pg-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);color:var(--t2);border:1px solid var(--bdr-d);border-radius:6px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;text-decoration:none;transition:all .12s}
+.btn:hover{border-color:var(--brand);color:var(--brand)}
+
+/* Stats */
+.audit-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--bdr);border:1px solid var(--bdr);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.audit-stat{background:var(--surface);padding:11px 14px}
+.audit-stat .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3)}
+.audit-stat .val{font-size:20px;font-weight:700;color:var(--t1);line-height:1;margin-top:4px;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.audit-stat .meta{font-size:10px;color:var(--t2);margin-top:3px;line-height:1.35}
+
+/* Filter bar */
+.filter-bar{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filter-bar .lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3)}
+.fb-group{display:flex;gap:0;border:1px solid var(--bdr-d);border-radius:6px;overflow:hidden}
+.fb-btn{padding:5px 11px;font-size:11px;background:var(--surface);color:var(--t2);border:none;cursor:pointer;font-family:inherit;border-right:1px solid var(--bdr-d);transition:all .12s}
+.fb-btn:last-child{border-right:none}
+.fb-btn.on{background:var(--brand);color:#fff}
+.fb-btn:hover:not(.on){background:var(--brand-l);color:var(--brand-d)}
+.filter-bar .search{padding:5px 10px;font-size:11.5px;border:1px solid var(--bdr-d);border-radius:5px;font-family:inherit;width:240px;background:var(--bg)}
+.filter-bar .search:focus{outline:none;border-color:var(--brand);background:var(--surface)}
+.filter-bar select{font-family:inherit;font-size:11.5px;padding:5px 9px;border:1px solid var(--bdr-d);border-radius:5px;background:var(--surface);color:var(--t1)}
+
+/* Audit table */
+.card{background:var(--surface);border:1px solid var(--bdr);border-radius:8px;margin-bottom:18px;overflow:hidden}
+.card-head{padding:12px 16px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card-head .ttl{font-size:13px;font-weight:600;color:var(--t1)}
+.card-head .sub{font-size:11px;color:var(--t3)}
+.card-head .right{margin-left:auto;font-size:11px;color:var(--t3)}
+
+.al-head{background:var(--bg);display:grid;grid-template-columns:140px 32px 1fr 110px 130px 80px 80px;padding:9px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);border-bottom:1px solid var(--bdr);align-items:center}
+.al-row{display:grid;grid-template-columns:140px 32px 1fr 110px 130px 80px 80px;padding:9px 16px;border-bottom:1px solid var(--bdr);font-size:12px;align-items:center;cursor:pointer;transition:background .12s}
+.al-row:last-child{border-bottom:none}
+.al-row:hover{background:var(--brand-l)}
+.al-row .when{color:var(--t3);font-variant-numeric:tabular-nums;font-size:11px}
+.al-row .av{width:24px;height:24px;border-radius:50%;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:-.2px}
+.al-row .what{color:var(--t1);font-size:12px;line-height:1.4;min-width:0;padding-right:14px}
+.al-row .what strong{font-weight:600}
+.al-row .what code{font-family:'SF Mono',monospace;font-size:10.5px;background:var(--bg);padding:1px 4px;border-radius:3px;color:var(--t2)}
+.al-row .ent-pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.3px;width:fit-content}
+.al-row .ent-pill.config{background:var(--brand-l);color:var(--brand-d);border:.5px solid var(--brand-mid)}
+.al-row .ent-pill.user{background:var(--gov-bg);color:var(--gov);border:.5px solid var(--gov-bdr)}
+.al-row .ent-pill.order{background:var(--info-bg);color:var(--info);border:.5px solid var(--info-bdr)}
+.al-row .ent-pill.patient{background:var(--ok-bg);color:var(--ok);border:.5px solid var(--ok-bdr)}
+.al-row .ent-pill.rule{background:var(--proto-bg);color:var(--proto);border:.5px solid var(--proto-bdr)}
+.al-row .ent-pill.incident{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.al-row .ent-pill.integration{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.al-row .ent-pill.consent{background:#faf5ff;color:#a855f7;border:.5px solid #e9d5ff}
+.al-row .ent-pill.amendment{background:#fef3c7;color:#92400e;border:.5px solid #fde68a}
+.al-row .ent-pill.omnisend{background:#eff3ff;color:#1a4dff;border:.5px solid #c7d4ff}
+.al-row .action-pill{font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.3px;width:fit-content}
+.al-row .action-pill.create{background:var(--ok-bg);color:var(--ok)}
+.al-row .action-pill.update{background:var(--info-bg);color:var(--info)}
+.al-row .action-pill.delete{background:var(--err-bg);color:var(--err)}
+.al-row .action-pill.read{background:var(--bg);color:var(--t3);border:.5px solid var(--bdr-d)}
+.al-row .action-pill.reorder{background:var(--brand-l);color:var(--brand-d)}
+.al-row .action-pill.approve{background:var(--ok-bg);color:var(--ok)}
+.al-row .action-pill.blocked{background:var(--err-bg);color:var(--err);font-weight:700}
+.al-row .ip{font-family:'SF Mono',monospace;font-size:10px;color:var(--t3)}
+.al-row .clinic{font-size:10.5px;color:var(--t2);font-weight:600}
+
+.banner{background:var(--gov-bg);border:1px solid var(--gov-bdr);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:flex-start;gap:12px}
+.banner .ic{width:32px;height:32px;border-radius:8px;background:var(--gov);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.banner .text{font-size:12px;color:var(--gov);line-height:1.5}
+.banner .text strong{color:var(--t1);font-weight:600;display:block;margin-bottom:2px}
+
+.pagination{display:flex;justify-content:center;align-items:center;gap:12px;margin-top:14px;font-size:12px;color:var(--t3)}
+
+.perm-note{font-size:11px;color:var(--t2);padding:12px 16px;background:var(--bg);border:1px dashed var(--bdr-d);border-radius:6px;line-height:1.55;margin-top:18px}
+.perm-note strong{color:var(--t1);font-weight:600}.perm-note code{background:var(--brand-l);color:var(--brand-d);padding:1px 5px;border-radius:3px;font-size:10.5px}
+
+.toast{position:fixed;bottom:24px;right:24px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" class="active"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <div class="crumb">
+      <a href="livera_owner_dashboard.html">Dashboard</a><span class="sep">›</span>
+      <a href="livera_settings_landing.html">Settings</a><span class="sep">›</span>
+      <span class="cur">Audit log</span>
+    </div>
+
+    <div class="pg-head">
+      <div class="pg-icon">📜</div>
+      <div class="pg-info">
+        <h1>Audit log <span class="bld-pill">BLD-1.4</span></h1>
+        <div class="sub">Searchable trail of every administrative and clinical action across the platform · 7-year retention per UK GDPR · feeds CQC and GPhC governance evidence</div>
+      </div>
+      <div class="pg-actions">
+        <button class="btn" onclick="showToast('Stub · would download filtered CSV')">⤓ Export CSV</button>
+        <button class="btn" onclick="showToast('Stub · subscribe to filtered feed via webhook')">📡 Subscribe</button>
+      </div>
+    </div>
+
+    <div class="banner">
+      <div class="ic">🔒</div>
+      <div class="text">
+        <strong>Tamper-evident</strong>
+        Every entry is hash-chained to the previous · log-only (no edits, no deletes) · 7-year retention per UK GDPR Art 9 healthcare exemption · evidence pack auto-included in monthly governance handover. Visible to <strong>Owner</strong> and <strong>RM</strong> only.
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="audit-stats">
+      <div class="audit-stat">
+        <div class="lbl">Total events (90d)</div>
+        <div class="val">12,847</div>
+        <div class="meta">All actions logged</div>
+      </div>
+      <div class="audit-stat">
+        <div class="lbl">Today</div>
+        <div class="val">186</div>
+        <div class="meta">As of 14:42</div>
+      </div>
+      <div class="audit-stat">
+        <div class="lbl">Config changes</div>
+        <div class="val" style="color:var(--brand)">38</div>
+        <div class="meta">Last 30 days</div>
+      </div>
+      <div class="audit-stat">
+        <div class="lbl">Clinical decisions</div>
+        <div class="val" style="color:var(--info)">189</div>
+        <div class="meta">Approve/decline · 90d</div>
+      </div>
+      <div class="audit-stat">
+        <div class="lbl">User actions</div>
+        <div class="val" style="color:var(--gov)">72</div>
+        <div class="meta">Invite/remove/role · 90d</div>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <span class="lbl">Range</span>
+      <div class="fb-group">
+        <button class="fb-btn">24h</button>
+        <button class="fb-btn on">7d</button>
+        <button class="fb-btn">30d</button>
+        <button class="fb-btn">90d</button>
+        <button class="fb-btn">Custom</button>
+      </div>
+      <span class="lbl" style="margin-left:8px">Entity</span>
+      <select>
+        <option>All entities</option>
+        <option>Config</option>
+        <option>User</option>
+        <option>Order</option>
+        <option>Patient</option>
+        <option>Rule</option>
+        <option>Incident</option>
+        <option>Integration</option>
+        <option>Consent</option>
+        <option>Amendment</option>
+        <option>Omnisend</option>
+      </select>
+      <span class="lbl" style="margin-left:8px">Action</span>
+      <select>
+        <option>All actions</option>
+        <option>Create</option>
+        <option>Update</option>
+        <option>Delete</option>
+        <option>Reorder</option>
+        <option>Approve</option>
+        <option>Blocked</option>
+        <option>Read (sensitive)</option>
+      </select>
+      <span class="lbl" style="margin-left:8px">User</span>
+      <select>
+        <option>All users</option>
+        <option>Qadir Hussain</option>
+        <option>Mobeen Alam</option>
+        <option>Charlotte Williams</option>
+        <option>Claire Moynehan</option>
+        <option>System</option>
+      </select>
+      <input class="search" placeholder="Search by entity ID, user, or text…">
+    </div>
+
+    <!-- Audit table -->
+    <div class="card">
+      <div class="card-head">
+        <div class="ttl">📜 Events · last 7 days · 1,284 entries</div>
+        <div class="sub">Showing 20 most recent · click any row for full event detail</div>
+      </div>
+      <div style="padding:0">
+        <div class="al-head">
+          <span>When</span>
+          <span></span>
+          <span>Event</span>
+          <span>Entity</span>
+          <span>Action</span>
+          <span>Clinic</span>
+          <span style="text-align:right">IP</span>
+        </div>
+
+        <!-- BLD-INT-OMNI-04 + 05: OMNISEND_* sample audit entries (Wave 5) -->
+        <div class="al-row" onclick="window.location.href='livera_settings_omnisend.html'">
+          <span class="when">10 May · 19:42</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> changed Omnisend field sync · enabled <code>patient.region</code> (postcode area only) · <strong>OMNISEND_FIELD_SYNC_CHANGED</strong> · before: disabled · after: enabled · clinical-data exclusion check passed (region is geographic, not clinical) · 487 contacts will receive updated field on next sync (15min cron)</span>
+          <span><span class="ent-pill omnisend">OMNISEND</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" style="background:rgba(239,68,68,0.04)" onclick="window.location.href='livera_settings_omnisend.html'">
+          <span class="when">10 May · 19:38</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> attempted to enable <code>patient.bmi</code> sync to Omnisend · <strong>OMNISEND_GDPR_BLOCK</strong> · server returned 403 · reason: <code>clinical_data_exclusion</code> · GDPR Article 9 special-category data cannot be processed by marketing platform · server-side enforcement (not UI-side) · audit-evidence preserved for ICO inspection</span>
+          <span><span class="ent-pill omnisend">OMNISEND</span></span>
+          <span><span class="action-pill blocked">BLOCKED</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_prototype_09_patient_profile.html'">
+          <span class="when">09 May · 11:14</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#94a3b8,#475569)">SY</span></span>
+          <span class="what"><strong>Patient · Sarah Cookland (PT-00198)</strong> via Omnisend unsubscribe link · <strong>OMNISEND_CONSENT_WITHDRAWN</strong> · email marketing consent set false · contact removed from audience · Livera <code>patient.marketing_consent</code> updated · webhook received 09 May 11:14:23 · processed 11:14:24</span>
+          <span><span class="ent-pill omnisend">OMNISEND</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">webhook</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_settings_omnisend.html'">
+          <span class="when">12 Apr · 09:14</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> rotated Omnisend API key · <strong>OMNISEND_KEY_ROTATED</strong> · prior key revoked · new key active · 28-day rotation cycle · next rotation due 10 May 2026</span>
+          <span><span class="ent-pill omnisend">OMNISEND</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_settings_omnisend.html'">
+          <span class="when">28 Jan · 14:08</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> connected Omnisend integration · <strong>OMNISEND_CONNECTED</strong> · account: marketing@thevirtualslimmingclinic.co.uk · region: EU (Ireland) GDPR-compliant data residency · 11 fields enabled at default sync settings (4 identity · 3 demographic · 2 treatment · 3 lifecycle · 7 clinical fields hard-blocked at platform level)</span>
+          <span><span class="ent-pill omnisend">OMNISEND</span></span>
+          <span><span class="action-pill create">CREATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <!-- BLD-AMEND-06: AMENDMENT_BLOCKED + AMENDMENT_APPROVED + AMENDMENT_APPLIED audit entries (DEC-36 / spec §10) -->
+        <div class="al-row" onclick="window.location.href='livera_scr_amendment_decision.html'">
+          <span class="when">10 May · 18:14</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#f0abfc,#86198f)">CM</span></span>
+          <span class="what"><strong>Claire Moynehan</strong> approved <code>AMD-00091</code> · dose increase <em>5mg → 7.5mg</em> for Sarah Cookland (PT-00198) on ORD-00441 · <strong>AMENDMENT_APPROVED</strong> · Ryft captured £30 · Rx PRX-00441-A1 generated · GP letter GPL-00441 queued · invoice INV-00441 voided, INV-00441-A1 issued · server validated <code>amendment_window=pre_dispensed</code> · order.status=in-dispensing</span>
+          <span><span class="ent-pill amendment">AMENDMENT</span></span>
+          <span><span class="action-pill approve">APPROVE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_prototype_10_order_detail_admin.html'">
+          <span class="when">10 May · 17:54</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#94a3b8,#475569)">SY</span></span>
+          <span class="what"><strong>Patient app · Sarah Cookland (PT-00198)</strong> applied immediate amendment <code>AMD-00088</code> · supply increase <em>1mo → 3mo</em> on ORD-00441 · <strong>AMENDMENT_APPLIED</strong> · payment delta +£250 captured immediately (no prescriber review) · invoice INV-00441 voided, INV-00441-A1 issued · server validated <code>amendment_window=pre_dispensed</code></span>
+          <span><span class="ent-pill amendment">AMENDMENT</span></span>
+          <span><span class="action-pill approve">APPLIED</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">82.31.117.4</span>
+        </div>
+
+        <div class="al-row" style="background:rgba(239,68,68,0.04);" onclick="window.location.href='livera_scr_preapproval_enforcement.html'">
+          <span class="when">10 May · 16:38</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#94a3b8,#475569)">SY</span></span>
+          <span class="what"><strong>Patient app · Marcus Tomlinson (PT-00163)</strong> attempted dose increase <em>10mg → 12.5mg</em> on ORD-00388 · <strong>AMENDMENT_BLOCKED</strong> · reason: <code>amendment_window_closed</code> · server returned 403 · order.status=delivered (past dispatch event) · client app version 1.0.4-rc.2 · audit-evidence preserved per AUD-04</span>
+          <span><span class="ent-pill amendment">AMENDMENT</span></span>
+          <span><span class="action-pill blocked">BLOCKED</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">88.97.214.3</span>
+        </div>
+
+        <div class="al-row" style="background:rgba(239,68,68,0.04);" onclick="window.location.href='livera_scr_preapproval_enforcement.html'">
+          <span class="when">10 May · 14:12</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#94a3b8,#475569)">SY</span></span>
+          <span class="what"><strong>Unknown actor · cross-tenant attempt</strong> POST <code>/amendments/ORD-FT-00204/decide</code> from VSC session · <strong>AMENDMENT_BLOCKED</strong> · reason: <code>not_found</code> · server returned 404 (no leak — tenant isolation by workspace_id before status check) · flagged as potential security event · authenticated user qadir@quanta belonged to clinic-001-vsc, target order belonged to clinic-002-feeltru</span>
+          <span><span class="ent-pill amendment">AMENDMENT</span></span>
+          <span><span class="action-pill blocked">BLOCKED</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <!-- BLD-CHAIN-AUDIT-01: SAFETY_QUESTION_EDITED sample entries (DEC-36) -->
+        <div class="al-row" onclick="window.location.href='livera_scr_questionnaire_builder.html'">
+          <span class="when">10 May · 17:51</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> attempted to delete severe option <em>"Persistent vomiting"</em> on <code>r3</code> Reorder side effects · <strong>SAFETY_QUESTION_EDITED</strong> · type=<code>option_delete_blocked</code> · chain=<code>se_reorder_side_effects</code> · <em>blocked: option is part of platform safety chain</em> · safety_chain_intact=true</span>
+          <span><span class="ent-pill rule">SAFETY</span></span>
+          <span><span class="action-pill delete">BLOCKED</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_scr_questionnaire_builder.html'">
+          <span class="when">10 May · 17:48</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> edited label of severe option on <code>r3</code> Reorder side effects · <em>"Severe abdominal pain that doesn't go away" → "Severe abdominal pain that does not subside"</em> · <strong>SAFETY_QUESTION_EDITED</strong> · type=<code>option_label_edited</code> · localisation edit · severity unchanged · safety_chain_intact=true</span>
+          <span><span class="ent-pill rule">SAFETY</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <!-- BLD-CONSENT-CONFIG-03: New audit entry types for consent customisation (DEC-32) -->
+        <div class="al-row" onclick="window.location.href='livera_settings_consents.html'">
+          <span class="when">10 May · 17:24</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> updated <code>consent_treatment</code> · v1.1 → v1.2 · clarified GLP-1 mechanism wording for plain English readability · <strong>CONSENT_UPDATED</strong> · diff: 2 paragraphs reworded, no clinical content changed · 487 patients on prior version will re-consent on next login</span>
+          <span><span class="ent-pill consent">CONSENT</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_settings_consents.html'">
+          <span class="when">10 May · 17:21</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> reordered consent list · moved <code>consent_marketing</code> from position 5 → 9 · <strong>CONSENT_REORDERED</strong> · grouping mandatory items first per Art 9 review · no patient re-consent triggered (order change only)</span>
+          <span><span class="ent-pill consent">CONSENT</span></span>
+          <span><span class="action-pill reorder">REORDER</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_settings_consents.html'">
+          <span class="when">10 May · 17:18</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#94a3b8,#475569)">SY</span></span>
+          <span class="what"><strong>System</strong> seeded 9 default consents on Patient Consents settings deploy · <strong>CONSENT_CREATED</strong> ×9 · IDs: <code>consent_treatment</code>, <code>consent_data_processing</code>, <code>consent_id_verification</code>, <code>consent_bmi_photo</code>, <code>consent_gp_letter</code>, <code>consent_nhs_number</code>, <code>consent_emergency_contact</code>, <code>consent_safeguarding</code>, <code>consent_marketing</code> · per DEC-32</span>
+          <span><span class="ent-pill consent">CONSENT</span></span>
+          <span><span class="action-pill create">CREATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">system</span>
+        </div>
+
+        <!-- Patient data edit (DEC-25/DEC-28) -->
+        <div class="al-row" onclick="window.location.href='livera_prototype_09_patient_profile.html'">
+          <span class="when">06 May · 11:14</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#fda4af,#be123c)">MA</span></span>
+          <span class="what"><strong>Mobeen Alam</strong> updated address for <code>PT-00198</code> Sarah Cookland · <em>3 Old Road, LS6 → 14 New Lane, LS18 4FJ</em> · 2 in-flight orders auto-synced (ORD-00441, ORD-00440), 1 locked (ORD-00439, Primed clinically checked) · Reason: "Patient called — moved house Friday"</span>
+          <span><span class="ent-pill patient">PATIENT</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.20.42.8</span>
+        </div>
+
+        <!-- Rule edit (DEC-27) -->
+        <div class="al-row" onclick="window.location.href='livera_g6_flag_rules.html'">
+          <span class="when">05 May · 10:18</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> created <code>FLAG-005 v3</code> · max_step lowered for FeelTru only · Reason: "FeelTru patient cohort more sensitive — Mobeen requested tighter escalation gate after 2 reported side-effect cases" · 23 fired flags reference v2 and remain unchanged (DEC-27)</span>
+          <span><span class="ent-pill rule">RULE</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_g6_flag_rules.html'">
+          <span class="when">03 May · 14:22</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> created <code>FLAG-002 v4</code> · BMI threshold <code>&lt; 28</code> → <code>&lt; 27</code> · Reason: "Aligned to NICE CG189 update Feb 2026" · 18 fired flags reference v3 and remain unchanged</span>
+          <span><span class="ent-pill rule">RULE</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_g6_flag_rules.html'">
+          <span class="when">02 May · 11:08</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> created <code>FLAG-001 v2</code> · severity <code>HIGH</code> → <code>CRITICAL</code> · Reason: "MHRA Yellow Card 2025 update — eating disorder is now a contraindication for GLP-1, not a relative caution"</span>
+          <span><span class="ent-pill rule">RULE</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_g6_flag_rules.html'">
+          <span class="when">01 May · 16:42</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> created <code>FLAG-004 v1</code> · manual-source rule for welcome call concerns · Reason: "Welcome call program launching — needed structured way for Olwyn/Charlotte to raise concerns from calls into the prescriber review flow"</span>
+          <span><span class="ent-pill rule">RULE</span></span>
+          <span><span class="action-pill create">CREATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_g6_flag_rules.html'">
+          <span class="when">28 Apr · 10:36</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> created <code>FLAG-006 v1</code> · NHS number data quality flag · Reason: "GP letter accuracy review identified ~9% of patients lacking NHS number — needed structured backfill flag"</span>
+          <span><span class="ent-pill rule">RULE</span></span>
+          <span><span class="action-pill create">CREATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_g6_flag_rules.html'">
+          <span class="when">24 Apr · 09:14</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> created <code>FLAG-001 v1</code>, <code>FLAG-002 v1</code>, <code>FLAG-003 v1</code> · initial questionnaire-driven safeguarding flag set</span>
+          <span><span class="ent-pill rule">RULE</span></span>
+          <span><span class="action-pill create">CREATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_prototype_10_order_detail.html'">
+          <span class="when">14:42</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a5b4fc,#4338ca)">CW</span></span>
+          <span class="what"><strong>Charlotte Williams</strong> approved order <code>ORD-00441</code> · Sarah Cookland · Mounjaro 5mg→7.5mg · proactive note attached (B4)</span>
+          <span><span class="ent-pill order">ORDER</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">81.2.69.144</span>
+        </div>
+
+        <div class="al-row" onclick="showToast('Open event detail')">
+          <span class="when">14:38</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> updated default sender on Postmark from <code>noreply@</code> → <code>hello@</code></span>
+          <span><span class="ent-pill integration">INTEGRATION</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_prototype_09_patient_profile.html'">
+          <span class="when">14:26</span>
+          <span><span class="av" style="background:#475569">SY</span></span>
+          <span class="what"><strong>System</strong> SumSub returned <code>passed</code> for <code>PT-00219</code> Maria Kowalski · confidence 96% · auto-approved</span>
+          <span><span class="ent-pill patient">PATIENT</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">webhook</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_prototype_09_patient_profile.html'">
+          <span class="when">14:18</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a5b4fc,#4338ca)">CW</span></span>
+          <span class="what"><strong>Charlotte Williams</strong> viewed sensitive BMI evidence for <code>PT-00198</code> Sarah Cookland</span>
+          <span><span class="ent-pill patient">PATIENT</span></span>
+          <span><span class="action-pill read">READ</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">81.2.69.144</span>
+        </div>
+
+<div class="al-row" onclick="showToast('Open event detail')">
+          <span class="when">11:14</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#fda4af,#be123c)">MA</span></span>
+          <span class="what"><strong>Mobeen Alam</strong> tightened SLA <code>sla.gp_letter_hours</code> from <code>72h</code> → <code>48h</code> · CQC inspection prep</span>
+          <span><span class="ent-pill config">CONFIG</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.20.42.8</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_prototype_10_order_detail.html'">
+          <span class="when">10:08</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a5b4fc,#4338ca)">JK</span></span>
+          <span class="what"><strong>James Kirby</strong> declined order <code>ORD-00445</code> · BMI 24.8, no comorbidity · GP letter sent</span>
+          <span><span class="ent-pill order">ORDER</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">94.193.21.186</span>
+        </div>
+
+<div class="al-row" onclick="showToast('Open event detail')">
+          <span class="when">Yesterday 17:00</span>
+          <span><span class="av" style="background:#475569">SY</span></span>
+          <span class="what"><strong>System</strong> Royal Mail manifest <code>RM-MAN-2026-126</code> filed · 28 items · daily cut-off</span>
+          <span><span class="ent-pill integration">INTEGRATION</span></span>
+          <span><span class="action-pill create">CREATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">scheduled</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_g6_flag_rules.html'">
+          <span class="when">Yesterday 16:48</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#fda4af,#be123c)">MA</span></span>
+          <span class="what"><strong>Mobeen Alam</strong> updated B4 proactive note template · clarified dose escalation language</span>
+          <span><span class="ent-pill rule">RULE</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.20.42.8</span>
+        </div>
+
+        <div class="al-row" onclick="showToast('Open event detail')">
+          <span class="when">Yesterday 14:30</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> invited <code>thivera@incognia.health</code> as Admin · pending first sign-in</span>
+          <span><span class="ent-pill user">USER</span></span>
+          <span><span class="action-pill create">CREATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+<div class="al-row" onclick="showToast('Open event detail')">
+          <span class="when">2d ago 09:30</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> changed <code>sla.expiry_days</code> from <code>7</code> → <code>6</code> · aligning with VSC manual v3</span>
+          <span><span class="ent-pill config">CONFIG</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="showToast('Open event detail')">
+          <span class="when">3d ago 14:08</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> rotated Postmark server token · ID <code>pmk_live_xxxxxxxxxxxxxxxxxxxxxxxx</code></span>
+          <span><span class="ent-pill integration">INTEGRATION</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_g6_flag_rules.html'">
+          <span class="when">3d ago 10:14</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> activated B2 BMI Outdated rule (was OFF) · staleness window 180d</span>
+          <span><span class="ent-pill rule">RULE</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+<div class="al-row" onclick="window.location.href='livera_prototype_10_order_detail.html'">
+          <span class="when">5d ago 09:00</span>
+          <span><span class="av" style="background:#475569">SY</span></span>
+          <span class="what"><strong>System</strong> auto-expired <code>ORD-00410</code> Catherine Morris · 6-day window exceeded · auth released</span>
+          <span><span class="ent-pill order">ORDER</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">scheduled</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_prototype_10_order_detail.html'">
+          <span class="when">5d ago 11:48</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#86efac,#15803d)">SM</span></span>
+          <span class="what"><strong>Shahid Mahmood</strong> raised Annex G query on <code>ORD-00422</code> · BMI clarification required</span>
+          <span><span class="ent-pill order">ORDER</span></span>
+          <span><span class="action-pill create">CREATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">81.96.42.18</span>
+        </div>
+
+        <div class="al-row" onclick="window.location.href='livera_g6_flag_rules.html'">
+          <span class="when">6d ago 14:38</span>
+          <span><span class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6)">QH</span></span>
+          <span class="what"><strong>Qadir Hussain</strong> changed A2 threshold from <code>conf &lt; 0.80</code> to <code>conf &lt; 0.85</code> · post-GPhC inspection feedback</span>
+          <span><span class="ent-pill rule">RULE</span></span>
+          <span><span class="action-pill update">UPDATE</span></span>
+          <span class="clinic">VSC</span>
+          <span class="ip" style="text-align:right">86.156.18.22</span>
+        </div>
+
+</div>
+    </div>
+
+    <div class="pagination">
+      Showing 20 of 1,284 ·
+      <button class="btn" onclick="showToast('Stub · load next page')">Load more →</button>
+    </div>
+
+    <div class="perm-note">
+      <strong>Audit log</strong> · BLD-1.4 · tamper-evident, hash-chained event log. Every administrative action, every clinical decision, every config change, every sensitive read is captured. 7-year retention per UK GDPR Art 9 healthcare exemption. Auto-included in monthly governance handover packs (CQC + GPhC). Visible to <code>Owner</code> and <code>RM</code> · all other roles hidden. Read-only — no edits, no deletes, no exceptions.
+    </div>
+
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>function showToast(msg){const t=document.getElementById('toast');t.textContent='✓ '+msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Complaints (BLD-13.1)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row:hover { background: var(--surface-2); }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .nb-red { margin-left: auto; background: var(--red-bg); color: var(--red-mid); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .nb-amber { margin-left: auto; background: var(--amber-bg); color: var(--amber); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  /* Main */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  /* Topbar */
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; display:flex; align-items:center; gap:8px; }
+  .source-pill { display:inline-flex; align-items:center; gap:5px; background: var(--surface-2); border:0.5px solid var(--border-strong); padding:3px 9px; border-radius:999px; font-size:10px; font-weight:600; color:var(--text-2); }
+  .source-pill .dot { width:6px; height:6px; border-radius:50%; background:#10b981; }
+  .topbar-count { font-size: 12px; color: var(--text-3); }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .btn-sm:hover { background: var(--surface-2); }
+  .btn-sm.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn-sm.primary:hover { background: #3730a3; }
+  .btn-xs { padding: 4px 9px; border-radius: var(--r-sm); font-size: 11px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .btn-xs:hover { background: var(--surface-2); border-color: var(--brand-mid); color: var(--brand-dark); }
+  .btn-xs.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn-xs.green { background: #16a34a; color: #fff; border-color: #16a34a; }
+  .btn-xs.green:hover { background: #15803d; }
+
+  /* KPI strip */
+  .kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 16px 24px 0; flex-shrink: 0; }
+  .kpi-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); padding: 12px 14px; }
+  .kpi-label { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .kpi-value { font-size: 22px; font-weight: 700; color: var(--text-1); line-height: 1; letter-spacing: -0.5px; }
+  .kpi-sub { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+  .kpi-card.alert { border-color: var(--red-border); background: var(--red-bg); }
+  .kpi-card.alert .kpi-value { color: var(--red-mid); }
+  .kpi-card.warn { border-color: var(--amber-border); background: var(--amber-bg); }
+  .kpi-card.warn .kpi-value { color: var(--amber); }
+  .kpi-card.good { border-color: var(--green-border); background: var(--green-bg); }
+  .kpi-card.good .kpi-value { color: var(--green); }
+
+  /* Tabs */
+  .tabs { display: flex; background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 24px; margin-top: 16px; flex-shrink: 0; overflow-x: auto; }
+  .tab { padding: 11px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; white-space: nowrap; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .tab:hover { color: var(--text-1); }
+  .tab.on { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 500; }
+  .tab-ct { background: var(--surface-2); color: var(--text-3); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; border: 0.5px solid var(--border-strong); }
+  .tab-ct.red { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .tab-ct.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .tab-ct.green { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .tab-ct.blue { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+
+  /* Filter row */
+  .filter-row { padding: 10px 24px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+  .search-input { min-width: 240px; max-width: 320px; padding: 7px 12px; border: 0.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 12px; font-family: inherit; background: var(--surface); }
+  .filter-chip { padding: 5px 11px; border-radius: 999px; font-size: 11px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 5px; user-select: none; }
+  .filter-chip:hover { border-color: var(--brand-mid); color: var(--brand-dark); }
+  .filter-chip.on { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+
+  /* Content */
+  .content { flex: 1; overflow-y: auto; padding: 16px 24px 24px; }
+
+  /* Section card */
+  .scard { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .scard-head { padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .scard-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .scard-sub { font-size: 11px; color: var(--text-3); margin-left: auto; display:flex; align-items:center; gap:8px; }
+  .scard-sub a { color: var(--brand-dark); text-decoration: none; font-weight: 500; }
+  .scard-sub a:hover { text-decoration: underline; }
+
+  /* Read-only banner */
+  .ro-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--brand-light); border-bottom: 0.5px solid var(--border); }
+  .ro-icon { width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .ro-text { font-size: 12px; color: var(--brand-dark); flex: 1; }
+  .ro-text strong { font-weight: 600; }
+  .ro-text a { color: var(--brand-dark); text-decoration: underline; font-weight: 500; }
+
+  /* Table */
+  .cm-table { width: 100%; border-collapse: collapse; }
+  .cm-table th { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.6px; padding: 10px 14px; text-align: left; border-bottom: 0.5px solid var(--border); background: var(--surface-2); }
+  .cm-table td { padding: 12px 14px; font-size: 13px; color: var(--text-1); border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+  .cm-table tr:last-child td { border-bottom: none; }
+  .cm-table tr:hover td { background: var(--surface-2); }
+
+  /* Complaint cell */
+  .comp-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .comp-id { font-family: 'SF Mono', Menlo, monospace; font-size: 10px; color: var(--text-3); }
+  .comp-summary { font-size: 13px; font-weight: 500; color: var(--text-1); line-height: 1.35; }
+  .comp-meta { font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+  .comp-tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; background: var(--surface-2); color: var(--text-2); border: 0.5px solid var(--border-strong); border-radius: 4px; font-size: 10px; font-weight: 500; }
+
+  /* Patient mini-cell */
+  .pat-mini { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .av { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--brand), var(--brand-dark)); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: -0.3px; }
+  .av.green { background: linear-gradient(135deg, #34d399, #059669); }
+  .av.amber { background: linear-gradient(135deg, #fbbf24, #d97706); }
+  .av.purple { background: linear-gradient(135deg, #a78bfa, #7c3aed); }
+  .av.pink { background: linear-gradient(135deg, #f472b6, #be185d); }
+  .av.teal { background: linear-gradient(135deg, #2dd4bf, #0891b2); }
+  .pat-info { min-width: 0; flex: 1; }
+  .pat-name { font-size: 12px; font-weight: 500; color: var(--text-1); }
+  .pat-id { font-size: 10px; color: var(--text-3); font-family: 'SF Mono', Menlo, monospace; }
+
+  /* SLA cells (dual: 3-day ack + 20-working-day resolution) */
+  .sla-stack { display: flex; flex-direction: column; gap: 6px; }
+  .sla-row { display: flex; flex-direction: column; gap: 2px; }
+  .sla-head { font-size: 9px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.4px; display: flex; align-items: center; gap: 4px; }
+  .sla-time { font-size: 11px; font-weight: 600; }
+  .sla-time.ok { color: var(--green); }
+  .sla-time.warn { color: var(--amber); }
+  .sla-time.breach { color: var(--red-mid); }
+  .sla-time.done { color: var(--text-3); font-weight: 500; }
+  .sla-bar { width: 100%; max-width: 110px; height: 3px; background: var(--surface-3); border-radius: 999px; overflow: hidden; }
+  .sla-fill { height: 100%; transition: width 0.3s; }
+  .sla-fill.ok { background: var(--green); }
+  .sla-fill.warn { background: var(--amber); }
+  .sla-fill.breach { background: var(--red-mid); }
+  .sla-fill.done { background: var(--text-3); }
+
+  /* Status pill */
+  .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; line-height: 1.4; white-space: nowrap; border: 0.5px solid; }
+  .pill .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .pill.new { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .pill.new .dot { background: var(--red-mid); }
+  .pill.acknowledged { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .pill.acknowledged .dot { background: var(--amber); }
+  .pill.investigating { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .pill.investigating .dot { background: var(--blue); }
+  .pill.resolved { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .pill.resolved .dot { background: var(--green); }
+  .pill.escalated { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-border); }
+  .pill.escalated .dot { background: var(--purple); }
+
+  /* Severity pill */
+  .sev { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; line-height: 1.4; border: 0.5px solid; }
+  .sev.informal { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-border); }
+  .sev.formal { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .sev.serious { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+
+  /* Owner cell */
+  .owner-cell { display: flex; align-items: center; gap: 7px; }
+  .owner-cell .av { width: 24px; height: 24px; font-size: 10px; }
+  .owner-name { font-size: 12px; color: var(--text-1); font-weight: 500; }
+  .owner-empty { color: var(--text-3); font-size: 12px; font-style: italic; }
+
+  /* Last activity cell */
+  .activity-cell { font-size: 11px; color: var(--text-3); display: flex; flex-direction: column; gap: 1px; }
+  .activity-cell .ah { color: var(--text-2); font-size: 12px; }
+
+  /* Actions */
+  .actions-cell { display: flex; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
+
+  /* Trigger flow diagram */
+  .trigger-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); padding: 16px 20px; margin-bottom: 16px; }
+  .trigger-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .trigger-icon { width:30px; height:30px; border-radius:8px; background:var(--brand-light); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .trigger-title { font-size:13px; font-weight:600; color:var(--text-1); }
+  .trigger-sub { font-size:11px; color:var(--text-3); margin-left:auto; }
+  .trigger-flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr; gap: 10px; align-items: stretch; padding: 4px 0; }
+  .trigger-step { background: var(--surface-2); border: 0.5px solid var(--border-strong); border-radius: var(--r-md); padding: 10px 12px; min-height: 76px; display:flex; flex-direction:column; gap:4px; }
+  .trigger-step.start { background: #fff7ed; border-color: #fed7aa; }
+  .trigger-step.end { background: var(--green-bg); border-color: var(--green-border); }
+  .trigger-step-num { font-size: 9px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .trigger-step-title { font-size: 12px; font-weight: 600; color: var(--text-1); line-height: 1.3; }
+  .trigger-step-desc { font-size: 10px; color: var(--text-3); line-height: 1.4; }
+  .trigger-arrow { display:flex; align-items:center; justify-content:center; color: var(--brand); font-size: 16px; font-weight:700; }
+
+  /* Empty state */
+  .empty { padding: 60px 20px; text-align: center; color: var(--text-3); }
+  .empty-icon { font-size: 36px; margin-bottom: 8px; }
+  .empty-title { font-size: 14px; color: var(--text-2); font-weight: 500; margin-bottom: 4px; }
+  .empty-sub { font-size: 12px; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* Workspace switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); transition:background .12s; position:relative; }
+  .ws-switcher:hover { background:var(--surface-2); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ws-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); flex-shrink:0; }
+  .ws-menu { display:none; position:absolute; top:54px; left:8px; right:8px; background:var(--surface); border:0.5px solid var(--border-strong); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:500; overflow:hidden; }
+  .ws-menu.open { display:block; }
+  .ws-menu-item { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; transition:background .1s; }
+  .ws-menu-item:hover { background:var(--surface-2); }
+  .ws-menu-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ws-menu-name { font-size:12px; font-weight:600; color:var(--text-1); }
+  .ws-menu-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-menu-check { font-size:12px; color:#4338ca; font-weight:700; flex-shrink:0; }
+
+  /* Modal (resolve confirmation) */
+  .fab-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .fab-modal-overlay.show { display: flex; }
+  .fab-modal { background: var(--surface); border-radius: var(--r-xl); width: 460px; max-width: 95vw; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.2); animation: modalIn 0.2s ease; max-height: 90vh; display: flex; flex-direction: column; }
+  @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:none; } }
+  .fab-modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .fab-modal-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .fab-modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .fab-modal-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+  .fab-modal-close:hover { background: var(--surface-3); }
+  .fab-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+  .fab-modal-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+  .fab-input, .fab-textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-strong); border-radius: var(--r-md); font-size: 13px; font-family: inherit; color: var(--text-1); outline: none; }
+  .fab-input:focus, .fab-textarea:focus { border-color: var(--brand); }
+  .fab-textarea { resize: none; min-height: 80px; line-height: 1.5; }
+  .fab-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: -4px; }
+  .fab-field { display: flex; flex-direction: column; gap: 5px; }
+  .fab-btn { padding: 8px 16px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); }
+  .fab-btn.primary { background: #16a34a; color: #fff; border-color: #16a34a; }
+  .fab-btn.primary:hover { background: #15803d; }
+  .fab-toast { position: fixed; bottom: 28px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 300; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .fab-toast.show { display: flex; }
+
+  .res-summary { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); }
+  .res-summary .label { font-size: 11px; color: var(--text-3); }
+  .res-summary .name { font-size: 13px; font-weight: 600; color: var(--text-1); }
+  .res-summary .meta { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html" class="active"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">
+        Complaints
+        <span class="source-pill"><span class="dot"></span> Live from Monday board</span>
+      </div>
+      <div class="topbar-count" id="topbar-count">8 total · 3 open · 1 SLA breached</div>
+      <div class="topbar-actions">
+        <button class="btn-sm" onclick="openMondayBoard()">↗ Open in Monday</button>
+        <button class="btn-sm">⤓ Export · last 12 months</button>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="kpi-strip">
+      <div class="kpi-card alert">
+        <div class="kpi-label">Open · breached</div>
+        <div class="kpi-value">1</div>
+        <div class="kpi-sub">> 20 working days</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">Open · &lt; 5 days left</div>
+        <div class="kpi-value">2</div>
+        <div class="kpi-sub">Approaching breach</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Awaiting acknowledge</div>
+        <div class="kpi-value">0</div>
+        <div class="kpi-sub">3-day SLA</div>
+      </div>
+      <div class="kpi-card good">
+        <div class="kpi-label">Resolved · last 30 days</div>
+        <div class="kpi-value">4</div>
+        <div class="kpi-sub">Avg time-to-resolve: 9d</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Escalated to regulator</div>
+        <div class="kpi-value">0</div>
+        <div class="kpi-sub">Last 12 months</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab on" onclick="setFilter('open', this)">Open <span class="tab-ct amber" id="ct-open">3</span></div>
+      <div class="tab" onclick="setFilter('breached', this)">Breached <span class="tab-ct red" id="ct-breached">1</span></div>
+      <div class="tab" onclick="setFilter('investigating', this)">Investigating <span class="tab-ct blue" id="ct-investigating">2</span></div>
+      <div class="tab" onclick="setFilter('resolved', this)">Resolved <span class="tab-ct green" id="ct-resolved">4</span></div>
+      <div class="tab" onclick="setFilter('escalated', this)">Escalated <span class="tab-ct" id="ct-escalated">0</span></div>
+      <div class="tab" onclick="setFilter('all', this)">All <span class="tab-ct" id="ct-all">8</span></div>
+    </div>
+
+    <!-- Filter row -->
+    <div class="filter-row">
+      <input class="search-input" placeholder="Search by patient, complaint ID, summary…" />
+      <span class="filter-chip on">Status: Active</span>
+      <span class="filter-chip">Severity: Any</span>
+      <span class="filter-chip">Category: Any</span>
+      <span class="filter-chip">Owner: Anyone</span>
+      <span class="filter-chip">Last 12 months</span>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- Trigger flow -->
+      <div class="trigger-card">
+        <div class="trigger-head">
+          <div class="trigger-icon">⚙</div>
+          <div class="trigger-title">How a complaint reaches this view</div>
+          <div class="trigger-sub">Backend: Intercom tag listener → Monday auto-create + Livera task</div>
+        </div>
+        <div class="trigger-flow">
+          <div class="trigger-step start">
+            <div class="trigger-step-num">1 · Patient</div>
+            <div class="trigger-step-title">Email or Intercom</div>
+            <div class="trigger-step-desc">Patient raises a concern through any channel — care@ inbox or in-app chat.</div>
+          </div>
+          <div class="trigger-arrow">→</div>
+          <div class="trigger-step">
+            <div class="trigger-step-num">2 · Clinician / Admin</div>
+            <div class="trigger-step-title">Tags <code style="background:#fff7ed;padding:1px 5px;border-radius:3px;font-size:10px;border:1px solid #fed7aa;">complaint</code> in Intercom</div>
+            <div class="trigger-step-desc">Single tag triggers the listener. Acknowledgement reply is sent in-thread within 3 days.</div>
+          </div>
+          <div class="trigger-arrow">→</div>
+          <div class="trigger-step">
+            <div class="trigger-step-num">3 · Livera</div>
+            <div class="trigger-step-title">Auto-creates Monday row + Livera task</div>
+            <div class="trigger-step-desc">Owner = whoever tagged. Task due in 20 working days. Patient flag added.</div>
+          </div>
+          <div class="trigger-arrow">→</div>
+          <div class="trigger-step end">
+            <div class="trigger-step-num">4 · This view</div>
+            <div class="trigger-step-title">Dual-SLA tracking</div>
+            <div class="trigger-step-desc">3-day acknowledge clock + 20-working-day resolve clock. Resolve writes back to Monday.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Read-only banner -->
+      <div class="ro-banner" style="border-radius:var(--r-lg) var(--r-lg) 0 0;border:0.5px solid var(--border);border-bottom:0.5px solid var(--border);">
+        <div class="ro-icon">i</div>
+        <div class="ro-text">
+          <strong>Read-only view.</strong> Investigation happens in the linked Intercom thread. Resolution updates write back to <a href="#" onclick="openMondayBoard();return false;" id="mondayLink">Monday</a> · all CQC evidencing lives there.
+        </div>
+      </div>
+
+      <div class="scard" style="border-radius: 0 0 var(--r-lg) var(--r-lg); border-top: none;">
+        <div class="scard-head">
+          <div class="scard-title">Complaints register</div>
+          <div class="scard-sub">
+            <span id="scard-count">3 open</span>
+            <span style="color:var(--text-3);">·</span>
+            <a href="#" onclick="openMondayBoard();return false;" id="boardLink">View full board</a>
+          </div>
+        </div>
+        <table class="cm-table">
+          <thead>
+            <tr>
+              <th style="width: 28%">Complaint</th>
+              <th style="width: 16%">Patient</th>
+              <th style="width: 16%">SLA · 3d ack / 20wd resolve</th>
+              <th style="width: 11%">Status</th>
+              <th style="width: 12%">Owner</th>
+              <th style="width: 7%">Last activity</th>
+              <th style="width: 10%; text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="cmTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Annotation -->
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-Complaints · Read-only window into Monday board · Trigger via Intercom <code style="background:rgba(99,102,241,0.2);padding:1px 4px;border-radius:3px;">complaint</code> tag</span>
+      <span class="at">BLD-13.1</span>
+      <span>FeelTru → board 18402056040 · VSC → board 18409111860</span>
+      <span class="at">V1.2 Critical</span>
+      <span>3-day acknowledge SLA · 20-working-day resolution SLA · Auto-create Livera task on tag</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- Resolve Modal -->
+<div class="fab-modal-overlay" id="modal-resolve" onclick="closeModalOutside(event,'modal-resolve')">
+  <div class="fab-modal">
+    <div class="fab-modal-head">
+      <div class="fab-modal-icon" style="background:var(--green-bg);color:var(--green);">✓</div>
+      <div class="fab-modal-title">Mark complaint as resolved</div>
+      <button class="fab-modal-close" onclick="closeModal('resolve')">✕</button>
+    </div>
+    <div class="fab-modal-body">
+      <div class="res-summary" id="resolve-summary"></div>
+
+      <div class="fab-field">
+        <div class="fab-label">Resolution summary</div>
+        <textarea class="fab-textarea" id="resolve-summary-text" placeholder="What was the outcome? What did we agree with the patient? Written response date if applicable."></textarea>
+      </div>
+
+      <div class="fab-field">
+        <div class="fab-label">Lesson learned (optional)</div>
+        <textarea class="fab-textarea" id="resolve-lesson" placeholder="What's changed in our process / training / SOP as a result?"></textarea>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:var(--r-sm);">
+        <input type="checkbox" id="resolve-policy" style="accent-color:var(--brand);width:14px;height:14px;">
+        <label for="resolve-policy" style="font-size:12px;color:var(--text-1);cursor:pointer;">Logged to policy register / SOP updated</label>
+      </div>
+
+      <div style="font-size:11px;color:var(--text-3);padding:8px 10px;background:var(--brand-light);border-radius:var(--r-sm);line-height:1.5;">
+        💾 On confirm: writes <strong>Status = Resolved</strong>, <strong>Resolution Date = today</strong>, <strong>Resolution Summary</strong>, <strong>Lesson Learned</strong>, and <strong>Learning Logged</strong> back to the Monday board · closes the linked Livera task.
+      </div>
+    </div>
+    <div class="fab-modal-foot">
+      <button class="fab-btn" onclick="closeModal('resolve')">Cancel</button>
+      <button class="fab-btn primary" onclick="submitResolve()">Confirm resolution</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="fab-toast" id="fab-toast"></div>
+
+<script>
+// ── Workspace → Monday board mapping ──
+const BOARDS = {
+  feeltru: { id: '18402056040', name: 'FeelTru — Complaints & Feedback', url: 'https://primedpharmacy-company.monday.com/boards/18402056040' },
+  vsc:     { id: '18409111860', name: 'VSC — Complaints Register',       url: 'https://primedpharmacy-company.monday.com/boards/18409111860' }
+};
+let currentWS = 'feeltru';
+
+// ── Sample complaints (in production: read from Monday board via API) ──
+// ackHoursAgo = hours since received. resHoursAgo also = hours since received (single received timestamp).
+// 3-day ack SLA = 72h. 20-working-day resolve SLA = ~28 calendar days = 672h (conservative).
+const COMPLAINTS = {
+  feeltru: [
+    {
+      id: 'CMP-0008',
+      summary: 'Delayed delivery — patient missed a week of treatment',
+      category: 'Waiting Times',
+      severity: 'formal',
+      patient: 'Jennifer Walsh', patientId: 'P-00211', patientInit: 'JW', patientAvatar: 'teal',
+      ownerId: 'u-mobeen',
+      receivedHoursAgo: 26,
+      acknowledgedHoursAgo: 4,
+      status: 'investigating',
+      lastActivity: 'Reply sent · 4h ago',
+      intercomConv: 'INT-83214',
+      monday: { row: '11395035372' },
+      taskId: 'TSK-0140'
+    },
+    {
+      id: 'CMP-0007',
+      summary: 'Confused about dose escalation timing — felt rushed by prescriber',
+      category: 'Communication',
+      severity: 'informal',
+      patient: 'Sarah Chen', patientId: 'P-00214', patientInit: 'SC', patientAvatar: 'green',
+      ownerId: 'u-claire',
+      receivedHoursAgo: 50,
+      acknowledgedHoursAgo: 47,
+      status: 'investigating',
+      lastActivity: 'Internal note · 1d ago',
+      intercomConv: 'INT-83198',
+      monday: { row: '11395035373' }
+    },
+    {
+      id: 'CMP-0006',
+      summary: 'Mounjaro pen leaked on first injection — wants replacement',
+      category: 'Clinical Care',
+      severity: 'serious',
+      patient: 'Michelle Clarke', patientId: 'P-00210', patientInit: 'MC', patientAvatar: 'brand',
+      ownerId: 'u-mobeen',
+      receivedHoursAgo: 720, // breached 20wd
+      acknowledgedHoursAgo: 718,
+      status: 'investigating',
+      lastActivity: 'Awaiting Primed response',
+      intercomConv: 'INT-82914',
+      monday: { row: '11395035374' }
+    },
+    {
+      id: 'CMP-0005',
+      summary: 'Coaching call cancelled twice — felt unsupported',
+      category: 'Communication',
+      severity: 'formal',
+      patient: 'Maria Santos', patientId: 'P-00208', patientInit: 'MS', patientAvatar: 'pink',
+      ownerId: 'u-olwyn',
+      receivedHoursAgo: 192,
+      acknowledgedHoursAgo: 190, resolvedHoursAgo: 24,
+      status: 'resolved',
+      lastActivity: 'Resolved · 1d ago',
+      intercomConv: 'INT-82740',
+      monday: { row: '11395035375' }
+    },
+    {
+      id: 'CMP-0004',
+      summary: 'Question about VAT on subscription — confused by invoice',
+      category: 'Pricing / Billing',
+      severity: 'informal',
+      patient: 'Helen Park', patientId: 'P-00204', patientInit: 'HP', patientAvatar: 'teal',
+      ownerId: 'u-shannon',
+      receivedHoursAgo: 264, acknowledgedHoursAgo: 262, resolvedHoursAgo: 168,
+      status: 'resolved',
+      lastActivity: 'Resolved · 7d ago',
+      intercomConv: 'INT-82532',
+      monday: { row: '11395035376' }
+    },
+    {
+      id: 'CMP-0003',
+      summary: 'Prescription dispatched to old address',
+      category: 'Communication',
+      severity: 'formal',
+      patient: 'Anna Doyle', patientId: 'P-00203', patientInit: 'AD', patientAvatar: 'amber',
+      ownerId: 'u-mobeen',
+      receivedHoursAgo: 408, acknowledgedHoursAgo: 405, resolvedHoursAgo: 240,
+      status: 'resolved',
+      lastActivity: 'Resolved · 10d ago',
+      intercomConv: 'INT-82201',
+      monday: { row: '11395035377' }
+    },
+    {
+      id: 'CMP-0002',
+      summary: 'Wegovy prescribed despite patient note about pancreatitis history',
+      category: 'Clinical Care',
+      severity: 'serious',
+      patient: 'Karen Thompson', patientId: 'P-00207', patientInit: 'KT', patientAvatar: 'green',
+      ownerId: 'u-claire',
+      receivedHoursAgo: 552, acknowledgedHoursAgo: 550, resolvedHoursAgo: 360,
+      status: 'resolved',
+      lastActivity: 'Resolved · 15d ago · Lesson logged',
+      intercomConv: 'INT-81850',
+      monday: { row: '11395035378' }
+    },
+    {
+      id: 'CMP-0001',
+      summary: 'Initial questionnaire too long — patient abandoned',
+      category: 'Communication',
+      severity: 'informal',
+      patient: 'Carla Benson', patientId: 'P-00195', patientInit: 'CB', patientAvatar: 'amber',
+      ownerId: 'u-thivera',
+      receivedHoursAgo: 720, acknowledgedHoursAgo: 718, resolvedHoursAgo: 504,
+      status: 'resolved',
+      lastActivity: 'Resolved · 21d ago',
+      intercomConv: 'INT-81524',
+      monday: { row: '11395035379' }
+    }
+  ],
+  vsc: [
+    {
+      id: 'VSC-CMP-0005',
+      summary: 'Reorder window confusion — patient ordered 6 days early, locked out',
+      category: 'Communication',
+      severity: 'formal',
+      patient: 'David Wilson', patientId: 'P-VSC-0142', patientInit: 'DW', patientAvatar: 'brand',
+      ownerId: 'u-mobeen',
+      receivedHoursAgo: 38, acknowledgedHoursAgo: 36,
+      status: 'investigating',
+      lastActivity: 'Internal review',
+      intercomConv: 'INT-VSC-9831',
+      monday: { row: '11395040440' }
+    },
+    {
+      id: 'VSC-CMP-0004',
+      summary: 'Mounjaro dose increase declined without clear reason',
+      category: 'Clinical Care',
+      severity: 'serious',
+      patient: 'James Patel', patientId: 'P-VSC-0138', patientInit: 'JP', patientAvatar: 'green',
+      ownerId: 'u-ali',
+      receivedHoursAgo: 96, acknowledgedHoursAgo: 92,
+      status: 'investigating',
+      lastActivity: 'Clinical review · 6h ago',
+      intercomConv: 'INT-VSC-9802',
+      monday: { row: '11395040441' }
+    },
+    {
+      id: 'VSC-CMP-0003',
+      summary: 'Royal Mail tracking stuck — patient asking for refund',
+      category: 'Waiting Times',
+      severity: 'formal',
+      patient: 'Aisha Ibrahim', patientId: 'P-VSC-0135', patientInit: 'AI', patientAvatar: 'pink',
+      ownerId: 'u-naeem',
+      receivedHoursAgo: 144, acknowledgedHoursAgo: 142, resolvedHoursAgo: 48,
+      status: 'resolved',
+      lastActivity: 'Resolved · 2d ago',
+      intercomConv: 'INT-VSC-9776',
+      monday: { row: '11395040442' }
+    },
+    {
+      id: 'VSC-CMP-0002',
+      summary: 'Patient unhappy with copy on declined order email',
+      category: 'Communication',
+      severity: 'informal',
+      patient: 'Mark Owens', patientId: 'P-VSC-0128', patientInit: 'MO', patientAvatar: 'amber',
+      ownerId: 'u-thivera',
+      receivedHoursAgo: 360, acknowledgedHoursAgo: 358, resolvedHoursAgo: 192,
+      status: 'resolved',
+      lastActivity: 'Resolved · 8d ago · Copy updated',
+      intercomConv: 'INT-VSC-9512',
+      monday: { row: '11395040443' }
+    },
+    {
+      id: 'VSC-CMP-0001',
+      summary: 'Lost prescription — needs reissue',
+      category: 'Communication',
+      severity: 'formal',
+      patient: 'Liam Roberts', patientId: 'P-VSC-0119', patientInit: 'LR', patientAvatar: 'teal',
+      ownerId: 'u-mobeen',
+      receivedHoursAgo: 600, acknowledgedHoursAgo: 598, resolvedHoursAgo: 432,
+      status: 'resolved',
+      lastActivity: 'Resolved · 18d ago',
+      intercomConv: 'INT-VSC-9301',
+      monday: { row: '11395040444' }
+    }
+  ]
+};
+
+// ── Team list (for owner display only — assignment happens in Intercom on tag) ──
+const TEAMS = {
+  feeltru: [
+    { id:'u-mobeen', name:'Mobeen Alam',  init:'MA', avatar:'brand' },
+    { id:'u-qadir',  name:'Qadir Hussain', init:'QH', avatar:'brand' },
+    { id:'u-claire', name:'Claire Moynehan', init:'CM', avatar:'green' },
+    { id:'u-olwyn',  name:'Olwyn Sutcliffe', init:'OS', avatar:'amber' },
+    { id:'u-thivera',name:'Thivera Chandrapala', init:'TC', avatar:'purple' },
+    { id:'u-shannon',name:'Shannon Townsend', init:'ST', avatar:'purple' }
+  ],
+  vsc: [
+    { id:'u-mobeen', name:'Mobeen Alam',  init:'MA', avatar:'brand' },
+    { id:'u-qadir',  name:'Qadir Hussain', init:'QH', avatar:'brand' },
+    { id:'u-naeem',  name:'Mohammed Naeem', init:'MN', avatar:'green' },
+    { id:'u-ali',    name:'Ali Abbas',     init:'AA', avatar:'green' },
+    { id:'u-thivera',name:'Thivera Chandrapala', init:'TC', avatar:'purple' }
+  ]
+};
+function team(){ return TEAMS[currentWS]; }
+function findMember(id){ return team().find(m => m.id === id); }
+function complaints(){ return COMPLAINTS[currentWS]; }
+
+// ── Helpers ──
+let activeFilter = 'open';
+
+function avFor(m){ if(!m) return ''; return `<div class="av ${m.avatar==='brand'?'':m.avatar}">${m.init}</div>`; }
+function patAvFor(c){ return `<div class="av ${c.patientAvatar}">${c.patientInit}</div>`; }
+
+function fmtAge(hours){
+  if(hours < 1) return 'just now';
+  if(hours < 24) return `${Math.round(hours)}h ago`;
+  const d = Math.round(hours/24);
+  return `${d}d ago`;
+}
+
+// 20 working days SLA — approx 28 calendar days = 672h. We'll use that.
+const SLA_ACK_HRS = 72;     // 3 days
+const SLA_RES_HRS = 672;    // 20 working days approx
+
+function slaCell(c){
+  // Acknowledge clock — done if acknowledged or resolved
+  let ackBlock = '';
+  if(c.acknowledgedHoursAgo !== undefined || c.resolvedHoursAgo !== undefined){
+    const ackTime = c.receivedHoursAgo - (c.acknowledgedHoursAgo || c.receivedHoursAgo);
+    ackBlock = `
+      <div class="sla-row">
+        <div class="sla-head">✓ Ack · within 3 days</div>
+        <div class="sla-time done">Acknowledged ${fmtAge(c.receivedHoursAgo - (c.acknowledgedHoursAgo || c.receivedHoursAgo))} after receipt</div>
+      </div>`;
+  } else {
+    const elapsed = c.receivedHoursAgo;
+    const left = SLA_ACK_HRS - elapsed;
+    const pct = Math.max(0, Math.min(100, (elapsed / SLA_ACK_HRS) * 100));
+    let cls = 'ok', label = '';
+    if(left < 0){ cls = 'breach'; label = `Breached by ${Math.abs(left).toFixed(0)}h`; }
+    else if(left < 24){ cls = 'warn'; label = `${left.toFixed(0)}h left`; }
+    else { cls = 'ok'; label = `${(left/24).toFixed(1)}d left`; }
+    ackBlock = `
+      <div class="sla-row">
+        <div class="sla-head">⏱ Ack · 3 days</div>
+        <div class="sla-time ${cls}">${label}</div>
+        <div class="sla-bar"><div class="sla-fill ${cls}" style="width:${pct}%"></div></div>
+      </div>`;
+  }
+
+  // Resolution clock — done if resolved
+  let resBlock = '';
+  if(c.resolvedHoursAgo !== undefined){
+    const totalHrs = c.receivedHoursAgo - c.resolvedHoursAgo;
+    const days = Math.round(totalHrs / 24);
+    resBlock = `
+      <div class="sla-row">
+        <div class="sla-head">✓ Resolved · 20wd</div>
+        <div class="sla-time done">Resolved in ${days}d</div>
+      </div>`;
+  } else {
+    const elapsed = c.receivedHoursAgo;
+    const left = SLA_RES_HRS - elapsed;
+    const leftDays = left / 24;
+    const pct = Math.max(0, Math.min(100, (elapsed / SLA_RES_HRS) * 100));
+    let cls = 'ok', label = '';
+    if(left < 0){ cls = 'breach'; label = `Breached · ${Math.round(Math.abs(leftDays))}d over`; }
+    else if(leftDays < 5){ cls = 'warn'; label = `${leftDays.toFixed(1)}d left`; }
+    else { cls = 'ok'; label = `${Math.round(leftDays)}d left`; }
+    resBlock = `
+      <div class="sla-row">
+        <div class="sla-head">⏱ Resolve · 20wd</div>
+        <div class="sla-time ${cls}">${label}</div>
+        <div class="sla-bar"><div class="sla-fill ${cls}" style="width:${pct}%"></div></div>
+      </div>`;
+  }
+
+  return `<div class="sla-stack">${ackBlock}${resBlock}</div>`;
+}
+
+function statusPill(s){
+  const lbl = { new:'New', acknowledged:'Acknowledged', investigating:'Investigating', resolved:'Resolved', escalated:'Escalated' };
+  return `<span class="pill ${s}"><span class="dot"></span>${lbl[s]}</span>`;
+}
+
+function severityPill(s){
+  const lbl = { informal:'Informal', formal:'Formal', serious:'Serious' };
+  return `<span class="sev ${s}">${lbl[s]}</span>`;
+}
+
+function ownerCell(c){
+  const m = c.ownerId ? findMember(c.ownerId) : null;
+  if(!m){
+    return `<div class="owner-cell"><div class="owner-empty">—</div></div>`;
+  }
+  return `<div class="owner-cell">${avFor(m)}<div class="owner-name">${m.name.split(' ')[0]}</div></div>`;
+}
+
+function actionsCell(c){
+  if(c.status === 'resolved' || c.status === 'escalated'){
+    return `<div class="actions-cell">
+      <button class="btn-xs" onclick="openIntercom('${c.intercomConv}')">↗ Thread</button>
+    </div>`;
+  }
+  return `<div class="actions-cell">
+    <button class="btn-xs" onclick="openIntercom('${c.intercomConv}')">↗ Intercom</button>
+    <button class="btn-xs green" onclick="openResolve('${c.id}')">✓ Resolve</button>
+  </div>`;
+}
+
+function isBreached(c){
+  if(c.status === 'resolved' || c.status === 'escalated') return false;
+  return c.receivedHoursAgo > SLA_RES_HRS || (c.acknowledgedHoursAgo === undefined && c.receivedHoursAgo > SLA_ACK_HRS);
+}
+
+function renderComplaints(){
+  const list_all = complaints();
+  let list = list_all.slice();
+  if(activeFilter==='open')              list = list.filter(c => c.status !== 'resolved' && c.status !== 'escalated');
+  else if(activeFilter==='breached')     list = list.filter(c => isBreached(c));
+  else if(activeFilter==='investigating')list = list.filter(c => c.status === 'investigating');
+  else if(activeFilter==='resolved')     list = list.filter(c => c.status === 'resolved');
+  else if(activeFilter==='escalated')    list = list.filter(c => c.status === 'escalated');
+  // 'all' shows everything
+
+  // Sort: breached first, then by receivedHoursAgo desc (oldest open first)
+  list.sort((a,b)=>{
+    const aBr = isBreached(a), bBr = isBreached(b);
+    if(aBr !== bBr) return aBr ? -1 : 1;
+    if(a.status !== 'resolved' && b.status === 'resolved') return -1;
+    if(a.status === 'resolved' && b.status !== 'resolved') return 1;
+    return b.receivedHoursAgo - a.receivedHoursAgo;
+  });
+
+  const tb = document.getElementById('cmTbody');
+  if(list.length === 0){
+    tb.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">⚖</div><div class="empty-title">No complaints in this view</div><div class="empty-sub">Complaints arrive here automatically when an Intercom conversation is tagged <code style="background:var(--surface-2);padding:1px 5px;border-radius:3px;">complaint</code></div></div></td></tr>`;
+    document.getElementById('scard-count').textContent = '0 complaints';
+    updateCounts(list_all);
+    return;
+  }
+
+  tb.innerHTML = list.map(c => `
+    <tr>
+      <td>
+        <div class="comp-cell">
+          <div class="comp-id">${c.id}</div>
+          <div class="comp-summary">${c.summary}</div>
+          <div class="comp-meta">
+            ${severityPill(c.severity)}
+            <span class="comp-tag">${c.category}</span>
+            ${c.taskId ? `<span class="comp-tag" title="Linked Livera task">⚑ ${c.taskId}</span>` : ''}
+          </div>
+        </div>
+      </td>
+      <td>
+        <div class="pat-mini">
+          ${patAvFor(c)}
+          <div class="pat-info">
+            <div class="pat-name">${c.patient}</div>
+            <div class="pat-id">${c.patientId}</div>
+          </div>
+        </div>
+      </td>
+      <td>${slaCell(c)}</td>
+      <td>${statusPill(c.status)}</td>
+      <td>${ownerCell(c)}</td>
+      <td>
+        <div class="activity-cell">
+          <div class="ah">${c.lastActivity}</div>
+          <div>Received ${fmtAge(c.receivedHoursAgo)}</div>
+        </div>
+      </td>
+      <td>${actionsCell(c)}</td>
+    </tr>`).join('');
+
+  document.getElementById('scard-count').textContent = `${list.length} ${list.length===1?'complaint':'complaints'}`;
+  updateCounts(list_all);
+}
+
+function updateCounts(list_all){
+  const open = list_all.filter(c => c.status !== 'resolved' && c.status !== 'escalated').length;
+  const breached = list_all.filter(c => isBreached(c)).length;
+  const investigating = list_all.filter(c => c.status === 'investigating').length;
+  const resolved = list_all.filter(c => c.status === 'resolved').length;
+  const escalated = list_all.filter(c => c.status === 'escalated').length;
+
+  document.getElementById('ct-open').textContent = open;
+  document.getElementById('ct-breached').textContent = breached;
+  document.getElementById('ct-investigating').textContent = investigating;
+  document.getElementById('ct-resolved').textContent = resolved;
+  document.getElementById('ct-escalated').textContent = escalated;
+  document.getElementById('ct-all').textContent = list_all.length;
+
+  document.getElementById('topbar-count').textContent = `${list_all.length} total · ${open} open · ${breached} SLA breached`;
+}
+
+function setFilter(f, el){
+  activeFilter = f;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  renderComplaints();
+}
+
+// ── Resolve modal ──
+let resolveCmpId = null;
+function openResolve(cmpId){
+  const c = complaints().find(x => x.id === cmpId);
+  if(!c) return;
+  resolveCmpId = cmpId;
+  document.getElementById('resolve-summary').innerHTML = `
+    ${patAvFor(c)}
+    <div style="flex:1;">
+      <div class="label">Resolving</div>
+      <div class="name">${c.id} · ${c.patient}</div>
+      <div class="meta">${c.summary}</div>
+    </div>`;
+  document.getElementById('resolve-summary-text').value = '';
+  document.getElementById('resolve-lesson').value = '';
+  document.getElementById('resolve-policy').checked = false;
+  document.getElementById('modal-resolve').classList.add('show');
+}
+
+function submitResolve(){
+  const c = complaints().find(x => x.id === resolveCmpId);
+  if(!c){ closeModal('resolve'); return; }
+  const summary = document.getElementById('resolve-summary-text').value.trim();
+  if(!summary){ showToast('Resolution summary is required', true); return; }
+
+  c.status = 'resolved';
+  c.resolvedHoursAgo = 0;
+  c.acknowledgedHoursAgo = c.acknowledgedHoursAgo || 1;
+  c.lastActivity = 'Resolved · just now · Written back to Monday';
+
+  closeModal('resolve');
+  renderComplaints();
+  showToast(`${c.id} resolved · Monday updated · linked task closed`);
+}
+
+// ── Stub actions ──
+function openIntercom(convId){ showToast(`📩 Opening Intercom thread ${convId}`); }
+function openMondayBoard(){
+  const board = BOARDS[currentWS];
+  showToast(`↗ Opening ${board.name}`);
+  // window.open(board.url, '_blank'); // disabled in prototype
+}
+
+// ── Modals ──
+function closeModal(k){
+  if(k === 'resolve') document.getElementById('modal-resolve').classList.remove('show');
+}
+function closeModalOutside(e, id){ if(e.target.id===id) document.getElementById(id).classList.remove('show'); }
+
+// ── Toast ──
+function showToast(msg, isError){
+  const t = document.getElementById('fab-toast');
+  const icon = isError ? '<span style="color:#f87171;">✕</span>' : '<span style="color:#10b981;">✓</span>';
+  t.innerHTML = icon + ' ' + msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+// ── Workspace switcher ──
+function toggleWSMenu(){ document.getElementById('wsMenu').classList.toggle('open'); }
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#wsSwitcher') && !e.target.closest('#wsMenu')) document.getElementById('wsMenu').classList.remove('open');
+});
+function setWorkspace(ws){
+  currentWS = ws;
+  document.body.setAttribute('data-workspace', ws);
+  document.getElementById('wsMenu').classList.remove('open');
+  if(ws==='feeltru'){
+    document.getElementById('wsName').textContent='FeelTru';
+    document.getElementById('check-feeltru').style.opacity='1';
+    document.getElementById('check-vsc').style.opacity='0';
+  } else {
+    document.getElementById('wsName').textContent='VSC';
+    document.getElementById('check-feeltru').style.opacity='0';
+    document.getElementById('check-vsc').style.opacity='1';
+  }
+  renderComplaints();
+  showToast(`Switched to ${ws==='feeltru'?'FeelTru':'VSC'} · Reading from board ${BOARDS[ws].id}`);
+}
+
+document.body.setAttribute('data-workspace','feeltru');
+renderComplaints();
+</script>
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

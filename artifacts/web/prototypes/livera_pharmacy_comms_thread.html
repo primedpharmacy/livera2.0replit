@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<!--
+  CANONICAL SHELL TEMPLATE v1
+  Date locked: 7 May 2026
+  Single source of truth for shell-drift fix pass
+
+  USAGE:
+  - Copy the <style> :root block AND the topnav/sidebar markup verbatim
+  - Replace `VSC — Quanta Healthcare Ltd` with the per-screen workspace (e.g. "VSC — Quanta Healthcare Ltd")
+  - Replace `Charlotte Williams · PRESCRIBER` with the per-screen user
+  - Replace `patients` with the slug of the active sidebar item:
+       dashboard | patients | orders | clinical-check | tasks | welcome-calls
+       complaints | incidents | gp-letters | kpi-dashboard | primed-flags | reports | settings
+  - Strip any `<div id="livera-nav">…</div>` demo strip from the source file
+  - Bump sidebar width from 218px → 240px if drifting
+  - Drop the body workspace data-attr if present (data-workspace="…")
+  - Replace any embedded ws-switcher (.ws-switcher) with the canonical topnav .ws element
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Pharmacy Comms thread</title>
+
+<!-- ============ CANONICAL CSS — copy verbatim ============ -->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --nav-2:#312e81;
+  --surface:#ffffff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --gov:#a855f7; --gov-bg:#faf5ff; --gov-bdr:#e9d5ff;
+}
+
+/* TOP NAV (canonical) */
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+
+/* LAYOUT (canonical) */
+.layout{display:flex;min-height:calc(100vh - 36px)}
+
+/* SIDEBAR (canonical 240px) */
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+
+/* MAIN content area */
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+</style>
+</head>
+
+<body>
+
+<!-- ============ CANONICAL TOPNAV — copy verbatim ============ -->
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC — Quanta Healthcare Ltd and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Charlotte Williams · PRESCRIBER</span></div>
+</header>
+
+<div class="layout">
+
+  <!-- ============ CANONICAL SIDEBAR — copy verbatim ============
+       Set class="active" on the row matching the current screen.
+       Active class data-key reference at the top of the comment block above.
+  -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html" data-key="dashboard"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html" data-key="patients"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html" data-key="orders"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html" data-key="clinical-check"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html" data-key="tasks"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html" data-key="welcome-calls"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html" data-key="complaints"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html" data-key="incidents"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html" data-key="gp-letters"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html" data-key="kpi-dashboard"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html" data-key="primed-flags"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html" data-key="reports"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" data-key="settings"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <!-- ============== Pharmacy Comms thread detail ============== -->
+    <style>
+      .pct-topbar { padding: 12px 24px; border-bottom: 0.5px solid var(--bd, #e5e7eb); background: #fff; }
+      .pct-breadcrumb { font-size: 11.5px; color: var(--t3, #6b7280); display: flex; align-items: center; gap: 6px; }
+      .pct-breadcrumb a { color: var(--brand, #6366f1); text-decoration: none; font-weight: 500; }
+      .pct-breadcrumb a:hover { text-decoration: underline; }
+      .pct-breadcrumb .sep { color: #d1d5db; }
+      .pct-content { padding: 22px 24px; max-width: 980px; }
+      
+      .pct-header { display: flex; align-items: flex-start; gap: 16px; padding-bottom: 18px; border-bottom: 0.5px solid #e5e7eb; margin-bottom: 18px; }
+      .pct-header .pct-avatar { width: 52px; height: 52px; border-radius: 10px; background: linear-gradient(135deg, #f0fdfa, #99f6e4); color: #0d9488; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+      .pct-header .pct-title-block { flex: 1; }
+      .pct-header h1 { margin: 0; font-size: 18px; font-weight: 700; color: #1f2937; letter-spacing: -0.2px; line-height: 1.3; }
+      .pct-header .pct-meta { font-size: 12px; color: #6b7280; margin-top: 5px; line-height: 1.5; }
+      .pct-header .pct-meta strong { color: #374151; font-weight: 600; }
+      .pct-header .pct-tid { font-family: 'SF Mono', Menlo, Monaco, monospace; font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 7px; border-radius: 3px; font-weight: 500; margin-right: 6px; }
+      
+      .pct-status-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+      .pct-status { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.4px; }
+      .pct-status.awaiting { background: #fffbeb; color: #92400e; border: 0.5px solid #fde68a; }
+      .pct-status.resolved { background: #f0fdf4; color: #166534; border: 0.5px solid #86efac; }
+      .pct-status.open { background: #eff6ff; color: #1e40af; border: 0.5px solid #bfdbfe; }
+      .pct-anchor { font-size: 11px; color: #6b7280; }
+      .pct-anchor strong { color: #4338ca; }
+      .pct-anchor a { color: #4338ca; text-decoration: none; font-weight: 600; }
+      .pct-anchor a:hover { text-decoration: underline; }
+      
+      .pct-actions-row { display: flex; gap: 8px; margin-left: auto; flex-shrink: 0; }
+      .pct-btn { padding: 6px 12px; border-radius: 5px; font-size: 11.5px; font-weight: 600; cursor: pointer; border: 0.5px solid #d1d5db; background: #fff; color: #374151; font-family: inherit; }
+      .pct-btn:hover { background: #f9fafb; }
+      .pct-btn.primary { background: #1e1b4b; color: #fff; border-color: #1e1b4b; }
+      .pct-btn.primary:hover { background: #312e81; }
+      .pct-btn.success { background: #166534; color: #fff; border-color: #166534; }
+      
+      .pct-section-label { font-size: 10.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 0.5px solid #e5e7eb; }
+      
+      .pct-msgs { display: flex; flex-direction: column; gap: 14px; margin-bottom: 22px; }
+      .pct-msg { display: flex; gap: 11px; padding: 13px 14px; border-radius: 8px; border: 0.5px solid #e5e7eb; }
+      .pct-msg.outbound { background: #fafbff; border-color: #c7d2fe; }
+      .pct-msg.inbound { background: #f0fdfa; border-color: #99f6e4; }
+      .pct-msg.system { background: #fafafa; border-color: #e5e7eb; font-size: 12px; color: #6b7280; align-items: center; padding: 10px 14px; }
+      .pct-msg .pct-av { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
+      .pct-msg.outbound .pct-av { background: linear-gradient(135deg, #6366f1, #4338ca); }
+      .pct-msg.inbound .pct-av { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+      .pct-msg.system .pct-av { background: #9ca3af; font-size: 14px; }
+      .pct-msg .pct-body { flex: 1; }
+      .pct-msg .pct-msg-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: #6b7280; margin-bottom: 6px; }
+      .pct-msg .pct-msg-meta .who { font-weight: 700; color: #1f2937; font-size: 12px; }
+      .pct-msg .pct-msg-meta .role { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+      .pct-msg.outbound .pct-msg-meta .role { background: #4338ca; color: #fff; }
+      .pct-msg.inbound .pct-msg-meta .role { background: #0d9488; color: #fff; }
+      .pct-msg .pct-msg-meta .when { color: #9ca3af; margin-left: auto; }
+      .pct-msg .pct-text { font-size: 13px; line-height: 1.55; color: #1f2937; }
+      .pct-msg .pct-text p { margin: 0 0 8px 0; }
+      .pct-msg .pct-text p:last-child { margin-bottom: 0; }
+      .pct-msg .pct-text strong { color: #1f2937; font-weight: 600; }
+      
+      .pct-attachment { background: #fff; border: 0.5px solid #d1d5db; border-radius: 5px; padding: 8px 11px; margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
+      .pct-attachment .att-ico { font-size: 14px; }
+      .pct-attachment .att-name { font-weight: 600; color: #374151; }
+      .pct-attachment .att-meta { color: #6b7280; margin-left: auto; }
+      
+      .pct-composer-section { background: #fafbff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 14px; }
+      .pct-composer-head { font-size: 11px; font-weight: 700; color: #4338ca; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+      .pct-composer-head .signed-as { font-weight: 500; color: #6b7280; text-transform: none; letter-spacing: 0; margin-left: 8px; }
+      .pct-composer textarea { width: 100%; min-height: 90px; padding: 10px 12px; border: 0.5px solid #d1d5db; border-radius: 5px; font-family: inherit; font-size: 12.5px; line-height: 1.5; resize: vertical; box-sizing: border-box; background: #fff; }
+      .pct-composer textarea:focus { outline: 2px solid #c7d2fe; outline-offset: -1px; border-color: #6366f1; }
+      .pct-composer-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+      .pct-composer-foot .charcount { font-size: 11px; color: #6b7280; margin-left: auto; }
+      .pct-composer-foot .att-add { font-size: 11.5px; color: #4338ca; cursor: pointer; font-weight: 600; }
+      
+      .pct-thread-not-found { padding: 60px 20px; text-align: center; }
+      .pct-thread-not-found .nf-ico { font-size: 36px; color: #d1d5db; margin-bottom: 14px; }
+      .pct-thread-not-found h2 { margin: 0 0 8px 0; font-size: 16px; font-weight: 700; color: #374151; }
+      .pct-thread-not-found p { margin: 0; font-size: 12.5px; color: #6b7280; line-height: 1.5; }
+      
+      .pct-thread-list { background: #fff; border: 0.5px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-top: 18px; }
+      .pct-thread-list h4 { margin: 0 0 10px 0; font-size: 11.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; }
+      .pct-thread-list a { display: block; padding: 7px 0; border-bottom: 0.5px solid #f3f4f6; font-size: 12px; color: #374151; text-decoration: none; }
+      .pct-thread-list a:last-child { border-bottom: none; }
+      .pct-thread-list a:hover { color: #4338ca; }
+      .pct-thread-list a span { font-family: monospace; font-size: 10.5px; color: #6b7280; margin-right: 8px; }
+    </style>
+    
+    <div class="pct-topbar">
+      <div class="pct-breadcrumb" id="pct-breadcrumb">
+        <a href="livera_owner_dashboard.html">Dashboard</a>
+        <span class="sep">›</span>
+        <a href="livera_patient_list.html">Patients</a>
+        <span class="sep">›</span>
+        <a href="livera_prototype_09_patient_profile.html">Sarah Cookland</a>
+        <span class="sep">›</span>
+        <span style="color:#374151;font-weight:600;">Pharmacy Comms · <span id="pct-bc-tid">PCM-PT-0042</span></span>
+      </div>
+    </div>
+    
+    <div class="pct-content" id="pct-content">
+      <!-- Populated by JS based on URL hash -->
+    </div>
+    
+    <script>
+      // Thread data — minimal canonical set for the demo
+      const THREADS = {
+        'PCM-PT-0042': {
+          tid: 'PCM-PT-0042',
+          title: 'Patient address change',
+          anchor_type: 'patient',
+          anchor_label: 'Patient-anchored · Sarah Cookland (PT-00198)',
+          anchor_link: 'livera_prototype_09_patient_profile.html',
+          status: 'awaiting',
+          status_label: 'Awaiting Primed response · SLA 24h',
+          topic: 'Address change',
+          priority: 'Routine',
+          created_by: 'Charlotte Williams',
+          created_when: '06 May 2026 · 11:14',
+          msgs: [
+            {
+              dir: 'outbound',
+              avatar: 'CW',
+              who: 'Charlotte Williams',
+              role: 'PRESCRIBER',
+              role_full: 'Pharmacist Independent Prescriber, GPhC 2074856',
+              when: '06 May 2026 · 11:14',
+              body: `<p>Patient has moved address. New address: <strong>14 New Lane, LS18 4FJ, Leeds</strong>. Please use new address on all in-flight and future orders. Old address (3 Old Road, LS6) is no longer valid.</p>
+                     <p>Per DEC-25/DEC-28 sync rule, two in-flight orders (ORD-00441 at Livera Clinical Check, ORD-00440 at Primed pre-clinical-check) have been auto-updated server-side. ORD-00439 is locked because Primed has already clinically checked it — this thread is to formally request the address change on that order before CD pickup.</p>`,
+              attachments: []
+            },
+            {
+              dir: 'system',
+              icon: '⊙',
+              text: 'Patient record updated · 06 May 2026 11:14 · Mobeen Alam (RM) · old: 3 Old Road, LS6 → new: 14 New Lane, LS18 4FJ · reason: "Patient called — moved house Friday"'
+            }
+          ]
+        },
+        'PCM-PT-0038': {
+          tid: 'PCM-PT-0038',
+          title: 'Controlled drug record query',
+          anchor_type: 'patient',
+          anchor_label: 'Patient-anchored · Sarah Cookland (PT-00198)',
+          anchor_link: 'livera_prototype_09_patient_profile.html',
+          status: 'resolved',
+          status_label: 'Resolved · 28 Apr 2026',
+          topic: 'CD record',
+          priority: 'Routine',
+          created_by: 'Hassan Patel (Primed RP)',
+          created_when: '28 Apr 2026 · 09:42',
+          msgs: [
+            {
+              dir: 'inbound',
+              avatar: 'HP',
+              who: 'Hassan Patel',
+              role: 'PHARMACIST',
+              role_full: 'Responsible Pharmacist, Primed Pharmacy (GPhC 1039469)',
+              when: '28 Apr 2026 · 09:42',
+              body: `<p>Patient identified as CD-controlled drug recipient. Confirming we have correct ID record on file for collection. No action required from your side.</p>
+                     <p>Posting for audit trail per Primed SOP S0114.</p>`,
+              attachments: []
+            },
+            {
+              dir: 'outbound',
+              avatar: 'CW',
+              who: 'Charlotte Williams',
+              role: 'PRESCRIBER',
+              role_full: 'Pharmacist Independent Prescriber, GPhC 2074856',
+              when: '28 Apr 2026 · 11:08',
+              body: `<p>Acknowledged — thank you Hassan. Patient ID record on our side reflects the same. Closing this thread.</p>`,
+              attachments: []
+            },
+            {
+              dir: 'system',
+              icon: '✓',
+              text: 'Thread marked resolved · 28 Apr 2026 11:09 · Charlotte Williams (Prescriber)'
+            }
+          ]
+        }
+      };
+      
+      function renderThreadDetail(){
+        const hash = (location.hash || '#PCM-PT-0042').replace(/^#/, '');
+        const t = THREADS[hash];
+        const content = document.getElementById('pct-content');
+        const bcTid = document.getElementById('pct-bc-tid');
+        if(bcTid) bcTid.textContent = hash;
+        
+        if(!t){
+          content.innerHTML = `
+            <div class="pct-thread-not-found">
+              <div class="nf-ico">📭</div>
+              <h2>Thread not found</h2>
+              <p>No thread with ID <code>${escapeHtml(hash)}</code> in this prototype. The thread detail screen is wired for canonical demo threads.</p>
+            </div>
+            <div class="pct-thread-list">
+              <h4>Available threads in demo</h4>
+              <a href="#PCM-PT-0042"><span>PCM-PT-0042</span> Patient address change · Sarah Cookland · awaiting Primed response</a>
+              <a href="#PCM-PT-0038"><span>PCM-PT-0038</span> CD record query · Sarah Cookland · resolved</a>
+            </div>`;
+          return;
+        }
+        
+        let msgsHtml = '';
+        t.msgs.forEach(m => {
+          if(m.dir === 'system'){
+            msgsHtml += `
+              <div class="pct-msg system">
+                <div class="pct-av">${m.icon}</div>
+                <div class="pct-body">${escapeHtml(m.text)}</div>
+              </div>`;
+          } else {
+            msgsHtml += `
+              <div class="pct-msg ${m.dir}">
+                <div class="pct-av">${m.avatar}</div>
+                <div class="pct-body">
+                  <div class="pct-msg-meta">
+                    <span class="who">${escapeHtml(m.who)}</span>
+                    <span class="role">${m.role}</span>
+                    <span style="color:#6b7280;">— ${escapeHtml(m.role_full)}</span>
+                    <span class="when">${m.when}</span>
+                  </div>
+                  <div class="pct-text">${m.body}</div>
+                </div>
+              </div>`;
+          }
+        });
+        
+        const composer = (t.status === 'awaiting' || t.status === 'open') ? `
+          <div class="pct-section-label" style="margin-top:6px;">Reply</div>
+          <div class="pct-composer-section">
+            <div class="pct-composer-head">Reply to Primed <span class="signed-as">— Charlotte Williams (Prescriber, signed in)</span></div>
+            <div class="pct-composer">
+              <textarea placeholder="Write a reply. This will be appended to the thread and sent to Primed. Audit-logged."></textarea>
+              <div class="pct-composer-foot">
+                <span class="att-add" onclick="alert('Attachment picker stub. Photo evidence requires patient photo_consent. Watermarking applied to Primed-generated prescriptions.')">📎 Attach</span>
+                <span class="charcount">0 chars</span>
+                <button class="pct-btn primary" onclick="alert('Stub: reply sent to Primed. Thread status updated to Awaiting Primed response.')">Send to Primed →</button>
+              </div>
+            </div>
+          </div>` : `
+          <div class="pct-msg system" style="margin-top:6px;">
+            <div class="pct-av">⊙</div>
+            <div class="pct-body">This thread is resolved. Reopen by sending a new outbound message from the anchor surface (Patient Profile or Order Detail).</div>
+          </div>`;
+        
+        const resolveBtn = (t.status === 'awaiting' || t.status === 'open') ? `<button class="pct-btn success" onclick="alert('Stub: thread marked resolved. System message posted to thread, status pill turns green.')">✓ Mark resolved</button>` : '';
+        
+        content.innerHTML = `
+          <div class="pct-header">
+            <div class="pct-avatar">📨</div>
+            <div class="pct-title-block">
+              <h1><span class="pct-tid">${escapeHtml(t.tid)}</span>${escapeHtml(t.title)}</h1>
+              <div class="pct-meta">
+                ${t.anchor_label.startsWith('Patient') ? '<strong>Anchor:</strong> ' : '<strong>Anchor:</strong> '}<a href="${t.anchor_link}">${escapeHtml(t.anchor_label)}</a>
+              </div>
+              <div class="pct-meta">
+                <strong>Topic:</strong> ${escapeHtml(t.topic)} · <strong>Priority:</strong> ${escapeHtml(t.priority)} · <strong>Started by:</strong> ${escapeHtml(t.created_by)} on ${escapeHtml(t.created_when)}
+              </div>
+              <div class="pct-status-bar">
+                <span class="pct-status ${t.status}">${escapeHtml(t.status_label)}</span>
+                <span style="font-size:11.5px;color:#6b7280;">·  ${t.msgs.filter(m => m.dir !== 'system').length} message(s)</span>
+              </div>
+            </div>
+            <div class="pct-actions-row">
+              ${resolveBtn}
+              <button class="pct-btn" onclick="history.back()">← Back</button>
+            </div>
+          </div>
+          
+          <div class="pct-section-label">Conversation</div>
+          <div class="pct-msgs">${msgsHtml}</div>
+          
+          ${composer}
+        `;
+      }
+      
+      function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+      
+      window.addEventListener('hashchange', renderThreadDetail);
+      renderThreadDetail();
+    </script>
+  </main>
+</div>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

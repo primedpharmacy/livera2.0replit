@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Order Detail Admin · BLD-Amendments</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f0ef; color: #0d0d0d; font-size: 14px; }
+  :root {
+    --brand: #6366f1; --brand-light: #eef2ff; --brand-dark: #4338ca; --brand-mid: #818cf8;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --border: rgba(0,0,0,0.08); --border-strong: rgba(0,0,0,0.13);
+    --text-1: #0d0d0d; --text-2: #5c5c5c; --text-3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-border: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-border: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-border: #86efac;
+    --blue: #1e40af; --blue-bg: #eff6ff; --blue-border: #93c5fd;
+    --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: #c4b5fd;
+    --grey: #6b6b6b; --grey-bg: #f5f5f5; --grey-border: #d4d4d4;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+  .sb { width: 218px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); display: flex; flex-direction: column; }
+  .sb-inner { flex: 1; padding: 8px; overflow-y: auto; }
+  .nav-lbl { padding: 10px 8px 4px; font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .nav-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--r-md); font-size: 13px; color: var(--text-2); cursor: pointer; }
+  .nav-row:hover { background: var(--surface-2); }
+  .nav-row.on { background: var(--brand-light); color: var(--brand-dark); font-weight: 500; }
+  .nb { margin-left: auto; background: var(--brand-light); color: var(--brand-dark); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .sb-foot { padding: 12px 14px; border-top: 0.5px solid var(--border); background: var(--surface-2); font-size: 12px; }
+  .sb-foot-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { padding: 11px 24px; background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .bc { font-size: 12px; color: var(--text-3); }
+  .bc a { color: var(--text-2); text-decoration: none; }
+  .bc a:hover { color: var(--brand-dark); }
+  .bc .sep { margin: 0 4px; }
+  .bc .cur { color: var(--text-1); font-weight: 500; }
+  .topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .pill { display: inline-flex; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 0.5px solid; }
+  .p-active { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .p-warn { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .btn-sm { padding: 6px 12px; border-radius: var(--r-md); font-size: 12px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border-strong); font-family: inherit; background: var(--surface); color: var(--text-2); display: inline-flex; align-items: center; gap: 6px; }
+  .btn-sm:hover { background: var(--surface-2); }
+  .btn-sm.primary { background: var(--brand-dark); color: #fff; border-color: var(--brand-dark); }
+  .btn-sm.primary:hover { background: #3730a3; }
+  .btn-sm.danger { color: var(--red-mid); border-color: var(--red-border); }
+  .btn-sm.danger:hover { background: var(--red-bg); }
+  .btn-sm[disabled] { opacity: 0.55; cursor: not-allowed; }
+  .btn-sm[disabled]:hover { background: var(--surface); border-color: var(--border-strong); }
+
+  /* Layout */
+  .content { flex: 1; display: flex; overflow: hidden; }
+  .left-col { width: 340px; flex-shrink: 0; background: var(--surface); border-right: 0.5px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+  .order-hero { padding: 18px 20px; border-bottom: 0.5px solid var(--border); }
+  .order-id { font-size: 20px; font-weight: 700; color: var(--text-1); letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+  .order-type { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-border); }
+  .order-meta { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+
+  /* Approved card (mirrors expiry-card pattern, green theme) */
+  .approval-card { margin: 14px 14px 0; border-radius: var(--r-lg); overflow: hidden; border: 1.5px solid var(--green-border); }
+  .approval-head { background: var(--green); padding: 10px 14px; display: flex; align-items: center; gap: 8px; }
+  .approval-head-title { font-size: 12px; font-weight: 700; color: #fff; flex: 1; }
+  .approval-head-badge { background: rgba(255,255,255,0.25); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .approval-body { background: var(--green-bg); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .ap-row { display: flex; justify-content: space-between; align-items: center; }
+  .ap-label { font-size: 12px; color: var(--green); }
+  .ap-value { font-size: 12px; font-weight: 600; color: var(--green); text-align: right; }
+  .ap-note { font-size: 11px; color: var(--green); line-height: 1.5; padding-top: 6px; border-top: 0.5px solid var(--green-border); margin-top: 2px; }
+
+  /* Sections */
+  .osec { padding: 12px 14px; border-bottom: 0.5px solid var(--border); }
+  .osec-t { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .osec-t .badge { background: var(--brand-light); color: var(--brand-dark); padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.4px; }
+  .dr { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+  .dk { font-size: 12px; color: var(--text-2); }
+  .dv { font-size: 12px; font-weight: 500; color: var(--text-1); text-align: right; }
+  .dv.g { color: var(--green); }
+  .dv.r { color: var(--red-mid); }
+  .dv.a { color: var(--amber); }
+
+  /* Right panel */
+  .right-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .tabs { display: flex; background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 24px; flex-shrink: 0; }
+  .tab { padding: 11px 16px; font-size: 13px; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; display: flex; align-items: center; gap: 6px; }
+  .tab:hover { color: var(--text-1); }
+  .tab.on { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 500; }
+  .tab-ct { background: var(--surface-2); color: var(--text-3); font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px; border: 0.5px solid var(--border-strong); }
+  .tab-ct.amber { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+  .tab-ct.red { background: var(--red-bg); color: var(--red-mid); border-color: var(--red-border); }
+  .panel { display: none; flex: 1; overflow-y: auto; padding: 20px 24px; flex-direction: column; gap: 14px; }
+  .panel.on { display: flex; }
+
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+  .card-head { padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text-1); flex: 1; display: flex; align-items: center; gap: 6px; }
+  .card-sub { font-size: 11px; color: var(--text-3); }
+  .card-body { padding: 12px 16px; }
+
+  /* Activity log */
+  .act-list { display: flex; flex-direction: column; }
+  .act-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .act-row:last-child { border-bottom: none; }
+  .act-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .act-body { flex: 1; min-width: 0; }
+  .act-text { font-size: 12px; color: var(--text-1); line-height: 1.4; }
+  .act-text strong { font-weight: 600; }
+  .act-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .act-time { font-size: 11px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+
+  /* ── BLD-Amendments: 3-consent capture display ── */
+  .consent-grid { display: grid; grid-template-columns: 1fr; gap: 8px; padding: 10px 14px 14px; }
+  .consent-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 11px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); }
+  .consent-row.given { background: var(--green-bg); border-color: var(--green-border); }
+  .consent-row.declined { background: var(--red-bg); border-color: var(--red-border); }
+  .consent-row.pending { background: var(--amber-bg); border-color: var(--amber-border); }
+  .consent-icon { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--surface); border: 1px solid; }
+  .consent-row.given .consent-icon { background: #16a34a; color: #fff; border-color: #16a34a; }
+  .consent-row.declined .consent-icon { background: var(--red-mid); color: #fff; border-color: var(--red-mid); }
+  .consent-row.pending .consent-icon { background: var(--amber); color: #fff; border-color: var(--amber); }
+  .consent-body { flex: 1; min-width: 0; }
+  .consent-name { font-size: 12px; font-weight: 600; color: var(--text-1); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .consent-state { font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; border: 0.5px solid; }
+  .consent-state.yes { background: #fff; color: var(--green); border-color: var(--green-border); }
+  .consent-state.no { background: #fff; color: var(--red-mid); border-color: var(--red-border); }
+  .consent-state.pending { background: #fff; color: var(--amber); border-color: var(--amber-border); }
+  .consent-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; line-height: 1.4; }
+  .consent-source { font-size: 10px; color: var(--text-3); margin-top: 4px; padding-top: 4px; border-top: 0.5px solid rgba(0,0,0,0.05); }
+  .consent-source a { color: var(--brand-dark); cursor: pointer; }
+  .consent-source a:hover { text-decoration: underline; }
+
+  /* ── BLD-Amendments: ED safeguarding banner ── */
+  .ed-flag { background: var(--red-bg); border: 1.5px solid var(--red-border); border-radius: var(--r-lg); padding: 11px 13px; margin: 14px 14px 0; }
+  .ed-flag-head { font-size: 12px; font-weight: 700; color: var(--red-mid); display: flex; align-items: center; gap: 6px; }
+  .ed-flag-body { font-size: 11px; color: #7f1d1d; line-height: 1.5; margin-top: 4px; }
+  .ed-flag-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .ed-flag-btn { font-size: 11px; padding: 4px 9px; border-radius: 4px; border: 0.5px solid var(--red-border); background: #fff; color: var(--red-mid); cursor: pointer; font-weight: 500; font-family: inherit; }
+  .ed-flag-btn:hover { background: var(--red-bg); border-color: var(--red-mid); }
+
+  /* ── BLD-Amendments: Photo evidence with consent guard ── */
+  .photo-evidence { padding: 10px 14px 14px; }
+  .photo-thumb-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .photo-thumb { width: 86px; height: 86px; border-radius: var(--r-md); border: 0.5px solid var(--border-strong); position: relative; overflow: hidden; cursor: pointer; transition: all 0.1s; background: linear-gradient(135deg, #c7d2fe, #a5b4fc); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; }
+  .photo-thumb:hover { border-color: var(--brand); transform: translateY(-1px); }
+  .photo-thumb-meta { position: absolute; bottom: 0; left: 0; right: 0; padding: 3px 6px; background: rgba(0,0,0,0.55); color: #fff; font-size: 9px; font-weight: 600; }
+  .photo-locked { background: var(--surface-2); border: 1.5px dashed var(--border-strong); border-radius: var(--r-md); padding: 16px 14px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .photo-locked-icon { font-size: 22px; color: var(--text-3); }
+  .photo-locked-msg { font-size: 12px; font-weight: 600; color: var(--red-mid); }
+  .photo-locked-sub { font-size: 11px; color: var(--text-3); line-height: 1.4; max-width: 320px; }
+  .photo-locked-btn { margin-top: 6px; font-size: 11px; padding: 5px 10px; border-radius: 4px; border: 0.5px solid var(--border-strong); background: var(--surface); color: var(--text-2); cursor: pointer; font-family: inherit; }
+  .photo-locked-btn:hover { background: var(--surface-3); }
+
+  /* ── BLD-Amendments: Prior-dose evidence card ── */
+  .pde-card { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); padding: 10px 12px; margin-top: 4px; }
+  .pde-card.satisfied { background: var(--green-bg); border-color: var(--green-border); }
+  .pde-card.required { background: var(--amber-bg); border-color: var(--amber-border); }
+  .pde-head { font-size: 11px; font-weight: 700; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+  .pde-card.satisfied .pde-head { color: var(--green); }
+  .pde-card.required .pde-head { color: var(--amber); }
+  .pde-body { font-size: 11px; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
+  .pde-evidence { font-size: 11px; color: var(--text-3); margin-top: 6px; padding-top: 5px; border-top: 0.5px solid rgba(0,0,0,0.05); }
+  .pde-evidence a { color: var(--brand-dark); cursor: pointer; font-weight: 500; }
+  .pde-evidence a:hover { text-decoration: underline; }
+
+  /* ── BLD-Amendments: Watermarked Rx PDF ── */
+  .rx-card { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); padding: 12px; display: flex; gap: 12px; align-items: flex-start; }
+  .rx-thumb { width: 64px; height: 80px; border-radius: var(--r-sm); background: #fff; border: 0.5px solid var(--border); position: relative; overflow: hidden; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center; }
+  .rx-thumb-icon { font-size: 22px; color: var(--brand-dark); }
+  .rx-thumb-watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transform: rotate(-22deg); font-size: 9px; font-weight: 800; color: rgba(99,102,241,0.18); letter-spacing: 0.3px; pointer-events: none; }
+  .rx-info { flex: 1; min-width: 0; }
+  .rx-title { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .rx-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; line-height: 1.5; }
+  .rx-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .rx-actions .btn-sm { padding: 4px 9px; font-size: 11px; }
+  .rx-watermark-note { font-size: 10px; color: var(--brand-dark); padding: 5px 8px; margin-top: 8px; background: var(--brand-light); border-radius: 4px; border: 0.5px solid var(--brand-mid); display: flex; align-items: center; gap: 5px; line-height: 1.4; }
+  .rx-watermark-note strong { font-weight: 600; }
+
+  /* ── BLD-Amendments: GP letter quick action with consent guard ── */
+  .gp-action-row { display: flex; gap: 8px; align-items: center; padding: 9px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--r-md); }
+  .gp-action-row.consent-no { background: var(--red-bg); border-color: var(--red-border); }
+  .gp-action-row.consent-yes { background: var(--green-bg); border-color: var(--green-border); }
+  .gp-action-icon { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; background: var(--surface); }
+  .gp-action-yes-icon { background: #16a34a; color: #fff; }
+  .gp-action-no-icon { background: var(--red-mid); color: #fff; }
+  .gp-action-text { flex: 1; font-size: 12px; color: var(--text-1); line-height: 1.4; }
+  .gp-action-text .small { font-size: 10px; color: var(--text-3); display: block; margin-top: 1px; }
+  .gp-action-row.consent-no .gp-action-text { color: var(--red-mid); }
+  .gp-action-row.consent-no .gp-action-text .small { color: #b91c1c; }
+
+  /* Annotation */
+  .ann { background: #1e1b4b; color: #c7d2fe; padding: 8px 24px; font-size: 11px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; flex-wrap: wrap; }
+  .al { color: #818cf8; font-weight: 600; flex-shrink: 0; }
+  .at { background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; border: 0.5px solid rgba(99,102,241,0.3); }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  /* WS switcher */
+  .ws-switcher { padding:10px 14px; display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none; border-bottom:0.5px solid var(--border); position:relative; }
+  .ws-switcher:hover { background:var(--surface-2); }
+  .ws-logo-mark { width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,#6366f1,#4338ca); display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:800; flex-shrink:0; }
+  .ws-info { flex:1; min-width:0; }
+  .ws-name { font-size:13px; font-weight:700; color:var(--text-1); }
+  .ws-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-chevron { font-size:14px; color:var(--text-3); flex-shrink:0; }
+  .ws-menu { display:none; position:absolute; top:54px; left:8px; right:8px; background:var(--surface); border:0.5px solid var(--border-strong); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:500; overflow:hidden; }
+  .ws-menu.open { display:block; }
+  .ws-menu-item { display:flex; align-items:center; gap:9px; padding:10px 12px; cursor:pointer; }
+  .ws-menu-item:hover { background:var(--surface-2); }
+  .ws-menu-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .ws-menu-name { font-size:12px; font-weight:600; color:var(--text-1); }
+  .ws-menu-sub  { font-size:10px; color:var(--text-3); margin-top:1px; }
+  .ws-menu-check { font-size:12px; color:#4338ca; font-weight:700; flex-shrink:0; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 28px; right: 28px; background: #1f2937; color: #fff; font-size: 12px; font-weight: 500; padding: 10px 16px; border-radius: 999px; z-index: 300; display: none; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  .toast.show { display: flex; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal-card { background: var(--surface); border-radius: 12px; width: 480px; max-width: 95vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-head { padding: 16px 20px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .modal-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--brand-light); color: var(--brand-dark); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .modal-title { font-size: 15px; font-weight: 600; color: var(--text-1); flex: 1; }
+  .modal-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer; font-size: 14px; color: var(--text-3); }
+  .modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .modal-foot { padding: 12px 20px; border-top: 0.5px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .modal-input, .modal-textarea, .modal-select { width: 100%; padding: 9px 11px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 13px; font-family: inherit; outline: none; }
+  .modal-input:focus, .modal-textarea:focus, .modal-select:focus { border-color: var(--brand-dark); }
+  .modal-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  .modal-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* CANONICAL SHELL (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+/* Make existing .shell wrapper behave like .layout */
+.shell{display:flex;min-height:calc(100vh - 36px)}
+</style>
+
+<style id="livera-nav-style">
+#livera-nav{position:fixed;top:0;left:0;right:0;z-index:99999;background:#1e1b4b;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;height:36px;padding:0 12px;gap:4px;overflow-x:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;scrollbar-width:none;}
+#livera-nav::-webkit-scrollbar{display:none;}
+#livera-nav-logo{font-size:12px;font-weight:700;color:#818cf8;margin-right:8px;white-space:nowrap;flex-shrink:0;letter-spacing:-0.3px;}
+#livera-nav a{font-size:11px;font-weight:500;color:rgba(255,255,255,0.55);text-decoration:none;padding:3px 9px;border-radius:4px;white-space:nowrap;flex-shrink:0;transition:all 0.15s;}
+#livera-nav a:hover{background:rgba(99,102,241,0.25);color:#fff;}
+#livera-nav a.nav-current{background:rgba(99,102,241,0.35);color:#c7d2fe;}
+#livera-nav-sep{color:rgba(255,255,255,0.15);font-size:10px;flex-shrink:0;}
+body{padding-top:36px!important;}
+</style>
+</head>
+<body data-workspace="feeltru">
+
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html" class="active"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:#0d9488;background:#f0fdfa;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_prototype_09b_orders_list.html">Orders</a>
+        <span class="sep">/</span>
+        <a href="livera_prototype_09b_orders_list.html">Active</a>
+        <span class="sep">/</span>
+        <span class="cur">ORD-00441</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="pill p-active">● Approved</div>
+        <div style="font-size:11px;color:var(--text-3);font-weight:500;">Approved 04 May · awaiting Primed dispense</div>
+      </div>
+      <div class="topbar-right">
+        <button class="btn-sm">Export to CSV</button>
+        <a href="livera_prototype_09_patient_profile.html" style="text-decoration:none;"><button class="btn-sm">View patient profile →</button></a>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ─────────── LEFT PANEL ─────────── -->
+      <div class="left-col">
+
+        <!-- Hero -->
+        <div class="order-hero">
+          <div class="order-id">
+            ORD-00441
+            <span class="order-type">Reorder · Order 6</span>
+          </div>
+          <div class="order-meta">Sarah Cookland · 04 May 2026 · 14:22</div>
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+            <a href="livera_prototype_09_patient_profile.html" style="font-size:11px;color:var(--brand-dark);text-decoration:none;font-weight:500;padding:3px 9px;background:var(--brand-light);border-radius:999px;border:0.5px solid rgba(99,102,241,0.2);">View patient profile →</a>
+            <a href="livera_prototype_02_clinical_check_queue.html" style="font-size:11px;color:var(--text-2);text-decoration:none;font-weight:500;padding:3px 9px;background:var(--surface-2);border-radius:999px;border:0.5px solid var(--border);">↻ Re-open clinical check</a>
+          </div>
+        </div>
+
+        <!-- Approval card -->
+        <div class="approval-card">
+          <div class="approval-head">
+            <span style="font-size:16px;">✓</span>
+            <div class="approval-head-title">Order approved</div>
+            <div class="approval-head-badge">APPROVED</div>
+          </div>
+          <div class="approval-body">
+            <div class="ap-row"><span class="ap-label">Approved at</span><span class="ap-value">04 May 2026 · 14:38</span></div>
+            <div class="ap-row"><span class="ap-label">Prescriber</span><span class="ap-value">Claire Moynehan · NMC 1234567</span></div>
+            <div class="ap-row"><span class="ap-label">Decision</span><span class="ap-value">Approved · dose ↑ 5mg → 7.5mg</span></div>
+            <div class="ap-note">Clinical notes saved to patient record. Order routed to Primed for dispense. Patient receives confirmation email when shipped.</div>
+          </div>
+        </div>
+
+        <!-- ── BLD-Amendments: ED safeguarding flag (only shows when BMI < 18.5 self-reported) ── -->
+        <div class="ed-flag" id="ed-flag" style="display:none;">
+          <div class="ed-flag-head">⚠ ED safeguarding — BMI below threshold</div>
+          <div class="ed-flag-body">
+            Self-reported BMI is below 18.5. Mandatory eating-disorder safeguarding review required before this order can dispense. Order routing to Primed is paused.
+          </div>
+          <div class="ed-flag-actions">
+            <button class="ed-flag-btn" onclick="showToast('Opens safeguarding screening flow')">Open safeguarding review</button>
+            <button class="ed-flag-btn" onclick="showToast('Escalation to Mobeen (RM) created')">Escalate to RM</button>
+          </div>
+        </div>
+
+        <!-- Order summary -->
+        <div class="osec">
+          <div class="osec-t">Order summary</div>
+          <div class="dr"><span class="dk">Product</span><span class="dv">Mounjaro 7.5mg</span></div>
+          <div class="dr"><span class="dk">Quantity</span><span class="dv">Monthly · 4 pens</span></div>
+          <div class="dr"><span class="dk">Total</span><span class="dv">£199.00</span></div>
+          <div class="dr"><span class="dk">Submitted</span><span class="dv">04 May 2026 · 14:22</span></div>
+          <div class="dr"><span class="dk">Source</span><span class="dv">Patient app · reorder questionnaire v3</span></div>
+        </div>
+
+        <!-- BLD-AMEND-04: Payment delta state surface -->
+        <div class="osec" style="padding-bottom:0;">
+          <div class="osec-t">Payment state <span class="badge" style="background:var(--proto-bg, #f0fdfa);color:var(--proto, #0d9488);border:.5px solid var(--proto-bdr, #99f6e4);font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.3px;margin-left:8px;">BLD-AMEND-04</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;padding:0 14px 14px;">
+
+          <!-- Original authorisation -->
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--green-bg, #ecfdf5);border:.5px solid var(--green-border, #a7f3d0);border-radius:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--green, #10b981);flex-shrink:0;"></div>
+            <div style="flex:1;font-size:12px;color:var(--text-1);">
+              <strong>✓ Captured</strong> · <code style="font-family:'SF Mono',Menlo,monospace;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:3px;font-size:11px;">£199.00</code>
+              <div style="font-size:10.5px;color:var(--text-2);margin-top:2px;">Ryft AUTH-7782341 · captured 04 May · 14:38 on prescriber approval · authorise-not-capture model</div>
+            </div>
+            <a onclick="showToast('Stub · would open Ryft transaction detail in new tab')" style="font-size:11px;color:var(--brand);font-weight:600;cursor:pointer;text-decoration:none;flex-shrink:0;">View Ryft →</a>
+          </div>
+
+          <!-- Capture pending — held amendment -->
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fffbeb;border:.5px solid #fde68a;border-radius:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;"></div>
+            <div style="flex:1;font-size:12px;color:var(--text-1);">
+              <strong>⏳ Capture pending</strong> · <code style="font-family:'SF Mono',Menlo,monospace;background:rgba(245,158,11,0.15);padding:1px 5px;border-radius:3px;font-size:11px;color:#92400e;">+£30.00</code>
+              <div style="font-size:10.5px;color:var(--text-2);margin-top:2px;">Held amendment <strong style="color:var(--brand);">AMD-00091</strong> · dose increase 5mg → 7.5mg · awaiting prescriber decision · 24h SLA</div>
+            </div>
+            <a href="livera_scr_amendment_decision.html" style="font-size:11px;color:var(--brand);font-weight:600;text-decoration:none;flex-shrink:0;">Goto decision →</a>
+          </div>
+
+          <!-- Audit/payment-history footer -->
+          <div style="font-size:10.5px;color:var(--text-3);padding-top:6px;border-top:.5px dashed var(--border);margin-top:4px;line-height:1.4;">
+            <strong style="color:var(--text-2);">Other states surfaced when relevant:</strong>
+            <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2);padding:1px 4px;border-radius:3px;font-size:10px;">Authorised</code> ·
+            <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2);padding:1px 4px;border-radius:3px;font-size:10px;">Released</code> ·
+            <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2);padding:1px 4px;border-radius:3px;font-size:10px;">Refund pending</code> ·
+            <code style="font-family:'SF Mono',Menlo,monospace;background:#fef2f2;color:#dc2626;padding:1px 4px;border-radius:3px;font-size:10px;font-weight:700;">Refund FAILED — manual review</code> ·
+            <code style="font-family:'SF Mono',Menlo,monospace;background:#fef2f2;color:#dc2626;padding:1px 4px;border-radius:3px;font-size:10px;">Capture failed</code>
+          </div>
+        </div>
+
+        <!-- ── BLD-Amendments: 3-consent capture display ── -->
+        <div class="osec" style="padding-bottom: 0;">
+          <div class="osec-t">Patient consent <span class="badge">BLD-Amendments</span></div>
+        </div>
+        <div class="consent-grid">
+
+          <!-- Treatment consent -->
+          <div class="consent-row given">
+            <div class="consent-icon">✓</div>
+            <div class="consent-body">
+              <div class="consent-name">Clinical treatment <span class="consent-state yes">Given</span></div>
+              <div class="consent-meta">Patient consented to GLP-1 prescribing under Livera clinical pathway · v2.1</div>
+              <div class="consent-source">Captured at registration · 28 Jan 2026 · 09:14 · <a onclick="showToast('Opens consent record audit trail')">View record</a></div>
+            </div>
+          </div>
+
+          <!-- GP communication consent -->
+          <div class="consent-row given">
+            <div class="consent-icon">✓</div>
+            <div class="consent-body">
+              <div class="consent-name">GP communication <span class="consent-state yes">Given</span></div>
+              <div class="consent-meta">Patient consented to GP letter being sent on first prescription and material clinical changes</div>
+              <div class="consent-source">Captured in registration questionnaire Q14 · 28 Jan 2026 · <a onclick="showToast('Opens consent record audit trail')">View record</a></div>
+            </div>
+          </div>
+
+          <!-- Photo consent (DECLINED in this seed) -->
+          <div class="consent-row declined">
+            <div class="consent-icon">✕</div>
+            <div class="consent-body">
+              <div class="consent-name">Photo evidence <span class="consent-state no">Declined</span></div>
+              <div class="consent-meta">Patient declined to share weight/scale/injection-site photos for clinical evidence</div>
+              <div class="consent-source">Captured in reorder questionnaire v3 · 04 May 2026 · <a onclick="showToast('Opens consent record audit trail')">View record</a></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ── BLD-Amendments: GP letter quick action with consent guard ── -->
+        <div class="osec" style="padding-top: 4px;">
+          <div class="osec-t">GP letter</div>
+          <div class="gp-action-row consent-yes" id="gp-action-row">
+            <div class="gp-action-icon gp-action-yes-icon">✓</div>
+            <div class="gp-action-text">
+              GP letter can be sent
+              <span class="small">Patient has given GP communication consent · Robin Lane H&W · last sent 28 Jan</span>
+            </div>
+            <button class="btn-sm primary" onclick="openGPLetterGuarded()" id="gp-letter-btn">✉ Send GP letter</button>
+          </div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:6px;line-height:1.5;">
+            Auto-trigger rule: dose escalations to ≥10mg automatically queue a GP notification (consent permitting). Patient consent state checked at every send.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ─────────── RIGHT PANEL ─────────── -->
+      <div class="right-col">
+
+        <div class="tabs">
+          <div class="tab on" id="t-clinical" onclick="showTab('clinical',this)">Clinical evidence <span class="tab-ct amber">2</span></div>
+          <div class="tab" id="t-questionnaire" onclick="showTab('questionnaire',this)">Questionnaire <span class="tab-ct">7</span></div>
+          <div class="tab" id="t-prescription" onclick="showTab('prescription',this)">Prescription</div>
+          <div class="tab" id="t-amendments" onclick="showTab('amendments',this)">Amendments <span class="tab-ct" style="background:var(--info-bg, #eff6ff);color:var(--info, #3b82f6);">3</span></div>
+          <div class="tab" id="t-activity" onclick="showTab('activity',this)">Activity log <span class="tab-ct">11</span></div>
+          <div class="tab" id="t-comms" onclick="showTab('comms',this)">Patient comms</div>
+        </div>
+
+        <!-- ── CLINICAL EVIDENCE TAB ── -->
+        <div class="panel on" id="panel-clinical">
+
+          <!-- Prior-dose evidence card (BLD-Amendments) -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">⬆ Dose escalation · prior-dose evidence</div>
+              <div class="card-sub">Required for 5mg → 7.5mg</div>
+            </div>
+            <div class="card-body">
+              <div class="pde-card satisfied">
+                <div class="pde-head">✓ Prior-dose evidence on file</div>
+                <div class="pde-body">
+                  Patient confirmed 6 weeks at 5mg in Reorder questionnaire v3 (Q4: dose adherence). Photo of last pen pack uploaded.
+                </div>
+                <div class="pde-evidence">
+                  📎 Reorder Q4 photo (pen pack · 23 Apr 2026) · <a onclick="showToast('Opens photo evidence preview · Sumsub origin')">View</a>
+                  &nbsp;·&nbsp;
+                  📋 Q4 answer: <em>"Yes, I have completed 6 weeks at the 5mg dose"</em>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Photo evidence (BLD-Amendments — gated by photo consent) -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">📷 Photo evidence</div>
+              <div class="card-sub">Weight scale / injection site photos</div>
+            </div>
+            <div class="card-body">
+              <!-- This block is shown ONLY when photo consent = no (current seed) -->
+              <div class="photo-evidence" id="photo-evidence-locked">
+                <div class="photo-locked">
+                  <div class="photo-locked-icon">🔒</div>
+                  <div class="photo-locked-msg">Photo evidence not available</div>
+                  <div class="photo-locked-sub">Patient declined photo consent in reorder questionnaire v3 (04 May 2026). No weight/scale/injection-site photos can be requested or displayed for this order.</div>
+                  <button class="photo-locked-btn" onclick="showToast('Opens consent re-request task — patient receives a non-coercive prompt to update their consent preferences')">Request consent update</button>
+                </div>
+              </div>
+
+              <!-- This block is shown when photo consent = yes (kept here for prototype demo) -->
+              <div class="photo-evidence" id="photo-evidence-given" style="display:none;">
+                <div class="photo-thumb-row">
+                  <div class="photo-thumb" onclick="showToast('Opens full-screen photo preview')">📷
+                    <div class="photo-thumb-meta">Scale · 04 May</div>
+                  </div>
+                  <div class="photo-thumb" onclick="showToast('Opens full-screen photo preview')">📦
+                    <div class="photo-thumb-meta">Pen pack · 23 Apr</div>
+                  </div>
+                  <div class="photo-thumb" onclick="showToast('Opens full-screen photo preview')">💉
+                    <div class="photo-thumb-meta">Site · 28 Apr</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Demo toggle -->
+              <div style="font-size:10px;color:var(--text-3);text-align:right;margin-top:8px;">
+                Demo: <a onclick="togglePhotoConsent()" style="color:var(--brand-dark);cursor:pointer;text-decoration:underline;">toggle photo consent state</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Clinical reasoning (the mandatory notes from clinical check) -->
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">📝 Clinical reasoning</div>
+              <div class="card-sub">Mandatory notes captured at approval</div>
+            </div>
+            <div class="card-body">
+              <div style="font-size:12px;color:var(--text-1);line-height:1.6;background:var(--surface-2);padding:12px;border-radius:var(--r-sm);border:0.5px solid var(--border);">
+                Patient meets NICE CG189 criteria — BMI 32.1 with documented hypertension. Dose escalation 5mg → 7.5mg approved on the basis of: (1) 6 weeks at current dose [eligible], (2) sustained weight trajectory of 3.6kg / 4.1% loss, (3) prior-dose adherence evidence on file, (4) no new contraindications. Patient reported mild nausea earlier in cycle, resolved by week 2. Cardiac history (SVT ablation) reviewed — no contraindication.
+              </div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:8px;">
+                Approved by Claire Moynehan · 04 May 2026 · 14:38 · saved to patient record · auditable
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ── BLD-REORDER-VIEW-01: QUESTIONNAIRE TAB ── -->
+        <div class="panel" id="panel-questionnaire">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Reorder questionnaire response — ORD-00441 <span class="badge" style="background:var(--proto-bg, #f0fdfa);color:var(--proto, #0d9488);border:.5px solid var(--proto-bdr, #99f6e4);font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.3px;margin-left:8px;">BLD-REORDER-VIEW-01</span></div>
+              <div class="card-sub">Patient self-attestation submitted via Livera app · Reorder questionnaire v3 · 04 May 2026 · 14:22 · 3min 48s elapsed</div>
+            </div>
+            <div class="card-body" style="padding:0;">
+
+              <!-- Q1 — medical history changes -->
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:14px;padding:16px 18px;border-bottom:.5px solid var(--border);align-items:flex-start;">
+                <div style="font-size:11px;font-weight:700;color:var(--text-3);text-align:center;background:var(--surface-2);border-radius:6px;padding:5px 0;">Q1</div>
+                <div>
+                  <div style="font-size:13px;color:var(--text-1);font-weight:600;line-height:1.45;">Has anything changed in your medical history since your last order?</div>
+                  <div style="font-size:11px;color:var(--text-3);margin-top:3px;">New conditions, medications, surgeries, hospital admissions.</div>
+                  <div style="margin-top:10px;padding:10px 12px;background:var(--green-bg);border:.5px solid var(--green-border);border-radius:6px;font-size:13px;font-weight:600;color:var(--green);display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:14px;">✓</span> No
+                    <span style="margin-left:auto;font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;">No flag</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Q2 — side effects (the critical safety question) -->
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:14px;padding:16px 18px;border-bottom:.5px solid var(--border);align-items:flex-start;background:rgba(16,185,129,0.03);">
+                <div style="font-size:11px;font-weight:700;color:var(--text-3);text-align:center;background:var(--surface-2);border-radius:6px;padding:5px 0;">Q2</div>
+                <div>
+                  <div style="font-size:13px;color:var(--text-1);font-weight:600;line-height:1.45;">Have you had any of these side effects?
+                    <span style="font-size:9px;font-weight:700;letter-spacing:.4px;background:#fef2f2;color:#b91c1c;padding:2px 6px;border-radius:3px;margin-left:6px;border:.5px solid #fecaca;">🔒 SAFETY CHAIN</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-3);margin-top:3px;">Tick all that apply. Severe options trigger order pause + Monday incident write + 999/A&amp;E guidance per DEC-36.</div>
+                  <div style="margin-top:10px;padding:10px 12px;background:var(--green-bg);border:.5px solid var(--green-border);border-radius:6px;font-size:13px;font-weight:600;color:var(--green);display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:14px;">✓</span> "None of these"
+                    <span style="margin-left:auto;font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;">No flag · safety chain not triggered</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Q3 — current weight -->
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:14px;padding:16px 18px;border-bottom:.5px solid var(--border);align-items:flex-start;">
+                <div style="font-size:11px;font-weight:700;color:var(--text-3);text-align:center;background:var(--surface-2);border-radius:6px;padding:5px 0;">Q3</div>
+                <div>
+                  <div style="font-size:13px;color:var(--text-1);font-weight:600;line-height:1.45;">What's your current weight in kg?</div>
+                  <div style="font-size:11px;color:var(--text-3);margin-top:3px;">We use this to track your progress. Validation: 30–300kg.</div>
+                  <div style="margin-top:10px;padding:10px 12px;background:var(--surface-2);border:.5px solid var(--border);border-radius:6px;font-size:14px;font-weight:600;color:var(--text-1);display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:18px;font-weight:700;color:var(--brand);">82.4</span> kg
+                    <span style="margin-left:auto;font-size:10px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.4px;">↓ 4.6kg in 6w · trajectory good</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Q4 — scale photo -->
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:14px;padding:16px 18px;border-bottom:.5px solid var(--border);align-items:flex-start;">
+                <div style="font-size:11px;font-weight:700;color:var(--text-3);text-align:center;background:var(--surface-2);border-radius:6px;padding:5px 0;">Q4</div>
+                <div>
+                  <div style="font-size:13px;color:var(--text-1);font-weight:600;line-height:1.45;">Upload a photo of your scale reading <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-left:4px;">optional</span></div>
+                  <div style="font-size:11px;color:var(--text-3);margin-top:3px;">Helps validate your weight if your prescriber asks.</div>
+                  <div style="margin-top:10px;padding:10px 12px;background:var(--surface-2);border:.5px dashed var(--border);border-radius:6px;font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:8px;">
+                    📷 No photo submitted · patient declined upload
+                    <span style="margin-left:auto;font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;">Optional · not blocking</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Q5 — overall progress -->
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:14px;padding:16px 18px;border-bottom:.5px solid var(--border);align-items:flex-start;">
+                <div style="font-size:11px;font-weight:700;color:var(--text-3);text-align:center;background:var(--surface-2);border-radius:6px;padding:5px 0;">Q5</div>
+                <div>
+                  <div style="font-size:13px;color:var(--text-1);font-weight:600;line-height:1.45;">How are you finding the treatment overall?</div>
+                  <div style="margin-top:10px;padding:10px 12px;background:var(--green-bg);border:.5px solid var(--green-border);border-radius:6px;font-size:13px;font-weight:600;color:var(--green);display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:14px;">✓</span> "Going well — happy with progress"
+                    <span style="margin-left:auto;font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;">No flag</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Q6 — anything else -->
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:14px;padding:16px 18px;border-bottom:.5px solid var(--border);align-items:flex-start;">
+                <div style="font-size:11px;font-weight:700;color:var(--text-3);text-align:center;background:var(--surface-2);border-radius:6px;padding:5px 0;">Q6</div>
+                <div>
+                  <div style="font-size:13px;color:var(--text-1);font-weight:600;line-height:1.45;">Anything else you'd like your prescriber to know? <span style="font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-left:4px;">optional</span></div>
+                  <div style="margin-top:10px;padding:10px 12px;background:var(--surface-2);border-left:3px solid var(--brand);border-radius:0 6px 6px 0;font-size:12.5px;color:var(--text-2);font-style:italic;line-height:1.55;">
+                    "Energy levels much better. Have started walking 30min daily. Sleep is good. Would like to discuss stepping up to 7.5mg at next reorder if appropriate."
+                  </div>
+                </div>
+              </div>
+
+              <!-- Q7 — photo consent (3-consent capture) -->
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:14px;padding:16px 18px;align-items:flex-start;">
+                <div style="font-size:11px;font-weight:700;color:var(--text-3);text-align:center;background:var(--surface-2);border-radius:6px;padding:5px 0;">Q7</div>
+                <div>
+                  <div style="font-size:13px;color:var(--text-1);font-weight:600;line-height:1.45;">Consent to photo evidence <span style="font-size:9px;font-weight:700;letter-spacing:.4px;background:#faf5ff;color:#7c3aed;padding:2px 6px;border-radius:3px;margin-left:6px;border:.5px solid #ddd6fe;">3-CONSENT CAPTURE</span></div>
+                  <div style="font-size:11px;color:var(--text-3);margin-top:3px;">Required: clinical treatment · GP communication · photo upload (declined → photo evidence locked).</div>
+                  <div style="margin-top:10px;padding:10px 12px;background:#fef2f2;border:.5px solid #fecaca;border-radius:6px;font-size:13px;font-weight:600;color:#b91c1c;display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:14px;">✕</span> Photo consent <strong>declined</strong>
+                    <span style="margin-left:auto;font-size:10px;font-weight:600;color:#b91c1c;text-transform:uppercase;letter-spacing:.4px;">Photo evidence locked for this order</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div style="padding:14px 18px;background:var(--surface-2);border-top:.5px solid var(--border);font-size:11px;color:var(--text-2);line-height:1.55;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                <span><strong style="color:var(--text-1);">Submission integrity:</strong> hash <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface);padding:1px 5px;border-radius:3px;font-size:10.5px;">a4f2e8d1b9c…</code> · written to AUD-04 audit on submit</span>
+                <span style="margin-left:auto;font-size:11px;color:var(--text-3);">Latency Q1→Q7: 3m 48s · device iOS 17.4 · app 1.0.4-rc.2</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ── PRESCRIPTION TAB ── -->
+        <div class="panel" id="panel-prescription">
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Prescription document <span class="badge" style="background:var(--brand-light);color:var(--brand-dark);padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:0.4px;">FROM PRIMED</span></div>
+              <div class="card-sub">Single source of truth · Primed-generated</div>
+            </div>
+            <div class="card-body">
+              <div class="rx-card">
+                <div class="rx-thumb">
+                  <span class="rx-thumb-icon">📄</span>
+                  <div class="rx-thumb-watermark">FELLTRU</div>
+                </div>
+                <div class="rx-info">
+                  <div class="rx-title">PRX-00441 — Mounjaro 7.5mg × 4 pens</div>
+                  <div class="rx-meta">
+                    Generated by Primed · 04 May 2026 · 14:39<br>
+                    Prescriber: Claire Moynehan (NMC 1234567)<br>
+                    Pharmacy: Primed (GPhC 1039469)
+                  </div>
+                  <div class="rx-actions">
+                    <button class="btn-sm" onclick="showToast('Opens watermarked PDF preview')">▤ View Rx</button>
+                    <button class="btn-sm" onclick="showToast('Watermarked copy ready to share — recipient: patient app')">⬇ Share with patient</button>
+                    <button class="btn-sm" onclick="showToast('Watermarked copy ready to share — recipient: GP surgery (consent permitting)')">⬇ Share with GP</button>
+                  </div>
+                </div>
+              </div>
+              <div class="rx-watermark-note">
+                🛡 <span><strong>Watermarking active.</strong> Every shared copy of this Rx PDF is stamped with patient ID, recipient, and timestamp at the moment of share. Original Primed-generated source remains the single source of truth — Livera renders + co-brands but never edits.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Dispense status</div>
+              <div class="card-sub">From Primed Pharmacy</div>
+            </div>
+            <div class="card-body">
+              <div class="dr"><span class="dk">Primed status</span><span class="dv a">⏳ pre_dispensed</span></div>
+              <div class="dr"><span class="dk">Cart ID</span><span class="dv" style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;">ODR-99214</span></div>
+              <div class="dr"><span class="dk">Expected ship</span><span class="dv">05 May 2026</span></div>
+              <div class="dr"><span class="dk">Amendment window</span><span class="dv g">Open · changes possible until dispense</span></div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5;padding:6px 8px;background:var(--surface-2);border-radius:var(--r-sm);">
+                FeelTru and VSC both run on the pre_dispensed amendment window via Primed API. Cancellations or amendments before dispatch revert the order without touching patient payment.
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ── BLD-AMEND-03: AMENDMENTS TAB ── -->
+        <div class="panel" id="panel-amendments">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Amendment history — ORD-00441 <span class="badge" style="background:var(--proto-bg, #f0fdfa);color:var(--proto, #0d9488);border:.5px solid var(--proto-bdr, #99f6e4);font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.3px;margin-left:8px;">BLD-AMEND-03</span></div>
+              <div class="card-sub">All amendments to this order in chronological order · including immediate amendments that don't go through prescriber review</div>
+            </div>
+            <div class="card-body" style="padding:0;">
+
+              <!-- HELD: AMD-00091 dose increase awaiting decision -->
+              <div style="display:grid;grid-template-columns:140px 1fr 100px;gap:14px;padding:14px 18px;border-bottom:.5px solid var(--border);background:#fffbeb;cursor:pointer;" onclick="window.location.href='livera_scr_amendment_decision.html'">
+                <div style="font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums;">10 May · 11:08<div style="margin-top:2px;color:var(--text-2);">3h 22m ago</div></div>
+                <div style="font-size:12.5px;color:var(--text-1);line-height:1.5;">
+                  <strong>Patient submitted</strong> dose increase <strong>5mg → 7.5mg</strong> · payment delta <code style="font-family:'SF Mono',Menlo,monospace;background:rgba(245,158,11,0.15);padding:1px 5px;border-radius:3px;font-size:11px;color:#92400e;">+£30.00 capture pending</code>
+                  <div style="font-size:11px;color:var(--text-2);margin-top:4px;font-style:italic;">"Plateau on current dose, would like to discuss step up. Have been on 5mg for 6 weeks."</div>
+                  <div style="font-size:10.5px;color:var(--text-3);margin-top:4px;">Amendment ID <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2);padding:1px 4px;border-radius:3px;font-size:10.5px;">AMD-00091</code> · prescriber review required · 24h SLA · 20h 38m remaining</div>
+                </div>
+                <div style="text-align:right;"><span style="display:inline-block;font-size:9.5px;font-weight:700;background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:3px;letter-spacing:.4px;">HELD</span><div style="font-size:10px;color:var(--brand);margin-top:6px;font-weight:600;">Decide →</div></div>
+              </div>
+
+              <!-- APPLIED: supply increase, immediate -->
+              <div style="display:grid;grid-template-columns:140px 1fr 100px;gap:14px;padding:14px 18px;border-bottom:.5px solid var(--border);">
+                <div style="font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums;">04 May · 14:38<div style="margin-top:2px;color:var(--text-2);">6 days ago</div></div>
+                <div style="font-size:12.5px;color:var(--text-1);line-height:1.5;">
+                  <strong>Patient self-applied</strong> supply increase <strong>1 month → 3 month</strong> · payment delta <code style="font-family:'SF Mono',Menlo,monospace;background:rgba(245,158,11,0.15);padding:1px 5px;border-radius:3px;font-size:11px;color:#92400e;">+£250.00 captured</code>
+                  <div style="font-size:10.5px;color:var(--text-3);margin-top:4px;">Amendment ID <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2);padding:1px 4px;border-radius:3px;font-size:10.5px;">AMD-00088</code> · immediate amendment · no prescriber review · invoice INV-00441 voided · INV-00441-A1 issued</div>
+                </div>
+                <div style="text-align:right;"><span style="display:inline-block;font-size:9.5px;font-weight:700;background:#ecfdf5;color:#10b981;padding:3px 8px;border-radius:3px;letter-spacing:.4px;">APPLIED</span></div>
+              </div>
+
+              <!-- APPLIED: dose decrease, immediate -->
+              <div style="display:grid;grid-template-columns:140px 1fr 100px;gap:14px;padding:14px 18px;">
+                <div style="font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums;">04 May · 14:24<div style="margin-top:2px;color:var(--text-2);">6 days ago</div></div>
+                <div style="font-size:12.5px;color:var(--text-1);line-height:1.5;">
+                  <strong>Patient self-applied</strong> dose decrease <strong>7.5mg → 5mg</strong> · payment delta <code style="font-family:'SF Mono',Menlo,monospace;background:rgba(16,185,129,0.15);padding:1px 5px;border-radius:3px;font-size:11px;color:#047857;">-£30.00 refunded</code>
+                  <div style="font-size:10.5px;color:var(--text-3);margin-top:4px;">Amendment ID <code style="font-family:'SF Mono',Menlo,monospace;background:var(--surface-2);padding:1px 4px;border-radius:3px;font-size:10.5px;">AMD-00086</code> · immediate amendment · refund processed Ryft REF-99412 · note: tolerance issue at 7.5mg per patient</div>
+                </div>
+                <div style="text-align:right;"><span style="display:inline-block;font-size:9.5px;font-weight:700;background:#ecfdf5;color:#10b981;padding:3px 8px;border-radius:3px;letter-spacing:.4px;">APPLIED</span></div>
+              </div>
+
+              <!-- Footer note -->
+              <div style="padding:12px 18px;font-size:11px;color:var(--text-3);background:var(--surface-2);border-top:.5px solid var(--border);line-height:1.5;">
+                <strong style="color:var(--text-2);">Audit retention:</strong> All amendments preserved indefinitely for AUD-04 compliance. Each row links to the full amendment audit detail (reason text, prescriber notes, Ryft transaction IDs). Voided invoices and replacements visible in <a href="livera_prototype_09_patient_profile.html" style="color:var(--brand);text-decoration:none;font-weight:600;">Patient profile → Documents</a> per BLD-AMEND-05.
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ACTIVITY LOG TAB ── -->
+        <div class="panel" id="panel-activity">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Activity log — ORD-00441</div>
+              <div class="card-sub">Chronological · all clinical + system events</div>
+            </div>
+            <div class="card-body" style="padding:12px 16px;">
+              <div class="act-list">
+                <div class="act-row"><div class="act-dot" style="background:var(--brand);"></div><div class="act-body"><div class="act-text"><strong>Order created</strong> — Reorder submitted via patient app · Reorder questionnaire v3 completed</div><div class="act-meta">System · auto-generated</div></div><div class="act-time">04 May · 14:22</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--green);"></div><div class="act-body"><div class="act-text"><strong>Payment authorised</strong> — £199.00 ring-fenced · Ryft AUTH-7782341</div><div class="act-meta">Ryft · authorise-not-capture</div></div><div class="act-time">04 May · 14:22</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--amber);"></div><div class="act-body"><div class="act-text"><strong>Entered Clinical Check</strong> — awaiting prescriber review</div><div class="act-meta">System · auto-routed to FeelTru queue</div></div><div class="act-time">04 May · 14:22</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--brand);"></div><div class="act-body"><div class="act-text"><strong>BMI AI verification</strong> — 94% confidence · photo verified, matches self-report</div><div class="act-meta">Sumsub · Livera AI</div></div><div class="act-time">04 May · 14:23</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--brand);"></div><div class="act-body"><div class="act-text"><strong>NICE CG189 checklist completed</strong> — 5/5 items confirmed by prescriber</div><div class="act-meta">Claire Moynehan · clinical-check screen</div></div><div class="act-time">04 May · 14:36</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--brand);"></div><div class="act-body"><div class="act-text"><strong>Dose escalation gate cleared</strong> — 6 weeks at 5mg ✓ · weight loss 4.1% trending toward 5% target ✓ · prior-dose evidence ✓</div><div class="act-meta">Livera clinical rules engine</div></div><div class="act-time">04 May · 14:36</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--green);"></div><div class="act-body"><div class="act-text"><strong>Clinical notes saved</strong> — 487 chars · auditable</div><div class="act-meta">Claire Moynehan · mandatory notes field</div></div><div class="act-time">04 May · 14:38</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--green);"></div><div class="act-body"><div class="act-text"><strong>Order approved</strong> — Mounjaro 5mg → 7.5mg · payment captured</div><div class="act-meta">Claire Moynehan · Prescriber sign-off</div></div><div class="act-time">04 May · 14:38</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--brand);"></div><div class="act-body"><div class="act-text"><strong>Prescription generated</strong> — PRX-00441 · single source of truth from Primed</div><div class="act-meta">Primed · auto-generated on approval</div></div><div class="act-time">04 May · 14:39</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--brand);"></div><div class="act-body"><div class="act-text"><strong>Routed to Primed</strong> — Cart ODR-99214 created · pre_dispensed status</div><div class="act-meta">Primed API · POST /v1/orders</div></div><div class="act-time">04 May · 14:39</div></div>
+                <div class="act-row"><div class="act-dot" style="background:var(--brand);"></div><div class="act-body"><div class="act-text"><strong>Approval email sent</strong> — "Your prescription has been approved" via Omnisend</div><div class="act-meta">Omnisend · order_approved template</div></div><div class="act-time">04 May · 14:40</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── PATIENT COMMS TAB ── -->
+        <div class="panel" id="panel-comms">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Patient communications</div>
+              <div class="card-sub">All emails, SMS, and Intercom interactions for this order</div>
+            </div>
+            <div class="card-body">
+              <div style="font-size:12px;color:var(--text-2);line-height:1.6;">
+                <div style="padding:8px 0;border-bottom:0.5px solid var(--border);">
+                  <strong>04 May 2026 · 14:40</strong> — Omnisend · subject: <em>"Your prescription has been approved"</em><br>
+                  <span style="color:var(--text-3);">Recipient: sarah.cookland@example.com · template tpl_order_approved_v2 · delivered</span>
+                </div>
+                <div style="padding:8px 0;border-bottom:0.5px solid var(--border);">
+                  <strong>04 May 2026 · 14:22</strong> — Omnisend · subject: <em>"Your reorder is being reviewed"</em><br>
+                  <span style="color:var(--text-3);">Recipient: sarah.cookland@example.com · template tpl_clinical_check_started · delivered</span>
+                </div>
+                <div style="padding:8px 0;color:var(--text-3);">No Intercom conversations on this order.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Annotation -->
+    <div class="ann">
+      <span class="al">UX notes</span>
+      <span>SCR-010 · Order Detail Admin (active state) · canonical · approved order awaiting Primed dispense</span>
+      <span class="at">BLD-Amendments</span>
+      <span>3-consent display · Photo consent guard · GP letter consent guard · ED safeguarding flag (BMI&lt;18.5) · Prior-dose evidence card · Watermarked Rx PDF · Single-source-of-truth note</span>
+      <span class="at">V1.2 Group 5</span>
+      <span>Treatment + GP + Photo consent shown with state, source, and timestamp · all auditable</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- GP letter modal -->
+<div class="modal-overlay" id="modal-gpletter" onclick="if(event.target.id==='modal-gpletter')closeModal('gpletter')">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-icon">✉</div>
+      <div class="modal-title">Send GP letter — Sarah Cookland</div>
+      <button class="modal-close" onclick="closeModal('gpletter')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-2);line-height:1.5;">
+        <strong>✓ GP communication consent on file</strong> · captured 28 Jan 2026 · letter will be sent to <strong>Robin Lane H&W</strong> (LS28 7DE).
+      </div>
+      <div class="modal-label">Template</div>
+      <select class="modal-select">
+        <option>Dose escalation notification (5mg → 7.5mg)</option>
+        <option>Treatment continuation update</option>
+        <option>Clinical change notification</option>
+      </select>
+      <div class="modal-label">Additional clinical context (optional)</div>
+      <textarea class="modal-textarea" placeholder="Any extra context for the GP. Letter is co-signed by Claire Moynehan."></textarea>
+      <div style="font-size:11px;color:var(--text-3);padding:6px 10px;background:var(--surface-2);border-radius:6px;line-height:1.5;">
+        Letter will be sent via Postmark · copy saved to patient record · GP receives a watermarked PDF of the prescription if relevant.
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-sm" onclick="closeModal('gpletter')">Cancel</button>
+      <button class="btn-sm primary" onclick="sendGPLetter()">Send GP letter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // Photo consent state — toggleable in demo, in production read from patient record
+  let photoConsent = 'no';
+
+  function togglePhotoConsent() {
+    photoConsent = photoConsent === 'yes' ? 'no' : 'yes';
+    document.getElementById('photo-evidence-locked').style.display = photoConsent === 'yes' ? 'none' : 'block';
+    document.getElementById('photo-evidence-given').style.display = photoConsent === 'yes' ? 'block' : 'none';
+    showToast(`Demo: photo consent toggled to "${photoConsent === 'yes' ? 'Given' : 'Declined'}"`);
+  }
+
+  // Tabs
+  function showTab(id, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+    el.classList.add('on');
+    document.getElementById('panel-' + id).classList.add('on');
+  }
+
+  // Toast
+  function showToast(msg, isError) {
+    const toast = document.getElementById('toast');
+    const icon = isError ? '<span style="color:#f87171;">✕</span>' : '<span style="color:#10b981;">✓</span>';
+    toast.innerHTML = icon + ' ' + msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2800);
+  }
+
+  // GP letter consent guard
+  function openGPLetterGuarded() {
+    // Read consent state from the GP action row
+    const row = document.getElementById('gp-action-row');
+    if (row.classList.contains('consent-no')) {
+      showToast('GP letter blocked — patient has not consented to GP communication', true);
+      return;
+    }
+    document.getElementById('modal-gpletter').classList.add('show');
+  }
+  function closeModal(k) { document.getElementById('modal-' + k).classList.remove('show'); }
+  function sendGPLetter() {
+    closeModal('gpletter');
+    showToast('✓ GP letter queued · watermarked Rx attached · copy saved to patient record');
+  }
+
+  // Workspace switcher
+  function toggleWSMenu() { document.getElementById('wsMenu').classList.toggle('open'); }
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#wsSwitcher') && !e.target.closest('#wsMenu')) document.getElementById('wsMenu').classList.remove('open');
+  });
+  function setWorkspace(ws) {
+    document.body.setAttribute('data-workspace', ws);
+    document.getElementById('wsMenu').classList.remove('open');
+    document.getElementById('wsName').textContent = ws === 'feeltru' ? 'FeelTru' : 'VSC';
+    document.getElementById('check-feeltru').style.opacity = ws === 'feeltru' ? '1' : '0';
+    document.getElementById('check-vsc').style.opacity = ws === 'vsc' ? '1' : '0';
+    showToast('Switched to ' + (ws === 'feeltru' ? 'FeelTru' : 'VSC'));
+  }
+</script>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

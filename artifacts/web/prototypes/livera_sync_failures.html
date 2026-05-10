@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<!--
+  CANONICAL SHELL TEMPLATE v1
+  Date locked: 7 May 2026
+  Single source of truth for shell-drift fix pass
+
+  USAGE:
+  - Copy the <style> :root block AND the topnav/sidebar markup verbatim
+  - Replace `VSC — Quanta Healthcare Ltd` with the per-screen workspace (e.g. "VSC — Quanta Healthcare Ltd")
+  - Replace `Mobeen Alam · CARE COORDINATOR` with the per-screen user
+  - Replace `tasks` with the slug of the active sidebar item:
+       dashboard | patients | orders | clinical-check | tasks | welcome-calls
+       complaints | incidents | gp-letters | kpi-dashboard | primed-flags | reports | settings
+  - Strip any `<div id="livera-nav">…</div>` demo strip from the source file
+  - Bump sidebar width from 218px → 240px if drifting
+  - Drop the body workspace data-attr if present (data-workspace="…")
+  - Replace any embedded ws-switcher (.ws-switcher) with the canonical topnav .ws element
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Sync Failures</title>
+
+<!-- ============ CANONICAL CSS — copy verbatim ============ -->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f0ef;color:#1f2937;font-size:14px;line-height:1.5}
+
+:root{
+  --brand:#6366f1; --brand-d:#4338ca; --brand-l:#eef2ff; --brand-mid:#818cf8;
+  --nav:#1e1b4b; --nav-2:#312e81;
+  --surface:#ffffff; --bg:#f1f0ef;
+  --t1:#0f172a; --t2:#475569; --t3:#94a3b8;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --ok:#10b981; --ok-bg:#ecfdf5; --ok-bdr:#a7f3d0;
+  --warn:#f59e0b; --warn-bg:#fffbeb; --warn-bdr:#fde68a;
+  --err:#ef4444; --err-bg:#fef2f2; --err-bdr:#fecaca;
+  --info:#3b82f6; --info-bg:#eff6ff; --info-bdr:#bfdbfe;
+  --proto:#0d9488; --proto-bg:#f0fdfa; --proto-bdr:#99f6e4;
+  --gov:#a855f7; --gov-bg:#faf5ff; --gov-bdr:#e9d5ff;
+}
+
+/* TOP NAV (canonical) */
+.topnav{background:var(--nav);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid),var(--brand));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+
+/* LAYOUT (canonical) */
+.layout{display:flex;min-height:calc(100vh - 36px)}
+
+/* SIDEBAR (canonical 240px) */
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--bdr);padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;padding:0 10px;margin:18px 0 6px}
+.sidebar .sec:first-child{margin-top:0}
+.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:var(--t2);text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+.sidebar a:hover{background:var(--brand-l);color:var(--t1)}
+.sidebar a.active{background:var(--brand-l);color:var(--brand);font-weight:600}
+.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:var(--brand);border-radius:0 2px 2px 0}
+.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bdr);color:var(--t2)}
+.sidebar .badge.warn{background:var(--warn-bg);color:var(--warn);border:.5px solid var(--warn-bdr)}
+.sidebar .badge.err{background:var(--err-bg);color:var(--err);border:.5px solid var(--err-bdr)}
+.sidebar .badge.muted{background:var(--bdr);color:var(--t3)}
+
+/* MAIN content area */
+.main{flex:1;padding:24px 30px;max-width:1280px;min-width:0}
+</style>
+</head>
+
+<body>
+
+<!-- ============ CANONICAL TOPNAV — copy verbatim ============ -->
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC — Quanta Healthcare Ltd and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Mobeen Alam · CARE COORDINATOR</span></div>
+</header>
+
+<div class="layout">
+
+  <!-- ============ CANONICAL SIDEBAR — copy verbatim ============
+       Set class="active" on the row matching the current screen.
+       Active class data-key reference at the top of the comment block above.
+  -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html" data-key="dashboard"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html" data-key="patients"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html" data-key="orders"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html" data-key="clinical-check"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html" data-key="tasks"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html" data-key="welcome-calls"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html" data-key="complaints"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html" data-key="incidents"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html" data-key="gp-letters"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html" data-key="kpi-dashboard"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html" data-key="primed-flags"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto);background:var(--proto-bg);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html" data-key="reports"><span class="ico">📈</span>Reports</a>
+
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html" data-key="settings"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <main class="main">
+    <!-- ============== Sync Failures retry surface ============== -->
+    <style>
+      .sf-topbar { padding: 12px 24px; border-bottom: 0.5px solid #e5e7eb; background: #fff; }
+      .sf-breadcrumb { font-size: 11.5px; color: #6b7280; display: flex; align-items: center; gap: 6px; }
+      .sf-breadcrumb a { color: var(--brand, #6366f1); text-decoration: none; font-weight: 500; }
+      .sf-breadcrumb a:hover { text-decoration: underline; }
+      .sf-breadcrumb .sep { color: #d1d5db; }
+      .sf-content { padding: 22px 24px; max-width: 1180px; }
+      
+      .sf-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 18px; }
+      .sf-header-icon { width: 44px; height: 44px; border-radius: 9px; background: linear-gradient(135deg, #fef2f2, #fecaca); color: #b91c1c; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+      .sf-header h1 { margin: 0; font-size: 18px; font-weight: 700; color: #1f2937; line-height: 1.3; letter-spacing: -0.2px; }
+      .sf-header .sub { font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.55; }
+      .sf-header .pill { font-size: 9px; font-weight: 700; background: #b91c1c; color: #fff; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.4px; vertical-align: middle; margin-left: 6px; }
+      
+      .sf-explainer { background: #fffbeb; border: 0.5px solid #fde68a; border-radius: 7px; padding: 11px 14px; margin-bottom: 18px; font-size: 12px; color: #78350f; line-height: 1.6; }
+      .sf-explainer strong { color: #78350f; font-weight: 700; }
+      .sf-explainer code { background: #fef3c7; padding: 1px 5px; border-radius: 3px; font-family: 'SF Mono', monospace; font-size: 11px; color: #78350f; }
+      
+      .sf-toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fafafa; border: 0.5px solid #e5e7eb; border-radius: 7px 7px 0 0; border-bottom: none; }
+      .sf-toolbar .filter-tabs { display: flex; gap: 4px; }
+      .sf-tab { font-size: 11.5px; font-weight: 600; padding: 5px 11px; border-radius: 5px; cursor: pointer; color: #6b7280; }
+      .sf-tab.active { background: #1e1b4b; color: #fff; }
+      .sf-tab:not(.active):hover { background: #f3f4f6; }
+      .sf-tab .count { font-weight: 700; margin-left: 4px; opacity: 0.85; }
+      .sf-toolbar .right-actions { margin-left: auto; display: flex; gap: 8px; }
+      
+      .sf-table { background: #fff; border: 0.5px solid #e5e7eb; border-radius: 0 0 7px 7px; overflow: hidden; }
+      .sf-row-head, .sf-row { display: grid; grid-template-columns: 1.6fr 1.2fr 2fr 1fr 0.8fr 1.4fr; gap: 12px; align-items: center; padding: 11px 14px; font-size: 12px; }
+      .sf-row-head { background: #fafafa; border-bottom: 0.5px solid #e5e7eb; font-size: 10.5px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; }
+      .sf-row { border-bottom: 0.5px solid #f3f4f6; }
+      .sf-row:last-child { border-bottom: none; }
+      .sf-row:hover { background: #fafbff; }
+      
+      .sf-cell-patient { display: flex; gap: 9px; align-items: center; }
+      .sf-cell-patient .av { width: 28px; height: 28px; border-radius: 6px; background: linear-gradient(135deg, #6366f1, #4338ca); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; flex-shrink: 0; }
+      .sf-cell-patient .info .nm { font-weight: 600; color: #1f2937; font-size: 12.5px; }
+      .sf-cell-patient .info .meta { font-size: 10.5px; color: #6b7280; margin-top: 1px; }
+      .sf-cell-patient a { text-decoration: none; color: inherit; }
+      .sf-cell-patient a:hover .nm { color: #4338ca; }
+      
+      .sf-cell-field { font-weight: 600; color: #1f2937; }
+      .sf-cell-field .field-icon { display: inline-block; margin-right: 5px; }
+      
+      .sf-cell-change { font-size: 11px; line-height: 1.5; }
+      .sf-cell-change .old { color: #6b7280; text-decoration: line-through; font-family: 'SF Mono', monospace; font-size: 10.5px; }
+      .sf-cell-change .arrow { color: #9ca3af; margin: 0 6px; }
+      .sf-cell-change .new { color: #1e40af; font-weight: 600; font-family: 'SF Mono', monospace; font-size: 10.5px; }
+      
+      .sf-cell-when { color: #6b7280; font-size: 11px; }
+      .sf-cell-when .age { font-weight: 600; color: #b91c1c; display: block; margin-top: 1px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.3px; }
+      
+      .sf-cell-retries { font-size: 11.5px; }
+      .sf-cell-retries .retry-pill { display: inline-flex; align-items: center; gap: 3px; background: #fef2f2; color: #991b1b; border: 0.5px solid #fecaca; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; }
+      .sf-cell-retries .last-error { font-size: 10px; color: #6b7280; margin-top: 3px; line-height: 1.4; }
+      
+      .sf-cell-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+      .sf-btn { font-size: 11px; font-weight: 600; padding: 5px 9px; border-radius: 4px; border: 0.5px solid #d1d5db; background: #fff; color: #374151; cursor: pointer; font-family: inherit; white-space: nowrap; }
+      .sf-btn:hover { background: #f3f4f6; }
+      .sf-btn.primary { background: #1e1b4b; color: #fff; border-color: #1e1b4b; }
+      .sf-btn.primary:hover { background: #312e81; }
+      .sf-btn.success { background: #166534; color: #fff; border-color: #166534; }
+      .sf-btn.compact { padding: 4px 7px; font-size: 10.5px; }
+      
+      .sf-empty { padding: 50px 20px; text-align: center; color: #6b7280; font-size: 13px; line-height: 1.55; }
+      .sf-empty .empty-icon { font-size: 32px; color: #d1d5db; margin-bottom: 12px; }
+    </style>
+    
+    <div class="sf-topbar">
+      <div class="sf-breadcrumb">
+        <a href="livera_owner_dashboard.html">Dashboard</a>
+        <span class="sep">›</span>
+        <span style="color:#374151;font-weight:600;">Sync failures</span>
+      </div>
+    </div>
+    
+    <div class="sf-content">
+      <div class="sf-header">
+        <div class="sf-header-icon">⚠</div>
+        <div>
+          <h1>Primed sync failures<span class="pill">3 OPEN</span></h1>
+          <div class="sub">Patient data updates that failed to push to Primed. Per DEC-25/DEC-28, every sync must be visible and retriable. Auto-retried 3× before landing here; manual intervention now required.</div>
+        </div>
+      </div>
+      
+      <div class="sf-explainer">
+        <strong>What's a sync failure?</strong> When you update a patient's data (address, contact, etc.), Livera tries to push the change to Primed via API. If Primed's endpoint returns an error after 3 auto-retries, the sync is parked here for human review. Common causes: <code>API timeout</code> · <code>field validation</code> · <code>order locked clinically</code> · <code>auth token expired</code>. Resolve via <strong>Retry</strong>, escalate to <strong>Pharmacy Comms</strong> (BLD-16.9), or <strong>Mark as resolved manually</strong> if Primed has been updated by other means.
+      </div>
+      
+      <div class="sf-toolbar">
+        <div class="filter-tabs">
+          <span class="sf-tab active">Open<span class="count">3</span></span>
+          <span class="sf-tab">Retrying<span class="count">0</span></span>
+          <span class="sf-tab">Resolved (7d)<span class="count">12</span></span>
+          <span class="sf-tab">All<span class="count">15</span></span>
+        </div>
+        <div class="right-actions">
+          <button class="sf-btn">⤓ Export CSV</button>
+          <button class="sf-btn primary" onclick="alert('Stub: retries all 3 failures sequentially. Each gets its own audit trail entry.')">↻ Retry all (3)</button>
+        </div>
+      </div>
+      
+      <div class="sf-table">
+        <div class="sf-row-head">
+          <span>Patient</span>
+          <span>Field</span>
+          <span>Old → New</span>
+          <span>Failed at</span>
+          <span>Retries</span>
+          <span>Actions</span>
+        </div>
+        
+        <!-- Failure 1: Sarah Cookland address — the canonical case from BLD-PT-EDIT -->
+        <div class="sf-row">
+          <div class="sf-cell-patient">
+            <a href="livera_prototype_09_patient_profile.html">
+              <div style="display:flex;gap:9px;align-items:center;">
+                <div class="av">SC</div>
+                <div class="info">
+                  <div class="nm">Sarah Cookland</div>
+                  <div class="meta">PT-00198 · ORD-00439</div>
+                </div>
+              </div>
+            </a>
+          </div>
+          <div class="sf-cell-field"><span class="field-icon">📍</span>Delivery address</div>
+          <div class="sf-cell-change">
+            <span class="old">3 Old Road, LS6</span><br>
+            <span class="arrow">→</span><span class="new">14 New Lane, LS18 4FJ</span>
+          </div>
+          <div class="sf-cell-when">06 May · 11:14<span class="age">3h ago</span></div>
+          <div class="sf-cell-retries">
+            <span class="retry-pill">3/3 ↻</span>
+            <div class="last-error">409 Conflict · order clinically locked</div>
+          </div>
+          <div class="sf-cell-actions">
+            <button class="sf-btn compact primary" onclick="alert('Stub: re-attempts Primed API push. Watch sync indicator on Patient Profile.')">↻ Retry</button>
+            <button class="sf-btn compact" onclick="window.location.href='livera_pharmacy_comms_thread.html#PCM-PT-0042'">📨 Send via Comms</button>
+            <button class="sf-btn compact" onclick="alert('Stub: opens manual resolve modal — captures reason (e.g. \'Updated directly with Primed via phone\') and closes the failure with audit trail.')">✓ Mark resolved</button>
+          </div>
+        </div>
+        
+        <!-- Failure 2: Beth Newman NHS number — failed validation -->
+        <div class="sf-row">
+          <div class="sf-cell-patient">
+            <a href="livera_prototype_09_patient_profile.html">
+              <div style="display:flex;gap:9px;align-items:center;">
+                <div class="av" style="background:linear-gradient(135deg,#0d9488,#14b8a6);">BN</div>
+                <div class="info">
+                  <div class="nm">Beth Newman</div>
+                  <div class="meta">PT-00198 · 4 orders affected</div>
+                </div>
+              </div>
+            </a>
+          </div>
+          <div class="sf-cell-field"><span class="field-icon">🆔</span>NHS number</div>
+          <div class="sf-cell-change">
+            <span class="old">(empty)</span>
+            <span class="arrow">→</span><span class="new">485 777 3456</span>
+          </div>
+          <div class="sf-cell-when">05 May · 16:42<span class="age">19h ago</span></div>
+          <div class="sf-cell-retries">
+            <span class="retry-pill">3/3 ↻</span>
+            <div class="last-error">422 · checksum invalid (10-digit format expected)</div>
+          </div>
+          <div class="sf-cell-actions">
+            <button class="sf-btn compact primary" onclick="alert('Stub: re-attempts. Will likely fail again — NHS number needs validation correction before retry will succeed.')">↻ Retry</button>
+            <button class="sf-btn compact" onclick="alert('Stub: opens edit modal pre-filled with the failing value, allowing correction before resubmit.')">✎ Edit value</button>
+            <button class="sf-btn compact" onclick="alert('Stub: opens manual resolve modal.')">✓ Mark resolved</button>
+          </div>
+        </div>
+        
+        <!-- Failure 3: Maria Kowalski phone — auth token expired -->
+        <div class="sf-row">
+          <div class="sf-cell-patient">
+            <a href="livera_prototype_09_patient_profile.html">
+              <div style="display:flex;gap:9px;align-items:center;">
+                <div class="av" style="background:linear-gradient(135deg,#a78bfa,#5b21b6);">MK</div>
+                <div class="info">
+                  <div class="nm">Maria Kowalski</div>
+                  <div class="meta">PT-00219 · 1 order affected</div>
+                </div>
+              </div>
+            </a>
+          </div>
+          <div class="sf-cell-field"><span class="field-icon">📞</span>Phone number</div>
+          <div class="sf-cell-change">
+            <span class="old">07700 900123</span>
+            <span class="arrow">→</span><span class="new">07700 900456</span>
+          </div>
+          <div class="sf-cell-when">04 May · 09:18<span class="age">2d ago</span></div>
+          <div class="sf-cell-retries">
+            <span class="retry-pill">3/3 ↻</span>
+            <div class="last-error">401 · Primed API token expired</div>
+          </div>
+          <div class="sf-cell-actions">
+            <button class="sf-btn compact primary" onclick="alert('Stub: re-attempts with refreshed token. Token rotation should now allow this through.')">↻ Retry</button>
+            <button class="sf-btn compact" onclick="window.location.href='livera_settings_landing.html'">⚙ Check Primed integration</button>
+            <button class="sf-btn compact" onclick="alert('Stub: opens manual resolve modal.')">✓ Mark resolved</button>
+          </div>
+        </div>
+      </div>
+      
+      <div style="margin-top:14px;padding:12px 16px;background:#fafbff;border:0.5px solid #c7d2fe;border-radius:7px;font-size:11.5px;color:#374151;line-height:1.55;">
+        <strong style="color:#4338ca;">Per DEC-25 audit-grade requirement:</strong> every retry, edit, or manual resolution writes a new entry to <a href="livera_audit_log.html" style="color:#4338ca;font-weight:600;text-decoration:none;">audit log</a> with editor identity, timestamp, action taken, and outcome. Failed syncs older than 7 days auto-escalate to RM as a flagged task.
+      </div>
+    </div>
+  </main>
+</div>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

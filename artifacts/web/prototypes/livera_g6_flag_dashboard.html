@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Livera — Clinical Flag Dashboard · Group 6</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --brand: #6366f1; --brand-d: #4338ca; --brand-l: #eef2ff; --brand-mid: #818cf8;
+    --nav: #1e1b4b;
+    --surface: #ffffff; --surface-2: #f9f9f9; --surface-3: #f1f0ef;
+    --bdr: rgba(0,0,0,0.08); --bdr-s: rgba(0,0,0,0.13);
+    --t1: #0d0d0d; --t2: #5c5c5c; --t3: #9ca3af;
+    --amber: #b45309; --amber-bg: #fffbeb; --amber-bdr: #fde68a;
+    --red: #991b1b; --red-mid: #dc2626; --red-bg: #fff1f1; --red-bdr: #fca5a5;
+    --green: #166534; --green-bg: #f0fdf4; --green-bdr: #86efac;
+    --teal: #0d9488; --teal-d: #0f766e; --teal-bg: #f0fdfa; --teal-bdr: #99f6e4;
+    --warn: #f59e0b;
+    --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--surface-2); color: var(--t1);
+    font-size: 13px; line-height: 1.5;
+    padding-top: 36px;
+  }
+
+  /* Top nav */
+  #livera-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 99999;
+    background: var(--nav); border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex; align-items: center; height: 36px; padding: 0 12px; gap: 4px;
+    overflow-x: auto; scrollbar-width: none; }
+  #livera-nav::-webkit-scrollbar { display: none; }
+  #livera-nav-logo { font-size: 12px; font-weight: 700; color: #818cf8;
+    margin-right: 8px; white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
+  #livera-nav a { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.55);
+    text-decoration: none; padding: 3px 9px; border-radius: 4px;
+    white-space: nowrap; flex-shrink: 0; transition: all .15s; }
+  #livera-nav a:hover { background: rgba(99,102,241,.25); color: #fff; }
+  #livera-nav a.nav-current { background: rgba(99,102,241,.35); color: #c7d2fe; }
+  #livera-nav-sep { color: rgba(255,255,255,.15); font-size: 10px; flex-shrink: 0; }
+
+  /* Layout */
+  .shell { display: flex; min-height: calc(100vh - 36px); }
+
+  /* Sidebar */
+  .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--bdr);
+    padding: 18px 12px; flex-shrink: 0; position: sticky; top: 36px;
+    height: calc(100vh - 36px); overflow-y: auto; }
+  .sidebar .sec { font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--t3); font-weight: 700; padding: 0 8px; margin: 18px 0 6px; }
+  .sidebar .sec:first-child { margin-top: 0; }
+  .sidebar a { display: flex; align-items: center; gap: 9px; padding: 7px 9px;
+    font-size: 13px; font-weight: 500; color: var(--t2); text-decoration: none;
+    border-radius: 6px; margin-bottom: 1px; transition: background .12s, color .12s; }
+  .sidebar a:hover { background: var(--brand-l); color: var(--t1); }
+  .sidebar a.active { background: var(--brand-l); color: var(--brand); font-weight: 600; }
+  .sidebar a .ico { width: 16px; height: 16px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 13px; }
+
+  /* Main */
+  .main { flex: 1; min-width: 0; }
+  .topbar { height: 56px; background: var(--surface); border-bottom: 1px solid var(--bdr);
+    padding: 0 24px; display: flex; align-items: center; gap: 14px; }
+  .breadcrumb { font-size: 12px; color: var(--t3); display: flex; align-items: center; gap: 6px; }
+  .breadcrumb a { color: var(--t2); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--brand-d); }
+  .breadcrumb .sep { color: var(--t3); }
+  .breadcrumb .cur { color: var(--t1); font-weight: 600; }
+
+  .content { padding: 24px; max-width: 1280px; }
+
+  /* Page title */
+  .pt-strip {
+    display: flex; align-items: flex-start; gap: 16px;
+    margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--bdr);
+  }
+  .pt-strip .pt-info h1 {
+    font-size: 22px; font-weight: 700; color: var(--t1);
+    letter-spacing: -0.5px; line-height: 1.2;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .pt-strip .pt-info h1 .g6-pill {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
+    background: var(--teal-bg); color: var(--teal); border: 1px solid var(--teal-bdr);
+    padding: 2px 7px; border-radius: 3px; vertical-align: middle;
+  }
+  .pt-strip .pt-info .sub { font-size: 13px; color: var(--t2); margin-top: 4px; }
+  .pt-strip .pt-info .sub a { color: var(--brand-d); text-decoration: none; font-weight: 600; }
+  .pt-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    padding: 7px 14px; font-size: 12px; font-weight: 600;
+    background: var(--surface); color: var(--t2);
+    border: 1px solid var(--bdr-s); border-radius: 6px;
+    cursor: pointer; font-family: inherit;
+    display: inline-flex; align-items: center; gap: 6px;
+    text-decoration: none; transition: all .12s;
+  }
+  .btn:hover { border-color: var(--brand); color: var(--brand); }
+  .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .btn.primary:hover { background: var(--brand-d); border-color: var(--brand-d); color: #fff; }
+  .btn.teal { background: var(--teal); color: #fff; border-color: var(--teal); }
+  .btn.teal:hover { background: var(--teal-d); border-color: var(--teal-d); color: #fff; }
+
+  /* Filter bar */
+  .filter-bar {
+    background: var(--surface); border: 1px solid var(--bdr); border-radius: var(--r-md);
+    padding: 12px 16px; margin-bottom: 18px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .filter-bar .lbl {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--t3);
+  }
+  .fb-group {
+    display: flex; gap: 0; border: 1px solid var(--bdr-s); border-radius: 6px; overflow: hidden;
+  }
+  .fb-group .fb-btn {
+    padding: 5px 11px; font-size: 11px; background: var(--surface);
+    color: var(--t2); border: none; cursor: pointer; font-family: inherit;
+    border-right: 1px solid var(--bdr-s); transition: all .12s;
+  }
+  .fb-group .fb-btn:last-child { border-right: none; }
+  .fb-group .fb-btn.on { background: var(--brand); color: #fff; }
+  .fb-group .fb-btn:hover:not(.on) { background: var(--brand-l); color: var(--brand-d); }
+
+  /* Headline tile (proactive disclosure effectiveness) */
+  .headline {
+    display: grid; grid-template-columns: 1.4fr 1fr;
+    gap: 16px; margin-bottom: 18px;
+  }
+  .headline-card {
+    background: linear-gradient(135deg, var(--teal) 0%, var(--teal-d) 100%);
+    color: #fff; padding: 22px 26px; border-radius: var(--r-md);
+    position: relative; overflow: hidden;
+  }
+  .headline-card::after {
+    content: ''; position: absolute; right: -40px; bottom: -40px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(255,255,255,.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .headline-card .lbl {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; opacity: 0.85;
+  }
+  .headline-card .val {
+    font-size: 56px; font-weight: 700; line-height: 1;
+    letter-spacing: -1.5px; margin-top: 8px;
+    display: flex; align-items: baseline; gap: 4px;
+  }
+  .headline-card .val .unit { font-size: 22px; font-weight: 500; opacity: 0.9; }
+  .headline-card .delta {
+    margin-top: 10px; font-size: 13px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; background: rgba(255,255,255,.18);
+    border-radius: 999px;
+  }
+  .headline-card .delta.up { color: #d1fae5; }
+  .headline-card .meta {
+    margin-top: 12px; font-size: 11.5px; line-height: 1.5;
+    opacity: 0.85; max-width: 80%;
+  }
+  .headline-card .meta strong { font-weight: 600; opacity: 1; }
+
+  .annex-link {
+    background: var(--surface); border: 1px solid var(--bdr);
+    border-radius: var(--r-md); padding: 18px 22px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .annex-link .lbl {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--t3);
+  }
+  .annex-link h4 {
+    font-size: 14px; font-weight: 600; color: var(--t1);
+  }
+  .annex-link p { font-size: 11.5px; color: var(--t2); line-height: 1.5; }
+  .annex-link .links { display: flex; gap: 8px; margin-top: auto; flex-wrap: wrap; }
+
+  /* KPI strip */
+  .kpi-strip {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
+    background: var(--bdr); border: 1px solid var(--bdr); border-radius: var(--r-md);
+    overflow: hidden; margin-bottom: 18px;
+  }
+  .kpi { background: var(--surface); padding: 12px 16px; }
+  .kpi .lbl {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--t3);
+  }
+  .kpi .val {
+    font-size: 22px; font-weight: 700; color: var(--t1); line-height: 1;
+    margin-top: 5px; letter-spacing: -0.3px;
+  }
+  .kpi .meta { font-size: 10px; color: var(--t2); margin-top: 4px; line-height: 1.35; }
+  .kpi.green .val { color: var(--green); }
+  .kpi.amber .val { color: var(--amber); }
+  .kpi-delta {
+    font-size: 10px; font-weight: 700;
+    padding: 1px 6px; border-radius: 3px;
+    display: inline-flex; align-items: center; gap: 3px; margin-top: 4px;
+  }
+  .kpi-delta.up { background: var(--green-bg); color: var(--green); }
+  .kpi-delta.down { background: var(--red-bg); color: var(--red); }
+
+  /* Section card */
+  .scard {
+    background: var(--surface); border: 1px solid var(--bdr); border-radius: var(--r-md);
+    margin-bottom: 18px; overflow: hidden;
+  }
+  .scard-head {
+    padding: 14px 18px; border-bottom: 1px solid var(--bdr);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .scard-head .ttl {
+    font-size: 14px; font-weight: 600; color: var(--t1);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .scard-head .sub { font-size: 11px; color: var(--t3); margin-left: 4px; }
+  .scard-head .right { margin-left: auto; font-size: 11px; color: var(--t3); }
+  .scard-body { padding: 18px; }
+
+  /* Two-column charts row */
+  .two-col {
+    display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px;
+    margin-bottom: 18px;
+  }
+  .two-col .scard { margin-bottom: 0; }
+
+  /* Bar chart — flag fire frequency */
+  .barchart { width: 100%; }
+  .bar-row {
+    display: grid; grid-template-columns: 90px 1fr 50px 60px;
+    align-items: center; gap: 10px;
+    padding: 7px 0;
+  }
+  .bar-row .bar-code {
+    font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 4px; letter-spacing: 0.3px;
+    display: inline-flex; align-items: center; gap: 4px;
+    width: fit-content;
+  }
+  .bar-row .bar-code.crit { background: #7f1d1d; color: #fff; }
+  .bar-row .bar-code.high { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-bdr); }
+  .bar-row .bar-code.med { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-bdr); }
+  .bar-row .bar-code .lbl-name { font-weight: 500; opacity: 0.8; }
+  .bar-row .bar-track {
+    height: 18px; background: var(--surface-2); border-radius: 4px; position: relative;
+    overflow: hidden;
+  }
+  .bar-row .bar-fill {
+    height: 100%; background: var(--brand);
+    border-radius: 4px; transition: width 0.4s;
+    position: relative;
+  }
+  .bar-row .bar-fill.proactive {
+    position: absolute; left: 0; top: 0; height: 100%;
+    background: var(--teal); border-radius: 4px 0 0 4px;
+    z-index: 1;
+  }
+  .bar-row .bar-count {
+    font-size: 12px; font-weight: 600; color: var(--t1); text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .bar-row .bar-pct {
+    font-size: 11px; color: var(--teal); font-weight: 600;
+    text-align: right; font-variant-numeric: tabular-nums;
+  }
+  .bar-legend {
+    display: flex; gap: 14px; font-size: 11px; color: var(--t2);
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--bdr);
+    flex-wrap: wrap;
+  }
+  .bar-legend .leg-item { display: flex; align-items: center; gap: 5px; }
+  .bar-legend .swatch { width: 14px; height: 8px; border-radius: 2px; }
+  .bar-legend .swatch.brand { background: var(--brand); }
+  .bar-legend .swatch.teal { background: var(--teal); }
+
+  /* Donut chart */
+  .donut-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 0;
+  }
+  .donut-svg { width: 180px; height: 180px; }
+  .donut-center {
+    text-align: center; margin-top: -110px; margin-bottom: 30px;
+    pointer-events: none;
+  }
+  .donut-center .v { font-size: 26px; font-weight: 700; color: var(--t1); letter-spacing: -0.5px; line-height: 1; }
+  .donut-center .l { font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 4px; }
+  .donut-legend {
+    width: 100%; margin-top: 14px;
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  .donut-legend .leg-item {
+    display: flex; align-items: center; gap: 8px; font-size: 11.5px;
+  }
+  .donut-legend .leg-item .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .donut-legend .leg-item .swatch.crit { background: #7f1d1d; }
+  .donut-legend .leg-item .swatch.high { background: var(--red-mid); }
+  .donut-legend .leg-item .swatch.med { background: var(--warn); }
+  .donut-legend .leg-item .lbl { color: var(--t2); flex: 1; }
+  .donut-legend .leg-item .val { color: var(--t1); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* Trend chart */
+  .trend-svg { width: 100%; height: 240px; display: block; }
+  .trend-legend {
+    display: flex; gap: 16px; margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid var(--bdr); flex-wrap: wrap;
+  }
+  .trend-legend .leg-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--t2); }
+  .trend-legend .swatch { width: 18px; height: 2.5px; border-radius: 1px; }
+  .trend-legend .swatch.flags { background: var(--brand); }
+  .trend-legend .swatch.proactive { background: var(--teal); }
+  .trend-legend .swatch.intervened { background: var(--warn); }
+
+  /* Top contributors table */
+  .contrib-row {
+    display: grid;
+    grid-template-columns: 24px 1fr 70px 90px 100px 80px;
+    gap: 0; padding: 10px 18px;
+    border-bottom: 1px solid var(--bdr);
+    align-items: center; font-size: 12px;
+  }
+  .contrib-row.head {
+    background: var(--surface-2);
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--t3);
+    padding: 8px 18px;
+  }
+  .contrib-row .rank { color: var(--t3); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .contrib-row .who {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .contrib-row .who .av {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand-mid), var(--brand-d));
+    color: #fff; font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .contrib-row .who .name-block { min-width: 0; }
+  .contrib-row .who .name { color: var(--t1); font-weight: 600; line-height: 1.2; }
+  .contrib-row .who .role { font-size: 10px; color: var(--t3); }
+  .contrib-row .num { color: var(--t1); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .contrib-row .pct {
+    font-size: 11px; font-weight: 700;
+    padding: 2px 7px; border-radius: 3px;
+    background: var(--teal-bg); color: var(--teal);
+    width: fit-content;
+  }
+
+  /* Footer note */
+  .perm-note {
+    font-size: 11px; color: var(--t2);
+    padding: 12px 16px; background: var(--surface-2);
+    border: 1px dashed var(--bdr-s); border-radius: 6px;
+    line-height: 1.55;
+  }
+  .perm-note strong { color: var(--t1); font-weight: 600; }
+  .perm-note code { background: var(--brand-l); color: var(--brand-d); padding: 1px 5px; border-radius: 3px; font-size: 10.5px; }
+
+  /* Annotation */
+  .ann {
+    display: flex; gap: 8px; padding: 12px 16px; margin-top: 22px;
+    background: var(--surface); border: 1px dashed var(--bdr-s); border-radius: 6px;
+    font-size: 11px; color: var(--t2); flex-wrap: wrap; align-items: center;
+  }
+  .ann .al { font-weight: 700; color: var(--brand-d); }
+  .ann .at { font-weight: 600; color: var(--t1); margin-left: 14px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #1f2937; color: #fff;
+    font-size: 12px; font-weight: 500; padding: 10px 16px;
+    border-radius: 999px; z-index: 300;
+    display: none; align-items: center; gap: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+  }
+  .toast.show { display: flex; }
+
+/* CANONICAL TOPNAV (added by shell-fix pass) */
+.topnav{background:var(--nav,#1e1b4b);color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,var(--brand-mid,#818cf8),var(--brand,#6366f1));border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+/* Workspace switcher (canonical) — clickable label opens dropdown
+   Visible at rest as the existing static label; chevron+dropdown only shown
+   when user has access to >1 workspace. */
+.topnav .ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.topnav .ws-trigger:hover{background:rgba(255,255,255,.08)}
+.topnav .ws-trigger strong{color:#fff;font-weight:700}
+.topnav .ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px;line-height:1}
+.topnav .ws-popover{display:none;position:absolute;top:36px;left:80px;background:#fff;color:#1f2937;border:0.5px solid #d1d5db;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);min-width:280px;z-index:200;font-size:12.5px;overflow:hidden}
+.topnav .ws-popover.open{display:block}
+.topnav .ws-popover .wsp-section{padding:10px 14px;border-bottom:0.5px solid #e5e7eb}
+.topnav .ws-popover .wsp-section:last-child{border-bottom:none}
+.topnav .ws-popover .wsp-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.topnav .ws-popover .wsp-current{display:flex;align-items:center;gap:8px;padding:6px 0}
+.topnav .ws-popover .wsp-current .wsp-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,#9697e8,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .ws-popover .wsp-current .wsp-name{font-weight:700;color:#1f2937;font-size:13px;line-height:1.2}
+.topnav .ws-popover .wsp-current .wsp-sub{font-size:10px;color:#6b7280;line-height:1.2}
+.topnav .ws-popover .wsp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-radius:5px;margin:0 -6px;padding-left:6px;padding-right:6px;cursor:pointer;color:#1f2937}
+.topnav .ws-popover .wsp-row:hover{background:#f3f4f6}
+.topnav .ws-popover .wsp-row .wsp-mark.alt{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.topnav .ws-popover .wsp-row strong{font-weight:600;font-size:12.5px}
+.topnav .ws-popover .wsp-row .wsp-arrow{margin-left:auto;color:#9ca3af;font-size:14px}
+.topnav .ws-popover .wsp-foot{font-size:10px;color:#6b7280;padding:8px 14px;background:#f9fafb;line-height:1.4}
+
+/* Confirm modal for workspace switch */
+.ws-confirm-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center}
+.ws-confirm-overlay.open{display:flex}
+.ws-confirm{background:#fff;border-radius:10px;padding:0;width:440px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.3);overflow:hidden;color:#1f2937;font-family:inherit}
+.ws-confirm-head{padding:18px 22px;border-bottom:0.5px solid #e5e7eb;display:flex;align-items:center;gap:10px}
+.ws-confirm-head .ico{width:28px;height:28px;border-radius:6px;background:#fef3c7;color:#b45309;display:flex;align-items:center;justify-content:center;font-size:14px}
+.ws-confirm-head h3{margin:0;font-size:14px;font-weight:700;color:#1f2937}
+.ws-confirm-body{padding:18px 22px;font-size:13px;line-height:1.55;color:#374151}
+.ws-confirm-body p{margin:0 0 10px 0}
+.ws-confirm-body p:last-child{margin-bottom:0}
+.ws-confirm-body strong{color:#1f2937}
+.ws-confirm-foot{padding:12px 22px;background:#f9fafb;border-top:0.5px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end}
+.ws-confirm-foot button{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:0.5px solid #d1d5db;background:#fff;color:#374151;font-family:inherit}
+.ws-confirm-foot button.primary{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.ws-confirm-foot button:hover{background:#f3f4f6}
+.ws-confirm-foot button.primary:hover{background:#312e81}
+
+</style>
+</head>
+<body>
+
+
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" onclick="toggleWsSwitcher(event)" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+    <div class="ws-popover" id="ws-popover" role="menu">
+      <div class="wsp-section">
+        <div class="wsp-label">Currently in</div>
+        <div class="wsp-current">
+          <span class="wsp-mark">V</span>
+          <div>
+            <div class="wsp-name">VSC — Quanta Healthcare Ltd</div>
+            <div class="wsp-sub">Clinic 001 · GLP-1 weight management</div>
+          </div>
+        </div>
+      </div>
+      <div class="wsp-section">
+        <div class="wsp-label">Switch to</div>
+        <div class="wsp-row" onclick="confirmWsSwitch('FeelTru — FeelTru Ltd', 'Clinic 002 · women-only')">
+          <span class="wsp-mark alt">F</span>
+          <strong>FeelTru — FeelTru Ltd</strong>
+          <span class="wsp-arrow">→</span>
+        </div>
+      </div>
+      <div class="wsp-foot">
+        Switching workspaces signs you out of VSC and reloads into the selected workspace. Each workspace has fully isolated data — no cross-clinic views.
+      </div>
+    </div>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<!-- Top nav -->
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html" class="active"><span class="ico">🚩</span>Clinical Flags <span style="font-size:9px;color:var(--proto,#0d9488);background:var(--proto-bg,#f0fdfa);padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">G6</span></a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="breadcrumb">
+        <a href="livera_settings_landing.html">Settings</a>
+        <span class="sep">›</span>
+        <a href="livera_settings_landing.html#compliance">Compliance &amp; audits</a>
+        <span class="sep">›</span>
+        <span class="cur">Clinical Flag Dashboard</span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Page title -->
+      <div class="pt-strip">
+        <div class="pt-info">
+          <h1>Clinical Flag Dashboard <span class="g6-pill">G6 · BLD-16.6</span></h1>
+          <div class="sub">
+            Mirrors Annex H §B2/B3 · proactive disclosure effectiveness · CSV export aligned with Primed governance handover
+          </div>
+        </div>
+        <div class="pt-actions">
+          <button class="btn" onclick="showToast('Stub · CSV export in Annex H §B2/B3 format · ready for Shahid handover')">⤓ Export CSV</button>
+          <button class="btn" onclick="showToast('Stub · PDF export with charts + audit trail')">⤓ Export PDF</button>
+          <button class="btn primary" onclick="showToast('Stub · Schedule monthly auto-export to Primed governance email')">📧 Schedule export</button>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <span class="lbl">Range</span>
+        <div class="fb-group">
+          <button class="fb-btn">7d</button>
+          <button class="fb-btn">30d</button>
+          <button class="fb-btn on">90d</button>
+          <button class="fb-btn">YTD</button>
+          <button class="fb-btn">All</button>
+        </div>
+        <span class="lbl" style="margin-left:8px;">Clinic</span>
+        <div class="fb-group">
+          <button class="fb-btn on">All clinics</button>
+          <button class="fb-btn">VSC</button>
+          <button class="fb-btn">FeelTru</button>
+        </div>
+        <span class="lbl" style="margin-left:8px;">Severity</span>
+        <div class="fb-group">
+          <button class="fb-btn on">All</button>
+          <button class="fb-btn">Critical only</button>
+          <button class="fb-btn">High+</button>
+        </div>
+        <span style="margin-left:auto;font-size:11px;color:var(--t3);">Window: 06 Feb 2026 → 06 May 2026</span>
+      </div>
+
+      <!-- Headline (proactive disclosure effectiveness) + Annex H reference card -->
+      <div class="headline">
+        <div class="headline-card">
+          <div class="lbl">Proactive disclosure effectiveness</div>
+          <div class="val">73 <span class="unit">%</span></div>
+          <div class="delta up">⬈ +18 pts vs prior 90d</div>
+          <div class="meta">
+            73% of flags fired on Livera-side (164 of 224) had a proactive note attached <strong>before</strong> Primed needed to raise an Annex G query. Up from 55% in the prior 90-day window. Target: ≥80% by Q3 2026.
+          </div>
+        </div>
+        <div class="annex-link">
+          <span class="lbl">Annex H reference</span>
+          <h4>Mirrors Primed §B2 + §B3 reporting format</h4>
+          <p>Numbers on this dashboard match Primed's monthly governance report exactly. Same flag definitions, same severity bands, same time windows. CSV export produces an Annex H-compliant file for direct comparison against Primed's report at the next governance review.</p>
+          <div class="links">
+            <a class="btn" href="livera_g6_flag_rules.html">⚙ Configure rules →</a>
+            <a class="btn" onclick="showToast('Stub · opens Primed governance handover guidance')">📖 Annex H format</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="kpi-strip">
+        <div class="kpi">
+          <div class="lbl">Flags fired (90d)</div>
+          <div class="val">224</div>
+          <div class="meta">Across all 9 mirrored Annex E codes</div>
+          <span class="kpi-delta up">↑ 12% vs prior</span>
+        </div>
+        <div class="kpi green">
+          <div class="lbl">Proactive notes attached</div>
+          <div class="val">164</div>
+          <div class="meta">Authored at approval-time via BLD-16.4</div>
+          <span class="kpi-delta up">↑ 28% vs prior</span>
+        </div>
+        <div class="kpi amber">
+          <div class="lbl">Annex G queries raised</div>
+          <div class="val">38</div>
+          <div class="meta">By Primed despite Livera-side flag</div>
+          <span class="kpi-delta down">↓ 41% vs prior</span>
+        </div>
+        <div class="kpi green">
+          <div class="lbl">SLA-compliant responses</div>
+          <div class="val">96 <span style="font-size:13px;font-weight:500;color:var(--t3);">%</span></div>
+          <div class="meta">Clinic responded within 24h</div>
+          <span class="kpi-delta up">↑ 4 pts vs prior</span>
+        </div>
+        <div class="kpi">
+          <div class="lbl">Avg resolution time</div>
+          <div class="val">4.2 <span style="font-size:13px;font-weight:500;color:var(--t3);">h</span></div>
+          <div class="meta">From query raised → query closed</div>
+          <span class="kpi-delta up">↓ 1.1h vs prior</span>
+        </div>
+      </div>
+
+      <!-- Bar chart + donut row -->
+      <div class="two-col">
+        <div class="scard">
+          <div class="scard-head">
+            <div class="ttl">📊 Flag fire frequency by code</div>
+            <div class="sub">9 mirrored Annex E flags · last 90 days</div>
+            <div class="right">teal segment = proactive note attached</div>
+          </div>
+          <div class="scard-body">
+            <div class="barchart">
+              <!-- A2 -->
+              <div class="bar-row">
+                <span class="bar-code high"><span>A2</span><span class="lbl-name">Identity</span></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:18%;"></div>
+                  <div class="bar-fill proactive" style="width:14%;"></div>
+                </div>
+                <span class="bar-count">12</span>
+                <span class="bar-pct">75%</span>
+              </div>
+              <!-- B1 -->
+              <div class="bar-row">
+                <span class="bar-code med"><span>B1</span><span class="lbl-name">BMI Missing</span></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:12%;"></div>
+                  <div class="bar-fill proactive" style="width:10%;"></div>
+                </div>
+                <span class="bar-count">8</span>
+                <span class="bar-pct">88%</span>
+              </div>
+              <!-- B2 -->
+              <div class="bar-row">
+                <span class="bar-code med"><span>B2</span><span class="lbl-name">BMI Outdated</span></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:21%;"></div>
+                  <div class="bar-fill proactive" style="width:18%;"></div>
+                </div>
+                <span class="bar-count">14</span>
+                <span class="bar-pct">86%</span>
+              </div>
+              <!-- B3 — high frequency, the big one -->
+              <div class="bar-row">
+                <span class="bar-code high"><span>B3</span><span class="lbl-name">Low BMI Initial</span></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:62%;"></div>
+                  <div class="bar-fill proactive" style="width:42%;"></div>
+                </div>
+                <span class="bar-count">41</span>
+                <span class="bar-pct">68%</span>
+              </div>
+              <!-- B4 — also frequent -->
+              <div class="bar-row">
+                <span class="bar-code med"><span>B4</span><span class="lbl-name">Low BMI Repeat</span></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:96%;"></div>
+                  <div class="bar-fill proactive" style="width:74%;"></div>
+                </div>
+                <span class="bar-count">63</span>
+                <span class="bar-pct">77%</span>
+              </div>
+              <!-- C1 -->
+              <div class="bar-row">
+                <span class="bar-code high"><span>C1</span><span class="lbl-name">Wrong Start Dose</span></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:9%;"></div>
+                  <div class="bar-fill proactive" style="width:8%;"></div>
+                </div>
+                <span class="bar-count">6</span>
+                <span class="bar-pct">100%</span>
+              </div>
+              <!-- C2 -->
+              <div class="bar-row">
+                <span class="bar-code high"><span>C2</span><span class="lbl-name">Excessive Increase</span></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:34%;"></div>
+                  <div class="bar-fill proactive" style="width:24%;"></div>
+                </div>
+                <span class="bar-count">22</span>
+                <span class="bar-pct">73%</span>
+              </div>
+              <!-- C3 -->
+              <div class="bar-row">
+                <span class="bar-code med"><span>C3</span><span class="lbl-name">Off-pathway Dose</span></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:58%;"></div>
+                  <div class="bar-fill proactive" style="width:42%;"></div>
+                </div>
+                <span class="bar-count">38</span>
+                <span class="bar-pct">76%</span>
+              </div>
+              <!-- E2 — critical -->
+              <div class="bar-row">
+                <span class="bar-code crit"><span>E2</span><span class="lbl-name">Treatment Conflict</span></span>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:18%;"></div>
+                  <div class="bar-fill proactive" style="width:18%;"></div>
+                </div>
+                <span class="bar-count">12</span>
+                <span class="bar-pct">100%</span>
+              </div>
+            </div>
+            <div class="bar-legend">
+              <div class="leg-item"><span class="swatch brand"></span>Total flags fired</div>
+              <div class="leg-item"><span class="swatch teal"></span>Of which: proactive note attached</div>
+              <div class="leg-item" style="margin-left:auto;color:var(--t3);font-style:italic;">B4 dominates · driven by reorder programme weight-loss success</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Donut: severity distribution -->
+        <div class="scard">
+          <div class="scard-head">
+            <div class="ttl">🎯 Severity distribution</div>
+            <div class="sub">All flags · 90d</div>
+          </div>
+          <div class="scard-body">
+            <div class="donut-wrap">
+              <svg class="donut-svg" viewBox="0 0 180 180">
+                <!-- Donut: 224 total. Critical 12 (5.4%), High 81 (36.2%), Medium 131 (58.5%) -->
+                <!-- Circumference = 2*pi*70 = 439.82. Stroke arcs are circumference fractions. -->
+                <!-- Order rendered: Critical first (offset 0), then High, then Medium -->
+                <g transform="translate(90,90)">
+                  <!-- Background ring -->
+                  <circle r="70" fill="none" stroke="#f1f0ef" stroke-width="22"/>
+                  <!-- Medium 58.5% = 257.3 length — start at top -->
+                  <circle r="70" fill="none" stroke="#f59e0b" stroke-width="22"
+                    stroke-dasharray="257.3 439.82" stroke-dashoffset="0"
+                    transform="rotate(-90)"/>
+                  <!-- High 36.2% = 159.2 length — starts after Medium -->
+                  <circle r="70" fill="none" stroke="#dc2626" stroke-width="22"
+                    stroke-dasharray="159.2 439.82" stroke-dashoffset="-257.3"
+                    transform="rotate(-90)"/>
+                  <!-- Critical 5.4% = 23.7 length — starts after Medium + High -->
+                  <circle r="70" fill="none" stroke="#7f1d1d" stroke-width="22"
+                    stroke-dasharray="23.7 439.82" stroke-dashoffset="-416.5"
+                    transform="rotate(-90)"/>
+                </g>
+              </svg>
+              <div class="donut-center">
+                <div class="v">224</div>
+                <div class="l">Total flags · 90d</div>
+              </div>
+              <div class="donut-legend">
+                <div class="leg-item">
+                  <span class="swatch crit"></span>
+                  <span class="lbl">Critical (E2)</span>
+                  <span class="val">12 · 5.4%</span>
+                </div>
+                <div class="leg-item">
+                  <span class="swatch high"></span>
+                  <span class="lbl">High</span>
+                  <span class="val">81 · 36.2%</span>
+                </div>
+                <div class="leg-item">
+                  <span class="swatch med"></span>
+                  <span class="lbl">Medium</span>
+                  <span class="val">131 · 58.5%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trend chart: flags fired vs proactive notes vs Annex G queries over time -->
+      <div class="scard">
+        <div class="scard-head">
+          <div class="ttl">📈 Intervention burden trend</div>
+          <div class="sub">Weekly · last 13 weeks · the headline narrative</div>
+          <div class="right">↓ Annex G queries falling as proactive notes climb</div>
+        </div>
+        <div class="scard-body">
+          <!-- SVG line chart, viewBox 800x240, plot area 50,20 → 770,200 (250 wide)
+               13 weeks, x positions: 50, 110, 170, 230, 290, 350, 410, 470, 530, 590, 650, 710, 770
+               Y range 0-25, plot 200px tall. y = 200 - (val * 8)
+               Data:
+               flags_fired      (brand): 16, 14, 18, 20, 17, 19, 22, 18, 21, 19, 18, 22, 20
+               proactive_notes  (teal):   3,  4,  6,  8,  9, 11, 13, 12, 14, 15, 13, 17, 16
+               annex_g_queries  (warn):  10,  9,  8,  7,  5,  4,  4,  3,  3,  2,  2,  2,  2
+          -->
+          <svg class="trend-svg" viewBox="0 0 800 240" preserveAspectRatio="none">
+            <defs>
+              <pattern id="trend-grid" width="60" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 60 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,.04)" stroke-width="1"/>
+              </pattern>
+            </defs>
+            <rect x="50" y="20" width="720" height="200" fill="url(#trend-grid)"/>
+
+            <!-- Y-axis labels: 0, 5, 10, 15, 20, 25 -->
+            <text x="44" y="24" text-anchor="end" font-size="9" fill="#9ca3af">25</text>
+            <line x1="50" y1="20" x2="770" y2="20" stroke="rgba(0,0,0,.06)" stroke-width="1"/>
+            <text x="44" y="64" text-anchor="end" font-size="9" fill="#9ca3af">20</text>
+            <line x1="50" y1="60" x2="770" y2="60" stroke="rgba(0,0,0,.06)" stroke-width="1"/>
+            <text x="44" y="104" text-anchor="end" font-size="9" fill="#9ca3af">15</text>
+            <line x1="50" y1="100" x2="770" y2="100" stroke="rgba(0,0,0,.06)" stroke-width="1"/>
+            <text x="44" y="144" text-anchor="end" font-size="9" fill="#9ca3af">10</text>
+            <line x1="50" y1="140" x2="770" y2="140" stroke="rgba(0,0,0,.06)" stroke-width="1"/>
+            <text x="44" y="184" text-anchor="end" font-size="9" fill="#9ca3af">5</text>
+            <line x1="50" y1="180" x2="770" y2="180" stroke="rgba(0,0,0,.06)" stroke-width="1"/>
+            <text x="44" y="224" text-anchor="end" font-size="9" fill="#9ca3af">0</text>
+            <line x1="50" y1="220" x2="770" y2="220" stroke="rgba(0,0,0,.12)" stroke-width="1"/>
+
+            <!-- Flags fired line (brand) -->
+            <polyline
+              points="50,72 110,88 170,56 230,40 290,64 350,48 410,24 470,56 530,32 590,48 650,56 710,24 770,40"
+              fill="none" stroke="#6366f1" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Proactive notes line (teal) -->
+            <polyline
+              points="50,176 110,168 170,152 230,136 290,128 350,112 410,96 470,104 530,88 590,80 650,96 710,64 770,72"
+              fill="none" stroke="#0d9488" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Annex G queries line (warn) -->
+            <polyline
+              points="50,140 110,148 170,156 230,164 290,180 350,188 410,188 470,196 530,196 590,204 650,204 710,204 770,204"
+              fill="none" stroke="#f59e0b" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5 4"/>
+
+            <!-- Annotation: the crossover point (week 5-6) where proactive notes overtake Annex G queries -->
+            <line x1="350" y1="40" x2="350" y2="220" stroke="#0d9488" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+            <rect x="358" y="100" width="160" height="36" rx="4" fill="#0d9488" opacity="0.95"/>
+            <text x="438" y="118" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">Crossover point</text>
+            <text x="438" y="130" text-anchor="middle" font-size="9" fill="#fff">Wk 6: proactive ≥ Annex G</text>
+
+            <!-- X-axis labels (weeks) — sample every other week for readability -->
+            <text x="50"  y="236" text-anchor="middle" font-size="8.5" fill="#9ca3af">06 Feb</text>
+            <text x="170" y="236" text-anchor="middle" font-size="8.5" fill="#9ca3af">20 Feb</text>
+            <text x="290" y="236" text-anchor="middle" font-size="8.5" fill="#9ca3af">06 Mar</text>
+            <text x="410" y="236" text-anchor="middle" font-size="8.5" fill="#9ca3af">20 Mar</text>
+            <text x="530" y="236" text-anchor="middle" font-size="8.5" fill="#9ca3af">03 Apr</text>
+            <text x="650" y="236" text-anchor="middle" font-size="8.5" fill="#9ca3af">17 Apr</text>
+            <text x="770" y="236" text-anchor="middle" font-size="8.5" fill="#9ca3af">06 May</text>
+
+            <!-- Endpoint dots (today) -->
+            <circle cx="770" cy="40" r="4" fill="#6366f1" stroke="#fff" stroke-width="1.5"/>
+            <circle cx="770" cy="72" r="4" fill="#0d9488" stroke="#fff" stroke-width="1.5"/>
+            <circle cx="770" cy="204" r="4" fill="#f59e0b" stroke="#fff" stroke-width="1.5"/>
+          </svg>
+          <div class="trend-legend">
+            <div class="leg-item"><span class="swatch flags"></span>Flags fired (Livera)</div>
+            <div class="leg-item"><span class="swatch proactive"></span>Proactive notes attached (BLD-16.4)</div>
+            <div class="leg-item"><span class="swatch intervened"></span>Annex G queries raised (Primed)</div>
+            <div class="leg-item" style="margin-left:auto;color:var(--t3);font-style:italic;">As clinicians adopt proactive note authoring, Annex G burden falls without flag volume falling</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top contributors -->
+      <div class="scard">
+        <div class="scard-head">
+          <div class="ttl">🏆 Top contributors · proactive note authoring</div>
+          <div class="sub">By prescriber · last 90 days · used to identify training gaps and surface best practice</div>
+        </div>
+        <div style="padding:0;">
+          <div class="contrib-row head">
+            <span></span>
+            <span>Prescriber · clinic</span>
+            <span>Flags</span>
+            <span>Notes</span>
+            <span>Effectiveness</span>
+            <span>SLA</span>
+          </div>
+          <div class="contrib-row">
+            <span class="rank">1</span>
+            <span class="who">
+              <span class="av">CW</span>
+              <span class="name-block">
+                <span class="name">Charlotte Williams</span>
+                <span class="role">Pharmacist Independent Prescriber · VSC</span>
+              </span>
+            </span>
+            <span class="num">62</span>
+            <span class="num">54</span>
+            <span><span class="pct">87%</span></span>
+            <span class="num" style="color:var(--green);">98%</span>
+          </div>
+          <div class="contrib-row">
+            <span class="rank">2</span>
+            <span class="who">
+              <span class="av" style="background:linear-gradient(135deg,#fbcfe8,#db2777);">CM</span>
+              <span class="name-block">
+                <span class="name">Claire Moynehan</span>
+                <span class="role">Nurse Prescriber · FeelTru</span>
+              </span>
+            </span>
+            <span class="num">48</span>
+            <span class="num">39</span>
+            <span><span class="pct">81%</span></span>
+            <span class="num" style="color:var(--green);">95%</span>
+          </div>
+          <div class="contrib-row">
+            <span class="rank">3</span>
+            <span class="who">
+              <span class="av" style="background:linear-gradient(135deg,#a5b4fc,#4338ca);">JK</span>
+              <span class="name-block">
+                <span class="name">James Kirby</span>
+                <span class="role">PIP · VSC (locum)</span>
+              </span>
+            </span>
+            <span class="num">38</span>
+            <span class="num">28</span>
+            <span><span class="pct" style="background:var(--amber-bg);color:var(--amber);">74%</span></span>
+            <span class="num" style="color:var(--green);">94%</span>
+          </div>
+          <div class="contrib-row">
+            <span class="rank">4</span>
+            <span class="who">
+              <span class="av" style="background:linear-gradient(135deg,#bbf7d0,#15803d);">RP</span>
+              <span class="name-block">
+                <span class="name">Rebecca Patel</span>
+                <span class="role">PIP · VSC (locum)</span>
+              </span>
+            </span>
+            <span class="num">36</span>
+            <span class="num">25</span>
+            <span><span class="pct" style="background:var(--amber-bg);color:var(--amber);">69%</span></span>
+            <span class="num" style="color:var(--green);">96%</span>
+          </div>
+          <div class="contrib-row" style="border-bottom:none;">
+            <span class="rank">5</span>
+            <span class="who">
+              <span class="av" style="background:linear-gradient(135deg,#fed7aa,#c2410c);">DH</span>
+              <span class="name-block">
+                <span class="name">David Holloway</span>
+                <span class="role">PIP · VSC (locum)</span>
+              </span>
+            </span>
+            <span class="num">40</span>
+            <span class="num">18</span>
+            <span><span class="pct" style="background:var(--red-bg);color:var(--red);">45%</span></span>
+            <span class="num" style="color:var(--amber);">88%</span>
+          </div>
+        </div>
+        <div style="padding:12px 18px;background:var(--surface-2);font-size:11px;color:var(--t2);border-top:1px solid var(--bdr);line-height:1.45;">
+          <strong style="color:var(--t1);">Outlier flagged:</strong> David Holloway's 45% effectiveness is below the 70% target threshold. Recommend coaching session on proactive note authoring per BLD-16.4 protocol. <a href="#" style="color:var(--brand);text-decoration:none;font-weight:600;">Open coaching task →</a>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="perm-note">
+        <strong>Clinical Flag Dashboard</strong> · Group 6 / BLD-16.6 (V1.2 §10.7). Mirrors Annex H §B2/B3 reporting format used by Primed for GPhC governance handover. CSV export produces a file structurally identical to Primed's monthly governance report so the two can be cross-referenced directly. Headline metric "<strong>proactive disclosure effectiveness</strong>" is the defensibility narrative for the GPhC inspection follow-up — it shows Livera-side clinicians are pre-empting interventions rather than waiting for Primed to raise queries. Visible to <code>Owner</code> and <code>RM</code>; read-only for <code>Admin</code> · hidden from <code>Prescriber</code>, <code>Coach</code>, <code>Pharmacist</code>.
+      </div>
+
+      <!-- Annotation -->
+      <div class="ann">
+        <span class="al">UX notes</span>
+        <span>BLD-16.6 · Settings → Reports → Clinical Flag Dashboard</span>
+        <span class="at">Permissions</span>
+        <span>Owner + RM read-write · Admin read-only · others hidden</span>
+        <span class="at">Mirrors</span>
+        <span>Annex H §B2/B3 — same numbers will appear on Primed's governance report</span>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = '✓ ' + msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2600);
+  }
+</script>
+
+
+<!-- Workspace switch confirm (canonical) -->
+<div class="ws-confirm-overlay" id="ws-confirm-overlay">
+  <div class="ws-confirm">
+    <div class="ws-confirm-head">
+      <span class="ico">⇄</span>
+      <h3>Switch workspace?</h3>
+    </div>
+    <div class="ws-confirm-body">
+      <p>You're about to switch to <strong id="ws-confirm-target">FeelTru — FeelTru Ltd</strong>.</p>
+      <p>You'll be signed out of your current workspace and the page will reload. Workspaces have fully isolated data — there's no cross-clinic view.</p>
+    </div>
+    <div class="ws-confirm-foot">
+      <button onclick="closeWsConfirm()">Cancel</button>
+      <button class="primary" onclick="executeWsSwitch()">Switch &amp; reload →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleWsSwitcher(e){
+  e.stopPropagation();
+  var p = document.getElementById('ws-popover');
+  if(!p) return;
+  p.classList.toggle('open');
+  var btn = e.currentTarget;
+  btn.setAttribute('aria-expanded', p.classList.contains('open') ? 'true' : 'false');
+}
+function confirmWsSwitch(target, sub){
+  var p = document.getElementById('ws-popover'); if(p) p.classList.remove('open');
+  document.getElementById('ws-confirm-target').textContent = target;
+  document.getElementById('ws-confirm-overlay').classList.add('open');
+}
+function closeWsConfirm(){
+  document.getElementById('ws-confirm-overlay').classList.remove('open');
+}
+function executeWsSwitch(){
+  var t = document.getElementById('ws-confirm-target').textContent;
+  alert('Demo stub: would sign out of current workspace, reload page into ' + t + '.');
+  closeWsConfirm();
+}
+// Click outside closes popover
+document.addEventListener('click', function(e){
+  var p = document.getElementById('ws-popover');
+  var t = document.querySelector('.topnav .ws-trigger');
+  if(p && p.classList.contains('open') && !p.contains(e.target) && t && !t.contains(e.target)){
+    p.classList.remove('open');
+    if(t) t.setAttribute('aria-expanded','false');
+  }
+});
+</script>
+</body>
+</html>

@@ -67,7 +67,7 @@ function buildSections(clinicId: string): NavSection[] {
           icon: Flag,
           href: `/${clinicId}/clinical-flags`,
           suffix: (
-            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-px rounded ml-1">G6</span>
+            <span className="text-[9px] font-bold text-ok bg-ok-bg border border-ok-bdr px-1.5 py-px rounded ml-1">G6</span>
           ),
         },
         { key: "reports", label: "Reports", icon: TrendingUp, href: `/${clinicId}/reports` },

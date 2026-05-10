@@ -310,8 +310,10 @@ const SARAH_ORDER_FEELTRU: Order = {
   updated_at: NOW,
 };
 
+const SARAH_ORDER_VSC: Order = { ...SARAH_ORDER_FEELTRU, clinic_id: 'vsc' };
+
 const MOCK_PATIENTS: Patient[] = [SARAH_FEELTRU, SARAH_VSC];
-const MOCK_ORDERS: Order[] = [SARAH_ORDER_FEELTRU];
+const MOCK_ORDERS: Order[] = [SARAH_ORDER_FEELTRU, SARAH_ORDER_VSC];
 const MOCK_CONSULTATIONS: Consultation[] = [];
 const MOCK_INCIDENTS: Incident[] = [];
 const MOCK_COMPLAINTS: Complaint[] = [];
@@ -499,4 +501,9 @@ export async function getClinicalCheckQueue(clinic_id: ClinicId): Promise<Order[
 // ============================================================================
 // EXPORTS — types stay exported above; below are utility helpers
 // ============================================================================
+// Synchronous clinic lookup — use in hooks (hooks can't be async)
+export function getClinicSync(id: ClinicId): Clinic {
+  return MOCK_CLINICS[id] ?? MOCK_CLINICS.feeltru;
+}
+
 export { APIError };

@@ -56,6 +56,7 @@ const config: Config = {
           light: "#eef2ff",
           mid: "#818cf8",
         },
+        bdr: { DEFAULT: "#e2e8f0", d: "#cbd5e1" },
         nav: "#1e1b4b",
         surface: "#ffffff",
         "page-bg": "#f1f0ef",

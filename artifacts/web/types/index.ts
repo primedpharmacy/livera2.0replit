@@ -1,0 +1,15 @@
+export type {
+  Patient,
+  Order,
+  OrderStatus,
+  Consultation,
+  Clinic,
+  ClinicConfig,
+  User,
+  Role,
+  ClinicId,
+  Incident,
+  Complaint,
+  Amendment,
+  GPLetter,
+} from "@/lib/api/mock";

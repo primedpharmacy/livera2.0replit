@@ -1,0 +1,191 @@
+Mini-wave 1 signed off. Move to Mini-wave 2: Patients + Orders core.
+
+==== MINI-WAVE 2: PATIENTS + ORDERS CORE ====
+
+Reference these prototypes in /artifacts/web/prototypes/:
+- livera_patient_list.html (patient list view)
+- livera_patient_profile.html (patient detail view, if exists; otherwise match style of other detail screens)
+- livera_orders_list.html (order list view)
+- livera_prototype_02_clinical_check_queue.html (gives the order detail layout pattern)
+
+GOALS:
+- Working patient list, patient profile, order list, order detail
+- All data fetched via lib/api/mock.ts — no direct fetch, no hardcoded data
+- Sarah Cookland visible on both VSC and FeelTru patient lists
+- Workspace switching invalidates all list data (no stale data across workspaces)
+- Loading, empty, and error states everywhere data is fetched
+- Permissions checked via lib/permissions.ts (still stub returning true)
+
+==== ALSO: housekeeping tasks (do these FIRST before building screens) ====
+
+H1. Fix the Sidebar G6 badge tokens.
+In components/shell/Sidebar.tsx, change:
+className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-px rounded ml-1"
+To:
+className="text-[9px] font-bold text-ok bg-ok-bg border border-ok-bdr px-1.5 py-px rounded ml-1"
+
+H2. Wire useCurrentClinic() to mock.ts properly.
+Refactor lib/context.ts so useCurrentClinic() reads from MOCK_CLINICS in lib/api/mock.ts via the getClinic() function — NOT from a separate MOCK_CLINICS_STATIC copy. Delete MOCK_CLINICS_STATIC. Since getClinic() is async and React hooks can't be async, use a synchronous helper exported from mock.ts that returns the clinic object directly (e.g. getClinicSync(clinic_id) that reads from the in-memory MOCK_CLINICS object). This eliminates the data duplication.
+
+H3. Install required shadcn components for Mini-wave 2.
+Run: npx shadcn-ui@latest add table badge tabs select textarea skeleton
+
+==== FILES TO CREATE (after housekeeping) ====
+
+1. types/index.ts
+   Re-export the entity types from lib/api/mock.ts so components import from a stable @/types path:
+   export type { Patient, Order, OrderStatus, Consultation, Clinic, User } from "@/lib/api/mock";
+
+2. lib/format.ts
+   Utility formatters:
+   - formatDate(iso: string): "DD MMM YYYY" using date-fns
+   - formatDateTime(iso: string): "DD MMM YYYY, HH:mm"
+   - formatRelativeTime(iso: string): "2 hours ago", "yesterday", etc. using date-fns formatDistanceToNow
+   - formatBMI(value: number): "30.9" (1 decimal place)
+   - formatWeight(kg: number): "84.2 kg"
+   - formatCurrency(amount: number, currency: "GBP"): "£220.00"
+
+3. components/shared/StatusBadge.tsx
+   A polymorphic badge for various status types (Patient.status, Order.status, etc.)
+   Props: { value: string, kind: "patient" | "order" | "incident" | "complaint" }
+   Maps status values to badge variants (ok/warn/err/info) and colour-coded labels.
+   Example: order.status="clinical_check" → amber badge "Clinical Check"
+   Example: patient.status="active" → green badge "Active"
+   Use Lucide icons inside the badge where it adds clarity.
+
+4. components/shared/LoadingState.tsx
+   Reusable loading skeleton component. Renders shadcn Skeleton primitives in patterns:
+   - LoadingState.Table (skeleton rows for table layouts)
+   - LoadingState.Detail (skeleton page header + skeleton cards for detail views)
+   - LoadingState.List (skeleton item rows for list layouts)
+
+5. components/shared/EmptyState.tsx
+   Reusable empty-state component.
+   Props: { icon: LucideIcon, title: string, description: string, action?: ReactNode }
+   Renders centered icon (32px), title, description, optional action button.
+
+6. components/shared/ErrorState.tsx
+   Reusable error-state component.
+   Props: { message: string, onRetry?: () => void }
+   Shows AlertTriangle icon, error message, optional Retry button.
+
+7. components/patients/PatientListTable.tsx
+   Client component (uses hooks).
+   Columns: Patient (name + ID), Status (StatusBadge), DOB (formatted age), Latest BMI, GP linked (Yes/No icon), Last activity (relative time)
+   - Sortable by name, status, last activity
+   - Click row → navigates to /[clinic_id]/patients/[patient_id]
+   - Uses shadcn Table primitive
+   - Sarah Cookland appears with PT-00198, B4 flag visible inline next to name
+
+8. components/patients/PatientListFilters.tsx
+   Client component.
+   Filters bar above the table:
+   - Search input (debounced 300ms): searches by name or patient ID
+   - Status select: all / new / active / monitoring / suspended
+   - VIP toggle: shows only VIP patients
+   - Layout: flex row, gap-2, padding 16px
+
+9. app/(workspace)/[clinic_id]/patients/page.tsx
+   Server component shell, renders client component for the data fetching.
+   - PageHeader with icon=Users, title="Patients", subtitle="N total patients"
+   - Subtitle dynamically shows the count after data loads
+   - Renders PatientListFilters above PatientListTable
+   - Wraps in Suspense boundary with LoadingState.Table fallback
+   - Calls listPatients(clinic_id) from lib/api/mock.ts
+   - Shows EmptyState if zero patients
+   - Shows ErrorState if API throws
+   - When clinic_id changes (workspace switch), data refetches — use the clinic_id in the cache key
+
+10. app/(workspace)/[clinic_id]/patients/[patient_id]/page.tsx
+    Patient profile page.
+    - Calls getPatient(clinic_id, patient_id) and listOrders(clinic_id, { patient_id }) in parallel
+    - Breadcrumb: Patients / [patient_name]
+    - PageHeader with icon=User, title=patient.demographic.full_name, subtitle=`${patient.id} · ${age} years old · ${gender}`
+    - Layout: 2-column on desktop (left 60%, right 40%), single column on mobile
+    - Left column (cards stacked):
+      a. Demographics card — full name, DOB, age, sex, ethnicity, address
+      b. Contact card — email, phone, preferred channel
+      c. GP details card — GP name, address, phone, email. If GP is null, show "No GP details available" warning banner with "Edit GP Details" button (non-functional for now)
+      d. Verification card — Sumsub ID, Identity verified date, BMI verified date
+      e. Consents given card — list of consents with version + given_at date
+    - Right column (cards stacked):
+      a. Baseline measurements card — height, baseline weight, baseline BMI
+      b. Latest measurements card — current weight, current BMI (calculated), recorded date
+      c. Flags card — list of patient.flags with severity badges
+      d. Order history card — table of orders (Order ID, Treatment, Status, Date)
+      e. Status pill (top right of page header) — VIP toggle if applicable
+
+11. components/orders/OrderListTable.tsx
+    Client component.
+    Columns: Order ID, Patient (name + ID), Treatment, Dose, Status (StatusBadge), SLA tinting if status=clinical_check, Submitted (relative time)
+    - SLA tinting logic (DEC-35):
+      const slaTint = order.status === "clinical_check"
+        ? (now > order.sla_breach_at ? "bg-err-bg" : now > order.sla_warn_at ? "bg-warn-bg" : "")
+        : ""
+    - Use currentClinic.config.sla.approval_warn_hours / approval_breach_hours for thresholds — NEVER hardcode
+    - Click row → /[clinic_id]/orders/[order_id]
+
+12. components/orders/OrderListFilters.tsx
+    Client component.
+    Status select: all / received / clinical_check / approved / dispatched / delivered / on_hold / declined / expired / cancelled
+    Search by Order ID or patient name (debounced 300ms)
+
+13. app/(workspace)/[clinic_id]/orders/page.tsx
+    Server component wrapping client component.
+    - PageHeader with icon=Package, title="Orders", subtitle="N total orders"
+    - Renders OrderListFilters above OrderListTable
+    - Calls listOrders(clinic_id) from mock
+    - Suspense + LoadingState.Table fallback
+
+14. app/(workspace)/[clinic_id]/orders/[order_id]/page.tsx
+    Order detail (admin view) — the most complex screen in this mini-wave.
+    Reference: livera_prototype_02_clinical_check_queue.html for layout patterns.
+    - Calls getOrder(clinic_id, order_id) + getPatient(clinic_id, order.patient_id) in parallel
+    - PageHeader: icon=Package, title=`Order ${order.id}`, subtitle=`${patient.full_name} · ${order.product.medication} ${order.product.dose}`
+    - Layout: left panel (40%) = patient profile summary, right panel (60%) = order detail
+    - Left panel: condensed patient profile (key info only) + "View full profile" link
+    - Right panel sections:
+      a. Order details card (Order ID, Created, Status, Type, Product, Dose, Plan, Amount Authorised)
+      b. Questionnaire responses card (the questionnaire_responses JSON rendered as Q&A pairs)
+      c. SLA card (if status=clinical_check): warn at, breach at, current time delta. Use clinic config thresholds.
+      d. G6 flags card (if order.g6_flags is non-empty): list of flag codes with severity badges
+      e. Clinical decision card (if order.clinical_decision is non-null): prescriber, decision, decided_at, rationale
+    - Action area in PageHeader: Approve / Decline / Query buttons (functional, call decideOrder())
+    - On decision: refetch order, show toast confirmation
+
+==== ARCHITECTURAL DISCIPLINE ====
+
+- All data via lib/api/mock.ts. Never direct fetch. If a screen needs new data, ADD it to mock.ts first, then call from component.
+- Use lib/format.ts for all date/BMI/currency formatting. No inline toLocaleDateString().
+- Use components/shared/* for loading/empty/error/badge patterns. Build them once, reuse.
+- Workspace isolation: every API call passes clinic_id. Verify Sarah Cookland appears on BOTH clinics' patient lists.
+- SLA thresholds from clinic.config.sla — NEVER hardcoded. Same for any other clinical threshold encountered.
+- shadcn primitives where they fit. Table, Badge, Tabs, Select, Textarea, Skeleton newly installed.
+
+==== DEFINITION OF DONE ====
+
+1. /vsc/patients shows Sarah Cookland in the patient list with PT-00198, B4 flag inline
+2. /feeltru/patients shows the same Sarah Cookland (separate clinic_id but same demo data)
+3. Clicking Sarah's row navigates to /feeltru/patients/PT-00198 (or /vsc/patients/PT-00198)
+4. Patient profile renders with all cards populated
+5. /vsc/orders and /feeltru/orders show Sarah's order ORD-00441 in clinical_check status
+6. SLA tinting visible on ORD-00441 (depending on test time, may be amber or red)
+7. Order detail page renders with both patient summary and full order detail
+8. Approve / Decline / Query buttons functional — clicking Approve calls decideOrder and updates UI
+9. Loading skeletons visible on first load (250ms delay in mock makes this guaranteed)
+10. Workspace switching invalidates cached data — switch VSC → FeelTru, data refetches
+11. Zero hex codes in any component file (grep clean)
+12. Zero hardcoded thresholds (grep for "approval_warn_hours" — should only appear in mock.ts and where consumed via clinic.config.sla)
+
+==== REPORT BACK ====
+
+When done, paste:
+- List of all files created/modified
+- A screenshot or URL showing the patient list, patient profile, and order detail rendering
+- The output of: grep -rn "#[0-9a-fA-F]\{6\}" components/ app/ lib/ --include="*.tsx" --include="*.ts" | grep -v "brand_tokens\|primary_color\|secondary_color"
+  (filtered to exclude the known data-field hex codes — should be empty)
+- The output of: grep -rn "approval_warn_hours\|approval_breach_hours" components/ app/ --include="*.tsx"
+  (should be empty — all SLA threshold consumption should go via clinic.config.sla)
+- Any decisions you had to make that weren't specified
+
+Do NOT proceed to Mini-wave 3 until I review and approve Mini-wave 2.

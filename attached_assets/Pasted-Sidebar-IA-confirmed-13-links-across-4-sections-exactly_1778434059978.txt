@@ -1,0 +1,133 @@
+Sidebar IA confirmed — 13 links across 4 sections, exactly as the canonical shell template specifies. Build Mini-wave 1 against this inventory.
+
+==== MINI-WAVE 1: LAYOUT SHELL ====
+
+Reference: /artifacts/web/prototypes/_canonical_shell_template.html — match its structure faithfully. Read it in full before starting if you haven't already.
+
+GOALS:
+- Working layout shell rendering at /feeltru/dashboard
+- Workspace switcher that toggles URL between /vsc and /feeltru
+- Hardcoded current user (Owner role on FeelTru) until auth is wired
+- 13 sidebar links matching the canonical template
+- All design tokens from tailwind.config.ts (no hardcoded colours)
+- No data fetching yet — the shell is static for this mini-wave
+
+==== FILES TO CREATE ====
+
+1. lib/context.ts
+   - Exports useCurrentUser() and useCurrentClinic() React hooks
+   - Hardcoded: currentUser = Owner role, name "Qadir Hussain"
+   - currentClinic derived from URL param [clinic_id]: "vsc" or "feeltru"
+   - Reads clinic config from lib/api/mock.ts via getClinic()
+   - For now, currentClinic can be a static object matching MOCK_CLINICS in mock.ts (no async fetch in Mini-wave 1)
+
+2. lib/permissions.ts
+   - Exports a single can(user, action, resource) function returning boolean
+   - For Mini-wave 1: stub it to always return true (Owner can do everything)
+   - Keep the signature in place so future mini-waves wire real role checks
+   - Add a TODO comment: "Wire role-based logic in Mini-wave 2"
+
+3. components/shell/TopNav.tsx
+   - 36px tall, bg-nav (indigo-950 #1e1b4b), white text
+   - Left: "Livera" wordmark in white, font-semibold
+   - Centre-left: workspace switcher dropdown showing current clinic name + small chevron
+     * Click opens dropdown with "VSC" and "FeelTru"
+     * Selecting one navigates to /<clinic_id>/dashboard
+     * Use shadcn DropdownMenu (you may need to add it via shadcn CLI)
+   - Right: role pill — translucent capsule "Owner" with bg-white/10 backdrop-blur, white text, rounded-full
+   - No hamburger menu, no notification icon, no avatar — keep it minimal
+
+4. components/shell/Sidebar.tsx
+   - 240px wide, bg-surface (white), full-height
+   - Top padding 16px, then sections rendered in order
+   - Section headers: 10px uppercase, tracking-wider, text-t3 (slate-400), padding 12px horizontal, 8px top margin
+   - Each link: padding 8px horizontal, 6px vertical, gap-3 between icon and label, rounded-md, hover:bg-brand-light
+   - Active link (matches current route): bg-brand-light, text-brand, font-medium
+   - Icons: 16px Lucide icons, text-t2 normally, text-brand when active
+   - Badges: small rounded-full pill, 11px font, padding 2px 8px
+     * .muted = bg-slate-100, text-slate-600
+     * .warn = bg-warn-bg, text-warn, border border-warn-bdr
+     * .err = bg-err-bg, text-err, border border-err-bdr
+     * Default badge (no class) = bg-brand-light, text-brand-dark
+   - Build the 13 links exactly as I specified — order matters
+
+5. components/shell/PageHeader.tsx
+   - Container: padding 24px horizontal, 16px vertical, bg-surface, border-b border-bdr
+   - Layout: flex row, items-center, gap-4
+   - Left: 52px gradient page icon — linear-gradient 135deg from #6366f1 (brand) to #4338ca (brand-dark), rounded-xl, shadow-sm. Inside: a 24px Lucide icon in white, centred. Icon is configurable via prop.
+   - Title: text-xl, font-semibold, text-t1
+   - Subtitle: text-sm, text-t2, line-height-tight, below title
+   - Right (optional): action area for buttons (e.g. "Create Patient"). Render only if children/actions prop provided.
+   - Props: { icon: LucideIcon, title: string, subtitle?: string, actions?: ReactNode }
+
+6. components/shell/Breadcrumb.tsx
+   - Container: padding 24px horizontal, 12px vertical, bg-page-bg
+   - 12px text, text-t3, with "/" separators
+   - Each segment is a Link unless it's the last one (which is plain text, font-medium, text-t2)
+   - Props: { items: Array<{ label: string, href?: string }> }
+   - Example: { label: "Dashboard" } → renders as "Dashboard" non-clickable
+
+7. app/(workspace)/[clinic_id]/layout.tsx
+   - The Next.js layout for all workspace pages
+   - Wraps children with: TopNav at top, then a flex row of Sidebar (240px) + main content area (flex-1, bg-page-bg, min-h-screen minus topnav)
+   - Reads clinic_id from params and passes to context
+   - Validates clinic_id is "vsc" or "feeltru"; if neither, redirect to /feeltru/dashboard
+   - Use shadcn primitives where available
+
+8. app/(workspace)/[clinic_id]/dashboard/page.tsx
+   - Empty dashboard
+   - Page header: icon = Home, title = "Dashboard", subtitle = "Overview of activity across the clinic"
+   - Below header: a placeholder shadcn Card with Card title "Coming soon" and Card content "Dashboard widgets will appear here in Mini-wave 5."
+
+9. app/page.tsx
+   - Server component
+   - Redirects to /feeltru/dashboard immediately on load
+   - Use Next.js redirect() from "next/navigation"
+
+==== ARCHITECTURAL RULES (FROM replit.md) ====
+
+- All API calls (when added in later mini-waves) go through lib/api/mock.ts. None in Mini-wave 1.
+- All clinic-specific behaviour reads from clinic.config.* — no hardcoded thresholds or text
+- Use Lucide icons only — no emoji in production code
+- Use design tokens from tailwind.config.ts (bg-nav, bg-brand-light, text-brand, etc) — no hex codes inline
+- shadcn primitives where they fit (Button, Card, DropdownMenu, etc)
+
+==== EMOJI → LUCIDE ICON MAPPING ====
+
+Use these Lucide icons in the sidebar:
+- Dashboard → Home
+- Patients → Users
+- Orders → Package
+- Clinical Check → Stethoscope
+- Tasks → CheckSquare
+- Welcome Calls → Phone
+- Complaints → Megaphone
+- Incidents → AlertTriangle
+- GP Letters → FileText
+- KPI Dashboard → BarChart3
+- Clinical Flags G6 → Flag (with G6 rendered as a small inline badge after the label)
+- Reports → TrendingUp
+- Settings → Settings
+
+If you need to add shadcn DropdownMenu (likely needed for workspace switcher), run: npx shadcn-ui@latest add dropdown-menu
+
+==== DEFINITION OF DONE ====
+
+When you're done:
+1. Dev server runs without errors
+2. Visiting / redirects to /feeltru/dashboard
+3. Dashboard page renders with TopNav, Sidebar, and Page header all matching canonical shell visuals
+4. Workspace switcher works — clicking VSC navigates to /vsc/dashboard
+5. Sidebar shows 13 links in correct sections with correct badges
+6. Active link is visibly highlighted (bg-brand-light, text-brand)
+7. Hovering links shows the hover state
+8. No console errors
+9. tailwind.config.ts colour tokens are used everywhere — search the codebase for hex codes and confirm none in component files
+
+REPORT BACK with:
+- File paths created
+- Screenshot or URL of the rendered dashboard
+- Any decisions you had to make that weren't specified in this prompt
+- Any blockers or unclear requirements
+
+Do NOT proceed to Mini-wave 2 (data fetching, patient list) until I review and approve Mini-wave 1.

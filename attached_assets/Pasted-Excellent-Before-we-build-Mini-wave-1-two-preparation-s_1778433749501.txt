@@ -1,0 +1,49 @@
+Excellent. Before we build Mini-wave 1, two preparation steps:
+
+STEP A — Update tailwind.config.ts with the Livera brand theme.
+
+In artifacts/web/tailwind.config.ts, locate the theme.extend block. Inside extend, add (or merge with) this colors block exactly:
+
+colors: {
+  brand: {
+    DEFAULT: '#6366f1',
+    dark: '#4338ca',
+    light: '#eef2ff',
+    mid: '#818cf8',
+  },
+  nav: '#1e1b4b',
+  surface: '#ffffff',
+  'page-bg': '#f1f0ef',
+  t1: '#0f172a',
+  t2: '#475569',
+  t3: '#94a3b8',
+  ok: { DEFAULT: '#10b981', bg: '#ecfdf5', bdr: '#a7f3d0' },
+  warn: { DEFAULT: '#f59e0b', bg: '#fffbeb', bdr: '#fde68a' },
+  err: { DEFAULT: '#ef4444', bg: '#fef2f2', bdr: '#fecaca' },
+  info: { DEFAULT: '#3b82f6', bg: '#eff6ff', bdr: '#bfdbfe' },
+  coach: { DEFAULT: '#a855f7', bg: '#faf5ff', bdr: '#e9d5ff' },
+  welcome: { DEFAULT: '#0ea5e9', bg: '#f0f9ff', bdr: '#bae6fd' },
+  clinical: { DEFAULT: '#dc2626', bg: '#fef2f2', bdr: '#fecaca' },
+},
+
+Do not delete the existing shadcn colour variables (border, input, ring, background, foreground, primary, secondary, etc) — they need to stay for shadcn components to work. Add the Livera tokens alongside them.
+
+After saving, restart the dev server and confirm:
+- Tailwind compiles without errors
+- The default homepage still renders
+- Show me the diff (or the full updated colors block from tailwind.config.ts) so I can verify
+
+STEP B — Confirm the sidebar link inventory.
+
+Open /home/runner/workspace/artifacts/web/prototypes/_canonical_shell_template.html and find the sidebar markup. Read it carefully and report back to me the EXACT list of:
+
+- All section headers (uppercase) in order
+- Every nav link under each section, in the order they appear
+- The icon name (or emoji) used for each link in the prototype
+- Total count
+
+The expected count from replit.md is 4 sections, 17 links. Tell me if what you see in the canonical template matches this. If there's a mismatch, list every difference. We need to lock the inventory before building.
+
+Also tell me what icon library the canonical template uses (Lucide via CDN? raw SVGs? emoji?). I'll then map any non-Lucide icons to their Lucide equivalents before you build.
+
+Do NOT build any pages, components, or shell files yet. Both A and B first, then I'll give you the Mini-wave 1 build prompt.

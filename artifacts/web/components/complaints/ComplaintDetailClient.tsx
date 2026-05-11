@@ -2,12 +2,18 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Megaphone, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, Megaphone, RefreshCw, CheckCircle, AlertCircle, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { acknowledgeComplaint, updateComplaintStatus, syncComplaintFromMonday, CURRENT_USER } from "@/lib/api/mock";
+import {
+  acknowledgeComplaint,
+  updateComplaintStatus,
+  syncComplaintFromMonday,
+  reassignComplaint,
+  CURRENT_USER,
+} from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import type { Complaint, Clinic, ClinicId } from "@/types";
 
@@ -32,6 +38,13 @@ const CQC_COLORS: Record<string, string> = {
   Responsive: "bg-warn-bg text-warn border border-warn-bdr",
   "Well-led": "bg-err-bg text-err border border-err-bdr",
 };
+
+const CLINIC_USERS = [
+  { id: "user_qadir",   label: "Qadir Hussain (Owner)" },
+  { id: "user_priya",   label: "Priya Sharma (RM)" },
+  { id: "user_alex",    label: "Alex Chen (Prescriber)" },
+  { id: "user_jessica", label: "Jessica Moore (Admin)" },
+];
 
 function SLACard({ label, dueAt, done }: { label: string; dueAt: string; done: boolean }) {
   const overdue = !done && new Date() > new Date(dueAt);
@@ -59,6 +72,8 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
   const [complaint, setComplaint] = useState<Complaint>(initialComplaint);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isActing, setIsActing] = useState(false);
+  const [reassignUserId, setReassignUserId] = useState(complaint.assigned_to_user_id ?? "");
+  const [isReassigning, setIsReassigning] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
 
   useEffect(() => {
@@ -106,6 +121,20 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
       setToast({ message: err instanceof Error ? err.message : "Sync failed", type: "err" });
     } finally {
       setIsSyncing(false);
+    }
+  }
+
+  async function handleReassign() {
+    if (!reassignUserId || reassignUserId === complaint.assigned_to_user_id) return;
+    setIsReassigning(true);
+    try {
+      const updated = await reassignComplaint(clinicId, complaint.id, reassignUserId);
+      setComplaint(updated);
+      setToast({ message: "Complaint reassigned", type: "ok" });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Failed", type: "err" });
+    } finally {
+      setIsReassigning(false);
     }
   }
 
@@ -204,6 +233,40 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
                   </Button>
                 ))}
               </div>
+            </div>
+          )}
+          {canManage && (
+            <div className="bg-surface border border-bdr rounded-lg p-4">
+              <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-3">Reassign</h3>
+              <div className="flex items-center gap-2">
+                <select
+                  value={reassignUserId}
+                  onChange={(e) => setReassignUserId(e.target.value)}
+                  className="flex-1 text-[13px] bg-page-bg border border-bdr rounded-md px-3 py-1.5 text-t1 focus:outline-none focus:ring-1 focus:ring-brand"
+                >
+                  <option value="">— Select assignee —</option>
+                  {CLINIC_USERS.map((u) => (
+                    <option key={u.id} value={u.id}>{u.label}</option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  onClick={handleReassign}
+                  disabled={isReassigning || !reassignUserId || reassignUserId === complaint.assigned_to_user_id}
+                  className="h-8 text-[12px] gap-1.5 shrink-0"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  {isReassigning ? "Saving…" : "Reassign"}
+                </Button>
+              </div>
+              {complaint.assigned_to_user_id && (
+                <p className="text-[11px] text-t3 mt-1.5">
+                  Currently: <span className="text-t2 font-medium">{
+                    CLINIC_USERS.find((u) => u.id === complaint.assigned_to_user_id)?.label
+                    ?? complaint.assigned_to_user_id
+                  }</span>
+                </p>
+              )}
             </div>
           )}
         </div>

@@ -6,18 +6,17 @@ import { OrderDetailClient } from "@/components/orders/OrderDetailClient";
 import { getOrder, getPatient, getClinicSync } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
-interface OrderDetailPageProps {
-  params: { clinic_id: string; order_id: string };
-}
+type OrderDetailPageProps = { params: Promise<{ clinic_id: string; order_id: string }> };
 
-export default function OrderDetailPage({ params }: OrderDetailPageProps) {
+export default async function OrderDetailPage({ params }: OrderDetailPageProps) {
+  const { clinic_id, order_id } = await params;
   return (
     <div className="flex flex-col h-full">
       <Suspense
-        key={`${params.clinic_id}-${params.order_id}`}
+        key={`${clinic_id}-${order_id}`}
         fallback={<LoadingState.Detail />}
       >
-        <OrderContent clinicId={params.clinic_id as ClinicId} orderId={params.order_id} />
+        <OrderContent clinicId={clinic_id as ClinicId} orderId={order_id} />
       </Suspense>
     </div>
   );

@@ -3,11 +3,10 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { Breadcrumb } from "@/components/shell/Breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface DashboardPageProps {
-  params: { clinic_id: string };
-}
+type DashboardPageProps = { params: Promise<{ clinic_id: string }> };
 
-export default function DashboardPage({ params }: DashboardPageProps) {
+export default async function DashboardPage({ params }: DashboardPageProps) {
+  await params;
   return (
     <>
       <Breadcrumb items={[{ label: "Dashboard" }]} />

@@ -8,11 +8,10 @@ import { PatientsView } from "@/components/patients/PatientsView";
 import { listPatients } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
-interface PatientsPageProps {
-  params: { clinic_id: string };
-}
+type PatientsPageProps = { params: Promise<{ clinic_id: string }> };
 
-export default function PatientsPage({ params }: PatientsPageProps) {
+export default async function PatientsPage({ params }: PatientsPageProps) {
+  const { clinic_id } = await params;
   return (
     <div>
       <PageHeader
@@ -20,8 +19,8 @@ export default function PatientsPage({ params }: PatientsPageProps) {
         title="Patients"
         subtitle="Patient register for this workspace"
       />
-      <Suspense key={params.clinic_id} fallback={<LoadingState.Table />}>
-        <PatientsContent clinicId={params.clinic_id as ClinicId} />
+      <Suspense key={clinic_id} fallback={<LoadingState.Table />}>
+        <PatientsContent clinicId={clinic_id as ClinicId} />
       </Suspense>
     </div>
   );

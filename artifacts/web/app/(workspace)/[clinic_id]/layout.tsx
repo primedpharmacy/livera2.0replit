@@ -4,13 +4,15 @@ import { Sidebar } from "@/components/shell/Sidebar";
 
 const VALID_CLINIC_IDS = ["vsc", "feeltru"];
 
-interface WorkspaceLayoutProps {
+type WorkspaceLayoutProps = {
   children: React.ReactNode;
-  params: { clinic_id: string };
-}
+  params: Promise<{ clinic_id: string }>;
+};
 
-export default function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
-  if (!VALID_CLINIC_IDS.includes(params.clinic_id)) {
+export default async function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
+  const { clinic_id } = await params;
+
+  if (!VALID_CLINIC_IDS.includes(clinic_id)) {
     redirect("/feeltru/dashboard");
   }
 
@@ -18,7 +20,7 @@ export default function WorkspaceLayout({ children, params }: WorkspaceLayoutPro
     <div className="min-h-screen bg-page-bg flex flex-col">
       <TopNav />
       <div className="flex flex-1">
-        <Sidebar clinicId={params.clinic_id} />
+        <Sidebar clinicId={clinic_id} />
         <main className="flex-1 min-w-0 bg-page-bg">
           {children}
         </main>

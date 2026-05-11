@@ -11,14 +11,13 @@ import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "
 import { getPatient, listOrders } from "@/lib/api/mock";
 import type { Patient, Order, ClinicId } from "@/types";
 
-interface PatientProfilePageProps {
-  params: { clinic_id: string; patient_id: string };
-}
+type PatientProfilePageProps = { params: Promise<{ clinic_id: string; patient_id: string }> };
 
-export default function PatientProfilePage({ params }: PatientProfilePageProps) {
+export default async function PatientProfilePage({ params }: PatientProfilePageProps) {
+  const { clinic_id, patient_id } = await params;
   return (
-    <Suspense key={`${params.clinic_id}-${params.patient_id}`} fallback={<LoadingState.Detail />}>
-      <ProfileContent clinicId={params.clinic_id as ClinicId} patientId={params.patient_id} />
+    <Suspense key={`${clinic_id}-${patient_id}`} fallback={<LoadingState.Detail />}>
+      <ProfileContent clinicId={clinic_id as ClinicId} patientId={patient_id} />
     </Suspense>
   );
 }

@@ -8,11 +8,10 @@ import { OrdersView } from "@/components/orders/OrdersView";
 import { listOrders, getClinicSync } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
-interface OrdersPageProps {
-  params: { clinic_id: string };
-}
+type OrdersPageProps = { params: Promise<{ clinic_id: string }> };
 
-export default function OrdersPage({ params }: OrdersPageProps) {
+export default async function OrdersPage({ params }: OrdersPageProps) {
+  const { clinic_id } = await params;
   return (
     <div>
       <PageHeader
@@ -20,8 +19,8 @@ export default function OrdersPage({ params }: OrdersPageProps) {
         title="Orders"
         subtitle="All orders for this workspace"
       />
-      <Suspense key={params.clinic_id} fallback={<LoadingState.Table />}>
-        <OrdersContent clinicId={params.clinic_id as ClinicId} />
+      <Suspense key={clinic_id} fallback={<LoadingState.Table />}>
+        <OrdersContent clinicId={clinic_id as ClinicId} />
       </Suspense>
     </div>
   );

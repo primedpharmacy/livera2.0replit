@@ -312,8 +312,294 @@ const SARAH_ORDER_FEELTRU: Order = {
 
 const SARAH_ORDER_VSC: Order = { ...SARAH_ORDER_FEELTRU, clinic_id: 'vsc' };
 
-const MOCK_PATIENTS: Patient[] = [SARAH_FEELTRU, SARAH_VSC];
-const MOCK_ORDERS: Order[] = [SARAH_ORDER_FEELTRU, SARAH_ORDER_VSC];
+// ── Additional VSC patients ──────────────────────────────────────────────────
+
+const JAMES_VSC: Patient = {
+  id: 'PT-00234',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'James Hartley',
+    dob: '1985-08-22',
+    sex_at_birth: 'male',
+    ethnicity: 'White British',
+    address: { line1: '47 Birch Close', city: 'Birmingham', postcode: 'B15 3TQ' },
+  },
+  contact: { email: 'james.hartley@example.com', phone: '+44 7700 900456', preferred_channel: 'email' },
+  gp: { name: 'Dr. Singh', address: 'Parkside Surgery, Birmingham B15 4PQ', phone: '+44 121 555 0200', email: 'parkside@nhs.net', nhs_ods_id: 'B83014' },
+  baseline: { height_cm: 181, baseline_weight_kg: 108.0, baseline_bmi: 32.9 },
+  latest: { weight_kg: 101.4, bmi: 30.9, recorded_at: '2026-05-03T09:15:00Z' },
+  verification: { sumsub_id: 'sumsub_jh234', identity_verified_at: '2026-02-01T10:00:00Z', bmi_verified_at: '2026-05-03T09:20:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-02-01T10:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-02-01T10:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  created_at: '2026-02-01T10:00:00Z',
+  updated_at: '2026-05-03T09:15:00Z',
+};
+
+const MIRIAM_VSC: Patient = {
+  id: 'PT-00156',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Miriam Osei',
+    dob: '1971-03-30',
+    sex_at_birth: 'female',
+    ethnicity: 'Black British',
+    address: { line1: '8 Maple Avenue', city: 'Leeds', postcode: 'LS6 2HR' },
+  },
+  contact: { email: 'miriam.osei@example.com', phone: '+44 7700 900789', preferred_channel: 'sms' },
+  gp: null,
+  baseline: { height_cm: 163, baseline_weight_kg: 98.0, baseline_bmi: 36.9 },
+  latest: { weight_kg: 95.1, bmi: 35.8, recorded_at: '2026-04-28T11:00:00Z' },
+  verification: { sumsub_id: 'sumsub_mo156', identity_verified_at: '2026-01-20T09:30:00Z', bmi_verified_at: '2026-04-28T11:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-20T09:30:00Z' },
+  ],
+  flags: [],
+  status: 'monitoring',
+  vip: false,
+  created_at: '2026-01-20T09:30:00Z',
+  updated_at: '2026-04-28T11:00:00Z',
+};
+
+const TOM_VSC: Patient = {
+  id: 'PT-00089',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Tom Fletcher',
+    dob: '1990-11-05',
+    sex_at_birth: 'male',
+    ethnicity: 'Mixed',
+    address: { line1: '19 Station Road', city: 'Sheffield', postcode: 'S1 2GH' },
+  },
+  contact: { email: 'tom.fletcher@example.com', phone: '+44 7700 900012', preferred_channel: 'phone' },
+  gp: { name: 'Dr. Clarke', address: 'Broomhill Medical, Sheffield S10 2SE', phone: '+44 114 555 0300', email: 'broomhill@nhs.net', nhs_ods_id: 'C83012' },
+  baseline: { height_cm: 178, baseline_weight_kg: 115.5, baseline_bmi: 36.5 },
+  latest: { weight_kg: 115.5, bmi: 36.5, recorded_at: '2026-05-08T14:00:00Z' },
+  verification: { sumsub_id: 'sumsub_tf089', identity_verified_at: '2026-05-08T13:50:00Z', bmi_verified_at: null },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-05-08T13:50:00Z' },
+  ],
+  flags: [],
+  status: 'new',
+  vip: false,
+  created_at: '2026-05-08T13:50:00Z',
+  updated_at: '2026-05-08T14:00:00Z',
+};
+
+const PRIYA_VSC: Patient = {
+  id: 'PT-00301',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Priya Shah',
+    dob: '1978-06-14',
+    sex_at_birth: 'female',
+    ethnicity: 'Asian British',
+    address: { line1: '3 Elm Street', city: 'London', postcode: 'E1 7PQ' },
+  },
+  contact: { email: 'priya.shah@example.com', phone: '+44 7700 900321', preferred_channel: 'email' },
+  gp: { name: 'Dr. Nguyen', address: 'Tower Hamlets GP, London E1 8AH', phone: '+44 20 555 0400', email: 'towerhamlets@nhs.net', nhs_ods_id: 'G85014' },
+  baseline: { height_cm: 158, baseline_weight_kg: 88.0, baseline_bmi: 35.2 },
+  latest: { weight_kg: 86.5, bmi: 34.6, recorded_at: '2026-03-15T10:30:00Z' },
+  verification: { sumsub_id: 'sumsub_ps301', identity_verified_at: '2026-01-10T11:00:00Z', bmi_verified_at: '2026-03-15T10:35:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-10T11:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-01-10T11:00:00Z' },
+  ],
+  flags: [{ id: 'flag_002', code: 'B1', severity: 'low', raised_at: '2026-03-01T09:00:00Z' }],
+  status: 'suspended',
+  vip: false,
+  created_at: '2026-01-10T11:00:00Z',
+  updated_at: '2026-03-15T10:30:00Z',
+};
+
+// ── Additional FeelTru patients ──────────────────────────────────────────────
+
+const EMMA_FEELTRU: Patient = {
+  id: 'PT-00412',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Emma Whitfield',
+    dob: '1983-02-28',
+    sex_at_birth: 'female',
+    ethnicity: 'White British',
+    address: { line1: '22 Willow Lane', city: 'Edinburgh', postcode: 'EH4 2NF' },
+  },
+  contact: { email: 'emma.whitfield@example.com', phone: '+44 7700 900654', preferred_channel: 'email' },
+  gp: { name: 'Dr. McAllister', address: 'Dean Surgery, Edinburgh EH4 3BR', phone: '+44 131 555 0500', email: 'dean@nhs.net', nhs_ods_id: 'S10003' },
+  baseline: { height_cm: 167, baseline_weight_kg: 95.0, baseline_bmi: 34.1 },
+  latest: { weight_kg: 87.3, bmi: 31.3, recorded_at: '2026-05-05T08:30:00Z' },
+  verification: { sumsub_id: 'sumsub_ew412', identity_verified_at: '2026-01-05T09:00:00Z', bmi_verified_at: '2026-05-05T08:35:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-05T09:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-01-05T09:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: true,
+  created_at: '2026-01-05T09:00:00Z',
+  updated_at: '2026-05-05T08:30:00Z',
+};
+
+const ZARA_FEELTRU: Patient = {
+  id: 'PT-00378',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Zara Ahmed',
+    dob: '1994-09-17',
+    sex_at_birth: 'female',
+    ethnicity: 'Asian British',
+    address: { line1: '56 Orchard Road', city: 'Bristol', postcode: 'BS8 2HY' },
+  },
+  contact: { email: 'zara.ahmed@example.com', phone: '+44 7700 900987', preferred_channel: 'sms' },
+  gp: { name: 'Dr. Wilson', address: 'Clifton Practice, Bristol BS8 3LE', phone: '+44 117 555 0600', email: 'clifton@nhs.net', nhs_ods_id: 'L83011' },
+  baseline: { height_cm: 162, baseline_weight_kg: 87.0, baseline_bmi: 33.2 },
+  latest: { weight_kg: 87.0, bmi: 33.2, recorded_at: '2026-05-07T10:00:00Z' },
+  verification: { sumsub_id: 'sumsub_za378', identity_verified_at: '2026-05-07T09:50:00Z', bmi_verified_at: '2026-05-07T10:00:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-05-07T09:50:00Z' },
+  ],
+  flags: [],
+  status: 'new',
+  vip: false,
+  created_at: '2026-05-07T09:50:00Z',
+  updated_at: '2026-05-07T10:00:00Z',
+};
+
+const FIONA_FEELTRU: Patient = {
+  id: 'PT-00445',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Fiona MacLeod',
+    dob: '1967-12-03',
+    sex_at_birth: 'female',
+    ethnicity: 'White Scottish',
+    address: { line1: '11 Harbour View', city: 'Glasgow', postcode: 'G1 3LF' },
+  },
+  contact: { email: 'fiona.macleod@example.com', phone: '+44 7700 900543', preferred_channel: 'phone' },
+  gp: { name: 'Dr. Robertson', address: 'City Centre Health, Glasgow G2 1PP', phone: '+44 141 555 0700', email: 'citycentre@nhs.net', nhs_ods_id: 'S10019' },
+  baseline: { height_cm: 161, baseline_weight_kg: 102.5, baseline_bmi: 39.5 },
+  latest: { weight_kg: 97.8, bmi: 37.7, recorded_at: '2026-04-20T14:00:00Z' },
+  verification: { sumsub_id: 'sumsub_fm445', identity_verified_at: '2026-01-25T10:00:00Z', bmi_verified_at: '2026-04-20T14:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-25T10:00:00Z' },
+  ],
+  flags: [],
+  status: 'monitoring',
+  vip: false,
+  created_at: '2026-01-25T10:00:00Z',
+  updated_at: '2026-04-20T14:00:00Z',
+};
+
+// ── Additional orders ────────────────────────────────────────────────────────
+
+const JAMES_ORDER_VSC: Order = {
+  id: 'ORD-00438',
+  clinic_id: 'vsc',
+  patient_id: 'PT-00234',
+  type: 'reorder',
+  status: 'approved',
+  product: { medication: 'Mounjaro', dose: '5mg', strength: 'pre-filled pen', plan: '4 weeks' },
+  questionnaire_responses: { weight_today: 101.4, side_effects: 'none', medication_changes: 'none' },
+  amendment_window: 'pre_dispensed',
+  primed_order_id: null,
+  ryft_authorisation_id: 'ryft_auth_jh1',
+  amount_charged: 179.00,
+  amount_authorised: 179.00,
+  clinical_decision: {
+    prescriber_user_id: 'user_qadir',
+    decision: 'approved',
+    decided_at: '2026-05-03T14:00:00Z',
+    rationale: 'Patient progressing well. Weight loss on target. No contraindications.',
+  },
+  sla_warn_at: '2026-05-03T15:00:00Z',
+  sla_breach_at: '2026-05-04T09:00:00Z',
+  g6_flags: [],
+  created_at: '2026-05-03T09:30:00Z',
+  updated_at: '2026-05-03T14:00:00Z',
+};
+
+const MIRIAM_ORDER_VSC: Order = {
+  id: 'ORD-00422',
+  clinic_id: 'vsc',
+  patient_id: 'PT-00156',
+  type: 'reorder',
+  status: 'clinical_check',
+  product: { medication: 'Mounjaro', dose: '2.5mg', strength: 'pre-filled pen', plan: '4 weeks' },
+  questionnaire_responses: { weight_today: 95.1, side_effects: 'none', medication_changes: 'none' },
+  amendment_window: 'pre_dispensed',
+  primed_order_id: null,
+  ryft_authorisation_id: 'ryft_auth_mo1',
+  amount_charged: null,
+  amount_authorised: 159.00,
+  clinical_decision: null,
+  sla_warn_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+  sla_breach_at: new Date(Date.now() + 4 * 3600 * 1000).toISOString(),
+  g6_flags: [],
+  created_at: new Date(Date.now() - 20 * 3600 * 1000).toISOString(),
+  updated_at: NOW,
+};
+
+const EMMA_ORDER_FEELTRU: Order = {
+  id: 'ORD-00447',
+  clinic_id: 'feeltru',
+  patient_id: 'PT-00412',
+  type: 'reorder',
+  status: 'dispatched',
+  product: { medication: 'Wegovy', dose: '1.0mg', strength: 'pre-filled pen', plan: '4 weeks' },
+  questionnaire_responses: { weight_today: 87.3, side_effects: 'none', medication_changes: 'none' },
+  amendment_window: 'post_dispensed',
+  primed_order_id: 'primed_ew_001',
+  ryft_authorisation_id: 'ryft_auth_ew1',
+  amount_charged: 195.00,
+  amount_authorised: 195.00,
+  clinical_decision: {
+    prescriber_user_id: 'user_qadir',
+    decision: 'approved',
+    decided_at: '2026-05-06T11:00:00Z',
+    rationale: 'Excellent progress. 7.7 kg loss over 4 months. Continue current dose.',
+  },
+  sla_warn_at: '2026-05-05T16:00:00Z',
+  sla_breach_at: '2026-05-06T10:00:00Z',
+  g6_flags: [],
+  created_at: '2026-05-05T10:00:00Z',
+  updated_at: '2026-05-07T08:00:00Z',
+};
+
+const ZARA_ORDER_FEELTRU: Order = {
+  id: 'ORD-00449',
+  clinic_id: 'feeltru',
+  patient_id: 'PT-00378',
+  type: 'initial',
+  status: 'clinical_check',
+  product: { medication: 'Mounjaro', dose: '2.5mg', strength: 'pre-filled pen', plan: '4 weeks' },
+  questionnaire_responses: { weight_today: 87.0, side_effects: 'none', medication_changes: 'none' },
+  amendment_window: 'pre_dispensed',
+  primed_order_id: null,
+  ryft_authorisation_id: 'ryft_auth_za1',
+  amount_charged: null,
+  amount_authorised: 149.00,
+  clinical_decision: null,
+  sla_warn_at: new Date(Date.now() + 3 * 3600 * 1000).toISOString(),
+  sla_breach_at: new Date(Date.now() + 21 * 3600 * 1000).toISOString(),
+  g6_flags: [],
+  created_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
+  updated_at: NOW,
+};
+
+const MOCK_PATIENTS: Patient[] = [
+  SARAH_FEELTRU, SARAH_VSC,
+  JAMES_VSC, MIRIAM_VSC, TOM_VSC, PRIYA_VSC,
+  EMMA_FEELTRU, ZARA_FEELTRU, FIONA_FEELTRU,
+];
+const MOCK_ORDERS: Order[] = [
+  SARAH_ORDER_FEELTRU, SARAH_ORDER_VSC,
+  JAMES_ORDER_VSC, MIRIAM_ORDER_VSC,
+  EMMA_ORDER_FEELTRU, ZARA_ORDER_FEELTRU,
+];
 const MOCK_CONSULTATIONS: Consultation[] = [];
 const MOCK_INCIDENTS: Incident[] = [];
 const MOCK_COMPLAINTS: Complaint[] = [];

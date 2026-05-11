@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import {
-  User, Phone, Mail, MapPin, Stethoscope, ShieldCheck, FileText,
+  User, Phone, Stethoscope, ShieldCheck, FileText,
   Activity, Scale, AlertTriangle, Package, ArrowLeft, ChevronRight,
 } from "lucide-react";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { PatientQuickActions } from "@/components/patients/PatientQuickActions";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import { getPatient, listOrders } from "@/lib/api/mock";
 import type { Patient, Order, ClinicId } from "@/types";
@@ -75,7 +76,13 @@ async function ProfileContent({ clinicId, patientId }: { clinicId: ClinicId; pat
               </div>
             </div>
           </div>
-          <StatusBadge value={patient.status} kind="patient" className="shrink-0 mt-1" />
+          <div className="flex flex-col items-end gap-2.5 shrink-0">
+            <StatusBadge value={patient.status} kind="patient" />
+            <PatientQuickActions
+              clinicId={clinicId}
+              latestOrderId={orders.length > 0 ? orders[orders.length - 1].id : null}
+            />
+          </div>
         </div>
       </div>
 

@@ -26,14 +26,14 @@
     "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
     "@types/node": "^20.16.10",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
     "eslint-config-next": "^15.3.3",
     "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.14",
+    "tailwindcss": "catalog:",
     "typescript": "^5.6.3"
   }
 }

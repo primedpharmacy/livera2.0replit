@@ -1,6 +1,73 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-brand: #6366f1;
+  --color-brand-dark: #4338ca;
+  --color-brand-light: #eef2ff;
+  --color-brand-mid: #818cf8;
+
+  --color-bdr: #e2e8f0;
+  --color-bdr-d: #cbd5e1;
+  --color-nav: #1e1b4b;
+  --color-surface: #ffffff;
+  --color-page-bg: #f1f0ef;
+  --color-t1: #0f172a;
+  --color-t2: #475569;
+  --color-t3: #94a3b8;
+
+  --color-ok: #10b981;
+  --color-ok-bg: #ecfdf5;
+  --color-ok-bdr: #a7f3d0;
+  --color-warn: #f59e0b;
+  --color-warn-bg: #fffbeb;
+  --color-warn-bdr: #fde68a;
+  --color-err: #ef4444;
+  --color-err-bg: #fef2f2;
+  --color-err-bdr: #fecaca;
+  --color-info: #3b82f6;
+  --color-info-bg: #eff6ff;
+  --color-info-bdr: #bfdbfe;
+  --color-coach: #a855f7;
+  --color-coach-bg: #faf5ff;
+  --color-coach-bdr: #e9d5ff;
+  --color-welcome: #0ea5e9;
+  --color-welcome-bg: #f0f9ff;
+  --color-welcome-bdr: #bae6fd;
+  --color-clinical: #dc2626;
+  --color-clinical-bg: #fef2f2;
+  --color-clinical-bdr: #fecaca;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
@@ -57,9 +124,7 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }

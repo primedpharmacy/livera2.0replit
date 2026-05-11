@@ -1444,7 +1444,9 @@ class APIError extends Error {
 // --- Monday.com mock proxy (DEC-37, DEC-29) ---
 async function mondayRead(boardId: string): Promise<MondayBoardState> {
   await delay(150);
-  return MOCK_MONDAY_BOARDS[boardId] ?? { items: [], etag: 'empty' };
+  const board = MOCK_MONDAY_BOARDS[boardId] ?? { items: [], etag: 'empty' };
+  console.log('[MONDAY READ]', { boardId, etag: board?.etag ?? '(missing)' });
+  return board;
 }
 
 async function mondayWrite(
@@ -1473,6 +1475,7 @@ async function mondayWrite(
     }
   }
   board.etag = `v${Date.now()}`;
+  console.log('[MONDAY WRITE]', { boardId, op, etag: board.etag });
   return board;
 }
 
@@ -1913,17 +1916,60 @@ export async function createGPLetter(
 export async function sendGPLetter(clinic_id: ClinicId, id: string): Promise<GPLetter> {
   await delay(600);
   const g = MOCK_GP_LETTERS.find((x) => x.clinic_id === clinic_id && x.id === id);
-  if (!g) throw new APIError('NOT_FOUND', 'GP letter not found');
-  if (g.status !== 'draft') throw new APIError('INVALID_STATE', 'Letter is not in draft status');
-  if (!g.patient_consent_verified) throw new APIError('CONSENT_REQUIRED', 'Patient has not consented to GP communication');
+  if (!g) {
+    console.log('[AUDIT]', { event_type: 'gp_letter_send_result', outcome: 'not_found', clinic_id, letter_id: id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+    throw new APIError('NOT_FOUND', 'GP letter not found');
+  }
+  if (g.status !== 'draft') {
+    console.log('[AUDIT]', { event_type: 'gp_letter_send_result', outcome: 'invalid_state', clinic_id, letter_id: id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+    throw new APIError('INVALID_STATE', 'Letter is not in draft status');
+  }
+  if (!g.patient_consent_verified) {
+    console.log('[AUDIT]', { event_type: 'gp_letter_send_result', outcome: 'consent_violation', clinic_id, letter_id: id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+    throw new APIError('CONSENT_VIOLATION', 'Patient has not consented to GP communication');
+  }
   const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === g.patient_id);
   const gpEmail = patient?.gp?.email ?? null;
-  if (!gpEmail) throw new APIError('NO_GP_EMAIL', 'No GP email address on record for this patient');
+  if (!gpEmail) {
+    console.log('[AUDIT]', { event_type: 'gp_letter_send_result', outcome: 'no_gp_email', clinic_id, letter_id: id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+    throw new APIError('NO_GP_EMAIL', 'No GP email address on record for this patient');
+  }
   g.status = 'sent';
   g.sent_at = new Date().toISOString();
   g.sent_to_email = gpEmail;
   console.log('[AUDIT]', { action: 'gp_letter.sent', letter_id: id, sent_to: gpEmail, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
   return g;
+}
+
+export async function reassignComplaint(
+  clinic_id: ClinicId,
+  id: string,
+  new_assignee_user_id: string,
+): Promise<Complaint> {
+  await delay(150);
+  const c = MOCK_COMPLAINTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!c) throw new APIError('NOT_FOUND', `Complaint ${id} not found`);
+
+  // Monday first
+  await mondayWrite(c.monday_board_id, 'update', {
+    id: c.monday_item_id,
+    column_values: { assignee: new_assignee_user_id },
+  });
+
+  // Mirror to Livera
+  c.assigned_to_user_id = new_assignee_user_id;
+  c.sync_status = 'in_sync';
+
+  console.log('[AUDIT]', {
+    event_type: 'complaint.reassigned',
+    clinic_id,
+    complaint_id: id,
+    new_assignee_user_id,
+    user_id: CURRENT_USER.id,
+    timestamp: new Date().toISOString(),
+  });
+
+  return c;
 }
 
 export async function listGPLetterTemplates(): Promise<GPLetterTemplate[]> {

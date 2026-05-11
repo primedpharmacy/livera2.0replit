@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
   MessageSquare, Clock, ShieldAlert, ClipboardList, AlertTriangle,
-  Stethoscope, Activity, Scale,
+  Stethoscope, Activity, Scale, Pencil, ShieldCheck, FileText,
 } from "lucide-react";
 import {
   Dialog,
@@ -29,6 +29,15 @@ interface OrderDetailClientProps {
 }
 
 type Modal = "approve" | "decline" | "query" | null;
+type RightTab = "questionnaire" | "clinical_evidence" | "prescription" | "amendments" | "activity";
+
+const RIGHT_TABS: { key: RightTab; label: string }[] = [
+  { key: "questionnaire",      label: "Questionnaire"      },
+  { key: "clinical_evidence",  label: "Clinical evidence"  },
+  { key: "prescription",       label: "Prescription"       },
+  { key: "amendments",         label: "Amendments"         },
+  { key: "activity",           label: "Activity log"       },
+];
 
 const Q_DEFS: Record<string, { question: string; sub?: string; safetyChain?: boolean }> = {
   weight_today: {
@@ -64,11 +73,12 @@ export function OrderDetailClient({
   clinic,
   clinicId,
 }: OrderDetailClientProps) {
-  const [order, setOrder] = useState<Order>(initialOrder);
-  const [modal, setModal] = useState<Modal>(null);
-  const [rationale, setRationale] = useState("");
+  const [order, setOrder]           = useState<Order>(initialOrder);
+  const [modal, setModal]           = useState<Modal>(null);
+  const [rationale, setRationale]   = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [toast, setToast]           = useState<Toast | null>(null);
+  const [activeTab, setActiveTab]   = useState<RightTab>("questionnaire");
 
   useEffect(() => {
     if (!toast) return;
@@ -92,6 +102,8 @@ export function OrderDetailClient({
             : "Query raised — patient will be contacted.",
         type: decision === "approved" ? "ok" : "err",
       });
+      // Jump to activity log after a decision so the user can see it
+      setActiveTab("activity");
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : "Action failed. Please retry.",
@@ -102,21 +114,26 @@ export function OrderDetailClient({
     }
   }
 
-  const canDecide = order.status === "clinical_check";
-  const d = patient.demographic;
-  const age = formatAge(d.dob);
-  const hasB4 = patient.flags.some((f) => f.code === "B4");
-  const now = Date.now();
-  const warnAt = new Date(order.sla_warn_at).getTime();
-  const breachAt = new Date(order.sla_breach_at).getTime();
+  const canDecide   = order.status === "clinical_check";
+  const d           = patient.demographic;
+  const age         = formatAge(d.dob);
+  const hasB4       = patient.flags.some((f) => f.code === "B4");
+  const now         = Date.now();
+  const warnAt      = new Date(order.sla_warn_at).getTime();
+  const breachAt    = new Date(order.sla_breach_at).getTime();
   const slaBreached = now > breachAt;
-  const slaWarning = !slaBreached && now > warnAt;
-  const slaHoursLeft = Math.floor((breachAt - now) / 3600000);
+  const slaWarning  = !slaBreached && now > warnAt;
+  const slaHoursLeft  = Math.max(0, Math.floor((breachAt - now) / 3600000));
   const slaTotalHours = clinic.config.sla.approval_breach_hours;
+
+  // Clinical evidence derived values
+  const weightLostKg  = +(patient.baseline.baseline_weight_kg - patient.latest.weight_kg).toFixed(1);
+  const bmiDelta      = +(patient.baseline.baseline_bmi - patient.latest.bmi).toFixed(1);
+  const weightGained  = weightLostKg < 0;
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Sticky header */}
+      {/* ── Sticky header ─────────────────────────────────────────────────── */}
       <div className="px-6 py-4 border-b border-bdr bg-surface shrink-0">
         <nav className="flex items-center gap-1.5 text-[12px] text-t3 mb-3">
           <Link href={`/${clinicId}/orders`} className="flex items-center gap-1 hover:text-brand transition-colors">
@@ -177,10 +194,11 @@ export function OrderDetailClient({
         </div>
       </div>
 
-      {/* Body — two-panel */}
+      {/* ── Body — two-panel ──────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
         <div className="px-6 py-5 grid grid-cols-5 gap-4 items-start">
-          {/* Left — patient summary 2/5 */}
+
+          {/* Left — patient summary 2/5 (unchanged) */}
           <div className="col-span-2 space-y-4 sticky top-5">
             <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-bdr bg-page-bg">
@@ -231,152 +249,268 @@ export function OrderDetailClient({
             </div>
           </div>
 
-          {/* Right — order cards 3/5 */}
-          <div className="col-span-3 space-y-4">
-            {/* Order details */}
-            <DCard icon={Package} title="Order Details">
-              <Row label="Order ID" value={order.id} mono />
-              <Row label="Type" value={order.type} />
-              <Row label="Medication" value={order.product.medication} />
-              <Row label="Dose" value={order.product.dose} />
-              <Row label="Strength" value={order.product.strength} />
-              <Row label="Plan" value={order.product.plan} />
-              <Row label="Submitted" value={formatDateTime(order.created_at)} />
-              {order.amount_charged != null && (
-                <Row label="Amount charged" value={`£${order.amount_charged.toFixed(2)}`} />
-              )}
-            </DCard>
+          {/* Right — tabbed panel 3/5 */}
+          <div className="col-span-3">
+            {/* Tab bar */}
+            <div className="flex items-center border-b border-bdr overflow-x-auto mb-4">
+              {RIGHT_TABS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setActiveTab(key)}
+                  className={`px-4 py-2.5 text-[12px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${
+                    activeTab === key
+                      ? "border-brand text-brand"
+                      : "border-transparent text-t2 hover:text-t1"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-            {/* Questionnaire responses */}
-            <DCard icon={ClipboardList} title="Questionnaire Responses">
-              {Object.entries(order.questionnaire_responses).length === 0 ? (
-                <p className="text-[12px] text-t3">No responses recorded.</p>
-              ) : (
-                <div className="divide-y divide-bdr -mx-4 -mb-3">
-                  {Object.entries(order.questionnaire_responses).map(([key, val], idx) => {
-                    const def  = Q_DEFS[key];
-                    const flag = qFlag(key, val);
-                    return (
-                      <div key={key} className="grid grid-cols-[28px_1fr] gap-3 px-4 py-3.5 items-start">
-                        <div className="text-[10px] font-bold text-t3 bg-page-bg border border-bdr rounded text-center py-1 tabular-nums shrink-0">
-                          Q{idx + 1}
-                        </div>
-                        <div>
-                          <div className="flex items-start gap-2 flex-wrap mb-1">
-                            <span className="text-[12.5px] text-t1 font-semibold leading-snug">
-                              {def?.question ?? key.replace(/_/g, " ")}
-                            </span>
-                            {def?.safetyChain && (
-                              <span className="shrink-0 text-[9px] font-bold px-1.5 py-px rounded bg-err-bg text-err border border-err-bdr tracking-wide">
-                                SAFETY CHAIN
+            {/* ── Tab: Questionnaire ──────────────────────────────────────── */}
+            {activeTab === "questionnaire" && (
+              <DCard icon={ClipboardList} title="Questionnaire Responses">
+                {Object.entries(order.questionnaire_responses).length === 0 ? (
+                  <p className="text-[12px] text-t3">No responses recorded.</p>
+                ) : (
+                  <div className="divide-y divide-bdr -mx-4 -mb-3">
+                    {Object.entries(order.questionnaire_responses).map(([key, val], idx) => {
+                      const def  = Q_DEFS[key];
+                      const flag = qFlag(key, val);
+                      return (
+                        <div key={key} className="grid grid-cols-[28px_1fr] gap-3 px-4 py-3.5 items-start">
+                          <div className="text-[10px] font-bold text-t3 bg-page-bg border border-bdr rounded text-center py-1 tabular-nums shrink-0">
+                            Q{idx + 1}
+                          </div>
+                          <div>
+                            <div className="flex items-start gap-2 flex-wrap mb-1">
+                              <span className="text-[12.5px] text-t1 font-semibold leading-snug">
+                                {def?.question ?? key.replace(/_/g, " ")}
                               </span>
+                              {def?.safetyChain && (
+                                <span className="shrink-0 text-[9px] font-bold px-1.5 py-px rounded bg-err-bg text-err border border-err-bdr tracking-wide">
+                                  SAFETY CHAIN
+                                </span>
+                              )}
+                            </div>
+                            {def?.sub && (
+                              <p className="text-[11px] text-t3 mb-2 leading-snug">{def.sub}</p>
                             )}
-                          </div>
-                          {def?.sub && (
-                            <p className="text-[11px] text-t3 mb-2 leading-snug">{def.sub}</p>
-                          )}
-                          <div className={`flex items-center justify-between gap-2 px-3 py-2 rounded border text-[12.5px] font-semibold ${
-                            flag === "ok"
-                              ? "bg-ok-bg border-ok-bdr text-ok"
-                              : flag === "warn"
-                              ? "bg-warn-bg border-warn-bdr text-warn"
-                              : "bg-page-bg border-bdr text-t1"
-                          }`}>
-                            <span className="flex items-center gap-1.5">
-                              {flag === "ok"   && <span className="text-[13px]">✓</span>}
-                              {flag === "warn"  && <span className="text-[13px]">⚠</span>}
-                              {key === "weight_today" ? `${val} kg` : String(val)}
-                            </span>
-                            <span className="text-[10px] font-semibold uppercase tracking-wide opacity-60">
-                              {flag === "ok" ? "No flag" : flag === "warn" ? "Review" : ""}
-                            </span>
+                            <div className={`flex items-center justify-between gap-2 px-3 py-2 rounded border text-[12.5px] font-semibold ${
+                              flag === "ok"
+                                ? "bg-ok-bg border-ok-bdr text-ok"
+                                : flag === "warn"
+                                ? "bg-warn-bg border-warn-bdr text-warn"
+                                : "bg-page-bg border-bdr text-t1"
+                            }`}>
+                              <span className="flex items-center gap-1.5">
+                                {flag === "ok"  && <span className="text-[13px]">✓</span>}
+                                {flag === "warn" && <span className="text-[13px]">⚠</span>}
+                                {key === "weight_today" ? `${val} kg` : String(val)}
+                              </span>
+                              <span className="text-[10px] font-semibold uppercase tracking-wide opacity-60">
+                                {flag === "ok" ? "No flag" : flag === "warn" ? "Review" : ""}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </DCard>
-
-            {/* SLA card — only for clinical_check */}
-            {order.status === "clinical_check" && (
-              <DCard icon={Clock} title="SLA Status">
-                <div className={`flex items-start gap-3 p-3 rounded-md border ${
-                  slaBreached ? "bg-err-bg border-err-bdr" :
-                  slaWarning  ? "bg-warn-bg border-warn-bdr" :
-                  "bg-info-bg border-info-bdr"
-                }`}>
-                  <Clock className={`w-4 h-4 shrink-0 mt-0.5 ${
-                    slaBreached ? "text-err" : slaWarning ? "text-warn" : "text-info"
-                  }`} />
-                  <div>
-                    <p className={`text-[13px] font-semibold ${
-                      slaBreached ? "text-err" : slaWarning ? "text-warn" : "text-info"
-                    }`}>
-                      {slaBreached
-                        ? "SLA Breached"
-                        : slaWarning
-                        ? `SLA Warning — ${slaHoursLeft}h remaining`
-                        : `On track — ${slaHoursLeft}h remaining`}
-                    </p>
-                    <p className="text-[11px] text-t2 mt-0.5">
-                      SLA target: {slaTotalHours}h from submission ·
-                      Breach at {formatDateTime(order.sla_breach_at)}
-                    </p>
-                  </div>
-                </div>
-              </DCard>
-            )}
-
-            {/* G6 Flags */}
-            {order.g6_flags.length > 0 && (
-              <DCard icon={ShieldAlert} title="G6 Flags">
-                <div className="flex items-center gap-2 p-3 bg-ok-bg border border-ok-bdr rounded-md">
-                  <ShieldAlert className="w-4 h-4 text-ok shrink-0" />
-                  <div>
-                    <p className="text-[13px] font-semibold text-ok">G6PD Screening Complete</p>
-                    <p className="text-[11px] text-t2 mt-0.5">
-                      Flags: {order.g6_flags.join(", ")}
-                    </p>
-                  </div>
-                </div>
-              </DCard>
-            )}
-
-            {/* Clinical decision */}
-            {order.clinical_decision && (
-              <DCard icon={Stethoscope} title="Clinical Decision">
-                <div className={`flex items-start gap-3 p-3 rounded-md border mb-3 ${
-                  order.clinical_decision.decision === "approved" ? "bg-ok-bg border-ok-bdr" :
-                  order.clinical_decision.decision === "declined" ? "bg-err-bg border-err-bdr" :
-                  "bg-info-bg border-info-bdr"
-                }`}>
-                  <span className={`text-[13px] font-bold capitalize ${
-                    order.clinical_decision.decision === "approved" ? "text-ok" :
-                    order.clinical_decision.decision === "declined" ? "text-err" :
-                    "text-info"
-                  }`}>
-                    {order.clinical_decision.decision}
-                  </span>
-                </div>
-                <Row label="Prescriber" value={order.clinical_decision.prescriber_user_id} mono />
-                <Row label="Decided" value={formatDateTime(order.clinical_decision.decided_at)} />
-                {order.clinical_decision.rationale && (
-                  <div className="pt-2">
-                    <span className="text-[12px] text-t3 block mb-1">Rationale</span>
-                    <p className="text-[12.5px] text-t1 bg-page-bg border border-bdr rounded px-3 py-2 leading-relaxed">
-                      {order.clinical_decision.rationale}
-                    </p>
+                      );
+                    })}
                   </div>
                 )}
+              </DCard>
+            )}
+
+            {/* ── Tab: Clinical evidence ──────────────────────────────────── */}
+            {activeTab === "clinical_evidence" && (
+              <div className="space-y-4">
+                {/* Weight journey */}
+                <DCard icon={Scale} title="Weight Journey">
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    <Metric label="Baseline weight" value={formatWeight(patient.baseline.baseline_weight_kg)} sub={`BMI ${formatBMI(patient.baseline.baseline_bmi)}`} />
+                    <Metric label="Current weight" value={formatWeight(patient.latest.weight_kg)} sub={`BMI ${formatBMI(patient.latest.bmi)}`} />
+                    <Metric
+                      label="Total change"
+                      value={`${weightGained ? "+" : "−"}${Math.abs(weightLostKg)} kg`}
+                      sub={`${weightGained ? "+" : "−"}${Math.abs(bmiDelta)} BMI`}
+                      highlight={weightGained ? "warn" : "ok"}
+                    />
+                  </div>
+                  <Row label="Height" value={`${patient.baseline.height_cm} cm`} />
+                  <Row label="Latest recorded" value={formatDate(patient.latest.recorded_at)} />
+                </DCard>
+
+                {/* Verification */}
+                <DCard icon={ShieldCheck} title="Identity Verification">
+                  <Row label="Sumsub ID" value={patient.verification.sumsub_id || "—"} mono />
+                  <Row
+                    label="Identity verified"
+                    value={patient.verification.identity_verified_at
+                      ? formatDateTime(patient.verification.identity_verified_at)
+                      : "Not verified"}
+                  />
+                  <Row
+                    label="BMI verified"
+                    value={patient.verification.bmi_verified_at
+                      ? formatDateTime(patient.verification.bmi_verified_at)
+                      : "Not verified"}
+                  />
+                </DCard>
+
+                {/* Patient flags */}
+                {patient.flags.length > 0 && (
+                  <DCard icon={AlertTriangle} title="Clinical Flags">
+                    <div className="space-y-2">
+                      {patient.flags.map((flag) => (
+                        <div key={flag.id} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded bg-warn-bg border border-warn-bdr">
+                          <span className="text-[12px] font-bold text-warn">{flag.code}</span>
+                          <span className={`text-[10px] font-semibold px-2 py-px rounded-full ${
+                            flag.severity === "high"   ? "bg-err text-white"  :
+                            flag.severity === "medium" ? "bg-warn text-white" :
+                            "bg-info text-white"
+                          }`}>{flag.severity}</span>
+                          <span className="text-[11px] text-t2">{formatDate(flag.raised_at)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </DCard>
+                )}
+
+                {/* G6 flags */}
+                {order.g6_flags.length > 0 && (
+                  <DCard icon={ShieldAlert} title="G6 Flags">
+                    <div className="flex items-center gap-2 p-3 bg-ok-bg border border-ok-bdr rounded-md">
+                      <ShieldAlert className="w-4 h-4 text-ok shrink-0" />
+                      <div>
+                        <p className="text-[13px] font-semibold text-ok">G6PD Screening Complete</p>
+                        <p className="text-[11px] text-t2 mt-0.5">Flags: {order.g6_flags.join(", ")}</p>
+                      </div>
+                    </div>
+                  </DCard>
+                )}
+
+                {patient.flags.length === 0 && order.g6_flags.length === 0 && (
+                  <EmptyPane message="No clinical flags raised on this patient." />
+                )}
+              </div>
+            )}
+
+            {/* ── Tab: Prescription ───────────────────────────────────────── */}
+            {activeTab === "prescription" && (
+              <div className="space-y-4">
+                <DCard icon={Package} title="Product">
+                  <Row label="Medication" value={order.product.medication} />
+                  <Row label="Dose" value={order.product.dose} />
+                  <Row label="Strength" value={order.product.strength} />
+                  <Row label="Plan" value={order.product.plan} />
+                  <Row label="Order type" value={order.type} />
+                  <Row label="Amendment window" value={order.amendment_window.replace(/_/g, " ")} />
+                </DCard>
+
+                <DCard icon={FileText} title="Payment">
+                  <Row label="Amount authorised" value={order.amount_authorised != null ? `£${order.amount_authorised.toFixed(2)}` : "—"} />
+                  <Row label="Amount charged" value={order.amount_charged != null ? `£${order.amount_charged.toFixed(2)}` : "Pending"} />
+                  {order.ryft_authorisation_id && (
+                    <Row label="Ryft auth ID" value={order.ryft_authorisation_id} mono />
+                  )}
+                </DCard>
+
+                {/* SLA — only relevant for clinical_check */}
+                {order.status === "clinical_check" && (
+                  <DCard icon={Clock} title="SLA Status">
+                    <div className={`flex items-start gap-3 p-3 rounded-md border ${
+                      slaBreached ? "bg-err-bg border-err-bdr" :
+                      slaWarning  ? "bg-warn-bg border-warn-bdr" :
+                      "bg-info-bg border-info-bdr"
+                    }`}>
+                      <Clock className={`w-4 h-4 shrink-0 mt-0.5 ${
+                        slaBreached ? "text-err" : slaWarning ? "text-warn" : "text-info"
+                      }`} />
+                      <div>
+                        <p className={`text-[13px] font-semibold ${
+                          slaBreached ? "text-err" : slaWarning ? "text-warn" : "text-info"
+                        }`}>
+                          {slaBreached
+                            ? "SLA Breached"
+                            : slaWarning
+                            ? `SLA Warning — ${slaHoursLeft}h remaining`
+                            : `On track — ${slaHoursLeft}h remaining`}
+                        </p>
+                        <p className="text-[11px] text-t2 mt-0.5">
+                          Target: {slaTotalHours}h from submission · Breach at {formatDateTime(order.sla_breach_at)}
+                        </p>
+                      </div>
+                    </div>
+                  </DCard>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab: Amendments ─────────────────────────────────────────── */}
+            {activeTab === "amendments" && (
+              <DCard icon={Pencil} title="Amendments">
+                <EmptyPane message="No amendments have been raised on this order." />
+              </DCard>
+            )}
+
+            {/* ── Tab: Activity log ───────────────────────────────────────── */}
+            {activeTab === "activity" && (
+              <DCard icon={Activity} title="Activity Log">
+                <div className="relative">
+                  {/* vertical line */}
+                  <div className="absolute left-[7px] top-2 bottom-2 w-px bg-bdr" />
+
+                  <ol className="space-y-0 -mx-4">
+                    {/* Clinical decision — shown first if it exists (most recent) */}
+                    {order.clinical_decision && (
+                      <TimelineItem
+                        dot={
+                          order.clinical_decision.decision === "approved" ? "ok" :
+                          order.clinical_decision.decision === "declined" ? "err" : "info"
+                        }
+                        title={`Order ${order.clinical_decision.decision}`}
+                        meta={`by ${order.clinical_decision.prescriber_user_id} · ${formatDateTime(order.clinical_decision.decided_at)}`}
+                      >
+                        {order.clinical_decision.rationale && (
+                          <p className="mt-1.5 text-[12px] text-t1 bg-page-bg border border-bdr rounded px-3 py-2 leading-relaxed">
+                            {order.clinical_decision.rationale}
+                          </p>
+                        )}
+                      </TimelineItem>
+                    )}
+
+                    {/* Status changes shown if order moved from clinical_check */}
+                    {order.status !== "clinical_check" && (
+                      <TimelineItem
+                        dot="neutral"
+                        title={`Status changed to ${order.status.replace(/_/g, " ")}`}
+                        meta={order.clinical_decision
+                          ? formatDateTime(order.clinical_decision.decided_at)
+                          : formatDateTime(order.updated_at)}
+                      />
+                    )}
+
+                    {/* Order submitted — always last (oldest) */}
+                    <TimelineItem
+                      dot="neutral"
+                      title="Order submitted"
+                      meta={formatDateTime(order.created_at)}
+                      isLast
+                    >
+                      <p className="mt-1 text-[11px] text-t3">
+                        {order.product.medication} {order.product.dose} · <span className="capitalize">{order.type}</span> order
+                      </p>
+                    </TimelineItem>
+                  </ol>
+                </div>
               </DCard>
             )}
           </div>
         </div>
       </div>
 
-      {/* Approve confirm dialog */}
+      {/* ── Approve dialog ────────────────────────────────────────────────── */}
       <Dialog open={modal === "approve"} onOpenChange={(o) => !o && setModal(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -402,7 +536,7 @@ export function OrderDetailClient({
         </DialogContent>
       </Dialog>
 
-      {/* Decline dialog */}
+      {/* ── Decline dialog ────────────────────────────────────────────────── */}
       <Dialog open={modal === "decline"} onOpenChange={(o) => !o && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -436,7 +570,7 @@ export function OrderDetailClient({
         </DialogContent>
       </Dialog>
 
-      {/* Query dialog */}
+      {/* ── Query dialog ──────────────────────────────────────────────────── */}
       <Dialog open={modal === "query"} onOpenChange={(o) => !o && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -470,24 +604,24 @@ export function OrderDetailClient({
         </DialogContent>
       </Dialog>
 
-      {/* Toast */}
+      {/* ── Toast ─────────────────────────────────────────────────────────── */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border text-[13px] font-medium transition-all ${
           toast.type === "ok"
             ? "bg-ok-bg border-ok-bdr text-ok"
             : "bg-err-bg border-err-bdr text-err"
         }`}>
-          {toast.type === "ok" ? (
-            <CheckCircle className="w-4 h-4 shrink-0" />
-          ) : (
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-          )}
+          {toast.type === "ok"
+            ? <CheckCircle className="w-4 h-4 shrink-0" />
+            : <AlertTriangle className="w-4 h-4 shrink-0" />}
           {toast.message}
         </div>
       )}
     </div>
   );
 }
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
 function DCard({
   icon: Icon,
@@ -517,5 +651,66 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
         {value || "—"}
       </span>
     </div>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  sub,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  highlight?: "ok" | "warn";
+}) {
+  return (
+    <div className={`rounded-lg border px-3 py-2.5 text-center ${
+      highlight === "ok"   ? "bg-ok-bg border-ok-bdr"     :
+      highlight === "warn" ? "bg-warn-bg border-warn-bdr" :
+      "bg-page-bg border-bdr"
+    }`}>
+      <div className={`text-[15px] font-bold ${
+        highlight === "ok" ? "text-ok" : highlight === "warn" ? "text-warn" : "text-t1"
+      }`}>{value}</div>
+      {sub && <div className="text-[10px] text-t3 mt-0.5">{sub}</div>}
+      <div className="text-[10px] text-t3 mt-1 leading-tight">{label}</div>
+    </div>
+  );
+}
+
+function EmptyPane({ message }: { message: string }) {
+  return (
+    <p className="text-[12px] text-t3 text-center py-6">{message}</p>
+  );
+}
+
+function TimelineItem({
+  dot,
+  title,
+  meta,
+  children,
+  isLast = false,
+}: {
+  dot: "ok" | "err" | "info" | "neutral";
+  title: string;
+  meta: string;
+  children?: React.ReactNode;
+  isLast?: boolean;
+}) {
+  const dotColor =
+    dot === "ok"      ? "bg-ok border-ok-bdr"     :
+    dot === "err"     ? "bg-err border-err-bdr"   :
+    dot === "info"    ? "bg-info border-info-bdr"  :
+    "bg-bdr border-bdr-d";
+
+  return (
+    <li className={`relative pl-8 pr-4 py-3.5 ${!isLast ? "border-b border-bdr" : ""}`}>
+      <div className={`absolute left-[3px] top-[18px] w-3.5 h-3.5 rounded-full border-2 ${dotColor}`} />
+      <div className="text-[12.5px] font-semibold text-t1 capitalize">{title}</div>
+      <div className="text-[11px] text-t3 mt-0.5">{meta}</div>
+      {children}
+    </li>
   );
 }

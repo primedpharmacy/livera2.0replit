@@ -1,0 +1,90 @@
+I need you to prepare a complete code audit package so Claude can review everything built so far. This may span Mini-wave 1 AND any partial Mini-wave 2 or Mini-wave 3 work you've done.
+
+Run all these steps and paste the full output back into chat. Do NOT modify any files — this is read-only.
+
+==== STEP 1: Project state overview ====
+
+Run and paste output of each command:
+
+1a. ls -la artifacts/web/
+1b. find artifacts/web/app -type f -name "*.tsx" -o -name "*.ts" | sort
+1c. find artifacts/web/components -type f -name "*.tsx" -o -name "*.ts" | sort
+1d. find artifacts/web/lib -type f -name "*.tsx" -o -name "*.ts" | sort
+1e. find artifacts/web/types -type f -name "*.tsx" -o -name "*.ts" | sort
+
+This gives Claude a complete tree of what exists.
+
+==== STEP 2: Dependency state ====
+
+2a. Paste the FULL contents of artifacts/web/package.json
+2b. Confirm the dev server is currently running cleanly. Paste the last 15 lines of dev server output.
+
+==== STEP 3: Full source code paste ====
+
+For EVERY .tsx and .ts file inside these folders (excluding node_modules, .next, dist):
+- artifacts/web/app/
+- artifacts/web/components/
+- artifacts/web/lib/
+- artifacts/web/types/
+
+Paste the FULL contents of each file with the file path as a markdown heading before each code block. Do not truncate any file.
+
+Format each one like this:
+
+### artifacts/web/[full path]
+```typescript
+[full file contents]
+```
+
+If a file is empty or just contains a .gitkeep, note "EMPTY FILE" and skip the code block.
+
+Do NOT include:
+- artifacts/web/components/ui/ (these are shadcn primitives, no need to audit)
+- artifacts/web/lib/utils.ts (shadcn cn() helper, no need to audit)
+- artifacts/web/prototypes/ (HTML design references, not code)
+
+==== STEP 4: Configuration files ====
+
+Paste full contents of:
+4a. artifacts/web/tailwind.config.ts
+4b. artifacts/web/next.config.mjs (or next.config.ts, whichever exists)
+4c. artifacts/web/tsconfig.json
+4d. artifacts/web/app/globals.css
+
+==== STEP 5: Architectural compliance scans ====
+
+Run each and paste the output:
+
+5a. Hex codes in component/app/lib code (excluding mock data):
+grep -rn "#[0-9a-fA-F]\{6\}" artifacts/web/components/ artifacts/web/app/ artifacts/web/lib/ --include="*.tsx" --include="*.ts" 2>/dev/null | grep -v "brand_tokens\|primary_color\|secondary_color"
+
+5b. Hardcoded clinical thresholds (should be empty):
+grep -rn "approval_warn_hours\|approval_breach_hours\|sla_warn_at\|sla_breach_at" artifacts/web/components/ artifacts/web/app/ --include="*.tsx" --include="*.ts" 2>/dev/null
+
+5c. Hardcoded clinic IDs in components (should be empty — all should come from URL params):
+grep -rn "\"vsc\"\|\"feeltru\"\|'vsc'\|'feeltru'" artifacts/web/components/ artifacts/web/app/ --include="*.tsx" --include="*.ts" 2>/dev/null | grep -v "// " | grep -v "comment"
+
+5d. Direct fetch() calls (should be empty — all data through lib/api/mock.ts):
+grep -rn "fetch(" artifacts/web/components/ artifacts/web/app/ --include="*.tsx" --include="*.ts" 2>/dev/null
+
+5e. Emoji icons in code (should be empty — only Lucide):
+grep -rn "[🩺👤📦📞📣🚨📑📊🚩📈⚙⌂]" artifacts/web/components/ artifacts/web/app/ --include="*.tsx" --include="*.ts" 2>/dev/null
+
+==== STEP 6: What you've built — your own summary ====
+
+In your own words, give a short summary:
+- Which Mini-waves have you started or completed?
+- Which screens are currently functional and accessible via URL?
+- Which features are partial / in-progress / blocked?
+- What's the most recent thing you built before this audit request?
+- Are there any decisions you made that deviated from the original spec — and why?
+
+==== STEP 7: Final state confirmation ====
+
+Confirm:
+- Dev server is running without errors
+- The default workspace dashboard renders at /feeltru/dashboard
+- Workspace switching works (VSC ↔ FeelTru)
+- No console errors in the browser
+
+Output everything from Steps 1-7. This is a full state snapshot for external code review. Do not build, modify, or delete anything during this process.

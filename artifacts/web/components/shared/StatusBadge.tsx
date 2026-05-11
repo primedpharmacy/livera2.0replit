@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
-import type { Patient, OrderStatus } from "@/types";
+import type { OrderStatus } from "@/types";
 
-type BadgeKind = "patient" | "order" | "incident" | "complaint";
+type BadgeKind = "patient" | "order" | "incident" | "complaint" | "amendment";
 
 interface StatusBadgeProps {
   value: string;
@@ -46,12 +46,21 @@ const COMPLAINT_STATUS: Record<string, BadgeConfig> = {
   closed:        { label: "Closed",        className: "bg-slate-100 text-slate-500 border border-slate-200" },
 };
 
+const AMENDMENT_STATUS: Record<string, BadgeConfig> = {
+  requested:  { label: "Requested",  className: "bg-info-bg text-info border border-info-bdr" },
+  reviewing:  { label: "Reviewing",  className: "bg-warn-bg text-warn border border-warn-bdr" },
+  approved:   { label: "Approved",   className: "bg-ok-bg text-ok border border-ok-bdr" },
+  rejected:   { label: "Rejected",   className: "bg-err-bg text-err border border-err-bdr" },
+  applied:    { label: "Applied",    className: "bg-ok-bg text-ok border border-ok-bdr" },
+};
+
 function resolveConfig(value: string, kind: BadgeKind): BadgeConfig {
   const map =
     kind === "patient"   ? PATIENT_STATUS :
     kind === "order"     ? ORDER_STATUS :
     kind === "incident"  ? INCIDENT_STATUS :
-    COMPLAINT_STATUS;
+    kind === "complaint" ? COMPLAINT_STATUS :
+    AMENDMENT_STATUS;
 
   return (map as Record<string, BadgeConfig>)[value] ?? {
     label: value.replace(/_/g, " "),

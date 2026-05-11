@@ -114,7 +114,24 @@ export function OrderDetailClient({
     }
   }
 
-  const canDecide   = order.status === "clinical_check";
+  const canDecide = order.status === "clinical_check";
+
+  // Layer 1 — Surface guard (UI prevents approval when conditions fail)
+  const hasHighSeverityFlag        = patient.flags.some((f) => f.severity === "high");
+  const hasB4Acknowledged          = patient.flags.some((f) => f.code === "B4_acknowledged");
+  const isDoseEscalationNoEvidence =
+    "dose_escalation" in order.questionnaire_responses &&
+    !order.questionnaire_responses["prior_dose_evidence"];
+
+  const approveBlockedReason: string | null =
+    hasHighSeverityFlag && !hasB4Acknowledged
+      ? "Patient has an unacknowledged high-severity flag — acknowledge before approving"
+      : isDoseEscalationNoEvidence
+      ? "Dose escalation requires prior dose evidence in the questionnaire"
+      : null;
+
+  const approveBlocked = approveBlockedReason !== null;
+
   const d           = patient.demographic;
   const age         = formatAge(d.dob);
   const hasB4       = patient.flags.some((f) => f.code === "B4");
@@ -182,13 +199,25 @@ export function OrderDetailClient({
                 <XCircle className="w-4 h-4" />
                 Decline
               </button>
-              <button
-                onClick={() => setModal("approve")}
-                className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white bg-ok hover:bg-ok/90 rounded-md transition-colors shadow-sm"
-              >
-                <CheckCircle className="w-4 h-4" />
-                Approve
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={() => setModal("approve")}
+                  disabled={approveBlocked}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-md transition-colors shadow-sm ${
+                    approveBlocked
+                      ? "bg-ok/40 text-white cursor-not-allowed"
+                      : "text-white bg-ok hover:bg-ok/90"
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Approve
+                </button>
+                {approveBlocked && approveBlockedReason && (
+                  <p className="text-[10px] text-err max-w-[200px] text-right leading-tight">
+                    {approveBlockedReason}
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>

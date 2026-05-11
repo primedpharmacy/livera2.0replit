@@ -1,0 +1,154 @@
+Mini-wave 2 signed off. Move to Mini-wave 3: Clinical Check queue + Amendments.
+
+Note: parts of Mini-wave 3 are already built (activity log tab, decision flow). This prompt covers the REMAINING scope.
+
+==== MINI-WAVE 3: CLINICAL CHECK + AMENDMENTS ====
+
+Reference these prototypes in /artifacts/web/prototypes/:
+- livera_prototype_02_clinical_check_queue.html
+- (any amendments-related prototype that exists)
+
+GOALS:
+- Working clinical check queue (prescriber's primary workspace)
+- Amendments inbox (DEC-38: refunds go here, not Tasks)
+- Add Amendments + Clinical Check links to sidebar (per future-state IA)
+- 3-layer safety chain enforced on the Approve action (DEC-36)
+- Audit event capture (console.log for now, real audit_event table later)
+
+==== STEP 1: Housekeeping ====
+
+H1. Verify MOCK_CLINICS_STATIC is deleted from lib/context.ts.
+If it still exists, delete it. useCurrentClinic() should call getClinicSync() from mock.ts.
+
+H2. Add Clinical Check and Amendments links to components/shell/Sidebar.tsx Operate section.
+Insert in this exact order:
+
+Operate section (now 8 links):
+1. Dashboard (Home)
+2. Patients (Users) — keep existing
+3. Orders (Package) — keep existing
+4. Clinical Check (Stethoscope) — KEEP existing, but ensure it's the 4th link and badge dynamically shows count from listOrders({status: "clinical_check"})
+5. Amendments (RefreshCw lucide) — NEW, badge shows count from listAmendments({status: "requested"})
+6. Schedule (Calendar) — NEW, deferred screen, no badge for now, just adds the link
+7. Tasks — keep existing
+8. Welcome Calls — keep existing
+
+Badges on Clinical Check and Amendments should fetch counts client-side (these can be async in a useEffect).
+
+==== STEP 2: Clinical Check queue (dedicated page) ====
+
+Create app/(workspace)/[clinic_id]/clinical-check/page.tsx:
+
+- PageHeader: icon=Stethoscope, title="Clinical Check", subtitle="Orders awaiting clinical review"
+- Data source: getClinicalCheckQueue(clinic_id) from lib/api/mock.ts
+- Use the same OrderListTable component already built (it handles SLA tinting)
+- Add a header card above the table showing SLA stats:
+  * Total in queue
+  * Warning (within sla_warn_at)
+  * Breached (past sla_breach_at)
+  * Use coloured tiles (bg-warn-bg/text-warn for warning, bg-err-bg/text-err for breach)
+  * Pull thresholds from clinic.config.sla — never hardcode
+
+- Sub-tabs above the table:
+  * All (default)
+  * Awaiting Photos (filter where order.questionnaire_responses needs photos)
+  * G6 Flagged (filter where order.g6_flags.length > 0)
+  * Reorders (filter order.type === "reorder")
+
+Use the Suspense + LoadingState pattern from Mini-wave 2.
+
+==== STEP 3: Amendments queue ====
+
+Create app/(workspace)/[clinic_id]/amendments/page.tsx:
+
+- PageHeader: icon=RefreshCw, title="Amendments", subtitle="Order amendment requests"
+- Data source: listAmendments(clinic_id) from lib/api/mock.ts
+- Tab filter chips: All / Requested / Reviewing / Approved / Rejected / Applied (auto-suppress chips with zero count)
+
+Create components/amendments/AmendmentListTable.tsx:
+- Columns: Amendment ID, Order ID (link to order detail), Type (dose_change/cancellation/refund/reschedule/address_change/dose_escalation — pill with friendly label), Requested by (actor type pill), Requested at (relative time), Status (StatusBadge)
+- Click row → navigates to /[clinic_id]/amendments/[amendment_id]
+
+Create app/(workspace)/[clinic_id]/amendments/[amendment_id]/page.tsx:
+- Reads getAmendment(clinic_id, id) — ADD this function to mock.ts if it doesn't exist
+- Layout: left panel (2/5) = order summary + patient summary, right panel (3/5) = amendment detail
+- Right panel shows:
+  * Amendment details card (ID, type, requested by, requested at, details object rendered as Q&A pairs)
+  * Decision card (if status === "approved" or "rejected" or "applied"): decided_by, decided_at, decision_rationale
+  * Actions card (if status === "requested" or "reviewing"): Approve / Reject buttons that open dialog with rationale textarea, same flow as order decideOrder
+
+Add a decideAmendment() function to mock.ts:
+- Signature: decideAmendment(clinic_id, amendment_id, decision: "approved" | "rejected", rationale: string)
+- Mutates in-memory like decideOrder
+
+==== STEP 4: 3-layer safety chain (DEC-36) on Approve order ====
+
+Refactor the existing decideOrder() flow in OrderDetailClient.tsx to demonstrate the 3-layer safety chain:
+
+Layer 1 — Surface guard (UI prevents):
+- Approve button disabled if:
+  * order.status !== "clinical_check", OR
+  * patient.flags has any flag with severity === "high" AND no "B4_acknowledged" flag is present, OR
+  * order is a dose_escalation type without prior dose evidence in order.questionnaire_responses
+
+Layer 2 — Data guard (mock API rejects):
+In decideOrder() in mock.ts, before approving, validate:
+- order.status === "clinical_check"
+- No high-severity unacknowledged flags
+- For dose escalations, prior dose evidence must be present
+If any fail, throw APIError("SAFETY_VIOLATION", "Cannot approve: <reason>")
+
+Layer 3 — Audit (every attempt logged):
+In decideOrder(), at the START of the function (before any validation), log to console:
+console.log("[AUDIT]", {
+  event_type: "clinical_decision_attempt",
+  clinic_id, order_id, user_id: CURRENT_USER.id,
+  decision_attempted, rationale, timestamp: new Date().toISOString()
+});
+
+Also log on success OR failure:
+console.log("[AUDIT]", { event_type: "clinical_decision_result", outcome: "approved"|"rejected"|"safety_violation", ... });
+
+This isn't real audit logging — but it establishes the pattern for when we wire a real audit_event table later. Add a comment: "// TODO: Replace with audit_event API call when backend is ready"
+
+==== STEP 5: Sidebar badge counts ====
+
+Update Sidebar.tsx to fetch live badge counts:
+- Use a useEffect in a client wrapper component to fetch counts after mount
+- getClinicalCheckQueue(clinic_id).then(orders => setCount(orders.length))
+- listAmendments(clinic_id, {status: "requested"}).then(amendments => setCount(amendments.length))
+- Use the variant="warn" for Clinical Check if count > 0, variant="muted" otherwise
+- Update on workspace switch (depend on clinicId)
+
+==== ARCHITECTURAL DISCIPLINE ====
+
+- All clinical thresholds from clinic.config.* — never hardcode
+- Workspace isolation: every API call passes clinic_id
+- Use shared components: StatusBadge, LoadingState, EmptyState, ErrorState
+- shadcn Dialog for the amendment decision modal (same pattern as order decision)
+- Lucide icons only
+
+==== DEFINITION OF DONE ====
+
+1. /feeltru/clinical-check shows ORD-00441 (Sarah's order in clinical_check state)
+2. SLA stats card at top shows correct counts
+3. Sub-tabs filter the queue correctly
+4. /feeltru/amendments renders the amendments list (empty for now since mock has no amendments — add 1-2 mock amendments to mock.ts so we can test the UI)
+5. Amendment detail page renders with order + patient summary
+6. Approve / Reject amendment flow works end-to-end
+7. Sidebar shows live badge counts for Clinical Check + Amendments
+8. Approve order button is disabled when safety chain conditions fail
+9. Console shows [AUDIT] log entries on every approve attempt (both success and failure)
+10. Sidebar now has 8 links in Operate section (was 6 in Mini-wave 1)
+
+==== REPORT BACK ====
+
+When done, paste:
+- All files created/modified
+- A screenshot of /feeltru/clinical-check showing the SLA stats card + queue
+- A screenshot of /feeltru/amendments showing the amendments list
+- The console output when you try to approve ORD-00441 (should show the AUDIT log entries)
+- Hex code grep output (should still be empty in components/app)
+- Confirm: did you delete MOCK_CLINICS_STATIC from context.ts? (H1)
+
+Do NOT proceed to Mini-wave 4 (Schedule + Consultations) until I review and approve.

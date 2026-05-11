@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -7,6 +8,8 @@ import {
   Users,
   Package,
   Stethoscope,
+  RefreshCw,
+  Calendar,
   CheckSquare,
   Phone,
   Megaphone,
@@ -19,6 +22,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getClinicalCheckQueue, listAmendments } from "@/lib/api/mock";
+import type { ClinicId } from "@/lib/api/mock";
 
 type BadgeVariant = "muted" | "warn" | "err" | "default";
 
@@ -36,31 +41,51 @@ interface NavSection {
   items: NavItem[];
 }
 
-function buildSections(clinicId: string): NavSection[] {
+function buildSections(
+  clinicId: string,
+  clinicalCheckCount: number,
+  amendmentsCount: number
+): NavSection[] {
   return [
     {
       title: "Operate",
       items: [
-        { key: "dashboard", label: "Dashboard", icon: Home, href: `/${clinicId}/dashboard` },
-        { key: "patients", label: "Patients", icon: Users, href: `/${clinicId}/patients`, badge: { value: 142, variant: "muted" } },
-        { key: "orders", label: "Orders", icon: Package, href: `/${clinicId}/orders`, badge: { value: 23, variant: "muted" } },
-        { key: "clinical-check", label: "Clinical Check", icon: Stethoscope, href: `/${clinicId}/clinical-check`, badge: { value: 7, variant: "warn" } },
-        { key: "tasks", label: "Tasks", icon: CheckSquare, href: `/${clinicId}/tasks`, badge: { value: 14, variant: "default" } },
-        { key: "welcome-calls", label: "Welcome Calls", icon: Phone, href: `/${clinicId}/welcome-calls`, badge: { value: 3, variant: "muted" } },
+        { key: "dashboard",    label: "Dashboard",     icon: Home,        href: `/${clinicId}/dashboard` },
+        { key: "patients",     label: "Patients",      icon: Users,       href: `/${clinicId}/patients`,      badge: { value: 142, variant: "muted" } },
+        { key: "orders",       label: "Orders",        icon: Package,     href: `/${clinicId}/orders`,         badge: { value: 23,  variant: "muted" } },
+        {
+          key: "clinical-check",
+          label: "Clinical Check",
+          icon: Stethoscope,
+          href: `/${clinicId}/clinical-check`,
+          badge: { value: clinicalCheckCount, variant: clinicalCheckCount > 0 ? "warn" : "muted" },
+        },
+        {
+          key: "amendments",
+          label: "Amendments",
+          icon: RefreshCw,
+          href: `/${clinicId}/amendments`,
+          ...(amendmentsCount > 0
+            ? { badge: { value: amendmentsCount, variant: "warn" as BadgeVariant } }
+            : {}),
+        },
+        { key: "schedule",      label: "Schedule",      icon: Calendar,    href: `/${clinicId}/schedule` },
+        { key: "tasks",         label: "Tasks",         icon: CheckSquare, href: `/${clinicId}/tasks`,          badge: { value: 14,  variant: "default" } },
+        { key: "welcome-calls", label: "Welcome Calls", icon: Phone,       href: `/${clinicId}/welcome-calls`,  badge: { value: 3,   variant: "muted" } },
       ],
     },
     {
       title: "Care quality",
       items: [
-        { key: "complaints", label: "Complaints", icon: Megaphone, href: `/${clinicId}/complaints`, badge: { value: 2, variant: "err" } },
-        { key: "incidents", label: "Incidents", icon: AlertTriangle, href: `/${clinicId}/incidents`, badge: { value: 5, variant: "muted" } },
-        { key: "gp-letters", label: "GP Letters", icon: FileText, href: `/${clinicId}/gp-letters`, badge: { value: 14, variant: "muted" } },
+        { key: "complaints", label: "Complaints", icon: Megaphone,     href: `/${clinicId}/complaints`, badge: { value: 2,  variant: "err" } },
+        { key: "incidents",  label: "Incidents",  icon: AlertTriangle, href: `/${clinicId}/incidents`,  badge: { value: 5,  variant: "muted" } },
+        { key: "gp-letters", label: "GP Letters", icon: FileText,      href: `/${clinicId}/gp-letters`, badge: { value: 14, variant: "muted" } },
       ],
     },
     {
       title: "Insights",
       items: [
-        { key: "kpi-dashboard", label: "KPI Dashboard", icon: BarChart3, href: `/${clinicId}/kpi-dashboard` },
+        { key: "kpi-dashboard", label: "KPI Dashboard", icon: BarChart3,   href: `/${clinicId}/kpi-dashboard` },
         {
           key: "clinical-flags",
           label: "Clinical Flags",
@@ -87,9 +112,9 @@ function BadgePill({ value, variant }: { value: string | number; variant: BadgeV
     <span
       className={cn(
         "ml-auto text-[11px] font-bold px-2 py-px rounded-full",
-        variant === "muted" && "bg-slate-100 text-slate-600",
-        variant === "warn" && "bg-warn-bg text-warn border border-warn-bdr",
-        variant === "err" && "bg-err-bg text-err border border-err-bdr",
+        variant === "muted"   && "bg-slate-100 text-slate-600",
+        variant === "warn"    && "bg-warn-bg text-warn border border-warn-bdr",
+        variant === "err"     && "bg-err-bg text-err border border-err-bdr",
         variant === "default" && "bg-brand-light text-brand-dark"
       )}
     >
@@ -104,7 +129,19 @@ interface SidebarProps {
 
 export function Sidebar({ clinicId }: SidebarProps) {
   const pathname = usePathname();
-  const sections = buildSections(clinicId);
+  const [clinicalCheckCount, setClinicalCheckCount] = useState<number>(0);
+  const [amendmentsCount, setAmendmentsCount] = useState<number>(0);
+
+  useEffect(() => {
+    getClinicalCheckQueue(clinicId as ClinicId)
+      .then((orders) => setClinicalCheckCount(orders.length))
+      .catch(() => {});
+    listAmendments(clinicId as ClinicId, { status: "requested" })
+      .then((amendments) => setAmendmentsCount(amendments.length))
+      .catch(() => {});
+  }, [clinicId]);
+
+  const sections = buildSections(clinicId, clinicalCheckCount, amendmentsCount);
 
   function isActive(href: string) {
     return pathname === href || pathname.startsWith(href + "/");

@@ -1,0 +1,231 @@
+Mini-wave 5: GP Letters + Complaints + Incidents.
+
+Build in this order: GP Letters → Complaints → Incidents. Each gets the surface + a mocked Monday source-of-truth pattern. Treat this as a single deliverable, all three under one wave. When complete, commit and push to GitHub origin/main.
+
+The mocked-Monday pattern is critical to get right. Read this section first, then build to it.
+
+==== MOCKED MONDAY SOURCE-OF-TRUTH PATTERN ====
+
+DEC-37 (Complaints) and DEC-29 (Incidents) make Monday boards the system of record. Livera mirrors. For V1 we're mocking that contract — but the mock must MODEL the contract correctly so the real swap is mechanical later.
+
+Implement these primitives in lib/api/mock.ts:
+
+1. A simulated Monday store:
+   const MOCK_MONDAY_BOARDS: Record<string, MondayBoardState> = {
+     "18402056019": { items: [...], etag: "v1" },     // VSC incidents (per DEC-29 anomaly)
+     "18402056019": { ... },                           // FeelTru incidents — same board (DEC-29 anomaly)
+     "18409111860": { items: [...], etag: "v1" },     // VSC complaints (DEC-37)
+     "18402056040": { items: [...], etag: "v1" },     // FeelTru complaints (DEC-37)
+   };
+   Note the DEC-29 anomaly — VSC and FeelTru BOTH write incidents to board 18402056019 in the FeelTru workspace. Model it as-is. Add a // TODO (DEC-29 anomaly: VSC incidents currently land on FeelTru workspace board) comment.
+
+2. Wrap reads via mondayRead(boardId) — returns the current board state. Add 150-300ms delay to simulate network. Log [MONDAY READ] with boardId + item count.
+
+3. Wrap writes via mondayWrite(boardId, op: "create" | "update", payload). Returns updated board state. Logs [MONDAY WRITE]. Updates the etag.
+
+4. Sync layer for Livera mirror: every Livera-side fetch (listComplaints, listIncidents, getComplaint, getIncident) reads from the Monday mock first, then transforms into the Livera entity shape. Every Livera-side mutation (acknowledgeComplaint, resolveComplaint, escalateIncident, etc.) writes to Monday first, then updates the local mirror.
+
+5. Sync status field on each entity: sync_status: "in_sync" | "out_of_sync" | "error" — initially "in_sync". For a couple of seed records, set "out_of_sync" so the UI can show the divergence state and we can demo the recovery flow.
+
+6. [AUDIT] logs on every Monday write — same pattern as decideOrder. Critical because Monday writes are safety-relevant per DEC-36.
+
+==== PART A: GP LETTERS ====
+
+A1. Add types to lib/api/mock.ts if not present:
+   export type GPLetterStatus = "draft" | "sent" | "delivered" | "bounced";
+   export type GPLetter = {
+     id: string;               // GPL-XXXXX
+     clinic_id: ClinicId;
+     patient_id: string;
+     template_id: string;
+     subject: string;
+     body: string;
+     status: GPLetterStatus;
+     patient_consent_verified: boolean;  // critical: no consent => no send
+     sent_at: string | null;
+     sent_to_email: string | null;
+     created_by_user_id: string;
+     created_at: string;
+   };
+
+A2. Seed MOCK_GP_LETTERS with at least 4 entries spanning both clinics and all 4 statuses. At least one with patient_consent_verified: false (must be unsendable in the UI). One linked to Sarah Cookland on FeelTru.
+
+A3. Seed MOCK_GP_LETTER_TEMPLATES with at least 5 templates:
+   - "Medication review request"
+   - "New treatment notification"
+   - "Patient transfer summary"
+   - "Adverse event report"
+   - "General clinical update"
+   Each with id, name, body_template (with {{patient_name}}, {{medication}}, {{dose}} placeholders).
+
+A4. API endpoints in lib/api/mock.ts:
+   - listGPLetters(clinic_id, opts?)
+   - getGPLetter(clinic_id, id)
+   - createGPLetter(clinic_id, { patient_id, template_id, subject, body })
+   - sendGPLetter(clinic_id, id) — REQUIRES patient_consent_verified === true. If false, throw APIError("CONSENT_VIOLATION", "...") and log [AUDIT] consent_violation. This is a DEC-36 safety layer.
+   - listGPLetterTemplates()
+
+A5. Routes:
+   - app/(workspace)/[clinic_id]/gp-letters/page.tsx — list with status filter chips (All / Draft / Sent / Delivered / Bounced)
+   - app/(workspace)/[clinic_id]/gp-letters/[letter_id]/page.tsx — detail with full letter content, patient summary, consent status, send action (gated)
+   - app/(workspace)/[clinic_id]/gp-letters/new/page.tsx — new letter form (select patient → select template → preview body with substitutions → save as draft OR send)
+
+A6. UI rules:
+   - PageHeader: icon=Mail, title="GP Letters", subtitle dynamic with total count
+   - Sidebar badge: count of draft letters
+   - Consent banner: if patient_consent_verified === false, show a red banner on the letter detail saying "Cannot send: patient consent for GP communication not recorded. Update patient consent before sending." with link to patient profile
+   - Send button disabled when consent is false. Show approveBlockedReason inline (mirror the OrderDetailClient pattern from Mini-wave 3)
+
+==== PART B: COMPLAINTS ====
+
+B1. Add types if not present (the existing Complaint type in mock.ts likely needs expanding):
+   export type ComplaintSeverity = "low" | "medium" | "high";
+   export type ComplaintStatus = "received" | "acknowledged" | "investigating" | "resolved" | "closed";
+   export type Complaint = {
+     id: string;                       // CMP-XXXXX  
+     clinic_id: ClinicId;
+     monday_board_id: string;          // 18409111860 (VSC) or 18402056040 (FeelTru) — DEC-37
+     monday_item_id: string;
+     patient_id: string | null;        // null for general complaints
+     received_at: string;
+     status: ComplaintStatus;
+     severity: ComplaintSeverity;
+     subject: string;
+     description: string;
+     acknowledgement_due_at: string;   // SLA: 3 working days from received_at
+     acknowledgement_sent_at: string | null;
+     resolution_due_at: string;        // SLA: 20 working days
+     source: "intercom" | "email" | "phone" | "external" | "in_person";
+     cqc_quality_statements: Array<"Safe" | "Effective" | "Caring" | "Responsive" | "Well-led">;
+     sync_status: "in_sync" | "out_of_sync" | "error";
+     assigned_to_user_id: string | null;
+   };
+
+B2. Seed MOCK_COMPLAINTS with at least 5 entries (3 FeelTru, 2 VSC). Cover all 5 statuses. At least 1 high severity. At least 1 with sync_status="out_of_sync" to demo the divergence state.
+
+B3. Endpoints (every read+write hits the Monday mock first, then mirrors):
+   - listComplaints(clinic_id, opts?)
+   - getComplaint(clinic_id, id)
+   - acknowledgeComplaint(clinic_id, id) — writes to Monday, mirrors to Livera
+   - updateComplaintStatus(clinic_id, id, status, rationale) — same pattern
+   - assignComplaint(clinic_id, id, user_id)
+   - syncComplaintFromMonday(clinic_id, id) — manual resync if sync_status was out_of_sync
+
+B4. Routes:
+   - app/(workspace)/[clinic_id]/complaints/page.tsx — list with status + severity + source filters
+   - app/(workspace)/[clinic_id]/complaints/[complaint_id]/page.tsx — detail with: complaint info card, CQC quality statement tags (multi-select pill), SLA tracking card (acknowledgement countdown + resolution countdown using clinic.config — make these clinic-configurable like the order SLAs), audit timeline, action buttons (Acknowledge / Resolve / Reassign), Monday sync status banner
+
+B5. UI rules:
+   - PageHeader: icon=Megaphone, title="Complaints"
+   - Sidebar badge: count of complaints not yet resolved (red variant if any are high-severity past acknowledgement SLA)
+   - Sync status banner at top of detail page: green if in_sync, amber if out_of_sync with "Resync from Monday" button, red if error
+   - Acknowledgement SLA: amber tint when overdue but not yet sent; red when >3 working days; matches Mini-wave 3 OrderListTable pattern
+
+==== PART C: INCIDENTS ====
+
+C1. Add types if not present (Incident type in mock.ts likely exists, may need expanding):
+   export type IncidentSeverity = "mild" | "moderate" | "severe";
+   export type IncidentStatus = "open" | "on_hold" | "investigating" | "resolved" | "closed";
+   export type Incident = {
+     id: string;                       // INC-XXXXX
+     clinic_id: ClinicId;
+     monday_board_id: string;          // DEC-29: BOTH clinics use 18402056019
+     monday_item_id: string;
+     patient_id: string | null;
+     order_id: string | null;
+     consultation_id: string | null;
+     incident_type: "medication_error" | "adverse_event" | "delayed_dispensing" | "wrong_dose" | "allergic_reaction" | "near_miss" | "other";
+     severity: IncidentSeverity;
+     description: string;
+     status: IncidentStatus;
+     triggered_by: "system" | "clinician" | "admin" | "patient_report";
+     reported_at: string;
+     yellow_card_required: boolean;    // true for severe adverse events to MHRA
+     yellow_card_submitted: boolean;
+     yellow_card_reference: string | null;
+     cqc_notification_required: boolean;   // CQC Reg 18 — death, abuse, serious injury
+     cqc_notified_at: string | null;
+     escalated_to_user_id: string | null;
+     resolution_notes: string | null;
+     sync_status: "in_sync" | "out_of_sync" | "error";
+   };
+
+C2. Seed MOCK_INCIDENTS with at least 5 entries. At least 1 severe with yellow_card_required=true and yellow_card_submitted=false (to demo the pending action). At least 1 with cqc_notification_required=true. At least 1 sync_status="out_of_sync".
+
+C3. Endpoints:
+   - listIncidents(clinic_id, opts?)
+   - getIncident(clinic_id, id)
+   - reportIncident(clinic_id, payload) — Monday write, then local mirror, with full 3-layer safety chain (DEC-36)
+   - updateIncidentStatus(clinic_id, id, status, rationale)
+   - submitYellowCard(clinic_id, id, mhra_reference) — updates yellow_card_submitted + yellow_card_reference
+   - notifyCQC(clinic_id, id) — updates cqc_notified_at
+   - syncIncidentFromMonday(clinic_id, id)
+
+C4. Routes:
+   - app/(workspace)/[clinic_id]/incidents/page.tsx — list with status, severity, type filters
+   - app/(workspace)/[clinic_id]/incidents/[incident_id]/page.tsx — detail with: incident info, severity-based triage banner (red for severe), 999/A&E guidance banner if severity=severe AND status=open (per existing severe SE rule), Yellow Card panel (status, submit action, reference number), CQC notification panel (status, notify action, timestamp), escalation panel, audit timeline, Monday sync status
+
+C5. Severity triage matrix (visible at top of incident detail):
+   - mild: green banner "Standard review. Document in incident log. No external notification required."
+   - moderate: amber banner "Clinical review required. Prescriber to assess. Consider patient follow-up."
+   - severe: red banner with 999/A&E text: "Severe incident. If patient is currently in distress or harm, advise them to call 999 or attend A&E. Yellow Card submission to MHRA is required for adverse drug reactions. CQC notification may be required (Regulation 18)."
+   This text must come from clinic.config.incident_triage_text — make it backend-configurable per clinic.
+
+C6. UI rules:
+   - PageHeader: icon=AlertTriangle, title="Incidents"
+   - Sidebar badge: count of open severe incidents (red variant) or open total (warn variant)
+   - DEC-29 anomaly note: in the incident detail's Monday sync card, add a small inline note for VSC incidents: "Note: VSC incidents currently sync to the FeelTru workspace board (18402056019). Workspace consolidation deferred to platform Mini-wave 6."
+
+==== PART D: SIDEBAR UPDATES ====
+
+D1. Update Sidebar.tsx to fetch live badge counts for the three new resources:
+   - GP Letters: count of status === "draft"
+   - Complaints: count not in ("resolved", "closed"), red if any high-severity past ack SLA
+   - Incidents: count of open severe (red) OR count of open total (warn)
+
+D2. Confirm all three new sidebar links pass through can() with the right permissions:
+   - GP Letters: read all roles except Admin (Admin sees own-clinic only via context)
+   - Complaints: read for Owner/RM/Prescriber, hidden for Coach
+   - Incidents: read for Owner/RM/Prescriber, hidden for Coach
+
+==== ARCHITECTURAL DISCIPLINE ====
+
+Apply everything we learned in Mini-waves 1-4. Specifically:
+
+- Workspace isolation: every read+write scoped to clinic_id, Suspense key={clinic_id} on every page
+- Tokens only — no hex codes in components
+- Clinical thresholds via clinic.config (SLA values, incident triage text, consent gates)
+- 3-layer safety chain on every mutation: surface gate, data guard, [AUDIT] log
+- Provider-agnostic: Monday board IDs come from clinic.config.monday_board_ids, never hardcoded in components
+- Use shared components (StatusBadge, LoadingState, EmptyState, ErrorState, PageHeader, Breadcrumb)
+- Server components for pages, client components only when interactive
+
+==== DEFINITION OF DONE ====
+
+When everything is built and tested:
+
+1. /feeltru/gp-letters renders the list
+2. /feeltru/gp-letters/new lets you draft a letter
+3. The send action is disabled if patient_consent_verified is false
+4. /feeltru/complaints renders, shows the out_of_sync example with the amber banner
+5. Acknowledging a complaint writes to the Monday mock first (visible in console as [MONDAY WRITE])
+6. /feeltru/incidents renders with a severe incident showing the red banner and 999/A&E text
+7. Yellow Card submit action works on a severe incident
+8. /vsc/incidents shows the DEC-29 anomaly note in the sync status card
+
+Run these verifications and paste output:
+- grep -n "MOCK_MONDAY_BOARDS\|mondayWrite\|mondayRead" artifacts/web/lib/api/mock.ts
+- grep -n "CONSENT_VIOLATION\|sync_status" artifacts/web/lib/api/mock.ts | head -20
+- grep -rn "\[MONDAY READ\]\|\[MONDAY WRITE\]" artifacts/web/lib/api/mock.ts
+- ls "artifacts/web/app/(workspace)/[clinic_id]/gp-letters/"
+- ls "artifacts/web/app/(workspace)/[clinic_id]/complaints/"
+- ls "artifacts/web/app/(workspace)/[clinic_id]/incidents/"
+
+Then commit and push:
+git add -A
+git commit -m "Mini-wave 5: GP Letters + Complaints + Incidents with mocked Monday source-of-truth"
+git push origin main
+
+Paste the git push output as the final step.
+
+Stop after the push. Do NOT start any further work.

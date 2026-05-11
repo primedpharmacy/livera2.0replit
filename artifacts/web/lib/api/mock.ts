@@ -55,6 +55,7 @@ export type ClinicConfig = {
     calendly_event_type_id: string | null;
   }>;
   monday_board_ids: { incidents: string; complaints: string };
+  incident_triage_text: { mild: string; moderate: string; severe: string };
   intercom_workspace_id: string;
 };
 
@@ -150,23 +151,57 @@ export type Consultation = {
   linked_order_id: string | null;
 };
 
+export type MondayItem = {
+  id: string;
+  name: string;
+  column_values: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MondayBoardState = {
+  items: MondayItem[];
+  etag: string;
+};
+
+export type IncidentType =
+  | 'medication_error'
+  | 'adverse_event'
+  | 'delayed_dispensing'
+  | 'wrong_dose'
+  | 'allergic_reaction'
+  | 'near_miss'
+  | 'other';
+export type IncidentSeverity = 'mild' | 'moderate' | 'severe';
+export type IncidentStatus = 'open' | 'on_hold' | 'investigating' | 'resolved' | 'closed';
+
 export type Incident = {
   id: string;
   clinic_id: ClinicId;
   patient_id: string | null;
-  type: string;
-  severity: 'mild' | 'moderate' | 'severe';
+  order_id: string | null;
+  consultation_id: string | null;
+  incident_type: IncidentType;
+  severity: IncidentSeverity;
   description: string;
-  status: 'open' | 'on_hold' | 'investigating' | 'resolved' | 'closed';
-  triggered_by: 'system' | 'clinician' | 'admin';
+  status: IncidentStatus;
+  triggered_by: 'system' | 'clinician' | 'admin' | 'patient_report';
+  reported_at: string;
   monday_board_id: string;
   monday_item_id: string | null;
+  yellow_card_required: boolean;
   yellow_card_submitted: boolean;
   yellow_card_reference: string | null;
   cqc_notification_required: boolean;
   cqc_notified_at: string | null;
+  escalated_to_user_id: string | null;
+  resolution_notes: string | null;
+  sync_status: 'in_sync' | 'out_of_sync' | 'error';
   created_at: string;
 };
+
+export type ComplaintSeverity = 'low' | 'medium' | 'high';
+export type ComplaintStatus = 'received' | 'acknowledged' | 'investigating' | 'resolved' | 'closed';
 
 export type Complaint = {
   id: string;
@@ -175,13 +210,17 @@ export type Complaint = {
   monday_item_id: string;
   patient_id: string | null;
   received_at: string;
-  status: 'received' | 'acknowledged' | 'investigating' | 'resolved' | 'closed';
-  severity: 'low' | 'medium' | 'high';
+  status: ComplaintStatus;
+  severity: ComplaintSeverity;
+  subject: string;
+  description: string;
   acknowledgement_due_at: string;
   acknowledgement_sent_at: string | null;
-  source: 'intercom' | 'email' | 'phone' | 'external';
-  cqc_quality_statements: string[];
+  resolution_due_at: string;
+  source: 'intercom' | 'email' | 'phone' | 'external' | 'in_person';
+  cqc_quality_statements: Array<'Safe' | 'Effective' | 'Caring' | 'Responsive' | 'Well-led'>;
   sync_status: 'in_sync' | 'out_of_sync' | 'error';
+  assigned_to_user_id: string | null;
 };
 
 export type Amendment = {
@@ -198,6 +237,8 @@ export type Amendment = {
   decision_rationale: string | null;
 };
 
+export type GPLetterStatus = 'draft' | 'sent' | 'delivered' | 'bounced';
+
 export type GPLetter = {
   id: string;
   clinic_id: ClinicId;
@@ -205,10 +246,18 @@ export type GPLetter = {
   template_id: string;
   subject: string;
   body: string;
-  status: 'draft' | 'sent' | 'delivered' | 'bounced';
+  status: GPLetterStatus;
   patient_consent_verified: boolean;
   sent_at: string | null;
   sent_to_email: string | null;
+  created_by_user_id: string;
+  created_at: string;
+};
+
+export type GPLetterTemplate = {
+  id: string;
+  name: string;
+  body_template: string;
 };
 
 export type CoachingLog = {
@@ -265,6 +314,11 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
       ],
       consultation_types: [],
       monday_board_ids: { incidents: '18402056019', complaints: '18409111860' },
+      incident_triage_text: {
+        mild: 'Standard review. Document in incident log. No external notification required.',
+        moderate: 'Clinical review required. Prescriber to assess. Consider patient follow-up.',
+        severe: 'Severe incident. If patient is currently in distress or harm, advise them to call 999 or attend A&E. Yellow Card submission to MHRA is required for adverse drug reactions. CQC notification may be required (Regulation 18).',
+      },
       intercom_workspace_id: 'a86dr8yl',
     },
   },
@@ -290,8 +344,49 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
         { id: 'coaching', name: 'Coaching Session', modality: 'video', provider: 'calendly+google_meet', default_duration_min: 30, eligible_roles: ['Coach'], dpia_reference: 'DPIA-2026-001', calendly_event_type_id: 'evt_coaching' },
       ],
       monday_board_ids: { incidents: '18402056019', complaints: '18402056040' },
+      incident_triage_text: {
+        mild: 'Standard review. Document in incident log. No external notification required.',
+        moderate: 'Clinical review required. Prescriber to assess. Consider patient follow-up.',
+        severe: 'Severe incident. If patient is currently in distress or harm, advise them to call 999 or attend A&E. Yellow Card submission to MHRA is required for adverse drug reactions. CQC notification may be required (Regulation 18).',
+      },
       intercom_workspace_id: 'b91ks9zm',
     },
+  },
+};
+
+// ============================================================================
+// MONDAY MOCK STORE — source-of-truth pattern (DEC-37, DEC-29)
+// ============================================================================
+
+// TODO (DEC-29 anomaly: VSC incidents currently land on FeelTru workspace board 18402056019)
+const MOCK_MONDAY_BOARDS: Record<string, MondayBoardState> = {
+  '18402056019': {
+    // Shared incidents board — both VSC and FeelTru write here (DEC-29 anomaly)
+    items: [
+      { id: 'mbi_001', name: 'INC-001: Delayed dispensing – Zara Ahmed (FeelTru)', column_values: { status: 'open', severity: 'mild' }, created_at: '2026-05-08T09:15:00Z', updated_at: '2026-05-08T09:15:00Z' },
+      { id: 'mbi_002', name: 'INC-002: Severe adverse event – Sarah Cookland (FeelTru)', column_values: { status: 'open', severity: 'severe' }, created_at: '2026-05-09T11:30:00Z', updated_at: '2026-05-09T11:30:00Z' },
+      { id: 'mbi_003', name: 'INC-003: Medication error – James Hartley (VSC)', column_values: { status: 'investigating', severity: 'moderate' }, created_at: '2026-05-07T14:00:00Z', updated_at: '2026-05-10T09:00:00Z' },
+      { id: 'mbi_004', name: 'INC-004: Near miss – Emma Whitfield (FeelTru)', column_values: { status: 'resolved', severity: 'mild' }, created_at: '2026-04-20T10:00:00Z', updated_at: '2026-04-25T14:00:00Z' },
+      { id: 'mbi_005', name: 'INC-005: Allergic reaction – Priya Shah (VSC)', column_values: { status: 'on_hold', severity: 'severe' }, created_at: '2026-05-01T08:00:00Z', updated_at: '2026-05-03T16:00:00Z' },
+    ],
+    etag: 'v1',
+  },
+  '18409111860': {
+    // VSC complaints board (DEC-37)
+    items: [
+      { id: 'mbc_v001', name: 'CMP-004: Unreasonable delay – James Hartley', column_values: { status: 'investigating', severity: 'high' }, created_at: '2026-04-28T10:00:00Z', updated_at: '2026-05-05T09:00:00Z' },
+      { id: 'mbc_v002', name: 'CMP-005: Treatment review concerns', column_values: { status: 'closed', severity: 'medium' }, created_at: '2026-03-15T11:00:00Z', updated_at: '2026-04-10T14:00:00Z' },
+    ],
+    etag: 'v1',
+  },
+  '18402056040': {
+    // FeelTru complaints board (DEC-37)
+    items: [
+      { id: 'mbc_f001', name: 'CMP-001: Side effect concerns – Fiona MacLeod', column_values: { status: 'received', severity: 'high' }, created_at: '2026-05-09T15:00:00Z', updated_at: '2026-05-09T15:00:00Z' },
+      { id: 'mbc_f002', name: 'CMP-002: Delayed response – Zara Ahmed', column_values: { status: 'acknowledged', severity: 'medium' }, created_at: '2026-05-02T10:00:00Z', updated_at: '2026-05-05T11:00:00Z' },
+      { id: 'mbc_f003', name: 'CMP-003: Prescription delay (anon)', column_values: { status: 'resolved', severity: 'low' }, created_at: '2026-04-15T09:00:00Z', updated_at: '2026-04-30T16:00:00Z' },
+    ],
+    etag: 'v1',
   },
 };
 
@@ -806,8 +901,225 @@ const MOCK_CONSULTATIONS: Consultation[] = [
     linked_order_id: 'ORD-00438',
   },
 ];
-const MOCK_INCIDENTS: Incident[] = [];
-const MOCK_COMPLAINTS: Complaint[] = [];
+const MOCK_INCIDENTS: Incident[] = [
+  {
+    id: 'INC-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00378',
+    order_id: 'ORD-00449',
+    consultation_id: null,
+    incident_type: 'delayed_dispensing',
+    severity: 'mild',
+    description: "Patient's Mounjaro 2.5mg order ORD-00449 delayed beyond expected dispatch window due to pharmacy stock issue. Patient informed via SMS. No clinical harm identified.",
+    status: 'open',
+    triggered_by: 'system',
+    reported_at: '2026-05-08T09:15:00Z',
+    monday_board_id: '18402056019',
+    monday_item_id: 'mbi_001',
+    yellow_card_required: false,
+    yellow_card_submitted: false,
+    yellow_card_reference: null,
+    cqc_notification_required: false,
+    cqc_notified_at: null,
+    escalated_to_user_id: null,
+    resolution_notes: null,
+    sync_status: 'in_sync',
+    created_at: '2026-05-08T09:15:00Z',
+  },
+  {
+    id: 'INC-002',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00441',
+    consultation_id: null,
+    incident_type: 'adverse_event',
+    severity: 'severe',
+    description: 'Patient reported severe nausea and vomiting requiring A&E attendance following Mounjaro 7.5mg dose. Possible adverse drug reaction. MHRA Yellow Card required. CQC notification under Regulation 18 to be assessed.',
+    status: 'open',
+    triggered_by: 'patient_report',
+    reported_at: '2026-05-09T11:30:00Z',
+    monday_board_id: '18402056019',
+    monday_item_id: 'mbi_002',
+    yellow_card_required: true,
+    yellow_card_submitted: false,
+    yellow_card_reference: null,
+    cqc_notification_required: true,
+    cqc_notified_at: null,
+    escalated_to_user_id: 'user_qadir',
+    resolution_notes: null,
+    sync_status: 'in_sync',
+    created_at: '2026-05-09T11:30:00Z',
+  },
+  {
+    id: 'INC-003',
+    clinic_id: 'vsc',
+    patient_id: 'PT-00234',
+    order_id: 'ORD-00438',
+    consultation_id: null,
+    incident_type: 'medication_error',
+    severity: 'moderate',
+    description: 'Incorrect dose (10mg instead of 5mg) recorded on dispensing label for order ORD-00438. Error caught before dispatch. No patient harm. Dispensing process review required.',
+    status: 'investigating',
+    triggered_by: 'clinician',
+    reported_at: '2026-05-07T14:00:00Z',
+    monday_board_id: '18402056019',
+    monday_item_id: 'mbi_003',
+    yellow_card_required: false,
+    yellow_card_submitted: false,
+    yellow_card_reference: null,
+    cqc_notification_required: false,
+    cqc_notified_at: null,
+    escalated_to_user_id: null,
+    resolution_notes: null,
+    sync_status: 'out_of_sync',
+    created_at: '2026-05-07T14:00:00Z',
+  },
+  {
+    id: 'INC-004',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00412',
+    order_id: null,
+    consultation_id: 'CON-F005',
+    incident_type: 'near_miss',
+    severity: 'mild',
+    description: 'Prescriber almost prescribed Wegovy at incorrect dose (1.7mg vs 1.0mg) during consultation review. Error caught during pre-approval check. No patient harm.',
+    status: 'resolved',
+    triggered_by: 'admin',
+    reported_at: '2026-04-20T10:00:00Z',
+    monday_board_id: '18402056019',
+    monday_item_id: 'mbi_004',
+    yellow_card_required: false,
+    yellow_card_submitted: false,
+    yellow_card_reference: null,
+    cqc_notification_required: false,
+    cqc_notified_at: null,
+    escalated_to_user_id: null,
+    resolution_notes: 'Near miss captured and reviewed. Prescriber briefed. Pre-approval check process reinforced across clinical team.',
+    sync_status: 'in_sync',
+    created_at: '2026-04-20T10:00:00Z',
+  },
+  {
+    id: 'INC-005',
+    clinic_id: 'vsc',
+    patient_id: 'PT-00301',
+    order_id: null,
+    consultation_id: null,
+    incident_type: 'allergic_reaction',
+    severity: 'severe',
+    description: 'Patient reported severe allergic reaction (urticaria, facial swelling) after first Mounjaro 2.5mg dose. Advised to attend A&E. Yellow Card submitted to MHRA.',
+    status: 'on_hold',
+    triggered_by: 'patient_report',
+    reported_at: '2026-05-01T08:00:00Z',
+    monday_board_id: '18402056019',
+    monday_item_id: 'mbi_005',
+    yellow_card_required: true,
+    yellow_card_submitted: true,
+    yellow_card_reference: 'MHRA-2026-005891',
+    cqc_notification_required: false,
+    cqc_notified_at: null,
+    escalated_to_user_id: 'user_qadir',
+    resolution_notes: null,
+    sync_status: 'in_sync',
+    created_at: '2026-05-01T08:00:00Z',
+  },
+];
+const MOCK_COMPLAINTS: Complaint[] = [
+  {
+    id: 'CMP-001',
+    clinic_id: 'feeltru',
+    monday_board_id: '18402056040',
+    monday_item_id: 'mbc_f001',
+    patient_id: 'PT-00445',
+    received_at: '2026-05-09T15:00:00Z',
+    status: 'received',
+    severity: 'high',
+    subject: 'Serious side effects not adequately warned about',
+    description: 'Patient reports experiencing severe nausea, fatigue and hair thinning since starting Mounjaro. States she was not adequately counselled about these side effects prior to starting treatment. Requesting a full refund and urgent clinical review.',
+    acknowledgement_due_at: '2026-05-13T23:59:00Z',
+    acknowledgement_sent_at: null,
+    resolution_due_at: '2026-06-06T23:59:00Z',
+    source: 'email',
+    cqc_quality_statements: ['Safe', 'Caring'],
+    sync_status: 'in_sync',
+    assigned_to_user_id: 'user_qadir',
+  },
+  {
+    id: 'CMP-002',
+    clinic_id: 'feeltru',
+    monday_board_id: '18402056040',
+    monday_item_id: 'mbc_f002',
+    patient_id: 'PT-00378',
+    received_at: '2026-05-02T10:00:00Z',
+    status: 'acknowledged',
+    severity: 'medium',
+    subject: 'Delayed response to prescription query',
+    description: 'Patient contacted the clinic via Intercom to query a change in her Mounjaro prescription. States she received no reply for 5 working days. She had to self-discontinue while awaiting guidance.',
+    acknowledgement_due_at: '2026-05-06T23:59:00Z',
+    acknowledgement_sent_at: '2026-05-05T11:00:00Z',
+    resolution_due_at: '2026-05-30T23:59:00Z',
+    source: 'intercom',
+    cqc_quality_statements: ['Responsive'],
+    sync_status: 'in_sync',
+    assigned_to_user_id: 'user_qadir',
+  },
+  {
+    id: 'CMP-003',
+    clinic_id: 'feeltru',
+    monday_board_id: '18402056040',
+    monday_item_id: 'mbc_f003',
+    patient_id: null,
+    received_at: '2026-04-15T09:00:00Z',
+    status: 'resolved',
+    severity: 'low',
+    subject: 'Prescription not dispatched within stated timeframe',
+    description: 'Anonymous complaint (via website form) about prescription dispatch taking 10 working days vs stated 3–5. No personal details provided. Pharmacy SLA review initiated.',
+    acknowledgement_due_at: '2026-04-19T23:59:00Z',
+    acknowledgement_sent_at: '2026-04-18T14:00:00Z',
+    resolution_due_at: '2026-05-09T23:59:00Z',
+    source: 'external',
+    cqc_quality_statements: ['Responsive'],
+    sync_status: 'in_sync',
+    assigned_to_user_id: null,
+  },
+  {
+    id: 'CMP-004',
+    clinic_id: 'vsc',
+    monday_board_id: '18409111860',
+    monday_item_id: 'mbc_v001',
+    patient_id: 'PT-00234',
+    received_at: '2026-04-28T10:00:00Z',
+    status: 'investigating',
+    severity: 'high',
+    subject: 'Unreasonable delay in clinical response',
+    description: 'Patient submitted urgent message regarding worsening side effects and received no clinical response for 8 working days. Patient attended A&E due to lack of guidance. Potential safeguarding concern.',
+    acknowledgement_due_at: '2026-05-01T23:59:00Z',
+    acknowledgement_sent_at: '2026-04-30T16:00:00Z',
+    resolution_due_at: '2026-05-26T23:59:00Z',
+    source: 'phone',
+    cqc_quality_statements: ['Safe', 'Responsive', 'Well-led'],
+    sync_status: 'out_of_sync',
+    assigned_to_user_id: null,
+  },
+  {
+    id: 'CMP-005',
+    clinic_id: 'vsc',
+    monday_board_id: '18409111860',
+    monday_item_id: 'mbc_v002',
+    patient_id: null,
+    received_at: '2026-03-15T11:00:00Z',
+    status: 'closed',
+    severity: 'medium',
+    subject: 'Concerns about treatment review process',
+    description: 'Patient unhappy with how their 3-month treatment review was conducted. States the review felt rushed and did not address their questions about long-term use. Resolved following additional consultation.',
+    acknowledgement_due_at: '2026-03-19T23:59:00Z',
+    acknowledgement_sent_at: '2026-03-18T10:00:00Z',
+    resolution_due_at: '2026-04-08T23:59:00Z',
+    source: 'in_person',
+    cqc_quality_statements: ['Caring', 'Effective'],
+    sync_status: 'in_sync',
+    assigned_to_user_id: null,
+  },
+];
 const MOCK_AMENDMENTS: Amendment[] = [
   {
     id: 'AMEND-001',
@@ -844,7 +1156,197 @@ const MOCK_AMENDMENTS: Amendment[] = [
     decision_rationale: null,
   },
 ];
-const MOCK_GP_LETTERS: GPLetter[] = [];
+const MOCK_GP_LETTER_TEMPLATES: GPLetterTemplate[] = [
+  {
+    id: 'TMPL-001',
+    name: 'Treatment commencement notification',
+    body_template: `Dear {{gp_name}},
+
+I am writing to notify you that your patient {{patient_name}} has commenced treatment with our clinic.
+
+They have been prescribed {{medication}} at {{dose}} following a comprehensive clinical assessment. We have reviewed their medical history and ensured this treatment is appropriate.
+
+Please do not hesitate to contact us if you have any concerns or require further clinical information.
+
+Kind regards,
+The Clinical Team
+{{clinic_name}}
+{{clinic_email}}`,
+  },
+  {
+    id: 'TMPL-002',
+    name: 'Dose escalation notification',
+    body_template: `Dear {{gp_name}},
+
+I am writing to inform you that we have escalated the dose of {{medication}} for your patient {{patient_name}}.
+
+Following clinical review, the dose has been increased to {{dose}}. The patient is tolerating treatment well and has been counselled regarding the change.
+
+We will continue to monitor and will keep you informed of any further changes.
+
+Kind regards,
+The Clinical Team
+{{clinic_name}}
+{{clinic_email}}`,
+  },
+  {
+    id: 'TMPL-003',
+    name: 'Treatment cessation notification',
+    body_template: `Dear {{gp_name}},
+
+I am writing to inform you that your patient {{patient_name}} has discontinued treatment with our clinic.
+
+Treatment with {{medication}} has been stopped. The patient has been advised to follow up with your practice if they wish to explore further weight management options.
+
+Please update your records accordingly.
+
+Kind regards,
+The Clinical Team
+{{clinic_name}}
+{{clinic_email}}`,
+  },
+  {
+    id: 'TMPL-004',
+    name: 'Adverse event notification',
+    body_template: `Dear {{gp_name}},
+
+I am writing urgently to notify you of an adverse event experienced by your patient {{patient_name}} during treatment with {{medication}} at {{dose}}.
+
+The patient has reported [adverse event details]. We have taken the following actions: [actions taken].
+
+We would recommend a clinical review at your earliest convenience. A Yellow Card report has been / is being submitted to the MHRA.
+
+Kind regards,
+The Clinical Team
+{{clinic_name}}
+{{clinic_email}}`,
+  },
+  {
+    id: 'TMPL-005',
+    name: 'Progress update',
+    body_template: `Dear {{gp_name}},
+
+Please find below a progress update for your patient {{patient_name}}, who is currently under our care for weight management.
+
+Current medication: {{medication}} at {{dose}}
+Treatment duration: [duration]
+Weight change: [weight change]
+Tolerability: [tolerability notes]
+
+We are satisfied with the patient's progress and plan to continue treatment. Please contact us if you have any questions.
+
+Kind regards,
+The Clinical Team
+{{clinic_name}}
+{{clinic_email}}`,
+  },
+];
+
+const MOCK_GP_LETTERS: GPLetter[] = [
+  {
+    id: 'GPL-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00378',
+    template_id: 'TMPL-001',
+    subject: 'Treatment commencement notification — Zara Ahmed',
+    body: `Dear Dr. Patel,
+
+I am writing to notify you that your patient Zara Ahmed has commenced treatment with our clinic.
+
+They have been prescribed Mounjaro (tirzepatide) at 2.5mg weekly following a comprehensive clinical assessment. We have reviewed their medical history and ensured this treatment is appropriate.
+
+Please do not hesitate to contact us if you have any concerns or require further clinical information.
+
+Kind regards,
+The Clinical Team
+FeelTru
+admin@feeltru.com`,
+    status: 'delivered',
+    patient_consent_verified: true,
+    sent_at: '2026-04-10T10:30:00Z',
+    sent_to_email: 'dr.patel@holborngp.nhs.uk',
+    created_by_user_id: 'user_qadir',
+    created_at: '2026-04-10T10:00:00Z',
+  },
+  {
+    id: 'GPL-002',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    template_id: 'TMPL-002',
+    subject: 'Dose escalation notification — Sarah Cookland',
+    body: `Dear Dr. Williams,
+
+I am writing to inform you that we have escalated the dose of Mounjaro (tirzepatide) for your patient Sarah Cookland.
+
+Following clinical review, the dose has been increased to 7.5mg weekly. The patient is tolerating treatment well and has been counselled regarding the change.
+
+We will continue to monitor and will keep you informed of any further changes.
+
+Kind regards,
+The Clinical Team
+FeelTru
+admin@feeltru.com`,
+    status: 'draft',
+    patient_consent_verified: true,
+    sent_at: null,
+    sent_to_email: null,
+    created_by_user_id: 'user_qadir',
+    created_at: '2026-05-10T14:00:00Z',
+  },
+  {
+    id: 'GPL-003',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00445',
+    template_id: 'TMPL-004',
+    subject: 'Adverse event notification — Fiona MacLeod',
+    body: `Dear Dr. Singh,
+
+I am writing urgently to notify you of an adverse event experienced by your patient Fiona MacLeod during treatment with Mounjaro (tirzepatide) at 5mg weekly.
+
+The patient has reported severe nausea, fatigue and hair thinning. We have taken the following actions: dose held, safety review initiated, patient contacted.
+
+We would recommend a clinical review at your earliest convenience.
+
+Kind regards,
+The Clinical Team
+FeelTru
+admin@feeltru.com`,
+    status: 'draft',
+    patient_consent_verified: false,
+    sent_at: null,
+    sent_to_email: null,
+    created_by_user_id: 'user_qadir',
+    created_at: '2026-05-11T07:30:00Z',
+  },
+  {
+    id: 'GPL-004',
+    clinic_id: 'vsc',
+    patient_id: 'PT-00234',
+    template_id: 'TMPL-005',
+    subject: 'Progress update — James Hartley',
+    body: `Dear Dr. Khan,
+
+Please find below a progress update for your patient James Hartley, who is currently under our care for weight management.
+
+Current medication: Mounjaro (tirzepatide) at 5mg weekly
+Treatment duration: 3 months
+Weight change: -8.2kg
+Tolerability: Good, mild nausea initially, now resolved
+
+We are satisfied with the patient's progress and plan to continue treatment.
+
+Kind regards,
+The Clinical Team
+VSC Health
+admin@vsc.com`,
+    status: 'sent',
+    patient_consent_verified: true,
+    sent_at: '2026-05-08T09:00:00Z',
+    sent_to_email: 'dr.khan@mancgp.nhs.uk',
+    created_by_user_id: 'user_vsc_admin',
+    created_at: '2026-05-08T08:30:00Z',
+  },
+];
 const MOCK_COACHING_LOGS: CoachingLog[] = [
   {
     id: 'LOG-001',
@@ -937,6 +1439,41 @@ class APIError extends Error {
     super(message);
     this.code = code;
   }
+}
+
+// --- Monday.com mock proxy (DEC-37, DEC-29) ---
+async function mondayRead(boardId: string): Promise<MondayBoardState> {
+  await delay(150);
+  return MOCK_MONDAY_BOARDS[boardId] ?? { items: [], etag: 'empty' };
+}
+
+async function mondayWrite(
+  boardId: string,
+  op: 'create' | 'update',
+  item: Partial<MondayItem> & { id: string }
+): Promise<MondayBoardState> {
+  await delay(200);
+  if (!MOCK_MONDAY_BOARDS[boardId]) {
+    MOCK_MONDAY_BOARDS[boardId] = { items: [], etag: 'v1' };
+  }
+  const board = MOCK_MONDAY_BOARDS[boardId];
+  if (op === 'create') {
+    board.items.push({
+      id: item.id,
+      name: item.name ?? 'New item',
+      column_values: item.column_values ?? {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  } else {
+    const existing = board.items.find((i) => i.id === item.id);
+    if (existing) {
+      existing.column_values = { ...existing.column_values, ...(item.column_values ?? {}) };
+      existing.updated_at = new Date().toISOString();
+    }
+  }
+  board.etag = `v${Date.now()}`;
+  return board;
 }
 
 // Workspace isolation — every list filters by current clinic
@@ -1116,12 +1653,16 @@ export async function getConsultation(clinic_id: ClinicId, id: string): Promise<
   return c;
 }
 
-// --- Incidents ---
-export async function listIncidents(clinic_id: ClinicId, opts?: { status?: Incident['status']; severity?: Incident['severity'] }): Promise<Incident[]> {
+// --- Incidents (DEC-29: VSC+FeelTru share Monday board 18402056019) ---
+export async function listIncidents(
+  clinic_id: ClinicId,
+  opts?: { status?: Incident['status']; severity?: Incident['severity']; incident_type?: Incident['incident_type'] }
+): Promise<Incident[]> {
   await delay();
   let results = scopedToClinic(MOCK_INCIDENTS, clinic_id);
   if (opts?.status) results = results.filter((i) => i.status === opts.status);
   if (opts?.severity) results = results.filter((i) => i.severity === opts.severity);
+  if (opts?.incident_type) results = results.filter((i) => i.incident_type === opts.incident_type);
   return results;
 }
 
@@ -1132,12 +1673,113 @@ export async function getIncident(clinic_id: ClinicId, id: string): Promise<Inci
   return i;
 }
 
+export async function updateIncidentStatus(
+  clinic_id: ClinicId,
+  id: string,
+  status: Incident['status'],
+  resolution_notes?: string
+): Promise<Incident> {
+  await delay(300);
+  const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
+  i.status = status;
+  if (resolution_notes !== undefined) i.resolution_notes = resolution_notes;
+  if (i.monday_item_id) {
+    await mondayWrite(i.monday_board_id, 'update', { id: i.monday_item_id, column_values: { status } });
+    i.sync_status = 'in_sync';
+  }
+  console.log('[AUDIT]', { action: 'incident.status_updated', incident_id: id, status, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return i;
+}
+
+export async function submitYellowCard(clinic_id: ClinicId, id: string): Promise<Incident> {
+  await delay(600);
+  const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
+  if (i.yellow_card_submitted) throw new APIError('ALREADY_SUBMITTED', 'Yellow Card already submitted for this incident');
+  i.yellow_card_submitted = true;
+  i.yellow_card_reference = `MHRA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(6, '0')}`;
+  console.log('[AUDIT]', { action: 'yellow_card.submitted', incident_id: id, reference: i.yellow_card_reference, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return i;
+}
+
+export async function notifyCQC(clinic_id: ClinicId, id: string): Promise<Incident> {
+  await delay(400);
+  const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
+  if (i.cqc_notified_at) throw new APIError('ALREADY_NOTIFIED', 'CQC has already been notified for this incident');
+  i.cqc_notified_at = new Date().toISOString();
+  console.log('[AUDIT]', { action: 'cqc.notified', incident_id: id, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return i;
+}
+
+export async function syncIncidentFromMonday(clinic_id: ClinicId, id: string): Promise<Incident> {
+  const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
+  await mondayRead(i.monday_board_id);
+  i.sync_status = 'in_sync';
+  console.log('[AUDIT]', { action: 'incident.synced_from_monday', incident_id: id, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return i;
+}
+
 // --- Complaints (DEC-37: Monday-source-of-truth, Livera mirrors) ---
-export async function listComplaints(clinic_id: ClinicId, opts?: { status?: Complaint['status'] }): Promise<Complaint[]> {
+export async function listComplaints(
+  clinic_id: ClinicId,
+  opts?: { status?: Complaint['status']; severity?: Complaint['severity'] }
+): Promise<Complaint[]> {
   await delay();
   let results = scopedToClinic(MOCK_COMPLAINTS, clinic_id);
   if (opts?.status) results = results.filter((c) => c.status === opts.status);
+  if (opts?.severity) results = results.filter((c) => c.severity === opts.severity);
   return results;
+}
+
+export async function getComplaint(clinic_id: ClinicId, id: string): Promise<Complaint> {
+  await delay();
+  const c = MOCK_COMPLAINTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!c) throw new APIError('NOT_FOUND', 'Complaint not found');
+  return c;
+}
+
+export async function acknowledgeComplaint(clinic_id: ClinicId, id: string): Promise<Complaint> {
+  await delay(300);
+  const c = MOCK_COMPLAINTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!c) throw new APIError('NOT_FOUND', 'Complaint not found');
+  if (c.status !== 'received') throw new APIError('INVALID_STATE', 'Complaint must be in received state to acknowledge');
+  c.status = 'acknowledged';
+  c.acknowledgement_sent_at = new Date().toISOString();
+  if (c.monday_item_id) {
+    await mondayWrite(c.monday_board_id, 'update', { id: c.monday_item_id, column_values: { status: 'acknowledged' } });
+    c.sync_status = 'in_sync';
+  }
+  console.log('[AUDIT]', { action: 'complaint.acknowledged', complaint_id: id, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return c;
+}
+
+export async function updateComplaintStatus(
+  clinic_id: ClinicId,
+  id: string,
+  status: Complaint['status']
+): Promise<Complaint> {
+  await delay(300);
+  const c = MOCK_COMPLAINTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!c) throw new APIError('NOT_FOUND', 'Complaint not found');
+  c.status = status;
+  if (c.monday_item_id) {
+    await mondayWrite(c.monday_board_id, 'update', { id: c.monday_item_id, column_values: { status } });
+    c.sync_status = 'in_sync';
+  }
+  console.log('[AUDIT]', { action: 'complaint.status_updated', complaint_id: id, status, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return c;
+}
+
+export async function syncComplaintFromMonday(clinic_id: ClinicId, id: string): Promise<Complaint> {
+  const c = MOCK_COMPLAINTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!c) throw new APIError('NOT_FOUND', 'Complaint not found');
+  await mondayRead(c.monday_board_id);
+  c.sync_status = 'in_sync';
+  console.log('[AUDIT]', { action: 'complaint.synced_from_monday', complaint_id: id, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return c;
 }
 
 // --- Amendments (DEC-38: refunds flow here, not Tasks) ---
@@ -1185,7 +1827,8 @@ export async function decideAmendment(
 
   // Layer 1 — Safety re-validation for dose escalation approvals
   if (decision === 'approved' && a.type === 'dose_escalation') {
-    const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === a.patient_id);
+    const order = MOCK_ORDERS.find((o) => o.clinic_id === clinic_id && o.id === a.order_id);
+    const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === order?.patient_id);
     const hasHighUnacknowledgedFlag = patient?.flags.some(
       (f) => f.severity === 'high' && f.code !== 'B4_acknowledged'
     ) ?? false;
@@ -1222,12 +1865,70 @@ export async function decideAmendment(
 }
 
 // --- GP Letters ---
-export async function listGPLetters(clinic_id: ClinicId, opts?: { patient_id?: string; status?: GPLetter['status'] }): Promise<GPLetter[]> {
+export async function listGPLetters(
+  clinic_id: ClinicId,
+  opts?: { patient_id?: string; status?: GPLetter['status'] }
+): Promise<GPLetter[]> {
   await delay();
   let results = scopedToClinic(MOCK_GP_LETTERS, clinic_id);
   if (opts?.patient_id) results = results.filter((g) => g.patient_id === opts.patient_id);
   if (opts?.status) results = results.filter((g) => g.status === opts.status);
   return results;
+}
+
+export async function getGPLetter(clinic_id: ClinicId, id: string): Promise<GPLetter> {
+  await delay();
+  const g = MOCK_GP_LETTERS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!g) throw new APIError('NOT_FOUND', 'GP letter not found');
+  return g;
+}
+
+export async function createGPLetter(
+  clinic_id: ClinicId,
+  data: { patient_id: string; template_id: string; subject: string; body: string }
+): Promise<GPLetter> {
+  await delay(400);
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === data.patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', 'Patient not found');
+  const consentVerified = patient.consents_given.some((c) => c.consent_id === 'consent_gp');
+  const letter: GPLetter = {
+    id: `GPL-${String(MOCK_GP_LETTERS.length + 1).padStart(3, '0')}`,
+    clinic_id,
+    patient_id: data.patient_id,
+    template_id: data.template_id,
+    subject: data.subject,
+    body: data.body,
+    status: 'draft',
+    patient_consent_verified: consentVerified,
+    sent_at: null,
+    sent_to_email: null,
+    created_by_user_id: CURRENT_USER.id,
+    created_at: new Date().toISOString(),
+  };
+  MOCK_GP_LETTERS.push(letter);
+  console.log('[AUDIT]', { action: 'gp_letter.created', letter_id: letter.id, patient_id: data.patient_id, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return letter;
+}
+
+export async function sendGPLetter(clinic_id: ClinicId, id: string): Promise<GPLetter> {
+  await delay(600);
+  const g = MOCK_GP_LETTERS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!g) throw new APIError('NOT_FOUND', 'GP letter not found');
+  if (g.status !== 'draft') throw new APIError('INVALID_STATE', 'Letter is not in draft status');
+  if (!g.patient_consent_verified) throw new APIError('CONSENT_REQUIRED', 'Patient has not consented to GP communication');
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === g.patient_id);
+  const gpEmail = patient?.gp?.email ?? null;
+  if (!gpEmail) throw new APIError('NO_GP_EMAIL', 'No GP email address on record for this patient');
+  g.status = 'sent';
+  g.sent_at = new Date().toISOString();
+  g.sent_to_email = gpEmail;
+  console.log('[AUDIT]', { action: 'gp_letter.sent', letter_id: id, sent_to: gpEmail, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return g;
+}
+
+export async function listGPLetterTemplates(): Promise<GPLetterTemplate[]> {
+  await delay(100);
+  return MOCK_GP_LETTER_TEMPLATES;
 }
 
 // --- Coaching Logs ---

@@ -23,7 +23,14 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getClinicalCheckQueue, listAmendments, CURRENT_USER } from "@/lib/api/mock";
+import {
+  getClinicalCheckQueue,
+  listAmendments,
+  listComplaints,
+  listIncidents,
+  listGPLetters,
+  CURRENT_USER,
+} from "@/lib/api/mock";
 import type { ClinicId } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 
@@ -36,7 +43,6 @@ interface NavItem {
   href: string;
   badge?: { value: string | number; variant: BadgeVariant };
   suffix?: React.ReactNode;
-  /** Permission gate — item is hidden when can() returns false */
   permission?: { action: string; resource: string };
 }
 
@@ -48,7 +54,10 @@ interface NavSection {
 function buildSections(
   clinicId: string,
   clinicalCheckCount: number,
-  amendmentsCount: number
+  amendmentsCount: number,
+  complaintsCount: number,
+  incidentsCount: number,
+  gpLettersCount: number
 ): NavSection[] {
   return [
     {
@@ -134,7 +143,9 @@ function buildSections(
           label: "Complaints",
           icon: Megaphone,
           href: `/${clinicId}/complaints`,
-          badge: { value: 2, variant: "err" },
+          ...(complaintsCount > 0
+            ? { badge: { value: complaintsCount, variant: "err" as BadgeVariant } }
+            : {}),
           permission: { action: "read", resource: "complaints" },
         },
         {
@@ -142,7 +153,9 @@ function buildSections(
           label: "Incidents",
           icon: AlertTriangle,
           href: `/${clinicId}/incidents`,
-          badge: { value: 5, variant: "muted" },
+          ...(incidentsCount > 0
+            ? { badge: { value: incidentsCount, variant: "warn" as BadgeVariant } }
+            : {}),
           permission: { action: "read", resource: "incidents" },
         },
         {
@@ -150,7 +163,9 @@ function buildSections(
           label: "GP Letters",
           icon: FileText,
           href: `/${clinicId}/gp-letters`,
-          badge: { value: 14, variant: "muted" },
+          ...(gpLettersCount > 0
+            ? { badge: { value: gpLettersCount, variant: "muted" as BadgeVariant } }
+            : {}),
           permission: { action: "read", resource: "gp_letters" },
         },
       ],
@@ -223,17 +238,30 @@ export function Sidebar({ clinicId }: SidebarProps) {
   const pathname = usePathname();
   const [clinicalCheckCount, setClinicalCheckCount] = useState<number>(0);
   const [amendmentsCount, setAmendmentsCount] = useState<number>(0);
+  const [complaintsCount, setComplaintsCount] = useState<number>(0);
+  const [incidentsCount, setIncidentsCount] = useState<number>(0);
+  const [gpLettersCount, setGPLettersCount] = useState<number>(0);
 
   useEffect(() => {
-    getClinicalCheckQueue(clinicId as ClinicId)
+    const cid = clinicId as ClinicId;
+    getClinicalCheckQueue(cid)
       .then((orders) => setClinicalCheckCount(orders.length))
       .catch(() => {});
-    listAmendments(clinicId as ClinicId, { status: "requested" })
+    listAmendments(cid, { status: "requested" })
       .then((amendments) => setAmendmentsCount(amendments.length))
+      .catch(() => {});
+    listComplaints(cid)
+      .then((c) => setComplaintsCount(c.filter((x) => !["resolved", "closed"].includes(x.status)).length))
+      .catch(() => {});
+    listIncidents(cid)
+      .then((i) => setIncidentsCount(i.filter((x) => !["resolved", "closed"].includes(x.status)).length))
+      .catch(() => {});
+    listGPLetters(cid)
+      .then((g) => setGPLettersCount(g.length))
       .catch(() => {});
   }, [clinicId]);
 
-  const sections = buildSections(clinicId, clinicalCheckCount, amendmentsCount);
+  const sections = buildSections(clinicId, clinicalCheckCount, amendmentsCount, complaintsCount, incidentsCount, gpLettersCount);
 
   function isActive(href: string) {
     return pathname === href || pathname.startsWith(href + "/");
@@ -242,7 +270,6 @@ export function Sidebar({ clinicId }: SidebarProps) {
   return (
     <nav className="w-60 bg-surface border-r border-bdr flex-shrink-0 sticky top-9 h-[calc(100vh-36px)] overflow-y-auto px-3 py-4">
       {sections.map((section) => {
-        // Gate items by permission
         const visibleItems = section.items.filter((item) =>
           !item.permission || can(CURRENT_USER, item.permission.action, item.permission.resource)
         );

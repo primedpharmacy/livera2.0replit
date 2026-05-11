@@ -95,7 +95,8 @@ The frontend build progresses in mini-waves:
 - Mini-wave 2 (locked): Patients + Orders core
 - ✅ Mini-wave 3 (LOCKED): Clinical Check queue + Amendments + 3-layer safety chain on decideOrder and decideAmendment
 - ✅ Mini-wave 4 (LOCKED): Schedule (DEC-40 unified consultations) + Welcome Calls + Coach Dashboard
-- Mini-wave 5 (next): GP Letters + Incidents + Complaints
+- ✅ Mini-wave 5 (LOCKED): GP Letters + Complaints + Incidents with mocked Monday source-of-truth
+- Mini-wave 6 (next): file-size refactor of mock.ts, Tasks route fix, sidebar live badges for Patients/Orders/Welcome Calls, Settings, KPI Dashboard, Reports, Clinical Flags
 
 ## Authoritative product/design briefs
 

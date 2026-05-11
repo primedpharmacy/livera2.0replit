@@ -206,6 +206,34 @@ export type GPLetter = {
   sent_to_email: string | null;
 };
 
+export type CoachingLog = {
+  id: string;
+  clinic_id: ClinicId;
+  patient_id: string;
+  coach_id: string;
+  entry_type:
+    | 'welcome_call'
+    | 'initial_call'
+    | 'routine_check_in'
+    | 'ad_hoc'
+    | 'missed_attempt';
+  status: 'scheduled' | 'completed' | 'no_show' | 'rescheduled' | 'cancelled';
+  entry_date: string;
+  duration_minutes: number | null;
+  summary: string;
+  structured_observations: {
+    mood: '1' | '2' | '3' | '4' | '5' | null;
+    adherence: 'excellent' | 'good' | 'fair' | 'poor' | null;
+    side_effects_reported: string | null;
+    weight_self_reported_kg: number | null;
+  };
+  next_action: string | null;
+  next_scheduled_date: string | null;
+  clinical_escalation_flag_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ============================================================================
 // MOCK DATA (Sarah Cookland persona on both clinics)
 // ============================================================================
@@ -601,7 +629,178 @@ const MOCK_ORDERS: Order[] = [
   JAMES_ORDER_VSC, MIRIAM_ORDER_VSC,
   EMMA_ORDER_FEELTRU, ZARA_ORDER_FEELTRU,
 ];
-const MOCK_CONSULTATIONS: Consultation[] = [];
+const MOCK_CONSULTATIONS: Consultation[] = [
+  // ─── FeelTru consultations ────────────────────────────────────────────────
+  {
+    id: 'CON-F001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',        // Sarah Cookland
+    clinician_id: 'user_claire',
+    consultation_type: 'clinical_consult',
+    modality: 'video',
+    scheduled_start: '2026-05-12T09:00:00Z',
+    scheduled_end:   '2026-05-12T09:45:00Z',
+    actual_start: null,
+    actual_end: null,
+    status: 'scheduled',
+    provider: 'calendly+google_meet',
+    provider_event_id: 'evt_8a3f72e1',
+    join_url_clinician: 'https://meet.google.com/abc-defg-hij',
+    join_url_patient:   'https://meet.google.com/abc-defg-hij',
+    recording_enabled: false,
+    transcription_enabled: false,
+    clinical_note_id: null,
+    linked_order_id: 'ORD-00441',
+  },
+  {
+    id: 'CON-F002',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00378',        // Zara Ahmed
+    clinician_id: 'user_admin',
+    consultation_type: 'welcome_call',
+    modality: 'phone',
+    scheduled_start: '2026-05-11T10:00:00Z',
+    scheduled_end:   '2026-05-11T10:30:00Z',
+    actual_start: null,
+    actual_end: null,
+    status: 'scheduled',
+    provider: 'intercom_phone',
+    provider_event_id: null,
+    join_url_clinician: null,
+    join_url_patient: null,
+    recording_enabled: false,
+    transcription_enabled: false,
+    clinical_note_id: null,
+    linked_order_id: null,
+  },
+  {
+    id: 'CON-F003',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00412',        // Emma Whitfield
+    clinician_id: 'user_olwyn',
+    consultation_type: 'coaching',
+    modality: 'video',
+    scheduled_start: '2026-05-11T14:00:00Z',
+    scheduled_end:   '2026-05-11T14:30:00Z',
+    actual_start: null,
+    actual_end: null,
+    status: 'scheduled',
+    provider: 'calendly+google_meet',
+    provider_event_id: 'evt_coaching_f003',
+    join_url_clinician: 'https://meet.google.com/xyz-pqrs-tuv',
+    join_url_patient:   'https://meet.google.com/xyz-pqrs-tuv',
+    recording_enabled: false,
+    transcription_enabled: false,
+    clinical_note_id: null,
+    linked_order_id: null,
+  },
+  {
+    id: 'CON-F004',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00445',        // Fiona MacLeod
+    clinician_id: 'user_olwyn',
+    consultation_type: 'coaching',
+    modality: 'video',
+    scheduled_start: '2026-05-13T11:00:00Z',
+    scheduled_end:   '2026-05-13T11:30:00Z',
+    actual_start: null,
+    actual_end: null,
+    status: 'scheduled',
+    provider: 'calendly+google_meet',
+    provider_event_id: 'evt_coaching_f004',
+    join_url_clinician: 'https://meet.google.com/mno-qrst-uvw',
+    join_url_patient:   'https://meet.google.com/mno-qrst-uvw',
+    recording_enabled: false,
+    transcription_enabled: false,
+    clinical_note_id: null,
+    linked_order_id: null,
+  },
+  {
+    id: 'CON-F005',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00412',        // Emma Whitfield — past completed
+    clinician_id: 'user_olwyn',
+    consultation_type: 'coaching',
+    modality: 'video',
+    scheduled_start: '2026-04-28T11:00:00Z',
+    scheduled_end:   '2026-04-28T11:30:00Z',
+    actual_start: '2026-04-28T11:02:00Z',
+    actual_end:   '2026-04-28T11:32:00Z',
+    status: 'completed',
+    provider: 'calendly+google_meet',
+    provider_event_id: 'evt_coaching_f005',
+    join_url_clinician: null,
+    join_url_patient: null,
+    recording_enabled: false,
+    transcription_enabled: false,
+    clinical_note_id: 'note_f005',
+    linked_order_id: null,
+  },
+  {
+    id: 'CON-F006',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',        // Sarah Cookland — past completed
+    clinician_id: 'user_olwyn',
+    consultation_type: 'coaching',
+    modality: 'video',
+    scheduled_start: '2026-04-28T14:00:00Z',
+    scheduled_end:   '2026-04-28T14:30:00Z',
+    actual_start: '2026-04-28T14:01:00Z',
+    actual_end:   '2026-04-28T14:31:00Z',
+    status: 'completed',
+    provider: 'calendly+google_meet',
+    provider_event_id: 'evt_coaching_f006',
+    join_url_clinician: null,
+    join_url_patient: null,
+    recording_enabled: false,
+    transcription_enabled: false,
+    clinical_note_id: 'note_f006',
+    linked_order_id: null,
+  },
+  // ─── VSC consultations ────────────────────────────────────────────────────
+  {
+    id: 'CON-V001',
+    clinic_id: 'vsc',
+    patient_id: 'PT-00089',        // Tom Fletcher
+    clinician_id: 'user_admin',
+    consultation_type: 'welcome_call',
+    modality: 'phone',
+    scheduled_start: '2026-05-11T11:00:00Z',
+    scheduled_end:   '2026-05-11T11:30:00Z',
+    actual_start: null,
+    actual_end: null,
+    status: 'scheduled',
+    provider: 'intercom_phone',
+    provider_event_id: null,
+    join_url_clinician: null,
+    join_url_patient: null,
+    recording_enabled: false,
+    transcription_enabled: false,
+    clinical_note_id: null,
+    linked_order_id: null,
+  },
+  {
+    id: 'CON-V002',
+    clinic_id: 'vsc',
+    patient_id: 'PT-00234',        // James Hartley
+    clinician_id: 'user_claire',
+    consultation_type: 'follow_up',
+    modality: 'video',
+    scheduled_start: '2026-05-14T10:00:00Z',
+    scheduled_end:   '2026-05-14T10:45:00Z',
+    actual_start: null,
+    actual_end: null,
+    status: 'scheduled',
+    provider: 'calendly+google_meet',
+    provider_event_id: 'evt_followup_v002',
+    join_url_clinician: 'https://meet.google.com/def-ghij-klm',
+    join_url_patient:   'https://meet.google.com/def-ghij-klm',
+    recording_enabled: false,
+    transcription_enabled: false,
+    clinical_note_id: null,
+    linked_order_id: 'ORD-00438',
+  },
+];
 const MOCK_INCIDENTS: Incident[] = [];
 const MOCK_COMPLAINTS: Complaint[] = [];
 const MOCK_AMENDMENTS: Amendment[] = [
@@ -641,6 +840,74 @@ const MOCK_AMENDMENTS: Amendment[] = [
   },
 ];
 const MOCK_GP_LETTERS: GPLetter[] = [];
+const MOCK_COACHING_LOGS: CoachingLog[] = [
+  {
+    id: 'LOG-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',  // Sarah Cookland
+    coach_id: 'user_olwyn',
+    entry_type: 'routine_check_in',
+    status: 'completed',
+    entry_date: '2026-04-28T14:00:00Z',
+    duration_minutes: 30,
+    summary: 'Patient motivated and engaged. Querying dose escalation at next clinical consult. Weight plateau discussed — reassured on expected GLP-1 response curve.',
+    structured_observations: {
+      mood: '4',
+      adherence: 'excellent',
+      side_effects_reported: 'Mild nausea, tolerated well',
+      weight_self_reported_kg: 85.3,
+    },
+    next_action: 'Clinical consult booked 12 May re dose escalation',
+    next_scheduled_date: '2026-05-11T14:00:00Z',
+    clinical_escalation_flag_id: null,
+    created_at: '2026-04-28T14:35:00Z',
+    updated_at: '2026-04-28T14:35:00Z',
+  },
+  {
+    id: 'LOG-002',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00412',  // Emma Whitfield
+    coach_id: 'user_olwyn',
+    entry_type: 'routine_check_in',
+    status: 'completed',
+    entry_date: '2026-04-28T11:02:00Z',
+    duration_minutes: 30,
+    summary: 'Positive session. Emma reporting significant improvement in energy and confidence. Weight loss of 7.7 kg since start. Discussing habit formation and sustainable meal planning.',
+    structured_observations: {
+      mood: '5',
+      adherence: 'excellent',
+      side_effects_reported: 'None',
+      weight_self_reported_kg: 87.3,
+    },
+    next_action: 'Follow up in 2 weeks; check in on meal plan adherence',
+    next_scheduled_date: '2026-05-11T14:00:00Z',
+    clinical_escalation_flag_id: null,
+    created_at: '2026-04-28T11:35:00Z',
+    updated_at: '2026-04-28T11:35:00Z',
+  },
+  {
+    id: 'LOG-003',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00445',  // Fiona MacLeod
+    coach_id: 'user_olwyn',
+    entry_type: 'routine_check_in',
+    status: 'completed',
+    entry_date: '2026-04-30T13:00:00Z',
+    duration_minutes: 28,
+    summary: 'Fiona expressing frustration with slower progress in last 2 weeks. Discussed normal GLP-1 trajectory and expected plateau phase. Side effects (fatigue) noted — flagged to prescriber.',
+    structured_observations: {
+      mood: '2',
+      adherence: 'good',
+      side_effects_reported: 'Fatigue, reduced appetite beyond expected',
+      weight_self_reported_kg: 97.8,
+    },
+    next_action: 'Flag to prescriber for side effect review; Fiona to contact clinic if symptoms worsen',
+    next_scheduled_date: '2026-05-13T11:00:00Z',
+    clinical_escalation_flag_id: null,
+    created_at: '2026-04-30T13:30:00Z',
+    updated_at: '2026-04-30T13:30:00Z',
+  },
+];
 
 // Hardcoded current user — swap for real auth in Wave 1 follow-up
 export const CURRENT_USER: User = {
@@ -910,6 +1177,42 @@ export async function listGPLetters(clinic_id: ClinicId, opts?: { patient_id?: s
   if (opts?.patient_id) results = results.filter((g) => g.patient_id === opts.patient_id);
   if (opts?.status) results = results.filter((g) => g.status === opts.status);
   return results;
+}
+
+// --- Coaching Logs ---
+export async function listCoachingLogs(
+  clinic_id: ClinicId,
+  opts?: { patient_id?: string; coach_id?: string }
+): Promise<CoachingLog[]> {
+  await delay();
+  let results = scopedToClinic(MOCK_COACHING_LOGS, clinic_id);
+  if (opts?.patient_id) results = results.filter((l) => l.patient_id === opts.patient_id);
+  if (opts?.coach_id) results = results.filter((l) => l.coach_id === opts.coach_id);
+  return results;
+}
+
+export async function addCoachingLog(
+  clinic_id: ClinicId,
+  data: Omit<CoachingLog, 'id' | 'clinic_id' | 'created_at' | 'updated_at'>
+): Promise<CoachingLog> {
+  await delay(400);
+  const log: CoachingLog = {
+    ...data,
+    id: `LOG-${String(MOCK_COACHING_LOGS.length + 1).padStart(3, '0')}`,
+    clinic_id,
+    created_at: NOW,
+    updated_at: NOW,
+  };
+  MOCK_COACHING_LOGS.push(log);
+  console.log('[AUDIT]', {
+    action: 'coaching_log.created',
+    log_id: log.id,
+    patient_id: log.patient_id,
+    coach_id: log.coach_id,
+    clinic_id,
+    timestamp: new Date().toISOString(),
+  });
+  return log;
 }
 
 // ============================================================================

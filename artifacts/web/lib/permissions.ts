@@ -10,6 +10,7 @@ export type Resource =
   | "settings"
   | "schedule"
   | "coaching_log"
+  | "coach_dashboard"
   | "clinical_check"
   | "amendments"
   | "welcome_calls"
@@ -38,7 +39,7 @@ const PRESCRIBER_DECIDE: Resource[] = ["orders", "amendments"];
 
 const ADMIN_READ: Resource[] = ["patients", "orders", "welcome_calls"];
 
-const COACH_READ: Resource[] = ["patients", "schedule"];
+const COACH_READ: Resource[] = ["patients", "schedule", "coach_dashboard"];
 
 function roleMatrix(
   role: string,

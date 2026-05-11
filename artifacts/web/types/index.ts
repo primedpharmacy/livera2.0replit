@@ -3,6 +3,7 @@ export type {
   Order,
   OrderStatus,
   Consultation,
+  CoachingLog,
   Clinic,
   ClinicConfig,
   User,

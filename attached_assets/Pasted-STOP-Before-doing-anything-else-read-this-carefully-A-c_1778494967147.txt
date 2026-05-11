@@ -1,0 +1,227 @@
+STOP. Before doing anything else, read this carefully.
+
+A code audit was just run against the GitHub repo using an external tool (Claude Code with full filesystem access). The audit found that Mini-wave 3 was reported complete in our last session, but the code is actually absent from the repo. Specifically:
+
+MISSING FROM THE CODEBASE:
+1. No app/(workspace)/[clinic_id]/clinical-check/ directory exists
+2. No app/(workspace)/[clinic_id]/amendments/ directory exists
+3. No app/(workspace)/[clinic_id]/amendments/[amendment_id]/ directory exists
+4. MOCK_AMENDMENTS in lib/api/mock.ts is an empty array — AMEND-001 and AMEND-002 were not added
+5. decideOrder() in lib/api/mock.ts has no SAFETY_VIOLATION throw, no audit logging, no safety re-validation
+6. OrderDetailClient.tsx Approve button has no safety gate beyond status === "clinical_check" — the hasB4 variable is computed but never used to disable the button
+7. No [AUDIT] console.log entries exist anywhere in the codebase
+8. The Schedule sidebar link was added but no Schedule page exists (acceptable until Mini-wave 4)
+9. Sidebar badge counts are NOT fetched live — they're static
+
+ALSO FOUND DURING AUDIT (genuine architectural issues):
+- lib/permissions.ts is a stub that always returns true. The can() function exists but is never called anywhere in the codebase. The 5-role permission model from replit.md has not been implemented.
+- Sarah Cookland uses the same patient_id "PT-00198" on both VSC and FeelTru clinics. REPLIT_FRONTEND_GUIDE.md says she should have different patient_ids per workspace so workspace-isolation bugs surface in demo data.
+- OrderDetailClient.tsx line 82 uses "decideOrder(clinicId as any, ...)" — this casts away the ClinicId type. Should be narrowed properly at the page boundary.
+- OrderDetailClient.tsx line 286-287 has two raw emoji glyphs (✓ and ⚠) — should be Lucide Check and AlertTriangle.
+- The Approve dialog hardcodes the rationale "Clinically reviewed and approved." rather than capturing the prescriber's actual reasoning. Decline and Query both require free-text — Approve should too.
+
+YOUR TASK NOW:
+
+Rebuild Mini-wave 3 properly and fix the above architectural issues. This is a single deliverable — do not split it across sessions. Do not report "complete" until every item below is verifiably done in the repo.
+
+==== PART A: BUILD MISSING MINI-WAVE 3 SURFACES ====
+
+A1. Create app/(workspace)/[clinic_id]/clinical-check/page.tsx:
+- PageHeader: icon=Stethoscope, title="Clinical Check", subtitle="Orders awaiting clinical review"
+- Data: getClinicalCheckQueue(clinic_id) from lib/api/mock.ts
+- SLA stats card at top showing Total / Warning / Breached counts
+  * Pull thresholds from clinic.config.sla — never hardcode
+  * Use bg-warn-bg/text-warn for warning tile, bg-err-bg/text-err for breached tile
+- Sub-tabs above the table (auto-suppress chips with zero count):
+  * All
+  * G6 Flagged (filter order.g6_flags.length > 0)
+  * Reorders (filter order.type === "reorder")
+- Reuse the existing OrderListTable component
+- Suspense key={clinic_id} for workspace switching
+
+A2. Create app/(workspace)/[clinic_id]/amendments/page.tsx:
+- PageHeader: icon=RefreshCw, title="Amendments", subtitle="Order amendment requests"
+- Data: listAmendments(clinic_id) from lib/api/mock.ts
+- Filter chips: All / Requested / Reviewing / Approved / Rejected / Applied (auto-suppress zero counts)
+- New component: components/amendments/AmendmentListTable.tsx
+  * Columns: Amendment ID, Order ID (link to order detail), Type (friendly label pill), Requested by (actor type), Requested at (relative time), Status (StatusBadge)
+  * Click row → /[clinic_id]/amendments/[amendment_id]
+
+A3. Create app/(workspace)/[clinic_id]/amendments/[amendment_id]/page.tsx:
+- Left panel (40%): order summary + patient summary cards
+- Right panel (60%):
+  * Amendment details card
+  * Decision card (if status is approved/rejected/applied)
+  * Actions card (if status is requested/reviewing): Approve / Reject buttons, dialog with rationale textarea
+- Use getAmendment(clinic_id, id) — ADD this function to lib/api/mock.ts if it doesn't exist
+- Use decideAmendment(clinic_id, id, decision, rationale) — ADD this function to lib/api/mock.ts if it doesn't exist
+- Optimistic update after decision
+
+A4. Seed MOCK_AMENDMENTS in lib/api/mock.ts with at least 2 amendments:
+- AMEND-001: Sarah's dose escalation request on ORD-00441, type "dose_escalation", status "requested", actor type "patient", clinic "feeltru"
+- AMEND-002: A refund request on a different order, type "refund", status "reviewing", actor type "admin", clinic "feeltru"
+- Both must use real order_ids that exist in MOCK_ORDERS
+
+A5. Update components/shell/Sidebar.tsx to fetch LIVE badge counts:
+- Use a client component pattern (move to "use client" if needed)
+- useEffect that fetches getClinicalCheckQueue(clinicId) and listAmendments(clinicId, {status: "requested"}) on mount
+- Refetch when clinicId changes
+- Apply badge variant="warn" for Clinical Check when count > 0, variant="muted" otherwise
+- Apply badge variant="warn" for Amendments when count > 0, variant="muted" otherwise
+
+==== PART B: 3-LAYER SAFETY CHAIN (DEC-36) ====
+
+B1. Implement Layer 1 (UI gate) in OrderDetailClient.tsx:
+
+Add a derived safetyBlock computation:
+
+const safetyBlock = useMemo(() => {
+  // High-severity flag without explicit acknowledgement
+  const blockingFlag = patient.flags.find(f => f.severity === "high");
+  if (blockingFlag) {
+    return { code: "HIGH_SEVERITY_FLAG", message: `Cannot approve: ${blockingFlag.code} flag (${blockingFlag.severity} severity) is unacknowledged.` };
+  }
+  
+  // Dose escalation without prior dose evidence
+  const isEscalation = order.type === "reorder" && order.product.dose && /* compare to previous order's dose - implement detection */;
+  const hasEvidence = order.questionnaire_responses?.prior_dose_evidence_attached === true;
+  if (isEscalation && !hasEvidence) {
+    return { code: "DOSE_ESCALATION_NO_EVIDENCE", message: "Cannot approve: dose escalation requires prior dose evidence to be attached." };
+  }
+  
+  return null;
+}, [patient, order]);
+
+Disable the Approve button when safetyBlock !== null.
+Show safetyBlock.message inline above the Approve button when blocked.
+
+Sarah's B4 flag is medium severity, so her order should still be approvable (medium != high) — the chain doesn't block her, it blocks higher-severity cases. This is intentional per the audit finding ("Sarah's B4 is medium so her order stays approvable").
+
+B2. Implement Layer 2 (data guard) in lib/api/mock.ts decideOrder():
+
+export async function decideOrder(clinic_id, id, decision, rationale) {
+  await delay(400);
+  
+  // LAYER 3 — audit ATTEMPT before any validation
+  console.log("[AUDIT]", {
+    event: "order.decide.attempt",
+    clinic_id, order_id: id, decision, rationale,
+    actor_id: CURRENT_USER.id,
+    timestamp: new Date().toISOString()
+  });
+  
+  const order = MOCK_ORDERS.find(o => o.clinic_id === clinic_id && o.id === id);
+  if (!order) {
+    console.log("[AUDIT]", { event: "order.decide.outcome", outcome: "not_found", order_id: id });
+    throw new APIError('NOT_FOUND', 'Order not found');
+  }
+  
+  // LAYER 2 — re-run safety checks server-side for approvals
+  if (decision === "approved") {
+    const patient = MOCK_PATIENTS.find(p => p.clinic_id === clinic_id && p.id === order.patient_id);
+    if (patient) {
+      const highFlag = patient.flags.find(f => f.severity === "high");
+      if (highFlag) {
+        console.log("[AUDIT]", { event: "order.decide.outcome", outcome: "safety_violation", reason: "HIGH_SEVERITY_FLAG", order_id: id });
+        throw new APIError('SAFETY_VIOLATION', `Cannot approve: ${highFlag.code} flag is unacknowledged.`);
+      }
+    }
+    // Add equivalent dose escalation check here
+  }
+  
+  // Apply decision
+  order.clinical_decision = {
+    prescriber_user_id: CURRENT_USER.id,
+    decision, decided_at: new Date().toISOString(), rationale
+  };
+  order.status = decision === "approved" ? "approved" : decision === "declined" ? "declined" : "on_hold";
+  order.updated_at = new Date().toISOString();
+  
+  // LAYER 3 — audit SUCCESS
+  console.log("[AUDIT]", {
+    event: "order.decide.outcome",
+    outcome: decision,
+    order_id: id,
+    actor_id: CURRENT_USER.id,
+    timestamp: new Date().toISOString()
+  });
+  
+  return order;
+}
+
+B3. Implement the same 3-layer pattern in decideAmendment() when you create it.
+
+==== PART C: FIX ARCHITECTURAL ISSUES FROM AUDIT ====
+
+C1. Wire lib/permissions.ts with a real role matrix:
+- Implement can(user, action, resource) with this matrix:
+  * Owner: can everything
+  * RM: can everything + governance surfaces (incidents, complaints, audits)
+  * Prescriber: can read patients/orders, can decide orders, cannot edit settings or marketing
+  * Coach: can only access own bookings, own patient roster, coaching log (FeelTru-only via coaching_enabled flag)
+  * Admin: can access welcome calls and basic patient demographics, cannot make clinical decisions
+- Call can() in: Sidebar.tsx (hide nav links based on permissions), OrderDetailClient.tsx (gate Approve/Decline/Query buttons), PatientQuickActions.tsx (gate quick actions)
+- The Owner role (current hardcoded user) sees everything, so visually nothing changes — but the infrastructure now exists for role-gating in future mini-waves
+
+C2. Fix Sarah Cookland's patient_id duplication:
+- In lib/api/mock.ts, change SARAH_VSC to have id "PT-00012" (or any distinct id that's not PT-00198)
+- Update the SARAH_VSC declaration: const SARAH_VSC: Patient = { ...SARAH_FEELTRU, clinic_id: 'vsc', id: 'PT-00012' };
+- Verify both Sarahs still appear in their respective workspace patient lists
+
+C3. Fix the "as any" cast in OrderDetailClient.tsx line 82:
+- Either narrow clinicId to ClinicId at the page boundary in app/(workspace)/[clinic_id]/orders/[order_id]/page.tsx
+- Or change decideOrder's first param to type string in mock.ts
+- Pick the cleaner option; either works. Just no "as any".
+
+C4. Replace emoji glyphs in OrderDetailClient.tsx lines 286-287:
+- ✓ → <Check className="w-3.5 h-3.5" />
+- ⚠ → <AlertTriangle className="w-3.5 h-3.5" />
+
+C5. Change Approve dialog to capture free-text rationale:
+- Remove the hardcoded "Clinically reviewed and approved." string
+- Add a textarea to the Approve dialog (same pattern as Decline and Query)
+- Pass the captured rationale to decideOrder()
+
+==== DEFINITION OF DONE — STRICT VERIFICATION ====
+
+When you believe everything is complete, run these commands in the Shell and paste the FULL output back to me:
+
+1. Verify files exist:
+   ls artifacts/web/app/\(workspace\)/\[clinic_id\]/clinical-check/page.tsx 2>&1
+   ls artifacts/web/app/\(workspace\)/\[clinic_id\]/amendments/page.tsx 2>&1
+   ls artifacts/web/app/\(workspace\)/\[clinic_id\]/amendments/\[amendment_id\]/page.tsx 2>&1
+   ls artifacts/web/components/amendments/ 2>&1
+
+2. Verify safety chain is in code:
+   grep -n "SAFETY_VIOLATION" artifacts/web/lib/api/mock.ts
+   grep -n "\[AUDIT\]" artifacts/web/lib/api/mock.ts
+   grep -n "safetyBlock" artifacts/web/components/orders/OrderDetailClient.tsx
+
+3. Verify amendments are seeded:
+   grep -n "AMEND-001\|AMEND-002" artifacts/web/lib/api/mock.ts
+
+4. Verify permissions are wired:
+   grep -rn "can(currentUser\|can(user\|permissions\.can" artifacts/web/components/ artifacts/web/app/ --include="*.tsx" --include="*.ts" | head -10
+
+5. Verify Sarah's patient_id divergence:
+   grep -n "SARAH_VSC\|PT-00012" artifacts/web/lib/api/mock.ts
+
+6. Confirm dev server runs without errors and these URLs render:
+   /feeltru/clinical-check
+   /feeltru/amendments
+   /feeltru/amendments/AMEND-001
+   /feeltru/orders/ORD-00441 (Approve button should still be enabled — Sarah's B4 is medium)
+
+7. Demonstrate the audit chain by triggering a deliberate failure:
+   Programmatically attempt to approve an order with a synthetic high-severity flag (you can temporarily add one to a test patient or describe what would happen). Show me the [AUDIT] log output for both the attempt and the safety_violation outcome.
+
+8. THEN commit and push to GitHub. Run:
+   git add -A
+   git commit -m "Mini-wave 3 rebuild: clinical-check, amendments, 3-layer safety chain, permissions matrix"
+   git push origin main
+
+9. Paste the git push output so I can verify the commit landed.
+
+ONLY AFTER ALL 9 STEPS ARE DONE, report completion. Do not claim Mini-wave 3 is complete based on intent or partial progress — only after verification commands above return the expected results AND the commit is pushed to GitHub.
+
+If you encounter blockers, pause and tell me. Do not skip steps or fake completion. The previous Mini-wave 3 report misled me; rebuilding trust depends on this rebuild being verifiable end-to-end.

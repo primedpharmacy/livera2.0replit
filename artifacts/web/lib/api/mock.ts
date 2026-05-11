@@ -11,7 +11,8 @@
  * - Latency simulated with 200-400ms delay so UI handles loading states correctly
  * - Errors thrown as { code, message } objects — frontend catches and displays
  *
- * Persona spine: Sarah Cookland (PT-00198 on FeelTru, PT-00198 on VSC for testing)
+ * Persona spine: Sarah Cookland (PT-00198 on FeelTru, PT-00012 on VSC — different IDs per workspace
+ * so cross-workspace isolation regressions surface immediately in demo data)
  */
 
 // ============================================================================
@@ -287,7 +288,7 @@ const SARAH_FEELTRU: Patient = {
   updated_at: '2026-05-01T10:00:00Z',
 };
 
-const SARAH_VSC: Patient = { ...SARAH_FEELTRU, clinic_id: 'vsc', id: 'PT-00198' };
+const SARAH_VSC: Patient = { ...SARAH_FEELTRU, clinic_id: 'vsc', id: 'PT-00012' };
 
 const SARAH_ORDER_FEELTRU: Order = {
   id: 'ORD-00441',

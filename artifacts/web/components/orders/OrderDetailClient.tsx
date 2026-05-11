@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
   MessageSquare, Clock, ShieldAlert, ClipboardList, AlertTriangle,
-  Stethoscope, Activity, Scale, Pencil, ShieldCheck, FileText,
+  Stethoscope, Activity, Scale, Pencil, ShieldCheck, FileText, Check,
 } from "lucide-react";
 import {
   Dialog,
@@ -18,14 +18,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder } from "@/lib/api/mock";
-import type { Order, Patient, Clinic } from "@/types";
+import { decideOrder, CURRENT_USER } from "@/lib/api/mock";
+import { can } from "@/lib/permissions";
+import type { Order, Patient, Clinic, ClinicId } from "@/types";
 
 interface OrderDetailClientProps {
   initialOrder: Order;
   patient: Patient;
   clinic: Clinic;
-  clinicId: string;
+  clinicId: ClinicId;
 }
 
 type Modal = "approve" | "decline" | "query" | null;
@@ -89,7 +90,7 @@ export function OrderDetailClient({
   async function handleDecide(decision: "approved" | "declined" | "queried", r: string) {
     setIsSubmitting(true);
     try {
-      const updated = await decideOrder(clinicId as any, order.id, decision, r);
+      const updated = await decideOrder(clinicId, order.id, decision, r);
       setOrder(updated);
       setModal(null);
       setRationale("");
@@ -114,7 +115,7 @@ export function OrderDetailClient({
     }
   }
 
-  const canDecide = order.status === "clinical_check";
+  const canDecide = order.status === "clinical_check" && can(CURRENT_USER, "decide", "orders");
 
   // Layer 1 — Surface guard (UI prevents approval when conditions fail)
   const hasHighSeverityFlag        = patient.flags.some((f) => f.severity === "high");
@@ -334,8 +335,8 @@ export function OrderDetailClient({
                                 : "bg-page-bg border-bdr text-t1"
                             }`}>
                               <span className="flex items-center gap-1.5">
-                                {flag === "ok"  && <span className="text-[13px]">✓</span>}
-                                {flag === "warn" && <span className="text-[13px]">⚠</span>}
+                                {flag === "ok"  && <Check className="w-3.5 h-3.5 text-ok" />}
+                                {flag === "warn" && <AlertTriangle className="w-3.5 h-3.5 text-warn" />}
                                 {key === "weight_today" ? `${val} kg` : String(val)}
                               </span>
                               <span className="text-[10px] font-semibold uppercase tracking-wide opacity-60">
@@ -540,23 +541,35 @@ export function OrderDetailClient({
       </div>
 
       {/* ── Approve dialog ────────────────────────────────────────────────── */}
-      <Dialog open={modal === "approve"} onOpenChange={(o) => !o && setModal(null)}>
-        <DialogContent className="max-w-sm">
+      <Dialog open={modal === "approve"} onOpenChange={(o) => { if (!o) { setModal(null); setRationale(""); } }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base">Confirm Approval</DialogTitle>
           </DialogHeader>
-          <p className="text-[13px] text-t2">
-            You are about to approve order <strong className="font-mono">{order.id}</strong> for{" "}
-            <strong>{d.full_name}</strong>. This will trigger prescription generation.
-          </p>
+          <div className="space-y-3">
+            <p className="text-[13px] text-t2">
+              You are about to approve order <strong className="font-mono">{order.id}</strong> for{" "}
+              <strong>{d.full_name}</strong>. This will trigger prescription generation.
+            </p>
+            <Textarea
+              placeholder="Briefly note your clinical reasoning… (required)"
+              value={rationale}
+              onChange={(e) => setRationale(e.target.value)}
+              rows={4}
+              className="text-[13px]"
+            />
+            <p className="text-[11px] text-t3">
+              Your rationale is recorded in the audit trail against your prescriber ID.
+            </p>
+          </div>
           <DialogFooter className="gap-2 mt-2">
-            <Button variant="outline" size="sm" onClick={() => setModal(null)} disabled={isSubmitting}>
+            <Button variant="outline" size="sm" onClick={() => { setModal(null); setRationale(""); }} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button
               size="sm"
-              onClick={() => handleDecide("approved", "Clinically reviewed and approved.")}
-              disabled={isSubmitting}
+              onClick={() => handleDecide("approved", rationale)}
+              disabled={isSubmitting || rationale.trim().length < 10}
               className="bg-ok hover:bg-ok/90 text-white"
             >
               {isSubmitting ? "Approving…" : "Confirm Approve"}

@@ -1,0 +1,123 @@
+Excellent diligence — you were right to verify before rebuilding. The Claude Code audit was run against the GitHub remote, which was missing commit 625bbc4. So most of Mini-wave 3 is genuinely built; only the five drift items below need fixing, and then we need to push.
+
+Apply these fixes as a single deliverable, then push to GitHub. Do not split across sessions.
+
+==== FIX 1 (C2): Sarah Cookland patient_id divergence ====
+
+In lib/api/mock.ts, find the SARAH_VSC declaration. Change Sarah's VSC id from 'PT-00198' to 'PT-00012'.
+
+This is intentional per REPLIT_FRONTEND_GUIDE.md: "Sarah on both VSC and FeelTru workspaces (different patient_id per workspace)". The whole point is that workspace-isolation regressions surface in demo data — if a query accidentally leaks across workspaces, two different patient IDs make that obvious. Keep her name, demographic, and B4 flag the same; only the id changes.
+
+Verify by:
+- /vsc/patients now shows PT-00012 (still Sarah Cookland)
+- /feeltru/patients still shows PT-00198 (still Sarah Cookland)
+- /vsc/patients/PT-00012 renders her profile
+- /feeltru/patients/PT-00198 renders her profile
+
+==== FIX 2 (C3): Remove `as any` cast in OrderDetailClient.tsx ====
+
+OrderDetailClient.tsx line 92 currently has: decideOrder(clinicId as any, ...)
+
+Choose the cleaner option:
+- Narrow clinicId to ClinicId at the page boundary in app/(workspace)/[clinic_id]/orders/[order_id]/page.tsx before passing it down to OrderDetailClient (preferred — keeps the type system tight), OR
+- Change decideOrder's first parameter type in mock.ts from ClinicId to string (simpler, weaker typing)
+
+Pick one. Don't paper over with any.
+
+==== FIX 3 (C4): Replace emoji glyphs in OrderDetailClient.tsx ====
+
+Lines 337-338 currently contain raw ✓ and ⚠ emoji.
+
+Replace:
+- ✓ → <Check className="w-3.5 h-3.5 text-ok" />
+- ⚠ → <AlertTriangle className="w-3.5 h-3.5 text-warn" />
+
+Both icons already in lucide-react. CheckCircle and AlertTriangle imports are likely already in the file — verify and add if missing.
+
+==== FIX 4 (C5): Capture free-text rationale in Approve dialog ====
+
+Currently the Approve dialog hardcodes the rationale "Clinically reviewed and approved." This isn't an acceptable audit-trail entry for a regulated platform.
+
+Change the Approve dialog to capture free-text rationale, matching the Decline and Query dialog pattern. Specifically:
+- Add a textarea to the Approve dialog with placeholder text like "Briefly note your clinical reasoning..."
+- Require at least 10 characters before the Approve button is enabled
+- Pass the captured rationale string to decideOrder()
+- The rationale flows into order.clinical_decision.rationale, which already exists
+
+This matters because the 3-layer safety chain's audit logging (Layer 3) records the rationale. A constant string gives every approval the same audit trail, which defeats the purpose.
+
+==== FIX 5 (C1): Wire lib/permissions.ts with a real role matrix ====
+
+Currently lib/permissions.ts always returns true and is not called from anywhere. Implement the role matrix from replit.md and call can() from the right places.
+
+Role matrix to implement:
+
+- Owner: can everything (returns true for all actions)
+- RM: can everything PLUS governance surfaces (incidents, complaints, audits)
+- Prescriber: 
+  * CAN: read patients, read orders, decide orders, read schedule, read incidents, read complaints, read GP letters
+  * CANNOT: edit settings, marketing, billing
+- Coach:
+  * CAN: read own bookings, read own patient roster, write coaching_log
+  * CANNOT: access any clinical surfaces, settings, prescribing data
+  * Coach role only exists on clinics where coaching_enabled=true
+- Admin:
+  * CAN: access welcome calls, read basic patient demographics (name, phone, email, GP), read order status (without clinical details)
+  * CANNOT: make clinical decisions, see prescribing data, edit settings
+
+Implement can() with this signature:
+can(user: User, action: string, resource: string, context?: { clinic?: Clinic, ownerId?: string }): boolean
+
+Standard action verbs: "read", "write", "decide", "approve", "reject"
+Standard resources: "patients", "orders", "incidents", "complaints", "gp_letters", "settings", "schedule", "coaching_log"
+
+Where to call can() (start with these — more can be added later):
+1. Sidebar.tsx: hide nav links the user can't access. e.g. don't show "Settings" link unless can(user, "read", "settings"). Don't show "Schedule" link if not can(user, "read", "schedule"). Don't show "Coaching log" surfaces unless coaching_enabled AND can(user, "write", "coaching_log").
+2. OrderDetailClient.tsx: gate the Approve/Decline/Query buttons behind can(user, "decide", "orders"). The Owner (currently hardcoded) will still see them; future Prescriber roles will too; Admin and Coach roles won't.
+3. PatientQuickActions.tsx: gate the action buttons behind can() checks.
+
+The hardcoded user is currently Owner, so visually nothing should change for you — but the infrastructure now exists for role-gating in future mini-waves (Mini-wave 4 needs this for the Coach-only surfaces).
+
+==== STEP 6: Verify the dev server runs cleanly ====
+
+After all 5 fixes are applied:
+- Restart the dev server
+- Visit /feeltru/dashboard — should render
+- Visit /vsc/patients — should show PT-00012 Sarah Cookland
+- Visit /feeltru/patients/PT-00198 — should render
+- Visit /feeltru/clinical-check — should render with SLA stats card
+- Visit /feeltru/amendments — should render with AMEND-001 visible
+- Visit /feeltru/amendments/AMEND-001 — should render the amendment detail
+- Visit /feeltru/orders/ORD-00441 — Approve dialog should now show a textarea, not hardcoded copy
+
+==== STEP 7: Commit and push to GitHub ====
+
+This is critical — until this commit lands on GitHub, external audits will keep finding ghosts.
+
+Run:
+git status
+(show me what's changed)
+
+Then:
+git add -A
+git commit -m "Mini-wave 3 fixes: Sarah VSC id, remove as any cast, lucide icons, free-text approve rationale, permissions matrix"
+git push origin main
+
+Paste:
+1. The git status output before commit
+2. The commit hash and the git push output
+3. Confirm the commit is visible on the GitHub repo by running:
+   git log --oneline -5
+   git fetch origin && git log HEAD..origin/main --oneline
+   (the second should be empty if the push succeeded)
+
+==== DEFINITION OF DONE ====
+
+Only report complete after ALL of:
+1. All 5 fixes applied and saved to disk
+2. Dev server runs without errors
+3. Manual URL checks pass (Step 6)
+4. Commit pushed to GitHub origin/main
+5. Both git log outputs from Step 7 show the new commit on origin/main
+
+Report back with the git output. I'll then run a Claude Code audit against the freshly-pushed code to confirm everything is in place, and we can move to Mini-wave 4.

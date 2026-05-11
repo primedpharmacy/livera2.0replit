@@ -60,7 +60,7 @@ function roleMatrix(
 
     case "Coach": {
       // Coach surfaces are only available on coaching-enabled clinics
-      if (context?.clinic && !context.clinic.config.coaching_enabled) return false;
+      if (context?.clinic && !context.clinic.features.coaching_enabled) return false;
       if (action === "read")  return COACH_READ.includes(resource as Resource);
       if (action === "write" && resource === "coaching_log") return true;
       // Can only read their own patient roster

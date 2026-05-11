@@ -13,8 +13,6 @@ interface Props {
   patients: Patient[];
 }
 
-const PATIENT_NAMES: Record<string, string> = {};
-
 function buildRoster(
   patients: Patient[],
   upcomingSessions: Consultation[],

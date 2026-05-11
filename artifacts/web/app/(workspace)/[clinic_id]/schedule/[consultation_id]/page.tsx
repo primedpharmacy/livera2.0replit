@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -9,6 +10,7 @@ import {
 } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 import { ConsultationDetailClient } from "@/components/schedule/ConsultationDetailClient";
+import { LoadingState } from "@/components/shared/LoadingState";
 
 type Props = {
   params: Promise<{ clinic_id: string; consultation_id: string }>;
@@ -16,11 +18,29 @@ type Props = {
 
 export default async function ConsultationDetailPage({ params }: Props) {
   const { clinic_id, consultation_id } = await params;
-  const clinicId = clinic_id as ClinicId;
+  return (
+    <Suspense
+      key={`${clinic_id}-${consultation_id}`}
+      fallback={<LoadingState.Detail />}
+    >
+      <ConsultationDetailContent
+        clinicId={clinic_id as ClinicId}
+        consultationId={consultation_id}
+      />
+    </Suspense>
+  );
+}
 
+async function ConsultationDetailContent({
+  clinicId,
+  consultationId,
+}: {
+  clinicId: ClinicId;
+  consultationId: string;
+}) {
   let consultation;
   try {
-    consultation = await getConsultation(clinicId, consultation_id);
+    consultation = await getConsultation(clinicId, consultationId);
   } catch {
     notFound();
   }
@@ -45,7 +65,6 @@ export default async function ConsultationDetailPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-page-bg">
-      {/* Back bar */}
       <div className="flex items-center gap-2 px-6 py-3 bg-surface border-b border-bdr">
         <Link
           href={`/${clinicId}/schedule`}

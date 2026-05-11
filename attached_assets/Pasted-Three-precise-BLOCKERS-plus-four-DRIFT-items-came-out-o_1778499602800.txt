@@ -1,0 +1,130 @@
+Three precise BLOCKERS plus four DRIFT items came out of the Mini-wave 3+4 audit run via Claude Code against the freshly-pushed GitHub state. Apply these fixes as a single deliverable. Then commit and push to origin. Do NOT start any Mini-wave 5 work.
+
+==== BLOCKER FIX 1: SARAH_ORDER_VSC patient_id ====
+
+In artifacts/web/lib/api/mock.ts around line 342, the SARAH_ORDER_VSC declaration spreads from SARAH_ORDER_FEELTRU. The spread inherits patient_id: 'PT-00198' from the FeelTru order, but VSC Sarah is now PT-00012. As a result, clicking any VSC order linked to Sarah throws NOT_FOUND.
+
+Fix:
+const SARAH_ORDER_VSC: Order = { 
+  ...SARAH_ORDER_FEELTRU, 
+  clinic_id: 'vsc',
+  patient_id: 'PT-00012'   // ← ADD THIS LINE
+};
+
+Verify by visiting /vsc/orders and clicking any order linked to Sarah — should render her profile, not crash.
+
+==== BLOCKER FIX 2: Coach permission gate path bug ====
+
+In artifacts/web/lib/permissions.ts line 63, change:
+
+if (context?.clinic && !context.clinic.config.coaching_enabled) return false;
+
+To:
+
+if (context?.clinic && !context.clinic.features.coaching_enabled) return false;
+
+The flag lives on clinic.features.coaching_enabled per the Clinic type at mock.ts:33, not on clinic.config. This is a one-word change but currently denies every Coach permission even on FeelTru.
+
+After the fix, verify by writing a quick test in your head: can({roles: ["Coach"]}, "read", "patients", { clinic: feeltruClinic }) should return true (Coach can read patients on FeelTru). Same call with vscClinic should return false (coaching not enabled).
+
+==== BLOCKER FIX 3: 3-layer safety chain on decideAmendment ====
+
+In artifacts/web/lib/api/mock.ts around line 1154, decideAmendment has only an INVALID_STATE check. Clone the decideOrder pattern exactly. Specifically:
+
+1. [AUDIT] log on attempt (before any validation):
+   console.log("[AUDIT]", {
+     event_type: "amendment_decision_attempt",
+     clinic_id, amendment_id: id, user_id: CURRENT_USER.id,
+     decision_attempted: decision, rationale,
+     timestamp: new Date().toISOString(),
+   });
+
+2. Safety re-validation for approved decisions only. For amendment.type === "dose_escalation", check the linked order's patient for high-severity unacknowledged flags. If found, log [AUDIT] outcome safety_violation and throw APIError("SAFETY_VIOLATION", "..."). Mirror the exact pattern from decideOrder lines 1042-1053.
+
+3. [AUDIT] log on success at the end:
+   console.log("[AUDIT]", {
+     event_type: "amendment_decision_result",
+     outcome: decision,
+     amendment_id: id, user_id: CURRENT_USER.id,
+     timestamp: new Date().toISOString(),
+   });
+
+Add a // TODO: Replace with audit_event API call when backend is ready comment at each [AUDIT] log, matching the convention in decideOrder.
+
+Verify by approving AMEND-001 in the UI and checking the browser console for both attempt and result [AUDIT] log entries.
+
+==== DRIFT FIX 4: welcome-calls/page.tsx pattern alignment ====
+
+Convert artifacts/web/app/(workspace)/[clinic_id]/welcome-calls/page.tsx from "use client" to a server component matching the pattern in clinical-check/page.tsx:
+
+- Make it an async server component
+- Destructure clinic_id from awaited params  
+- Use a <Suspense key={clinic_id}> wrapper with a LoadingState fallback
+- Move the filter/UI rendering into a separate WelcomeCallsClient.tsx component
+- Pass initial data fetched server-side as a prop
+
+Pattern reference: read artifacts/web/app/(workspace)/[clinic_id]/clinical-check/page.tsx and mirror its structure exactly.
+
+==== DRIFT FIX 5: Suspense keys on Mini-wave 4 pages ====
+
+Add <Suspense key={clinic_id} fallback={<LoadingState.Detail />}> wrappers to these server-component pages where missing:
+
+- artifacts/web/app/(workspace)/[clinic_id]/schedule/page.tsx
+- artifacts/web/app/(workspace)/[clinic_id]/schedule/[consultation_id]/page.tsx (key={`${clinic_id}-${consultation_id}`})
+- artifacts/web/app/(workspace)/[clinic_id]/coach/page.tsx
+
+This ensures workspace switching cleanly invalidates the data fetch boundary, matching the Mini-wave 1-3 pattern.
+
+==== DRIFT FIX 6: Remove dead code in CoachDashboardClient ====
+
+In artifacts/web/components/coach/CoachDashboardClient.tsx around line 16, remove:
+
+const PATIENT_NAMES: Record<string, string> = {};
+
+It is declared and never read. Verify no other code reads PATIENT_NAMES before removing.
+
+==== DRIFT FIX 7: File-size refactor — DEFERRED ====
+
+The mock.ts file (1233 lines) and OrderDetailClient.tsx (758 lines) and ConsultationDetailClient.tsx (669 lines) are growing. Don't refactor these in this task — track as a separate cleanup task to do in parallel with Mini-wave 5. The pattern to use when refactoring:
+
+- mock.ts → split into lib/api/types.ts, lib/api/fixtures/{patients,orders,clinics,consultations}.ts, lib/api/{patients,orders,clinics,consultations,...}.ts. Keep mock.ts as a barrel that re-exports for backward compatibility so no component imports break.
+- OrderDetailClient.tsx → extract OrderDecisionDialogs.tsx, OrderQuestionnaireCard.tsx, OrderSLACard.tsx, plus DCard/Row primitives into components/shared/.
+- ConsultationDetailClient.tsx → extract IdentityChecklist, PhaseTracker, MeetCard, PreCallSummary, PostCallActions, the right-rail History, and the KV/RailRow primitives.
+
+For now, just note this as TODO in code comments at the top of each file. Don't actually refactor.
+
+==== VERIFICATION BEFORE PUSH ====
+
+When all fixes are applied:
+
+1. Run the dev server, confirm no errors.
+
+2. Visit each:
+   - /vsc/orders → click a Sarah-linked order → renders her profile (not NOT_FOUND)
+   - /feeltru/amendments/AMEND-001 → click Approve → check browser console for [AUDIT] attempt + result logs
+   - /feeltru/coach → renders Coach dashboard
+   - /vsc/coach → renders "Coaching not enabled" locked state
+   - /feeltru/welcome-calls → now uses server-component pattern (URL still works the same)
+   - /feeltru/schedule → still renders the week view
+
+3. Run these greps and confirm:
+   - grep -n "patient_id: 'PT-00012'" artifacts/web/lib/api/mock.ts (should find one match in SARAH_ORDER_VSC)
+   - grep -n "features.coaching_enabled" artifacts/web/lib/permissions.ts (should find the fixed line)
+   - grep -n "amendment_decision_attempt\|amendment_decision_result" artifacts/web/lib/api/mock.ts (should find two matches)
+   - grep -rn "Suspense key={clinic_id}" artifacts/web/app/\(workspace\)/\[clinic_id\]/ (should find at least 5 matches — clinical-check, amendments, schedule, coach, plus the existing ones)
+   - grep -n "PATIENT_NAMES" artifacts/web/components/coach/CoachDashboardClient.tsx (should be empty)
+
+==== COMMIT AND PUSH ====
+
+Once verified, commit and push to GitHub. The origin remote is now configured.
+
+git add -A
+git commit -m "Mini-wave 3+4 audit fixes: SARAH_ORDER_VSC patient_id, coach gate path, decideAmendment safety chain, welcome-calls pattern, Suspense keys, dead code"
+git push origin main
+
+Paste:
+- The git commit hash
+- The git push output
+- Confirmation that origin/main now contains the new commit (git log origin/main..HEAD --oneline should be empty)
+
+Stop after this. Do NOT start Mini-wave 5.

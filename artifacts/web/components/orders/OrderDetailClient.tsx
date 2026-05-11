@@ -1,3 +1,6 @@
+// TODO (file-size refactor — do in parallel with Mini-wave 5, not before):
+//   Extract OrderDecisionDialogs.tsx, OrderQuestionnaireCard.tsx, OrderSLACard.tsx,
+//   plus DCard/Row primitives into components/shared/.
 "use client";
 
 import { useState, useEffect } from "react";

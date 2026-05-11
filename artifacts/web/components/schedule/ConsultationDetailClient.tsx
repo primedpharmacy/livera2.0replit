@@ -1,3 +1,6 @@
+// TODO (file-size refactor — do in parallel with Mini-wave 5, not before):
+//   Extract IdentityChecklist, PhaseTracker, MeetCard, PreCallSummary, PostCallActions,
+//   right-rail History, and KV/RailRow primitives into separate component files.
 "use client";
 
 import { useState } from "react";

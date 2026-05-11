@@ -3,6 +3,11 @@
  *
  * Pattern: every component imports from this file, never from fetch directly.
  * When Yohan's backend is ready, swap implementations to call real endpoints.
+ *
+ * TODO (file-size refactor — do in parallel with Mini-wave 5, not before):
+ *   Split into lib/api/types.ts, lib/api/fixtures/{patients,orders,clinics,consultations}.ts,
+ *   and lib/api/{patients,orders,clinics,consultations,...}.ts.
+ *   Keep mock.ts as a barrel re-export so no component import paths break.
  * The TypeScript types here ARE the API contract.
  *
  * All endpoints follow these conventions:
@@ -339,7 +344,7 @@ const SARAH_ORDER_FEELTRU: Order = {
   updated_at: NOW,
 };
 
-const SARAH_ORDER_VSC: Order = { ...SARAH_ORDER_FEELTRU, clinic_id: 'vsc' };
+const SARAH_ORDER_VSC: Order = { ...SARAH_ORDER_FEELTRU, clinic_id: 'vsc', patient_id: 'PT-00012' };
 
 // ── Additional VSC patients ──────────────────────────────────────────────────
 
@@ -1157,16 +1162,62 @@ export async function decideAmendment(
   decision: 'approved' | 'rejected',
   rationale: string
 ): Promise<Amendment> {
+  // Layer 3 — Audit: log every attempt before any validation
+  // TODO: Replace with audit_event API call when backend is ready
+  console.log('[AUDIT]', {
+    event_type: 'amendment_decision_attempt',
+    clinic_id,
+    amendment_id: id,
+    user_id: CURRENT_USER.id,
+    decision_attempted: decision,
+    rationale,
+    timestamp: new Date().toISOString(),
+  });
+
   await delay(400);
   const a = MOCK_AMENDMENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!a) throw new APIError('NOT_FOUND', 'Amendment not found');
+
+  // Layer 2 — Data guard: validate before applying any decision
   if (a.status !== 'requested' && a.status !== 'reviewing') {
     throw new APIError('INVALID_STATE', 'Amendment cannot be decided in its current state');
   }
+
+  // Layer 1 — Safety re-validation for dose escalation approvals
+  if (decision === 'approved' && a.type === 'dose_escalation') {
+    const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === a.patient_id);
+    const hasHighUnacknowledgedFlag = patient?.flags.some(
+      (f) => f.severity === 'high' && f.code !== 'B4_acknowledged'
+    ) ?? false;
+
+    if (hasHighUnacknowledgedFlag) {
+      // TODO: Replace with audit_event API call when backend is ready
+      console.log('[AUDIT]', {
+        event_type: 'amendment_decision_result',
+        outcome: 'safety_violation',
+        reason: 'high_severity_flag_unacknowledged',
+        amendment_id: id,
+        user_id: CURRENT_USER.id,
+        timestamp: new Date().toISOString(),
+      });
+      throw new APIError('SAFETY_VIOLATION', 'Cannot approve: patient has an unacknowledged high-severity clinical flag');
+    }
+  }
+
   a.status = decision === 'approved' ? 'approved' : 'rejected';
   a.decided_by = CURRENT_USER.id;
   a.decided_at = new Date().toISOString();
   a.decision_rationale = rationale;
+
+  // TODO: Replace with audit_event API call when backend is ready
+  console.log('[AUDIT]', {
+    event_type: 'amendment_decision_result',
+    outcome: decision,
+    amendment_id: id,
+    user_id: CURRENT_USER.id,
+    timestamp: new Date().toISOString(),
+  });
+
   return a;
 }
 

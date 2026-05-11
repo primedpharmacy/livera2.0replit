@@ -209,7 +209,7 @@ export type GPLetter = {
 // MOCK DATA (Sarah Cookland persona on both clinics)
 // ============================================================================
 
-const NOW = new Date().toISOString();
+const NOW = '2026-05-11T08:00:00Z';
 
 const MOCK_CLINICS: Record<ClinicId, Clinic> = {
   vsc: {
@@ -303,10 +303,10 @@ const SARAH_ORDER_FEELTRU: Order = {
   amount_charged: null,
   amount_authorised: 220,
   clinical_decision: null,
-  sla_warn_at: new Date(Date.now() + 6 * 3600 * 1000).toISOString(),
-  sla_breach_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+  sla_warn_at: '2026-05-11T14:00:00Z',
+  sla_breach_at: '2026-05-12T08:00:00Z',
   g6_flags: ['B4'],
-  created_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+  created_at: '2026-05-11T06:00:00Z',
   updated_at: NOW,
 };
 
@@ -536,10 +536,10 @@ const MIRIAM_ORDER_VSC: Order = {
   amount_charged: null,
   amount_authorised: 159.00,
   clinical_decision: null,
-  sla_warn_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-  sla_breach_at: new Date(Date.now() + 4 * 3600 * 1000).toISOString(),
+  sla_warn_at: '2026-05-11T06:00:00Z',
+  sla_breach_at: '2026-05-11T12:00:00Z',
   g6_flags: [],
-  created_at: new Date(Date.now() - 20 * 3600 * 1000).toISOString(),
+  created_at: '2026-05-10T12:00:00Z',
   updated_at: NOW,
 };
 
@@ -583,10 +583,10 @@ const ZARA_ORDER_FEELTRU: Order = {
   amount_charged: null,
   amount_authorised: 149.00,
   clinical_decision: null,
-  sla_warn_at: new Date(Date.now() + 3 * 3600 * 1000).toISOString(),
-  sla_breach_at: new Date(Date.now() + 21 * 3600 * 1000).toISOString(),
+  sla_warn_at: '2026-05-11T11:00:00Z',
+  sla_breach_at: '2026-05-12T05:00:00Z',
   g6_flags: [],
-  created_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
+  created_at: '2026-05-11T05:00:00Z',
   updated_at: NOW,
 };
 

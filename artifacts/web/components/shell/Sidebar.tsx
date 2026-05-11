@@ -29,6 +29,9 @@ import {
   listComplaints,
   listIncidents,
   listGPLetters,
+  listPatients,
+  listOrders,
+  listConsultations,
   CURRENT_USER,
 } from "@/lib/api/mock";
 import type { ClinicId } from "@/lib/api/mock";
@@ -53,8 +56,11 @@ interface NavSection {
 
 function buildSections(
   clinicId: string,
+  patientsCount: number,
+  ordersCount: number,
   clinicalCheckCount: number,
   amendmentsCount: number,
+  welcomeCallsCount: number,
   complaintsCount: number,
   incidentsCount: number,
   gpLettersCount: number
@@ -74,7 +80,7 @@ function buildSections(
           label: "Patients",
           icon: Users,
           href: `/${clinicId}/patients`,
-          badge: { value: 142, variant: "muted" },
+          badge: { value: patientsCount, variant: "muted" },
           permission: { action: "read", resource: "patients" },
         },
         {
@@ -82,7 +88,7 @@ function buildSections(
           label: "Orders",
           icon: Package,
           href: `/${clinicId}/orders`,
-          badge: { value: 23, variant: "muted" },
+          badge: { value: ordersCount, variant: "muted" },
           permission: { action: "read", resource: "orders" },
         },
         {
@@ -115,7 +121,6 @@ function buildSections(
           label: "Tasks",
           icon: CheckSquare,
           href: `/${clinicId}/tasks`,
-          badge: { value: 14, variant: "default" },
           permission: { action: "read", resource: "tasks" },
         },
         {
@@ -123,7 +128,9 @@ function buildSections(
           label: "Welcome Calls",
           icon: Phone,
           href: `/${clinicId}/welcome-calls`,
-          badge: { value: 3, variant: "muted" },
+          ...(welcomeCallsCount > 0
+            ? { badge: { value: welcomeCallsCount, variant: "muted" as BadgeVariant } }
+            : {}),
           permission: { action: "read", resource: "welcome_calls" },
         },
         {
@@ -236,32 +243,64 @@ interface SidebarProps {
 
 export function Sidebar({ clinicId }: SidebarProps) {
   const pathname = usePathname();
+  const [patientsCount, setPatientsCount]         = useState<number>(0);
+  const [ordersCount, setOrdersCount]             = useState<number>(0);
   const [clinicalCheckCount, setClinicalCheckCount] = useState<number>(0);
-  const [amendmentsCount, setAmendmentsCount] = useState<number>(0);
-  const [complaintsCount, setComplaintsCount] = useState<number>(0);
-  const [incidentsCount, setIncidentsCount] = useState<number>(0);
-  const [gpLettersCount, setGPLettersCount] = useState<number>(0);
+  const [amendmentsCount, setAmendmentsCount]     = useState<number>(0);
+  const [welcomeCallsCount, setWelcomeCallsCount] = useState<number>(0);
+  const [complaintsCount, setComplaintsCount]     = useState<number>(0);
+  const [incidentsCount, setIncidentsCount]       = useState<number>(0);
+  const [gpLettersCount, setGPLettersCount]       = useState<number>(0);
 
   useEffect(() => {
     const cid = clinicId as ClinicId;
+
+    listPatients(cid)
+      .then((p) => setPatientsCount(p.length))
+      .catch(() => {});
+
+    listOrders(cid)
+      .then((o) => setOrdersCount(
+        o.filter((x) => !["delivered", "declined", "expired", "cancelled"].includes(x.status)).length
+      ))
+      .catch(() => {});
+
     getClinicalCheckQueue(cid)
       .then((orders) => setClinicalCheckCount(orders.length))
       .catch(() => {});
+
     listAmendments(cid, { status: "requested" })
       .then((amendments) => setAmendmentsCount(amendments.length))
       .catch(() => {});
+
+    listConsultations(cid, { type: "welcome_call" })
+      .then((c) => setWelcomeCallsCount(c.filter((x) => x.status === "scheduled").length))
+      .catch(() => {});
+
     listComplaints(cid)
       .then((c) => setComplaintsCount(c.filter((x) => !["resolved", "closed"].includes(x.status)).length))
       .catch(() => {});
+
     listIncidents(cid)
       .then((i) => setIncidentsCount(i.filter((x) => !["resolved", "closed"].includes(x.status)).length))
       .catch(() => {});
+
     listGPLetters(cid)
       .then((g) => setGPLettersCount(g.length))
       .catch(() => {});
   }, [clinicId]);
 
-  const sections = buildSections(clinicId, clinicalCheckCount, amendmentsCount, complaintsCount, incidentsCount, gpLettersCount);
+  const sections = buildSections(
+    clinicId,
+    patientsCount,
+    ordersCount,
+    clinicalCheckCount,
+    amendmentsCount,
+    welcomeCallsCount,
+    complaintsCount,
+    incidentsCount,
+    gpLettersCount,
+  );
 
   function isActive(href: string) {
     return pathname === href || pathname.startsWith(href + "/");

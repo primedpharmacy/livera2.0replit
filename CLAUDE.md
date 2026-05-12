@@ -87,17 +87,13 @@ The persona spine for demo data is Sarah Cookland (PT-00198 · ORD-00441 · B4 f
 
 When in doubt, ask before deviating from any locked DEC.
 
-## Mini-wave progress
+## Wave Status
 
-The frontend build progresses in mini-waves:
-
-- Mini-wave 1 (locked): Layout shell, workspace switching, hardcoded auth context
-- Mini-wave 2 (locked): Patients + Orders core
-- ✅ Mini-wave 3 (LOCKED): Clinical Check queue + Amendments + 3-layer safety chain on decideOrder and decideAmendment
-- ✅ Mini-wave 4 (LOCKED): Schedule (DEC-40 unified consultations) + Welcome Calls + Coach Dashboard
-- ✅ Mini-wave 5 (LOCKED): GP Letters + Complaints + Incidents with mocked Monday source-of-truth
-- ✅ Mini-wave 6a (LOCKED): mock.ts split into modules, Tasks route stub, Sidebar live badges, OrderDetail + ConsultationDetail extraction
-- Mini-wave 6b (next): Tasks build-out, Settings, KPI Dashboard, Reports, Clinical Flags
+- ✅ Wave 0 (LOCKED, commit 39d2b65): Mini-waves 1–6a — initial app shell, layouts, basic surfaces
+- ✅ Wave 1 — Chunk 1 Foundations (LOCKED, commit 4f7add4): ClinicConfig §6.1 schema, DEC-01 pre_dispensed both clinics, DEC-13 multi-Owner (Mobeen Alam on FeelTru), DEC-16 gender_eligibility, 10 SLAs configurable per clinic, SCR-006 4-role retirement (Manager/Pharmacist/Technician removed), Sumsub SDK feature-flag stub (BLD-1.7)
+- ⏳ Wave 2 — Chunk 2 Coach Surface (NEXT, awaiting explicit prompt): BLD-2.1 through BLD-2.9
+- 🔒 Branch wave-1-foundations retained as audit anchor — do not delete
+- 🔒 Branch wave-experimental-coach-and-patient retained — salvage source for Wave 2 with spec violations stripped
 
 ## Authoritative product/design briefs
 

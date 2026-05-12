@@ -20,6 +20,8 @@ import {
   Flag,
   TrendingUp,
   Settings,
+  BookOpen,
+  ShieldAlert,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,7 @@ import {
   listPatients,
   listOrders,
   listConsultations,
+  listClinicalEscalationFlags,
   CURRENT_USER,
 } from "@/lib/api/mock";
 import type { ClinicId } from "@/lib/api/mock";
@@ -53,6 +56,75 @@ interface NavSection {
   title: string;
   items: NavItem[];
 }
+
+// ── Coach-specific nav (BLD-2.1) ─────────────────────────────────────────────
+
+function buildCoachSections(
+  clinicId: string,
+  openEscalations: number
+): NavSection[] {
+  return [
+    {
+      title: "Coaching",
+      items: [
+        {
+          key: "coach",
+          label: "Coach Dashboard",
+          icon: Brain,
+          href: `/${clinicId}/coach`,
+        },
+        {
+          key: "patients",
+          label: "My Patients",
+          icon: Users,
+          href: `/${clinicId}/patients`,
+          permission: { action: "read", resource: "patients" },
+        },
+        {
+          key: "schedule",
+          label: "Coaching Schedule",
+          icon: Calendar,
+          href: `/${clinicId}/schedule`,
+          permission: { action: "read", resource: "schedule" },
+        },
+      ],
+    },
+    {
+      title: "Read-only",
+      items: [
+        {
+          key: "gp-letters",
+          label: "GP Letters",
+          icon: FileText,
+          href: `/${clinicId}/gp-letters`,
+          permission: { action: "read", resource: "gp_letters" },
+          suffix: (
+            <span className="text-[9px] font-bold text-t3 bg-page-bg border border-bdr px-1.5 py-px rounded ml-1">
+              RO
+            </span>
+          ),
+        },
+        {
+          key: "incidents",
+          label: "Incidents",
+          icon: ShieldAlert,
+          href: `/${clinicId}/incidents`,
+          permission: { action: "read", resource: "incidents" },
+          suffix: (
+            <span className="text-[9px] font-bold text-t3 bg-page-bg border border-bdr px-1.5 py-px rounded ml-1">
+              RO
+            </span>
+          ),
+          ...(openEscalations > 0
+            ? { badge: { value: openEscalations, variant: "warn" as BadgeVariant } }
+            : {}),
+        },
+      ],
+    },
+  ];
+}
+
+// ── Standard nav ─────────────────────────────────────────────────────────────
 
 function buildSections(
   clinicId: string,
@@ -243,17 +315,30 @@ interface SidebarProps {
 
 export function Sidebar({ clinicId }: SidebarProps) {
   const pathname = usePathname();
-  const [patientsCount, setPatientsCount]         = useState<number>(0);
-  const [ordersCount, setOrdersCount]             = useState<number>(0);
-  const [clinicalCheckCount, setClinicalCheckCount] = useState<number>(0);
-  const [amendmentsCount, setAmendmentsCount]     = useState<number>(0);
-  const [welcomeCallsCount, setWelcomeCallsCount] = useState<number>(0);
-  const [complaintsCount, setComplaintsCount]     = useState<number>(0);
-  const [incidentsCount, setIncidentsCount]       = useState<number>(0);
-  const [gpLettersCount, setGPLettersCount]       = useState<number>(0);
+  const isCoach = CURRENT_USER.roles.includes("Coach");
+
+  // ── Coach counts ──────────────────────────────────────────────────────────
+  const [openEscalations, setOpenEscalations] = useState(0);
+
+  // ── Standard counts ───────────────────────────────────────────────────────
+  const [patientsCount, setPatientsCount]             = useState<number>(0);
+  const [ordersCount, setOrdersCount]                 = useState<number>(0);
+  const [clinicalCheckCount, setClinicalCheckCount]   = useState<number>(0);
+  const [amendmentsCount, setAmendmentsCount]         = useState<number>(0);
+  const [welcomeCallsCount, setWelcomeCallsCount]     = useState<number>(0);
+  const [complaintsCount, setComplaintsCount]         = useState<number>(0);
+  const [incidentsCount, setIncidentsCount]           = useState<number>(0);
+  const [gpLettersCount, setGPLettersCount]           = useState<number>(0);
 
   useEffect(() => {
     const cid = clinicId as ClinicId;
+
+    if (isCoach) {
+      listClinicalEscalationFlags(cid, { status: "open" })
+        .then((f) => setOpenEscalations(f.length))
+        .catch(() => {});
+      return;
+    }
 
     listPatients(cid)
       .then((p) => setPatientsCount(p.length))
@@ -288,19 +373,21 @@ export function Sidebar({ clinicId }: SidebarProps) {
     listGPLetters(cid)
       .then((g) => setGPLettersCount(g.length))
       .catch(() => {});
-  }, [clinicId]);
+  }, [clinicId, isCoach]);
 
-  const sections = buildSections(
-    clinicId,
-    patientsCount,
-    ordersCount,
-    clinicalCheckCount,
-    amendmentsCount,
-    welcomeCallsCount,
-    complaintsCount,
-    incidentsCount,
-    gpLettersCount,
-  );
+  const sections = isCoach
+    ? buildCoachSections(clinicId, openEscalations)
+    : buildSections(
+        clinicId,
+        patientsCount,
+        ordersCount,
+        clinicalCheckCount,
+        amendmentsCount,
+        welcomeCallsCount,
+        complaintsCount,
+        incidentsCount,
+        gpLettersCount,
+      );
 
   function isActive(href: string) {
     return pathname === href || pathname.startsWith(href + "/");

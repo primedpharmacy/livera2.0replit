@@ -27,4 +27,5 @@ export type {
   GPCommunicationLifecycle,
   MondayItem,
   MondayBoardState,
+  ClinicalEscalationFlag,
 } from "@/lib/api/mock";

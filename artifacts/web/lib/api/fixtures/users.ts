@@ -97,6 +97,16 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
 // Read actions
 // ---------------------------------------------------------------------------
 
+/**
+ * Sync helper used by the FCM stub in clinicalEscalationFlags.ts.
+ * Returns user_ids of all active Prescribers and Admins at a clinic.
+ */
+export function getPrescriberAndAdminIds(clinic_id: ClinicId): string[] {
+  return MOCK_TEAM_MEMBERS
+    .filter((m) => m.clinic_id === clinic_id && ['Prescriber', 'Admin'].includes(m.role) && m.active)
+    .map((m) => m.user_id);
+}
+
 export async function listTeamMembers(clinic_id: ClinicId): Promise<ClinicTeamMember[]> {
   await delay();
   return MOCK_TEAM_MEMBERS.filter((m) => m.clinic_id === clinic_id);

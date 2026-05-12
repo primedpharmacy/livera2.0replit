@@ -4,8 +4,9 @@ import { useState, useMemo } from "react";
 import { Stethoscope, AlertTriangle } from "lucide-react";
 import { OrderListTable } from "@/components/orders/OrderListTable";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { LatestCoachingLogCard } from "@/components/clinical-check/LatestCoachingLogCard";
 import { NOW } from "@/lib/api/constants";
-import type { Order, Clinic } from "@/types";
+import type { Order, Clinic, CoachingLog, ClinicId } from "@/types";
 
 type SubTab = "all" | "awaiting_photos" | "g6_flagged" | "reorders";
 
@@ -19,10 +20,19 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
 interface ClinicalCheckClientProps {
   orders: Order[];
   clinic: Clinic;
-  clinicId: string;
+  clinicId: ClinicId;
+  // BLD-2.9 — coaching logs keyed by patient_id for Reorders sub-tab
+  coachingLogsByPatientId?: Record<string, CoachingLog[]>;
+  patientNames?: Record<string, string>;
 }
 
-export function ClinicalCheckClient({ orders, clinic, clinicId }: ClinicalCheckClientProps) {
+export function ClinicalCheckClient({
+  orders,
+  clinic,
+  clinicId,
+  coachingLogsByPatientId,
+  patientNames = {},
+}: ClinicalCheckClientProps) {
   const [activeTab, setActiveTab] = useState<SubTab>("all");
 
   const now = new Date(NOW).getTime();
@@ -55,6 +65,27 @@ export function ClinicalCheckClient({ orders, clinic, clinicId }: ClinicalCheckC
     if (activeTab === "reorders")   return orders.filter((o) => o.type === "reorder");
     return orders;
   }, [orders, activeTab]);
+
+  // ── BLD-2.9: unique patients with coaching logs in the current reorders set ──
+  const reorderPatientsWithLogs = useMemo(() => {
+    if (activeTab !== "reorders" || !coachingLogsByPatientId) return [];
+    const seen = new Set<string>();
+    const rows: { patientId: string; patientName: string; logs: CoachingLog[] }[] = [];
+    for (const order of filtered) {
+      const pid = order.patient_id;
+      if (seen.has(pid)) continue;
+      const logs = coachingLogsByPatientId[pid];
+      if (logs && logs.length > 0) {
+        seen.add(pid);
+        rows.push({
+          patientId: pid,
+          patientName: patientNames[pid] ?? pid,
+          logs,
+        });
+      }
+    }
+    return rows;
+  }, [activeTab, filtered, coachingLogsByPatientId, patientNames]);
 
   return (
     <div>
@@ -100,7 +131,25 @@ export function ClinicalCheckClient({ orders, clinic, clinicId }: ClinicalCheckC
       </div>
 
       {/* Table */}
-      <div className="px-6 py-4">
+      <div className="px-6 py-4 flex flex-col gap-4">
+        {/* BLD-2.9 — coaching context cards above reorders table */}
+        {reorderPatientsWithLogs.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <p className="text-[11px] font-bold text-t3 uppercase tracking-wider">
+              Coaching context for reorder patients
+            </p>
+            {reorderPatientsWithLogs.map(({ patientId, patientName, logs }) => (
+              <LatestCoachingLogCard
+                key={patientId}
+                patientId={patientId}
+                patientName={patientName}
+                clinicId={clinicId}
+                logs={logs}
+              />
+            ))}
+          </div>
+        )}
+
         {filtered.length === 0 ? (
           <EmptyState
             icon={Stethoscope}

@@ -9,9 +9,15 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { PatientQuickActions } from "@/components/patients/PatientQuickActions";
 import { CoachingLogTab } from "@/components/patients/CoachingLogTab";
+import { PatientNotesTimeline } from "@/components/timeline/PatientNotesTimeline";
+import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { getPatient, listOrders, getClinic, listCoachingLogs } from "@/lib/api/mock";
-import type { Patient, Order, ClinicId, CoachingLog } from "@/types";
+import {
+  getPatient, listOrders, getClinic, listCoachingLogs,
+  listClinicalNotes, listGPLetters, CURRENT_USER,
+} from "@/lib/api/mock";
+import { can } from "@/lib/permissions";
+import type { Patient, Order, ClinicId, CoachingLog, ClinicalNote, GPLetter } from "@/types";
 
 type PatientProfilePageProps = {
   params: Promise<{ clinic_id: string; patient_id: string }>;
@@ -44,6 +50,8 @@ async function ProfileContent({
   let patient: Patient;
   let orders: Order[];
   let coachingLogs: CoachingLog[] = [];
+  let clinicalNotes: ClinicalNote[] = [];
+  let gpLetters: GPLetter[] = [];
 
   try {
     const clinic = await getClinic(clinicId);
@@ -52,6 +60,8 @@ async function ProfileContent({
     const fetches: Promise<unknown>[] = [
       getPatient(clinicId, patientId),
       listOrders(clinicId, { patient_id: patientId }),
+      listClinicalNotes(clinicId, { patient_id: patientId }),
+      listGPLetters(clinicId, { patient_id: patientId }),
     ];
 
     if (coachingEnabled) {
@@ -59,26 +69,26 @@ async function ProfileContent({
     }
 
     const results = await Promise.all(fetches);
-    patient = results[0] as Patient;
-    orders  = results[1] as Order[];
+    patient       = results[0] as Patient;
+    orders        = results[1] as Order[];
+    clinicalNotes = results[2] as ClinicalNote[];
+    gpLetters     = results[3] as GPLetter[];
     if (coachingEnabled) {
-      coachingLogs = (results[2] as CoachingLog[]).sort(
+      coachingLogs = (results[4] as CoachingLog[]).sort(
         (a, b) => b.entry_date.localeCompare(a.entry_date)
       );
     }
 
     const showCoachingTab = coachingEnabled;
+    const canWriteNotes   = can(CURRENT_USER, "write", "clinical_notes");
     const d   = patient.demographic;
     const age = String(formatAge(d.dob));
     const hasB4 = patient.flags.some((f) => f.code === "B4");
 
-    // ── Tab labels ────────────────────────────────────────────────────────────
-    const tabs = showCoachingTab
-      ? [
-          { key: "profile",  label: "Profile" },
-          { key: "coaching", label: `Coaching log (${coachingLogs.length})` },
-        ]
-      : [];
+    // ── Tab labels ─────────────────────────────────────────────────────────
+    const tabs: { key: string; label: string }[] = [{ key: "profile", label: "Profile" }];
+    if (showCoachingTab) tabs.push({ key: "coaching", label: `Coaching log (${coachingLogs.length})` });
+    tabs.push({ key: "notes", label: `Notes (${clinicalNotes.length})` });
 
     return (
       <div>
@@ -123,27 +133,25 @@ async function ProfileContent({
             </div>
           </div>
 
-          {/* Tab bar — only shown when coaching is enabled */}
-          {tabs.length > 0 && (
-            <div className="flex gap-0 mt-4 border-b border-bdr -mb-4">
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.key;
-                return (
-                  <Link
-                    key={tab.key}
-                    href={`/${clinicId}/patients/${patientId}?tab=${tab.key}`}
-                    className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 -mb-px transition-colors ${
-                      isActive
-                        ? "border-brand text-brand"
-                        : "border-transparent text-t2 hover:text-t1"
-                    }`}
-                  >
-                    {tab.label}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+          {/* Tab bar */}
+          <div className="flex gap-0 mt-4 border-b border-bdr -mb-4">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <Link
+                  key={tab.key}
+                  href={`/${clinicId}/patients/${patientId}?tab=${tab.key}`}
+                  className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 -mb-px transition-colors ${
+                    isActive
+                      ? "border-brand text-brand"
+                      : "border-transparent text-t2 hover:text-t1"
+                  }`}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </div>
         </div>
 
         {/* Tab content */}
@@ -153,6 +161,29 @@ async function ProfileContent({
             clinicId={clinicId}
             logs={coachingLogs}
           />
+        ) : activeTab === "notes" ? (
+          /* BLD-4.3, BLD-4.6 — unified notes timeline */
+          <div className="space-y-4">
+            {canWriteNotes && (
+              <div className="px-6 pt-5">
+                <ClinicalNoteEditor
+                  clinicId={clinicId}
+                  patientId={patientId}
+                  minChars={clinic.config.clinical_note_min_chars}
+                  canWrite={canWriteNotes}
+                />
+              </div>
+            )}
+            <PatientNotesTimeline
+              clinicId={clinicId}
+              clinicalNotes={clinicalNotes}
+              coachingLogs={coachingLogs}
+              orders={orders}
+              gpLetters={gpLetters}
+              actor={CURRENT_USER}
+              minChars={clinic.config.clinical_note_min_chars}
+            />
+          </div>
         ) : (
           <ProfileBody patient={patient} orders={orders} clinicId={clinicId} age={age} />
         )}

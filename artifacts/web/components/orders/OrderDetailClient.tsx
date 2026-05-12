@@ -5,44 +5,56 @@ import Link from "next/link";
 import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
   MessageSquare, ShieldAlert, Scale, ShieldCheck, AlertTriangle,
-  Stethoscope, Pencil, Activity, Clock,
+  Stethoscope, Pencil, Activity, Clock, FileText,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import { decideOrder, CURRENT_USER, NOW } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
-import type { Order, Patient, Clinic, ClinicId } from "@/types";
+import type { Order, Patient, Clinic, ClinicId, ClinicalNote } from "@/types";
 import { DCard, Row, Metric, EmptyPane } from "./orderPrimitives";
 import { OrderDecisionDialogs, type Modal, type ToastState } from "./OrderDecisionDialogs";
 import { OrderQuestionnaireCard } from "./OrderQuestionnaireCard";
 import { OrderSLACard } from "./OrderSLACard";
 import { OrderPaymentSummary } from "./OrderPaymentSummary";
 import { OrderActivityTimeline } from "./OrderActivityTimeline";
+import { SlaTimerWidget } from "@/components/sla/SlaTimerWidget";
+import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
+import { RecentNotesCard } from "@/components/timeline/RecentNotesCard";
 
 interface OrderDetailClientProps {
   initialOrder: Order;
   patient: Patient;
   clinic: Clinic;
   clinicId: ClinicId;
+  initialClinicalNotes: ClinicalNote[];
 }
 
-type RightTab = "questionnaire" | "clinical_evidence" | "prescription" | "amendments" | "activity";
+type RightTab = "questionnaire" | "clinical_evidence" | "prescription" | "amendments" | "activity" | "notes";
 
 const RIGHT_TABS: { key: RightTab; label: string }[] = [
   { key: "questionnaire",     label: "Questionnaire"     },
   { key: "clinical_evidence", label: "Clinical evidence" },
   { key: "prescription",      label: "Prescription"      },
+  { key: "notes",             label: "Notes"             },
   { key: "amendments",        label: "Amendments"        },
   { key: "activity",          label: "Activity log"      },
 ];
 
-export function OrderDetailClient({ initialOrder, patient, clinic, clinicId }: OrderDetailClientProps) {
+export function OrderDetailClient({
+  initialOrder,
+  patient,
+  clinic,
+  clinicId,
+  initialClinicalNotes,
+}: OrderDetailClientProps) {
   const [order, setOrder]             = useState<Order>(initialOrder);
   const [modal, setModal]             = useState<Modal>(null);
   const [rationale, setRationale]     = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast]             = useState<ToastState | null>(null);
   const [activeTab, setActiveTab]     = useState<RightTab>("questionnaire");
+  const [notes, setNotes]             = useState<ClinicalNote[]>(initialClinicalNotes);
 
   useEffect(() => {
     if (!toast) return;
@@ -72,15 +84,26 @@ export function OrderDetailClient({ initialOrder, patient, clinic, clinicId }: O
     }
   }
 
-  const canDecide             = order.status === "clinical_check" && can(CURRENT_USER, "decide", "orders");
-  const hasHighSeverityFlag   = patient.flags.some((f) => f.severity === "high");
-  const hasB4Acknowledged     = patient.flags.some((f) => f.code === "B4_acknowledged");
-  const isDoseEscalation      = "dose_escalation" in order.questionnaire_responses && !order.questionnaire_responses["prior_dose_evidence"];
-  const approveBlockedReason  =
+  const minChars          = clinic.config.clinical_note_min_chars;
+  const canWriteNotes     = can(CURRENT_USER, "write", "clinical_notes");
+  const canDecide         = order.status === "clinical_check" && can(CURRENT_USER, "decide", "orders");
+
+  const hasHighSeverityFlag = patient.flags.some((f) => f.severity === "high");
+  const hasB4Acknowledged   = patient.flags.some((f) => f.code === "B4_acknowledged");
+  const isDoseEscalation    = "dose_escalation" in order.questionnaire_responses && !order.questionnaire_responses["prior_dose_evidence"];
+
+  // BLD-4.4 — approval gate: a clinical note with approval_gate_for_order_id === order.id and body >= minChars must exist
+  const hasApprovalNote = notes.some(
+    (n) => n.approval_gate_for_order_id === order.id && n.body.length >= minChars,
+  );
+
+  const approveBlockedReason =
     hasHighSeverityFlag && !hasB4Acknowledged
       ? "Patient has an unacknowledged high-severity flag — acknowledge before approving"
       : isDoseEscalation
       ? "Dose escalation requires prior dose evidence in the questionnaire"
+      : !hasApprovalNote && order.status === "clinical_check"
+      ? "Clinical note required before approving — see Notes tab"
       : null;
   const approveBlocked = approveBlockedReason !== null;
 
@@ -139,14 +162,35 @@ export function OrderDetailClient({ initialOrder, patient, clinic, clinicId }: O
               </button>
               <div className="flex flex-col items-end gap-1">
                 <button
-                  onClick={() => setModal("approve")}
-                  disabled={approveBlocked}
-                  className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-md transition-colors shadow-sm ${approveBlocked ? "bg-ok/40 text-white cursor-not-allowed" : "text-white bg-ok hover:bg-ok/90"}`}
+                  onClick={() => {
+                    if (approveBlocked && !hasApprovalNote) {
+                      setActiveTab("notes");
+                      return;
+                    }
+                    if (!approveBlocked) setModal("approve");
+                  }}
+                  disabled={approveBlocked && hasApprovalNote === false ? false : approveBlocked}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-md transition-colors shadow-sm ${
+                    !hasApprovalNote && order.status === "clinical_check"
+                      ? "bg-warn text-white hover:bg-warn/90"
+                      : approveBlocked
+                      ? "bg-ok/40 text-white cursor-not-allowed"
+                      : "text-white bg-ok hover:bg-ok/90"
+                  }`}
                 >
-                  <CheckCircle className="w-4 h-4" /> Approve
+                  {!hasApprovalNote && order.status === "clinical_check" ? (
+                    <><FileText className="w-4 h-4" /> Add note first</>
+                  ) : (
+                    <><CheckCircle className="w-4 h-4" /> Approve</>
+                  )}
                 </button>
                 {approveBlocked && approveBlockedReason && (
-                  <p className="text-[10px] text-err max-w-[200px] text-right leading-tight">{approveBlockedReason}</p>
+                  <button
+                    onClick={() => !hasApprovalNote && setActiveTab("notes")}
+                    className="text-[10px] text-err max-w-[220px] text-right leading-tight hover:underline"
+                  >
+                    {approveBlockedReason}
+                  </button>
                 )}
               </div>
             </div>
@@ -200,6 +244,9 @@ export function OrderDetailClient({ initialOrder, patient, clinic, clinicId }: O
               {RIGHT_TABS.map(({ key, label }) => (
                 <button key={key} onClick={() => setActiveTab(key)} className={`px-4 py-2.5 text-[12px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${activeTab === key ? "border-brand text-brand" : "border-transparent text-t2 hover:text-t1"}`}>
                   {label}
+                  {key === "notes" && notes.length > 0 && (
+                    <span className="ml-1 text-[10px] opacity-60">{notes.length}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -275,15 +322,63 @@ export function OrderDetailClient({ initialOrder, patient, clinic, clinicId }: O
                   ryft_authorisation_id={order.ryft_authorisation_id}
                 />
 
+                {/* BLD-3.6 — first consumer of clinic.config.patient_sla_copy */}
+                <DCard icon={Activity} title="Patient-facing SLA messaging">
+                  <Row label="Clinical review" value={clinic.config.patient_sla_copy.clinical_review_message} />
+                  <Row label="Delivery"        value={clinic.config.patient_sla_copy.delivery_message} />
+                </DCard>
+
                 {order.status === "clinical_check" && (
-                  <OrderSLACard
-                    slaBreached={slaBreached}
-                    slaWarning={slaWarning}
-                    slaHoursLeft={slaHoursLeft}
-                    slaTotalHours={slaTotalHours}
-                    sla_breach_at={order.sla_breach_at}
+                  <>
+                    {/* BLD-3.1 — SlaTimerWidget */}
+                    <SlaTimerWidget
+                      sla_deadline={order.sla_breach_at}
+                      sla_warn_at={order.sla_warn_at}
+                      label="Approval SLA"
+                      total_hours={slaTotalHours}
+                      variant="full"
+                    />
+                    <OrderSLACard
+                      slaBreached={slaBreached}
+                      slaWarning={slaWarning}
+                      slaHoursLeft={slaHoursLeft}
+                      slaTotalHours={slaTotalHours}
+                      sla_breach_at={order.sla_breach_at}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* BLD-4.2, BLD-4.4 — Notes tab */}
+            {activeTab === "notes" && (
+              <div className="space-y-4">
+                {order.status === "clinical_check" && (
+                  <SlaTimerWidget
+                    sla_deadline={order.sla_breach_at}
+                    sla_warn_at={order.sla_warn_at}
+                    label="Approval SLA"
+                    total_hours={slaTotalHours}
+                    variant="chip"
                   />
                 )}
+
+                <ClinicalNoteEditor
+                  clinicId={clinicId}
+                  patientId={patient.id}
+                  orderId={order.id}
+                  minChars={minChars}
+                  canWrite={canWriteNotes}
+                  isApprovalNote={order.status === "clinical_check"}
+                  onNoteCreated={(note) => setNotes((prev) => [note, ...prev])}
+                />
+
+                <RecentNotesCard
+                  notes={notes}
+                  clinicId={clinicId}
+                  patientId={patient.id}
+                  maxItems={5}
+                />
               </div>
             )}
 

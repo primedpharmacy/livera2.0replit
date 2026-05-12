@@ -8,9 +8,10 @@ import { DashboardView } from "@/components/dashboard/DashboardView";
 import {
   getClinic,
   listClinicalEscalationFlags,
+  listSlaBreaches,
   CURRENT_USER,
 } from "@/lib/api/mock";
-import type { ClinicId, ClinicalEscalationFlag } from "@/types";
+import type { ClinicId, ClinicalEscalationFlag, SlaBreach } from "@/types";
 
 type DashboardPageProps = { params: Promise<{ clinic_id: string }> };
 
@@ -36,15 +37,19 @@ async function DashboardContent({ clinicId }: { clinicId: ClinicId }) {
     const clinic = await getClinic(clinicId);
     const coachingEnabled = clinic.config.coaching_enabled;
 
-    const openEscalations: ClinicalEscalationFlag[] = coachingEnabled
-      ? await listClinicalEscalationFlags(clinicId, { status: "open" })
-      : [];
+    const [openEscalations, openSlaBreaches] = await Promise.all([
+      coachingEnabled
+        ? listClinicalEscalationFlags(clinicId, { status: "open" })
+        : Promise.resolve([] as ClinicalEscalationFlag[]),
+      listSlaBreaches(clinicId, { status: "open" }),
+    ]);
 
     return (
       <DashboardView
         clinicId={clinicId}
         coachingEnabled={coachingEnabled}
         openEscalations={openEscalations}
+        openSlaBreaches={openSlaBreaches as SlaBreach[]}
         currentUserRoles={CURRENT_USER.roles}
       />
     );

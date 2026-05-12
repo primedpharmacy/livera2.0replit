@@ -1,6 +1,9 @@
 /**
- * Settings shell layout — Wave 1 BLD-1.5.
- * Provides tabbed navigation for the Settings section.
+ * Settings shell layout — Wave 1 BLD-1.5 + Wave 3 BLD-3.4 + BLD-4.7.
+ *
+ * BLD-3.4: adds "SLAs" tab → /settings/slas
+ * BLD-4.7: adds "Exports" tab → /settings/exports
+ *
  * Only Owner / RM can reach this via the sidebar (permission: "settings").
  */
 
@@ -13,7 +16,9 @@ type SettingsLayoutProps = {
 };
 
 const TABS = [
-  { key: "team", label: "Team & roles", path: "team" },
+  { key: "team",    label: "Team & roles", path: "team"    },
+  { key: "slas",    label: "SLAs",         path: "slas"    },
+  { key: "exports", label: "Exports",      path: "exports" },
 ] as const;
 
 export default async function SettingsLayout({ children, params }: SettingsLayoutProps) {

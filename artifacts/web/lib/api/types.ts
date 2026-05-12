@@ -95,7 +95,14 @@ export type ClinicConfig = {
 
   // Comms (BLD-1.3)
   reply_email: string;
-  patient_sla_copy: string;  // e.g. "Clinical review usually takes up to 4 hours"
+  // BLD-3.6 — object per DEC-35 (replaces flat string from Wave 1)
+  patient_sla_copy: {
+    clinical_review_message: string;  // "Clinical review usually takes up to 4 hours"
+    delivery_message: string;         // "Delivery within 2 working days"
+  };
+
+  // BLD-4.1 — minimum chars for a clinical note body (configurable per clinic)
+  clinical_note_min_chars: number;  // default 40
 
   // SLA values (BLD-1.4 — 10 values per DEC-04, DEC-35)
   default_slas: {
@@ -452,4 +459,50 @@ export type ClinicalEscalationFlag = {
   resolved_at: string | null;
   resolution_notes: string | null;
   sla_deadline: string;           // raised_at + 24 working hours via addWorkingHours
+};
+
+// --- ClinicalNote (BLD-4.1 — 17 fields) ----
+// All clinical mutations are protected by the 3-layer safety chain:
+//   Layer 1: UI gate (role + min-chars)
+//   Layer 2: APIError('SAFETY_VIOLATION') server gate
+//   Layer 3: [AUDIT] console entry on every mutation
+export type ClinicalNote = {
+  id: string;                          // NOTE-XXXXX
+  patient_id: string;
+  order_id: string | null;             // null for standalone notes
+  clinic_id: ClinicId;
+  author_user_id: string;
+  author_role: 'Prescriber' | 'Admin';
+  body: string;
+  created_at: string;
+  updated_at: string;
+  edit_history: Array<{
+    edited_at: string;
+    edited_by: string;
+    previous_body: string;
+  }>;
+  approval_gate_for_order_id: string | null;  // BLD-4.4 — must match order.id to gate approve
+  ai_drafted: boolean;                         // BLD-6.5 (future)
+  ai_draft_accepted_at: string | null;
+  ai_draft_edited_by: string | null;
+  ai_prompt_version_id: string | null;
+  tags: string[];                              // e.g. ['clinical_check', 'follow_up']
+  visibility: 'clinical_team' | 'patient_record';
+};
+
+// --- SlaBreach (BLD-3.2) ---
+// Written to Monday.com via lib/integrations/monday.ts writeSlaBreach (BLD-3.5).
+export type SlaBreachEntityType = 'order' | 'coaching_escalation' | 'gp_letter';
+
+export type SlaBreach = {
+  id: string;                          // BREACH-XXXXX
+  clinic_id: ClinicId;
+  entity_type: SlaBreachEntityType;
+  entity_id: string;                   // e.g. ORD-XXXXX
+  sla_type: string;                    // key from default_slas e.g. 'approval_breach_hours'
+  breach_detected_at: string;          // ISO
+  acknowledged_at: string | null;
+  acknowledged_by_user_id: string | null;
+  notes: string | null;
+  monday_item_id: string | null;       // populated after writeSlaBreach succeeds
 };

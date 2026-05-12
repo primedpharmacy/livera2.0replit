@@ -28,4 +28,8 @@ export type {
   MondayItem,
   MondayBoardState,
   ClinicalEscalationFlag,
+  // Wave 3 additions
+  ClinicalNote,
+  SlaBreach,
+  SlaBreachEntityType,
 } from "@/lib/api/mock";

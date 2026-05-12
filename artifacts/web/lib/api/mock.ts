@@ -23,8 +23,10 @@
  *     consultations.ts  — MOCK_CONSULTATIONS, listConsultations, getConsultation
  *     coaching.ts       — MOCK_COACHING_LOGS, listCoachingLogs, addCoachingLog
  *     gpLetters.ts      — MOCK_GP_LETTERS, MOCK_GP_LETTER_TEMPLATES, all GP letter endpoints
- *     complaints.ts     — MOCK_COMPLAINTS, all complaint endpoints
- *     incidents.ts      — MOCK_INCIDENTS, all incident endpoints
+ *     complaints.ts       — MOCK_COMPLAINTS, all complaint endpoints
+ *     incidents.ts        — MOCK_INCIDENTS, all incident endpoints
+ *     clinicalNotes.ts    — MOCK_CLINICAL_NOTES, listClinicalNotes, getClinicalNote, createClinicalNote, updateClinicalNote  (BLD-4.1, 4.2, 4.5)
+ *     slaBreaches.ts      — MOCK_SLA_BREACHES, listSlaBreaches, acknowledgeSlaBreachRecord  (BLD-3.2, 3.3)
  */
 
 export * from './types';
@@ -41,3 +43,5 @@ export * from './fixtures/clinicalEscalationFlags';
 export * from './fixtures/gpLetters';
 export * from './fixtures/complaints';
 export * from './fixtures/incidents';
+export * from './fixtures/clinicalNotes';
+export * from './fixtures/slaBreaches';

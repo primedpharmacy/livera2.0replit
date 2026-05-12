@@ -5,6 +5,7 @@ import { Stethoscope, AlertTriangle } from "lucide-react";
 import { OrderListTable } from "@/components/orders/OrderListTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { LatestCoachingLogCard } from "@/components/clinical-check/LatestCoachingLogCard";
+import { SlaTimerWidget } from "@/components/sla/SlaTimerWidget";
 import { NOW } from "@/lib/api/constants";
 import type { Order, Clinic, CoachingLog, ClinicId } from "@/types";
 
@@ -108,6 +109,25 @@ export function ClinicalCheckClient({
             variant={breachCount > 0 ? "err" : "neutral"}
           />
         </div>
+
+        {/* BLD-3.1 — SlaTimerWidget for most-urgent order in queue */}
+        {(() => {
+          const urgent = [...orders]
+            .filter((o) => o.status === "clinical_check")
+            .sort((a, b) => a.sla_breach_at.localeCompare(b.sla_breach_at))[0];
+          if (!urgent) return null;
+          return (
+            <div className="mt-3">
+              <SlaTimerWidget
+                sla_deadline={urgent.sla_breach_at}
+                sla_warn_at={urgent.sla_warn_at}
+                label={`Next breach — ${urgent.id}`}
+                total_hours={clinic.config.default_slas.approval_breach_hours}
+                variant="full"
+              />
+            </div>
+          );
+        })()}
       </div>
 
       {/* Sub-tabs */}

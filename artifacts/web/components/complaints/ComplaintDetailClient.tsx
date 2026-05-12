@@ -13,6 +13,7 @@ import {
   syncComplaintFromMonday,
   reassignComplaint,
   CURRENT_USER,
+  NOW,
 } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import type { Complaint, Clinic, ClinicId } from "@/types";
@@ -47,7 +48,7 @@ const CLINIC_USERS = [
 ];
 
 function SLACard({ label, dueAt, done }: { label: string; dueAt: string; done: boolean }) {
-  const overdue = !done && new Date() > new Date(dueAt);
+  const overdue = !done && new Date(NOW) > new Date(dueAt);
   return (
     <div className={cn(
       "border rounded-lg px-4 py-3",

@@ -14,6 +14,10 @@
  *   - COACH_READ expanded: gp_letters, incidents, coaching_log
  *   - 'coaching_escalation' resource added
  *   - canCoachAccessPatient() helper (BLD-2.1)
+ *
+ * Wave 4 / Fix Cycle 1 additions (BLOCKER 4):
+ *   - 'pharmacy_comms': Admin/Owner read+write, Prescriber read, others none
+ *   - 'holiday_calendar': Admin/Owner read+write, all others read
  */
 
 import type { User, Clinic, Patient } from '@/lib/api/types';
@@ -40,7 +44,10 @@ export type Resource =
   | 'coaching_escalation'
   // Wave 3 additions
   | 'clinical_notes'    // BLD-4.1 — Prescriber + Admin write; Coach cannot
-  | 'sla_breaches';     // BLD-3.2 — Prescriber + Admin + Owner acknowledge
+  | 'sla_breaches'      // BLD-3.2 — Prescriber + Admin + Owner acknowledge
+  // Wave 4 additions (Fix Cycle 1 — BLOCKER 4)
+  | 'pharmacy_comms'    // Admin/Owner read+write; Prescriber read; others none
+  | 'holiday_calendar'; // Admin/Owner read+write; all others read
 
 // ---------------------------------------------------------------------------
 // Role permission tables
@@ -51,11 +58,17 @@ const PRESCRIBER_READ: Resource[] = [
   'incidents', 'complaints', 'gp_letters', 'schedule',
   'kpi_dashboard', 'clinical_flags', 'reports',
   'clinical_notes', 'sla_breaches',
+  'pharmacy_comms',    // read-only for Prescriber
+  'holiday_calendar',  // read for all
 ];
 
 const PRESCRIBER_DECIDE: Resource[] = ['orders', 'amendments'];
 
-const ADMIN_READ: Resource[] = ['patients', 'orders', 'welcome_calls', 'tasks'];
+const ADMIN_READ: Resource[] = [
+  'patients', 'orders', 'welcome_calls', 'tasks',
+  'pharmacy_comms',    // Admin can read
+  'holiday_calendar',  // Admin can read
+];
 
 const COACH_READ: Resource[] = [
   'patients',
@@ -64,6 +77,7 @@ const COACH_READ: Resource[] = [
   'coaching_log',
   'gp_letters',        // read-only per BLD-2.1
   'incidents',         // read-only per BLD-2.1
+  'holiday_calendar',  // read for all
 ];
 
 // ---------------------------------------------------------------------------
@@ -105,8 +119,10 @@ function roleMatrix(
 
     case 'Admin':
       if (action === 'read') return ADMIN_READ.includes(resource as Resource);
-      if (action === 'write'       && resource === 'clinical_notes') return true;
-      if (action === 'acknowledge' && resource === 'sla_breaches')   return true;
+      if (action === 'write'       && resource === 'clinical_notes')  return true;
+      if (action === 'acknowledge' && resource === 'sla_breaches')    return true;
+      if (action === 'write'       && resource === 'pharmacy_comms')  return true;
+      if (action === 'write'       && resource === 'holiday_calendar') return true;
       return false;
 
     // Deprecated roles — no access in V1.2 UI

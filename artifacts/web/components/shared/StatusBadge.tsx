@@ -25,6 +25,7 @@ const ORDER_STATUS: Record<OrderStatus, BadgeConfig> = {
   dispatched:     { label: "Dispatched",      className: "bg-ok-bg text-ok border border-ok-bdr" },
   delivered:      { label: "Delivered",       className: "bg-ok-bg text-ok border border-ok-bdr" },
   on_hold:        { label: "On Hold",         className: "bg-warn-bg text-warn border border-warn-bdr" },
+  in_dispensing:  { label: "In Dispensing",   className: "bg-info-bg text-info border border-info-bdr" },
   declined:       { label: "Declined",        className: "bg-err-bg text-err border border-err-bdr" },
   expired:        { label: "Expired",         className: "bg-err-bg text-err border border-err-bdr" },
   cancelled:      { label: "Cancelled",       className: "bg-slate-100 text-slate-500 border border-slate-200" },

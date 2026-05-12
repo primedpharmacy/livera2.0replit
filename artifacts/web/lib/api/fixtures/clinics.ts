@@ -15,7 +15,8 @@
  */
 
 import type { ClinicId, Clinic, ClinicConfig } from '../types';
-import { delay, APIError, NOW } from '../constants';
+import { delay, APIError, NOW, CURRENT_USER } from '../constants';
+import { can } from '@/lib/permissions';
 
 // ---------------------------------------------------------------------------
 // Default SLA values (§5) — all 10 per DEC-04, DEC-35
@@ -455,4 +456,69 @@ export async function updateClinicSlaThresholds(
   }
 
   return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
+// updateClinicHolidays — BLD-4.6.7 (Wave 4)
+// Adds or removes a holiday entry from a clinic's holiday_calendar.
+// Changes take effect immediately for addWorkingHours + dispatchCalculator.
+// In-memory only — backend persistence is post-launch.
+// ---------------------------------------------------------------------------
+
+export async function updateClinicHolidays(
+  clinic_id: ClinicId,
+  action: 'add' | 'remove',
+  entry: { date: string; name: string },
+  actor_id: string,
+): Promise<ClinicConfig['holiday_calendar']> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2 — Fix Cycle 1 BLOCKER 4: permission gate
+  if (!can(CURRENT_USER, 'write', 'holiday_calendar')) {
+    console.log('[AUDIT]', {
+      event_type: 'clinic_holiday_calendar_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Only Admins and Owners may update the holiday calendar');
+  }
+
+  // Layer 2 — validate date format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(entry.date)) {
+    throw new APIError('SAFETY_VIOLATION', `Invalid holiday date format: '${entry.date}' — expected YYYY-MM-DD`);
+  }
+  if (!entry.name.trim()) {
+    throw new APIError('SAFETY_VIOLATION', 'Holiday name cannot be empty');
+  }
+
+  if (action === 'add') {
+    const exists = clinic.config.holiday_calendar.some((h) => h.date === entry.date);
+    if (exists) {
+      throw new APIError('SAFETY_VIOLATION', `A holiday already exists on ${entry.date}`);
+    }
+    clinic.config.holiday_calendar = [
+      ...clinic.config.holiday_calendar,
+      { date: entry.date, name: entry.name.trim() },
+    ].sort((a, b) => a.date.localeCompare(b.date));
+  } else {
+    clinic.config.holiday_calendar = clinic.config.holiday_calendar.filter(
+      (h) => h.date !== entry.date,
+    );
+  }
+
+  console.log('[AUDIT]', {
+    event_type: 'clinic_holiday_calendar_updated',
+    outcome:    'success',
+    actor_id,
+    clinic_id,
+    action,
+    entry,
+    timestamp:  NOW,
+  });
+
+  return clinic.config.holiday_calendar;
 }

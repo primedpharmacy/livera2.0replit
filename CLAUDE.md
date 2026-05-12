@@ -93,10 +93,13 @@ When in doubt, ask before deviating from any locked DEC.
 - ✅ Wave 1 — Chunk 1 Foundations (LOCKED, commit 4f7add4): ClinicConfig §6.1 schema, DEC-01 pre_dispensed both clinics, DEC-13 multi-Owner (Mobeen Alam on FeelTru), DEC-16 gender_eligibility, 10 SLAs configurable per clinic, SCR-006 4-role retirement (Manager/Pharmacist/Technician removed), Sumsub SDK feature-flag stub (BLD-1.7)
 - ✅ Wave 2 — Chunk 2 Coach Surface (LOCKED, commit 1156008): BLD-2.1–2.9 — CoachDashboardClient (overdueThresholdDays, Overdue check-ins panel, NOW drift fix), CoachingLogEntryForm (escalation-first wiring, severity selector), ClinicalEscalationFlags (FCM real recipients, per-recipient audit, Prescriber+Admin ack/resolve), DashboardView (minimal banner, role-gated, red/amber SLA), Prescriber → /clinical-check routing, coaching_overdue_days SLA config
   - Audit fix commit b8554f51 on wave-2-coach-surface: BLD-2.5 escalation BLOCKER, BLD-2.8 DashboardView BLOCKER, NOW drift, types/index.ts ClinicalEscalationFlag barrel, age:string cast — tsc zero errors
-- ⏳ Wave 3 — (NEXT, awaiting explicit prompt)
+- ✅ Wave 3 — Chunk 3 SLA Infrastructure + Chunk 4 Clinical Notes Infrastructure (LOCKED, commit cfffe2d): BLD-3.1–3.6, BLD-4.1–4.7. SLA timer widget, breach detection cron, breach banner, threshold config UI, Monday wiring, patient SLA copy schema, clinical_note entity (17 fields incl. 4 AI scaffolding fields for Wave 4 BLD-6.5), Clinical Note editor with hard gate on order approval, unified Notes timeline with 4 adapters, edit history audit trail, search/filter, AUD-04 export.
+  - Audit fix commit 06b63e8 on wave-3-slas-and-clinical-notes: BLOCKER-1 clinical-note gate in decideOrder, BLOCKER-2 delete orphan PatientProfileView, DRIFT-3 [AUDIT] in detectSlaBreaches, DRIFT-4 NOW in clinicalNotesAud04, DRIFT-5 updateClinicSlaThresholds + Admin gate + SlaThresholdEditor wired, DRIFT-6 ClinicalNoteEditor edit-mode + history accordion + PatientNotesTimeline author filter + click-to-edit, DRIFT-7 patient_sla_copy consumer in OrderDetailClient
+- ⏳ Wave 4 — Chunk 5 Amendment alignment + Chunk 4.6 Patient Lifecycle Expiry + Chunk 6 AI Note Drafting (NEXT, awaiting explicit prompt). Chunk 6 BLD-6.5 BLOCKED on Yohan + Claire + Mobeen signing off the AI prompt (spec sent — in their hands).
 - 🔒 Branch wave-1-foundations retained as audit anchor — do not delete
 - 🔒 Branch wave-2-coach-surface retained as audit anchor — do not delete
-- 🔒 Branch wave-experimental-coach-and-patient retained — salvage source for Wave 2 with spec violations stripped
+- 🔒 Branch wave-3-slas-and-clinical-notes retained as audit anchor — do not delete
+- 🔒 Branch wave-experimental-coach-and-patient retained (now mostly drained)
 
 ## Authoritative product/design briefs
 

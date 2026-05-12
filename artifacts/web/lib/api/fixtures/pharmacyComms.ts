@@ -6,12 +6,27 @@
  *
  * 3-layer safety chain on all mutations:
  *   Layer 1 (UI): form validation + window check before submit
- *   Layer 2 (server): topic + anchor validation here
+ *   Layer 2 (server): permission gate + topic + anchor validation here
  *   Layer 3 (audit): [AUDIT] on every create / reply
+ *
+ * Fix Cycle 1:
+ *   BLOCKER 4 — can(CURRENT_USER, 'write', 'pharmacy_comms') guard on createPharmacyCommThread
+ *   POLISH    — Date.now() replaced with monotonic counter to stay consistent with NOW
  */
 
 import type { ClinicId, PharmacyCommThread, PharmacyCommMessage } from '../types';
 import { delay, APIError, scopedToClinic, CURRENT_USER, NOW } from '../constants';
+import { can } from '@/lib/permissions';
+
+// ---------------------------------------------------------------------------
+// Monotonic counter — avoids Date.now() drift vs NOW (POLISH)
+// ---------------------------------------------------------------------------
+
+let _pctmCounter = 100;
+function nextPCTM(): string {
+  const stamp = NOW.replace(/[^0-9]/g, '').slice(-10);
+  return `PCTM-${stamp}-${++_pctmCounter}`;
+}
 
 // ---------------------------------------------------------------------------
 // Seeds — one thread per anchor type for demo purposes
@@ -106,6 +121,8 @@ export async function getPharmacyCommThread(
 /**
  * createPharmacyCommThread — BLD-5.3 / DEC-23
  * Creates an outbound thread. Can be called internally by createAmendment (DEC-28).
+ *
+ * Fix Cycle 1 — BLOCKER 4: permission gate added.
  */
 export async function createPharmacyCommThread(
   clinic_id: ClinicId,
@@ -120,35 +137,47 @@ export async function createPharmacyCommThread(
 ): Promise<PharmacyCommThread> {
   await delay();
 
+  // Layer 2 — BLOCKER 4: permission gate (Fix Cycle 1)
+  if (!can(CURRENT_USER, 'write', 'pharmacy_comms')) {
+    console.log('[AUDIT]', {
+      event_type: 'pharmacy_comm_thread_create_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Only Admins and Owners may create pharmacy comm threads');
+  }
+
   // Layer 2 — anchor validation
   if (!payload.anchor_id || !payload.topic.trim()) {
     throw new APIError('SAFETY_VIOLATION', 'Pharmacy comm thread requires anchor_id and topic');
   }
 
-  const threadId = `PCT-${String(MOCK_PHARMACY_COMM_THREADS.length + 1).padStart(3, '0')}`;
-  const messageId = `PCTM-${Date.now()}`;
+  const threadId  = `PCT-${String(MOCK_PHARMACY_COMM_THREADS.length + 1).padStart(3, '0')}`;
+  const messageId = nextPCTM();
 
   const thread: PharmacyCommThread = {
     id: threadId,
     clinic_id,
     anchor_type: payload.anchor_type,
-    anchor_id: payload.anchor_id,
-    topic: payload.topic,
-    priority: payload.priority,
-    status: 'open',
+    anchor_id:   payload.anchor_id,
+    topic:       payload.topic,
+    priority:    payload.priority,
+    status:      'open',
     created_by_user_id: CURRENT_USER.id,
-    created_at: NOW,
-    updated_at: NOW,
+    created_at:  NOW,
+    updated_at:  NOW,
     amendment_id: payload.amendment_id ?? null,
     messages: [
       {
-        id: messageId,
-        thread_id: threadId,
-        direction: 'outbound',
-        body: payload.body,
+        id:              messageId,
+        thread_id:       threadId,
+        direction:       'outbound',
+        body:            payload.body,
         sent_by_user_id: CURRENT_USER.id,
-        sent_at: NOW,
-        attachments: [],
+        sent_at:         NOW,
+        attachments:     [],
       },
     ],
   };
@@ -174,6 +203,8 @@ export async function createPharmacyCommThread(
 
 /**
  * replyToThread — add a message (outbound) to an existing thread.
+ *
+ * Fix Cycle 1 — POLISH: nextPCTM() replaces Date.now() for ID generation.
  */
 export async function replyToPharmacyCommThread(
   clinic_id: ClinicId,
@@ -194,17 +225,17 @@ export async function replyToPharmacyCommThread(
   }
 
   const message: PharmacyCommMessage = {
-    id: `PCTM-${Date.now()}`,
+    id:              nextPCTM(),
     thread_id,
-    direction: 'outbound',
+    direction:       'outbound',
     body,
     sent_by_user_id: CURRENT_USER.id,
-    sent_at: NOW,
+    sent_at:         NOW,
     attachments,
   };
 
   thread.messages.push(message);
-  thread.status = 'awaiting_response';
+  thread.status     = 'awaiting_response';
   thread.updated_at = NOW;
 
   console.log('[AUDIT]', {

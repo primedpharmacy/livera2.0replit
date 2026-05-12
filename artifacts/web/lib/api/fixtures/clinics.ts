@@ -15,7 +15,8 @@
  */
 
 import type { ClinicId, Clinic, ClinicConfig } from '../types';
-import { delay, APIError, NOW } from '../constants';
+import { delay, APIError, NOW, CURRENT_USER } from '../constants';
+import { can } from '@/lib/permissions';
 
 // ---------------------------------------------------------------------------
 // Default SLA values (§5) — all 10 per DEC-04, DEC-35
@@ -473,6 +474,18 @@ export async function updateClinicHolidays(
   await delay();
   const clinic = MOCK_CLINICS[clinic_id];
   if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2 — Fix Cycle 1 BLOCKER 4: permission gate
+  if (!can(CURRENT_USER, 'write', 'holiday_calendar')) {
+    console.log('[AUDIT]', {
+      event_type: 'clinic_holiday_calendar_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Only Admins and Owners may update the holiday calendar');
+  }
 
   // Layer 2 — validate date format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(entry.date)) {

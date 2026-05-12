@@ -9,7 +9,11 @@
  *
  * Feature-flagged by LIVERA_OMNISEND_LIVE (default false).
  * When false: stub logs and returns deterministic success.
+ *
+ * Fix Cycle 1 — POLISH: replaced new Date().toISOString() with NOW import.
  */
+
+import { NOW } from '@/lib/api/constants';
 
 const OMNISEND_LIVE = process.env['LIVERA_OMNISEND_LIVE'] === 'true';
 
@@ -41,7 +45,7 @@ export async function sendTemplate(
     patient_email,
     order_id,
     live:           OMNISEND_LIVE,
-    timestamp:      new Date().toISOString(),
+    timestamp:      NOW,
   });
 
   if (!OMNISEND_LIVE) {

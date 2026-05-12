@@ -13,7 +13,11 @@
  *
  * Failure mode: releaseAuth failure LOGS but does NOT block the expiry transition.
  * The order must expire regardless; Ryft reconciliation is a background task.
+ *
+ * Fix Cycle 1 — POLISH: replaced new Date().toISOString() with NOW import.
  */
+
+import { NOW } from '@/lib/api/constants';
 
 const RYFT_LIVE = process.env['LIVERA_RYFT_LIVE'] === 'true';
 
@@ -37,7 +41,7 @@ export async function releaseAuth(
     ryft_auth_id,
     order_id,
     live:          RYFT_LIVE,
-    timestamp:     new Date().toISOString(),
+    timestamp:     NOW,
   });
 
   if (!RYFT_LIVE) {

@@ -5,6 +5,9 @@
  *   BLD-4.6.1 — Intervention 7-working-day SLA timer (on_hold orders)
  *   BLD-5.1/5.2 — Amendment window enforcement + raise amendment panel
  *   BLD-6.3 — DeclineConfirmModal + InterventionConfirmModal (AI-note gates)
+ *   BLD-6.2 — ApproveConfirmModal replacing legacy OrderDecisionDialogs approve path
+ *   Fix Cycle 1 — BLOCKER 1: handleDecideWithNote enforces 3-layer chain (note → decide → audit)
+ *   Fix Cycle 1 — BLOCKER 2: ApproveConfirmModal wired; AI audit trail captured on approve path
  */
 
 import { useState, useEffect } from "react";
@@ -12,11 +15,12 @@ import Link from "next/link";
 import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
   MessageSquare, ShieldAlert, Scale, ShieldCheck, AlertTriangle,
-  Stethoscope, Pencil, Activity, Clock, FileText, Send,
+  Stethoscope, Pencil, Activity, Clock, Send,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { type AIDraftResult } from "@/components/clinical-notes/AINoteDraftingModal";
 import { can } from "@/lib/permissions";
 import type { Order, Patient, Clinic, ClinicId, ClinicalNote, Amendment } from "@/types";
 import { DCard, Row, Metric, EmptyPane } from "./orderPrimitives";
@@ -30,6 +34,7 @@ import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEdit
 import { RecentNotesCard } from "@/components/timeline/RecentNotesCard";
 import { DeclineConfirmModal } from "./DeclineConfirmModal";
 import { InterventionConfirmModal } from "./InterventionConfirmModal";
+import { ApproveConfirmModal } from "./ApproveConfirmModal";
 import { addWorkingHours } from "@/lib/utils/workingHours";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -84,8 +89,10 @@ export function OrderDetailClient({
   const [notes, setNotes]             = useState<ClinicalNote[]>(initialClinicalNotes);
 
   // BLD-6.3 — new modal state (replaces modal='decline' / modal='query')
+  // BLD-6.2 / Fix Cycle 1 BLOCKER 2 — approveOpen replaces modal='approve'
   const [declineOpen, setDeclineOpen]           = useState(false);
   const [interventionOpen, setInterventionOpen] = useState(false);
+  const [approveOpen, setApproveOpen]           = useState(false);
 
   // BLD-5.1/5.2 — amendments tab state
   const [amendments, setAmendments]           = useState<Amendment[]>([]);
@@ -111,14 +118,46 @@ export function OrderDetailClient({
     }
   }, [activeTab, amendLoaded, clinicId, order.id]);
 
-  async function handleDecide(decision: "approved" | "declined" | "queried", r: string) {
+  /**
+   * handleDecideWithNote — Fix Cycle 1 BLOCKER 1 + BLOCKER 2.
+   *
+   * 3-layer safety chain:
+   *   Layer 1 (UI): modal enforces min-chars clinical note before calling here
+   *   Layer 2 (server): createClinicalNote validates role + minChars; decideOrder
+   *                     validates approval_gate note exists (on approve path)
+   *   Layer 3 (audit): [AUDIT] on both createClinicalNote and decideOrder
+   *
+   * AI audit fields (ai_drafted, ai_draft_original, prompt_version_id) are passed
+   * through from the modal's aiData and stored on the ClinicalNote record.
+   */
+  async function handleDecideWithNote(
+    decision: "approved" | "declined" | "queried",
+    body: string,
+    aiData?: Omit<AIDraftResult, "body">,
+  ) {
     setIsSubmitting(true);
     try {
-      const updated = await decideOrder(clinicId, order.id, decision, r);
+      // Step 1 — create clinical note with full AI audit trail
+      const newNote = await createClinicalNote(clinicId, {
+        patient_id:                  patient.id,
+        order_id:                    order.id,
+        body,
+        approval_gate_for_order_id:  decision === "approved" ? order.id : null,
+        ai_drafted:                  aiData?.ai_drafted ?? false,
+        ai_draft_original:           aiData?.ai_draft_original ?? null,
+        ai_prompt_version_id:        aiData?.prompt_version_id ?? null,
+        ai_draft_accepted_at:        aiData?.ai_drafted ? NOW : null,
+        ai_draft_edited_by:          aiData?.ai_drafted ? CURRENT_USER.id : null,
+      });
+      setNotes((prev) => [newNote, ...prev]);
+
+      // Step 2 — execute clinical decision (decideOrder verifies note gate on approve)
+      const updated = await decideOrder(clinicId, order.id, decision, body);
       setOrder(updated);
       setModal(null);
       setDeclineOpen(false);
       setInterventionOpen(false);
+      setApproveOpen(false);
       setRationale("");
       setToast({
         message:
@@ -159,17 +198,13 @@ export function OrderDetailClient({
   const hasB4Acknowledged   = patient.flags.some((f) => f.code === "B4_acknowledged");
   const isDoseEscalation    = "dose_escalation" in order.questionnaire_responses && !order.questionnaire_responses["prior_dose_evidence"];
 
-  const hasApprovalNote = notes.some(
-    (n) => n.approval_gate_for_order_id === order.id && n.body.length >= minChars,
-  );
-
+  // Fix Cycle 1 BLOCKER 2: hasApprovalNote gate removed — the approval note is now
+  // created inside ApproveConfirmModal via handleDecideWithNote (3-layer chain).
   const approveBlockedReason =
     hasHighSeverityFlag && !hasB4Acknowledged
       ? "Patient has an unacknowledged high-severity flag — acknowledge before approving"
       : isDoseEscalation
       ? "Dose escalation requires prior dose evidence in the questionnaire"
-      : !hasApprovalNote && order.status === "clinical_check"
-      ? "Clinical note required before approving — see Notes tab"
       : null;
   const approveBlocked = approveBlockedReason !== null;
 
@@ -249,36 +284,22 @@ export function OrderDetailClient({
                 <XCircle className="w-4 h-4" /> Decline
               </button>
               <div className="flex flex-col items-end gap-1">
+                {/* Fix Cycle 1 BLOCKER 2: opens ApproveConfirmModal (clinical note + AI audit captured inside) */}
                 <button
-                  onClick={() => {
-                    if (approveBlocked && !hasApprovalNote) {
-                      setActiveTab("notes");
-                      return;
-                    }
-                    if (!approveBlocked) setModal("approve");
-                  }}
-                  disabled={approveBlocked && hasApprovalNote === false ? false : approveBlocked}
+                  onClick={() => { if (!approveBlocked) setApproveOpen(true); }}
+                  disabled={approveBlocked}
                   className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-md transition-colors shadow-sm ${
-                    !hasApprovalNote && order.status === "clinical_check"
-                      ? "bg-warn text-white hover:bg-warn/90"
-                      : approveBlocked
+                    approveBlocked
                       ? "bg-ok/40 text-white cursor-not-allowed"
                       : "text-white bg-ok hover:bg-ok/90"
                   }`}
                 >
-                  {!hasApprovalNote && order.status === "clinical_check" ? (
-                    <><FileText className="w-4 h-4" /> Add note first</>
-                  ) : (
-                    <><CheckCircle className="w-4 h-4" /> Approve</>
-                  )}
+                  <CheckCircle className="w-4 h-4" /> Approve
                 </button>
                 {approveBlocked && approveBlockedReason && (
-                  <button
-                    onClick={() => !hasApprovalNote && setActiveTab("notes")}
-                    className="text-[10px] text-err max-w-[220px] text-right leading-tight hover:underline"
-                  >
+                  <span className="text-[10px] text-err max-w-[220px] text-right leading-tight">
                     {approveBlockedReason}
-                  </button>
+                  </span>
                 )}
               </div>
             </div>
@@ -640,7 +661,7 @@ export function OrderDetailClient({
         </div>
       </div>
 
-      {/* Approve dialog — kept from OrderDecisionDialogs */}
+      {/* OrderDecisionDialogs retained for toast rendering only — approve path now uses ApproveConfirmModal */}
       <OrderDecisionDialogs
         orderId={order.id}
         patientName={d.full_name}
@@ -649,7 +670,7 @@ export function OrderDetailClient({
         rationale={rationale}
         setRationale={setRationale}
         isSubmitting={isSubmitting}
-        handleDecide={handleDecide}
+        handleDecide={(decision, r) => handleDecideWithNote(decision, r)}
         toast={toast}
       />
 
@@ -662,7 +683,7 @@ export function OrderDetailClient({
         clinic={clinic}
         clinicId={clinicId}
         isSubmitting={isSubmitting}
-        onDecline={(body) => handleDecide("declined", body)}
+        onDecline={(body, aiData) => handleDecideWithNote("declined", body, aiData)}
       />
       <InterventionConfirmModal
         open={interventionOpen}
@@ -672,7 +693,18 @@ export function OrderDetailClient({
         clinic={clinic}
         clinicId={clinicId}
         isSubmitting={isSubmitting}
-        onIntervene={(body) => handleDecide("queried", body)}
+        onIntervene={(body, aiData) => handleDecideWithNote("queried", body, aiData)}
+      />
+      {/* Fix Cycle 1 BLOCKER 2 — ApproveConfirmModal (replaces legacy modal='approve') */}
+      <ApproveConfirmModal
+        open={approveOpen}
+        onClose={() => setApproveOpen(false)}
+        orderId={order.id}
+        patientName={d.full_name}
+        clinic={clinic}
+        clinicId={clinicId}
+        isSubmitting={isSubmitting}
+        onApprove={(body, aiData) => handleDecideWithNote("approved", body, aiData)}
       />
     </div>
   );

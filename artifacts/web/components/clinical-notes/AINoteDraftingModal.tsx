@@ -102,6 +102,10 @@ export function AINoteDraftingModal({
       const result = await generateClinicalNoteDraft({
         context,
         order_id: orderId,
+        // TODO (DEFERRED BLD-6.2): replace hardcoded stubs with real patient context
+        // pulled from the order detail payload (age_years, sex_at_birth, bmi,
+        // weight_kg, baseline_weight_kg, product, questionnaire_summary, g6_flags).
+        // Requires OrderDetailClient to pass a PatientContext prop into this modal.
         patient_summary: {
           full_name: patientName,
           age_years: 0,

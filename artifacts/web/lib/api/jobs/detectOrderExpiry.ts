@@ -68,7 +68,7 @@ export async function detectOrderExpiry(clinicId: ClinicId): Promise<Order[]> {
       clinic_id:     clinicId,
       patient_id:    order.patient_id,
       expired_at:    NOW,
-      reason:        '6-day-timeout',
+      reason:        '6_day_timeout',
       ryft_auth_id:  order.ryft_authorisation_id,
       payment_note:  'order released — no charge taken',
       timestamp:     NOW,

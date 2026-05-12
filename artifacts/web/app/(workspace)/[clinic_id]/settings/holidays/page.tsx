@@ -1,12 +1,14 @@
 /**
  * Settings → Holiday Calendar — BLD-4.6.7 (Wave 4).
  *
- * Allows Owner/RM to manage the clinic's holiday_calendar.
+ * Allows Owner/Admin to manage the clinic's holiday_calendar.
  * Changes affect addWorkingHours + dispatchCalculator immediately.
  *
- * Only Owner / RM can reach this via settings (permission: "settings").
+ * Role gate: Owner or Admin only — matches Wave 3 settings/slas pattern (BLD-3.4).
+ * Fix Cycle 1 — BLOCKER 3: redirect added for unauthorised users.
  */
 
+import { redirect } from "next/navigation";
 import { getClinicSync, updateClinicHolidays } from "@/lib/api/mock";
 import { CURRENT_USER } from "@/lib/api/mock";
 import { HolidayCalendarEditor } from "@/components/settings/HolidayCalendarEditor";
@@ -16,6 +18,11 @@ type HolidaysPageProps = { params: Promise<{ clinic_id: string }> };
 
 export default async function HolidaysPage({ params }: HolidaysPageProps) {
   const { clinic_id } = await params;
+
+  if (!CURRENT_USER.roles.some((r) => r === "Admin" || r === "Owner")) {
+    redirect(`/${clinic_id}/dashboard`);
+  }
+
   const clinic = getClinicSync(clinic_id as ClinicId);
 
   async function handleHolidayUpdate(

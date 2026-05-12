@@ -377,7 +377,7 @@ export function expireOrderMutation(order: Order): void {
     order_id:    order.id,
     clinic_id:   order.clinic_id,
     expired_at:  NOW,
-    reason:      '6-day-timeout',
+    reason:      '6_day_timeout',
     timestamp:   NOW,
   });
 }

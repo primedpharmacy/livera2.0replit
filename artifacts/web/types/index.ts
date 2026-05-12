@@ -32,4 +32,8 @@ export type {
   ClinicalNote,
   SlaBreach,
   SlaBreachEntityType,
+  // Wave 4 additions
+  PharmacyCommThread,
+  PharmacyCommMessage,
+  PharmacyCommAnchorType,
 } from "@/lib/api/mock";

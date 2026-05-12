@@ -18,7 +18,7 @@
 
 import type { User, Clinic, Patient } from '@/lib/api/types';
 
-export type Action = 'read' | 'write' | 'decide' | 'approve' | 'reject';
+export type Action = 'read' | 'write' | 'decide' | 'approve' | 'reject' | 'acknowledge';
 export type Resource =
   | 'patients'
   | 'orders'
@@ -37,7 +37,10 @@ export type Resource =
   | 'reports'
   | 'tasks'
   | 'team'
-  | 'coaching_escalation';
+  | 'coaching_escalation'
+  // Wave 3 additions
+  | 'clinical_notes'    // BLD-4.1 — Prescriber + Admin write; Coach cannot
+  | 'sla_breaches';     // BLD-3.2 — Prescriber + Admin + Owner acknowledge
 
 // ---------------------------------------------------------------------------
 // Role permission tables
@@ -47,6 +50,7 @@ const PRESCRIBER_READ: Resource[] = [
   'patients', 'orders', 'clinical_check', 'amendments',
   'incidents', 'complaints', 'gp_letters', 'schedule',
   'kpi_dashboard', 'clinical_flags', 'reports',
+  'clinical_notes', 'sla_breaches',
 ];
 
 const PRESCRIBER_DECIDE: Resource[] = ['orders', 'amendments'];
@@ -85,8 +89,9 @@ function roleMatrix(
       if (action === 'decide') return PRESCRIBER_DECIDE.includes(resource as Resource);
       if (action === 'approve' || action === 'reject')
         return PRESCRIBER_DECIDE.includes(resource as Resource);
-      // Prescribers can acknowledge/resolve escalation flags
-      if (action === 'write' && resource === 'coaching_escalation') return true;
+      if (action === 'write'       && resource === 'coaching_escalation') return true;
+      if (action === 'write'       && resource === 'clinical_notes')       return true;
+      if (action === 'acknowledge' && resource === 'sla_breaches')         return true;
       return false;
 
     case 'Coach': {
@@ -100,6 +105,8 @@ function roleMatrix(
 
     case 'Admin':
       if (action === 'read') return ADMIN_READ.includes(resource as Resource);
+      if (action === 'write'       && resource === 'clinical_notes') return true;
+      if (action === 'acknowledge' && resource === 'sla_breaches')   return true;
       return false;
 
     // Deprecated roles — no access in V1.2 UI

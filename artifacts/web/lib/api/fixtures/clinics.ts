@@ -194,9 +194,13 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
         logo_url: '/logos/vsc.svg',
       },
 
-      // Comms (BLD-1.3)
+      // Comms (BLD-1.3 / BLD-3.6)
       reply_email: 'hello@vsc.health',
-      patient_sla_copy: 'Clinical review usually takes up to 4 hours',
+      patient_sla_copy: {
+        clinical_review_message: 'Clinical review usually takes up to 4 hours',
+        delivery_message: 'Delivery within 2 working days',
+      },
+      clinical_note_min_chars: 40,
 
       // SLA values (BLD-1.4 — all 10 per §5)
       default_slas: { ...DEFAULT_SLAS },
@@ -292,9 +296,13 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
         logo_url: '/logos/feeltru.svg',
       },
 
-      // Comms (BLD-1.3)
+      // Comms (BLD-1.3 / BLD-3.6)
       reply_email: 'hello@feeltru.health',
-      patient_sla_copy: 'Clinical review usually takes up to 4 hours',
+      patient_sla_copy: {
+        clinical_review_message: 'Clinical review usually takes up to 4 hours',
+        delivery_message: 'Delivery within 2 working days',
+      },
+      clinical_note_min_chars: 40,
 
       // SLA values (BLD-1.4 — all 10 per §5)
       default_slas: { ...DEFAULT_SLAS },

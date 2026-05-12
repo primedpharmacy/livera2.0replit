@@ -3,7 +3,7 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { Suspense } from "react";
 import { OrderDetailClient } from "@/components/orders/OrderDetailClient";
-import { getOrder, getPatient, getClinicSync } from "@/lib/api/mock";
+import { getOrder, getPatient, getClinicSync, listClinicalNotes } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 type OrderDetailPageProps = { params: Promise<{ clinic_id: string; order_id: string }> };
@@ -25,10 +25,11 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 async function OrderContent({ clinicId, orderId }: { clinicId: ClinicId; orderId: string }) {
   try {
     const order = await getOrder(clinicId, orderId);
-    const [patient, clinic] = await Promise.all([
+    const [patient, clinicalNotes] = await Promise.all([
       getPatient(clinicId, order.patient_id),
-      Promise.resolve(getClinicSync(clinicId)),
+      listClinicalNotes(clinicId, { patient_id: order.patient_id }),
     ]);
+    const clinic = getClinicSync(clinicId);
 
     return (
       <OrderDetailClient
@@ -36,6 +37,7 @@ async function OrderContent({ clinicId, orderId }: { clinicId: ClinicId; orderId
         patient={patient}
         clinic={clinic}
         clinicId={clinicId}
+        initialClinicalNotes={clinicalNotes}
       />
     );
   } catch (err) {

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { OrderStatus } from "@/types";
 
-type BadgeKind = "patient" | "order" | "incident" | "complaint" | "amendment" | "gp_letter";
+type BadgeKind = "patient" | "order" | "incident" | "complaint" | "amendment" | "gp_letter" | "breach";
 
 interface StatusBadgeProps {
   value: string;
@@ -54,6 +54,11 @@ const AMENDMENT_STATUS: Record<string, BadgeConfig> = {
   applied:    { label: "Applied",    className: "bg-ok-bg text-ok border border-ok-bdr" },
 };
 
+const BREACH_STATUS: Record<string, BadgeConfig> = {
+  open:         { label: "Open",         className: "bg-err-bg text-err border border-err-bdr" },
+  acknowledged: { label: "Acknowledged", className: "bg-ok-bg text-ok border border-ok-bdr" },
+};
+
 const GP_LETTER_STATUS: Record<string, BadgeConfig> = {
   draft:     { label: "Draft",     className: "bg-slate-100 text-slate-500 border border-slate-200" },
   sent:      { label: "Sent",      className: "bg-info-bg text-info border border-info-bdr" },
@@ -68,6 +73,7 @@ function resolveConfig(value: string, kind: BadgeKind): BadgeConfig {
     kind === "incident"  ? INCIDENT_STATUS :
     kind === "complaint" ? COMPLAINT_STATUS :
     kind === "gp_letter" ? GP_LETTER_STATUS :
+    kind === "breach"    ? BREACH_STATUS :
     AMENDMENT_STATUS;
 
   return (map as Record<string, BadgeConfig>)[value] ?? {

@@ -91,8 +91,11 @@ When in doubt, ask before deviating from any locked DEC.
 
 - ✅ Wave 0 (LOCKED, commit 39d2b65): Mini-waves 1–6a — initial app shell, layouts, basic surfaces
 - ✅ Wave 1 — Chunk 1 Foundations (LOCKED, commit 4f7add4): ClinicConfig §6.1 schema, DEC-01 pre_dispensed both clinics, DEC-13 multi-Owner (Mobeen Alam on FeelTru), DEC-16 gender_eligibility, 10 SLAs configurable per clinic, SCR-006 4-role retirement (Manager/Pharmacist/Technician removed), Sumsub SDK feature-flag stub (BLD-1.7)
-- ⏳ Wave 2 — Chunk 2 Coach Surface (NEXT, awaiting explicit prompt): BLD-2.1 through BLD-2.9
+- ✅ Wave 2 — Chunk 2 Coach Surface (LOCKED, commit 1156008): BLD-2.1–2.9 — CoachDashboardClient (overdueThresholdDays, Overdue check-ins panel, NOW drift fix), CoachingLogEntryForm (escalation-first wiring, severity selector), ClinicalEscalationFlags (FCM real recipients, per-recipient audit, Prescriber+Admin ack/resolve), DashboardView (minimal banner, role-gated, red/amber SLA), Prescriber → /clinical-check routing, coaching_overdue_days SLA config
+  - Audit fix commit b8554f51 on wave-2-coach-surface: BLD-2.5 escalation BLOCKER, BLD-2.8 DashboardView BLOCKER, NOW drift, types/index.ts ClinicalEscalationFlag barrel, age:string cast — tsc zero errors
+- ⏳ Wave 3 — (NEXT, awaiting explicit prompt)
 - 🔒 Branch wave-1-foundations retained as audit anchor — do not delete
+- 🔒 Branch wave-2-coach-surface retained as audit anchor — do not delete
 - 🔒 Branch wave-experimental-coach-and-patient retained — salvage source for Wave 2 with spec violations stripped
 
 ## Authoritative product/design briefs

@@ -37,6 +37,7 @@ export * from './fixtures/orders';
 export * from './fixtures/amendments';
 export * from './fixtures/consultations';
 export * from './fixtures/coaching';
+export * from './fixtures/clinicalEscalationFlags';
 export * from './fixtures/gpLetters';
 export * from './fixtures/complaints';
 export * from './fixtures/incidents';

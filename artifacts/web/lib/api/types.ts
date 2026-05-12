@@ -222,6 +222,7 @@ export type Patient = {
   flags: Array<{ id: string; code: string; severity: 'low' | 'medium' | 'high'; raised_at: string }>;
   status: 'new' | 'active' | 'monitoring' | 'suspended';
   vip: boolean;
+  coach_id: string | null;  // FeelTru-only — assigned coach (DEC-05)
   created_at: string;
   updated_at: string;
 };
@@ -411,31 +412,43 @@ export type GPLetterTemplate = {
   body_template: string;
 };
 
-// --- Coaching log (DEC-05) ---
+// --- Coaching log (DEC-05 — BLD-2.4 locked schema, 16+1 fields) ---
 export type CoachingLog = {
   id: string;
-  clinic_id: ClinicId;
   patient_id: string;
   coach_id: string;
-  entry_type:
-    | 'welcome_call'
-    | 'initial_call'
-    | 'routine_check_in'
-    | 'ad_hoc'
-    | 'missed_attempt';
-  status: 'scheduled' | 'completed' | 'no_show' | 'rescheduled' | 'cancelled';
-  entry_date: string;
+  clinic_id: ClinicId;
+  entry_type: 'initial_call' | 'check_in' | 'escalation' | 'note';
+  entry_date: string;             // ISO — when session happened
+  scheduled_date: string | null; // ISO — when planned (null = ad-hoc note)
   duration_minutes: number | null;
+  modality: 'phone' | 'video' | 'chat' | null;
   summary: string;
-  structured_observations: {
-    mood: '1' | '2' | '3' | '4' | '5' | null;
-    adherence: 'excellent' | 'good' | 'fair' | 'poor' | null;
-    side_effects_reported: string | null;
-    weight_self_reported_kg: number | null;
-  };
   next_action: string | null;
-  next_scheduled_date: string | null;
+  status: 'scheduled' | 'completed' | 'no_show' | 'cancelled';
   clinical_escalation_flag_id: string | null;
+  consultation_id: string | null; // links to Consultation if booked via calendar
   created_at: string;
   updated_at: string;
+  // 17th field — free-form observations; NOT aggregated into any KPI (DEC-27)
+  structured_observations?: Record<string, unknown> | null;
+};
+
+// --- Clinical escalation flag (DEC-05 — BLD-2.7) ---
+export type ClinicalEscalationFlag = {
+  id: string;
+  patient_id: string;
+  clinic_id: ClinicId;
+  raised_by_coach_id: string;
+  raised_at: string;              // ISO
+  coaching_log_id: string;        // must reference a log with entry_type 'escalation'
+  severity: 'low' | 'medium' | 'high';
+  description: string;
+  status: 'open' | 'acknowledged' | 'resolved';
+  acknowledged_by_user_id: string | null;
+  acknowledged_at: string | null;
+  resolved_by_user_id: string | null;
+  resolved_at: string | null;
+  resolution_notes: string | null;
+  sla_deadline: string;           // raised_at + 24 working hours via addWorkingHours
 };

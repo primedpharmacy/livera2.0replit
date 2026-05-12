@@ -1,12 +1,14 @@
 /**
- * Livera patient fixtures — extracted from mock.ts (Mini-wave 6a cleanup).
- * Contains: MOCK_PATIENTS (Sarah Cookland persona + others), listPatients, getPatient.
+ * Livera patient fixtures — Wave 2 update.
+ *
+ * Wave 2 additions (BLD-2.1):
+ *   - coach_id: string | null added to all patients (FeelTru patients assigned user_olwyn)
  */
 
 import type { ClinicId, Patient } from '../types';
 import { delay, APIError } from '../constants';
 
-// ── Sarah Cookland — persona spine (appears on both clinics, different IDs to catch cross-workspace regressions)
+// ── Sarah Cookland — persona spine ──────────────────────────────────────────
 const SARAH_FEELTRU: Patient = {
   id: 'PT-00198',
   clinic_id: 'feeltru',
@@ -29,11 +31,17 @@ const SARAH_FEELTRU: Patient = {
   flags: [{ id: 'flag_001', code: 'B4', severity: 'medium', raised_at: '2026-04-20T09:00:00Z' }],
   status: 'active',
   vip: false,
+  coach_id: 'user_olwyn',
   created_at: '2026-01-15T14:30:00Z',
   updated_at: '2026-05-01T10:00:00Z',
 };
 
-const SARAH_VSC: Patient = { ...SARAH_FEELTRU, clinic_id: 'vsc', id: 'PT-00012' };
+const SARAH_VSC: Patient = {
+  ...SARAH_FEELTRU,
+  clinic_id: 'vsc',
+  id: 'PT-00012',
+  coach_id: null,
+};
 
 // ── Additional VSC patients ──────────────────────────────────────────────────
 
@@ -59,6 +67,7 @@ const JAMES_VSC: Patient = {
   flags: [],
   status: 'active',
   vip: false,
+  coach_id: null,
   created_at: '2026-02-01T10:00:00Z',
   updated_at: '2026-05-03T09:15:00Z',
 };
@@ -84,6 +93,7 @@ const MIRIAM_VSC: Patient = {
   flags: [],
   status: 'monitoring',
   vip: false,
+  coach_id: null,
   created_at: '2026-01-20T09:30:00Z',
   updated_at: '2026-04-28T11:00:00Z',
 };
@@ -109,6 +119,7 @@ const TOM_VSC: Patient = {
   flags: [],
   status: 'new',
   vip: false,
+  coach_id: null,
   created_at: '2026-05-08T13:50:00Z',
   updated_at: '2026-05-08T14:00:00Z',
 };
@@ -135,6 +146,7 @@ const PRIYA_VSC: Patient = {
   flags: [{ id: 'flag_002', code: 'B1', severity: 'low', raised_at: '2026-03-01T09:00:00Z' }],
   status: 'suspended',
   vip: false,
+  coach_id: null,
   created_at: '2026-01-10T11:00:00Z',
   updated_at: '2026-03-15T10:30:00Z',
 };
@@ -163,6 +175,7 @@ const EMMA_FEELTRU: Patient = {
   flags: [],
   status: 'active',
   vip: true,
+  coach_id: 'user_olwyn',
   created_at: '2026-01-05T09:00:00Z',
   updated_at: '2026-05-05T08:30:00Z',
 };
@@ -188,6 +201,7 @@ const ZARA_FEELTRU: Patient = {
   flags: [],
   status: 'new',
   vip: false,
+  coach_id: 'user_olwyn',
   created_at: '2026-05-07T09:50:00Z',
   updated_at: '2026-05-07T10:00:00Z',
 };
@@ -213,6 +227,7 @@ const FIONA_FEELTRU: Patient = {
   flags: [],
   status: 'monitoring',
   vip: false,
+  coach_id: 'user_olwyn',
   created_at: '2026-01-25T10:00:00Z',
   updated_at: '2026-04-20T14:00:00Z',
 };
@@ -225,15 +240,20 @@ export const MOCK_PATIENTS: Patient[] = [
 
 export async function listPatients(
   clinic_id: ClinicId,
-  opts?: { search?: string; status?: Patient['status'] }
+  opts?: { search?: string; status?: Patient['status']; coach_id?: string }
 ): Promise<Patient[]> {
   await delay();
   let results = MOCK_PATIENTS.filter((p) => p.clinic_id === clinic_id);
   if (opts?.search) {
     const q = opts.search.toLowerCase();
-    results = results.filter((p) => p.demographic.full_name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+    results = results.filter(
+      (p) =>
+        p.demographic.full_name.toLowerCase().includes(q) ||
+        p.id.toLowerCase().includes(q)
+    );
   }
-  if (opts?.status) results = results.filter((p) => p.status === opts.status);
+  if (opts?.status)   results = results.filter((p) => p.status     === opts.status);
+  if (opts?.coach_id) results = results.filter((p) => p.coach_id   === opts.coach_id);
   return results;
 }
 

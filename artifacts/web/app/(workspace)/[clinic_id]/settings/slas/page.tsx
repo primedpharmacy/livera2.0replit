@@ -6,6 +6,7 @@
  */
 
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { Clock } from "lucide-react";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -13,6 +14,7 @@ import { SlaThresholdEditor } from "@/components/settings/SlaThresholdEditor";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/format";
 import { getClinic, listSlaBreaches } from "@/lib/api/mock";
+import { CURRENT_USER } from "@/lib/api/constants";
 import type { ClinicId, SlaBreach } from "@/types";
 
 type SlaSettingsPageProps = { params: Promise<{ clinic_id: string }> };
@@ -27,6 +29,10 @@ export default async function SlaSettingsPage({ params }: SlaSettingsPageProps) 
 }
 
 async function SlaContent({ clinicId }: { clinicId: ClinicId }) {
+  if (!CURRENT_USER.roles.some((r) => r === 'Admin' || r === 'Owner')) {
+    redirect(`/${clinicId}/dashboard`);
+  }
+
   try {
     const [clinic, breaches] = await Promise.all([
       getClinic(clinicId),
@@ -39,7 +45,7 @@ async function SlaContent({ clinicId }: { clinicId: ClinicId }) {
     return (
       <div className="px-6 py-5 max-w-3xl space-y-6">
         {/* Threshold editor */}
-        <SlaThresholdEditor config={clinic.config} />
+        <SlaThresholdEditor config={clinic.config} clinicId={clinicId} actorId={CURRENT_USER.id} />
 
         {/* Open breaches table */}
         {openBreaches.length > 0 && (

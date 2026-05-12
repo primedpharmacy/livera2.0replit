@@ -56,6 +56,16 @@ export async function detectSlaBreaches(clinicId: ClinicId): Promise<SlaBreach[]
 
     MOCK_SLA_BREACHES.push(breach);
     newBreaches.push(breach);
+    console.log('[AUDIT]', {
+      event_type:         'sla_breach_detected',
+      outcome:            'success',
+      actor_id:           'system',
+      entity_type:        breach.entity_type,
+      entity_id:          breach.entity_id,
+      sla_type:           breach.sla_type,
+      breach_detected_at: breach.breach_detected_at,
+      timestamp:          NOW,
+    });
 
     // Non-blocking Monday write (BLD-3.5) — fire-and-forget in mock env
     writeSlaBreach({ breach, clinicConfig: clinic.config }).catch((err) => {

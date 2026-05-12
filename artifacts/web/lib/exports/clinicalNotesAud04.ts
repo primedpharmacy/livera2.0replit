@@ -12,7 +12,7 @@
  */
 
 import type { ClinicalNote, ClinicId, User } from '@/lib/api/types';
-import { APIError } from '@/lib/api/constants';
+import { APIError, NOW } from '@/lib/api/constants';
 
 function escapeCsv(value: string | number | boolean | null): string {
   const s = String(value ?? '');
@@ -37,7 +37,7 @@ export function exportClinicalNotesAud04(
       outcome:     'PERMISSION_DENIED',
       actor_id:    actor.id,
       clinic_id:   clinicId,
-      timestamp:   new Date().toISOString(),
+      timestamp:   NOW,
       reason:      'Actor role not Admin or Owner',
     });
     throw new APIError('PERMISSION_DENIED', 'Only Admin or Owner can export clinical notes');
@@ -60,7 +60,7 @@ export function exportClinicalNotesAud04(
     from_date:     fromDate,
     to_date:       toDate,
     notes_count:   filtered.length,
-    timestamp:     new Date().toISOString(),
+    timestamp:     NOW,
   });
 
   const rows = filtered.map((n) =>

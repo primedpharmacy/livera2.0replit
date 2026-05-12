@@ -181,6 +181,7 @@ async function ProfileContent({
               orders={orders}
               gpLetters={gpLetters}
               actor={CURRENT_USER}
+              minChars={clinic.config.clinical_note_min_chars}
             />
           </div>
         ) : (

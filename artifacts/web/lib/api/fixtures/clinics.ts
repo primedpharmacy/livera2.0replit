@@ -15,7 +15,7 @@
  */
 
 import type { ClinicId, Clinic, ClinicConfig } from '../types';
-import { delay, APIError } from '../constants';
+import { delay, APIError, NOW } from '../constants';
 
 // ---------------------------------------------------------------------------
 // Default SLA values (§5) — all 10 per DEC-04, DEC-35
@@ -402,4 +402,57 @@ export async function listClinics(): Promise<Clinic[]> {
 // Synchronous clinic lookup — for hooks (hooks cannot be async)
 export function getClinicSync(id: ClinicId): Clinic {
   return MOCK_CLINICS[id] ?? MOCK_CLINICS.feeltru;
+}
+
+export async function updateClinicSlaThresholds(
+  clinic_id: ClinicId,
+  updates: Partial<ClinicConfig['default_slas']> & { clinical_note_min_chars?: number },
+  actor_id: string,
+): Promise<ClinicConfig> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2 — server gate: every value must be a positive number
+  for (const [field, value] of Object.entries(updates)) {
+    if (typeof value !== 'number' || value <= 0) {
+      throw new APIError('SAFETY_VIOLATION', `Invalid value for ${field}: must be a positive number`);
+    }
+  }
+
+  // Apply updates + [AUDIT] per changed field
+  const { clinical_note_min_chars, ...slaUpdates } = updates;
+
+  for (const [field, newValue] of Object.entries(slaUpdates)) {
+    const key = field as keyof ClinicConfig['default_slas'];
+    const oldValue = clinic.config.default_slas[key];
+    (clinic.config.default_slas as Record<string, number>)[field] = newValue as number;
+    console.log('[AUDIT]', {
+      event_type: 'sla_threshold_updated',
+      outcome:    'success',
+      actor_id,
+      clinic_id,
+      field_name: field,
+      old_value:  oldValue,
+      new_value:  newValue,
+      timestamp:  NOW,
+    });
+  }
+
+  if (clinical_note_min_chars !== undefined) {
+    const oldValue = clinic.config.clinical_note_min_chars;
+    clinic.config.clinical_note_min_chars = clinical_note_min_chars;
+    console.log('[AUDIT]', {
+      event_type: 'sla_threshold_updated',
+      outcome:    'success',
+      actor_id,
+      clinic_id,
+      field_name: 'clinical_note_min_chars',
+      old_value:  oldValue,
+      new_value:  clinical_note_min_chars,
+      timestamp:  NOW,
+    });
+  }
+
+  return clinic.config;
 }

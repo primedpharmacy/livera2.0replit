@@ -6,6 +6,8 @@
 import type { ClinicId, Order, OrderStatus } from '../types';
 import { delay, APIError, scopedToClinic, CURRENT_USER, NOW } from '../constants';
 import { MOCK_PATIENTS } from './patients';
+import { MOCK_CLINICAL_NOTES } from './clinicalNotes';
+import { getClinicSync } from './clinics';
 
 const SARAH_ORDER_FEELTRU: Order = {
   id: 'ORD-00441',
@@ -221,6 +223,26 @@ export async function decideOrder(
         timestamp: new Date().toISOString(),
       });
       throw new APIError('SAFETY_VIOLATION', 'Cannot approve: dose escalation requires prior dose evidence in questionnaire');
+    }
+
+    // Layer 2 — BLD-4.4 clinical note gate (DEC-36)
+    const clinic = getClinicSync(clinic_id);
+    const approvalNoteExists = MOCK_CLINICAL_NOTES.some(
+      (n) =>
+        n.approval_gate_for_order_id === id &&
+        n.clinic_id === clinic_id &&
+        n.body.length >= clinic.config.clinical_note_min_chars,
+    );
+    if (!approvalNoteExists) {
+      console.log('[AUDIT]', {
+        event_type: 'clinical_decision_result',
+        outcome:    'safety_violation',
+        reason:     'clinical_note_required',
+        actor_id:   CURRENT_USER.id,
+        target_id:  id,
+        timestamp:  NOW,
+      });
+      throw new APIError('SAFETY_VIOLATION', 'clinical_note_required');
     }
   }
 

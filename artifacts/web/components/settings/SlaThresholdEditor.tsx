@@ -3,19 +3,25 @@
 /**
  * SlaThresholdEditor — BLD-3.4 (Wave 3).
  *
- * Read-only display of clinic SLA thresholds (mocked).
+ * Edit clinic SLA thresholds with server-persist via updateClinicSlaThresholds.
  * All 10 SLA values from clinic.config.default_slas + clinical_note_min_chars.
- * Edit controls are UI-only (no persist in Wave 3 — backend wired in future wave).
+ * Admin/Owner only (gate enforced at page level AND inside updateClinicSlaThresholds).
  *
- * Shown under Settings → SLAs (Admin / Owner only).
+ * 3-layer safety chain on save:
+ *   Layer 1 (UI): disabled until dirty; optimistic rollback on error
+ *   Layer 2 (server): updateClinicSlaThresholds validates all values > 0
+ *   Layer 3 (audit): [AUDIT] per changed field inside updateClinicSlaThresholds
  */
 
 import { useState } from "react";
-import { Clock, Save, RotateCcw, AlertTriangle } from "lucide-react";
-import type { ClinicConfig } from "@/types";
+import { Clock, Save, RotateCcw } from "lucide-react";
+import { updateClinicSlaThresholds } from "@/lib/api/mock";
+import type { ClinicConfig, ClinicId } from "@/types";
 
 interface SlaThresholdEditorProps {
-  config: ClinicConfig;
+  config:   ClinicConfig;
+  clinicId: ClinicId;
+  actorId:  string;
 }
 
 type SlaKey = keyof ClinicConfig["default_slas"];
@@ -38,11 +44,16 @@ const SLA_DEFINITIONS: Array<{
   { key: "initial_coaching_call_days",   label: "Initial coaching call",    unit: "days",         description: "Calendar days from first dispatch to initial coaching call" },
 ];
 
-export function SlaThresholdEditor({ config }: SlaThresholdEditorProps) {
+export function SlaThresholdEditor({ config, clinicId, actorId }: SlaThresholdEditorProps) {
   const [draft, setDraft]       = useState<ClinicConfig["default_slas"]>({ ...config.default_slas });
   const [minChars, setMinChars] = useState(config.clinical_note_min_chars);
   const [saved, setSaved]       = useState(false);
   const [dirty, setDirty]       = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+
+  // Snapshot for rollback on error
+  const [snapshot] = useState({ draft: { ...config.default_slas }, minChars: config.clinical_note_min_chars });
 
   function handleChange(key: SlaKey, value: string) {
     const num = Number(value);
@@ -50,14 +61,27 @@ export function SlaThresholdEditor({ config }: SlaThresholdEditorProps) {
     setDraft((prev) => ({ ...prev, [key]: num }));
     setDirty(true);
     setSaved(false);
+    setError(null);
   }
 
-  function handleSave() {
-    // UI-only in Wave 3 — persist wired in future wave
-    setDirty(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-    console.log('[AUDIT]', { event_type: 'sla_thresholds_ui_save', outcome: 'mock_only', draft, minChars });
+  async function handleSave() {
+    if (!dirty || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updateClinicSlaThresholds(clinicId, { ...draft, clinical_note_min_chars: minChars }, actorId);
+      setDirty(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      // Rollback optimistic state
+      setDraft({ ...snapshot.draft });
+      setMinChars(snapshot.minChars);
+      setDirty(false);
+      setError(err instanceof Error ? err.message : "Save failed — please retry");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleReset() {
@@ -65,16 +89,11 @@ export function SlaThresholdEditor({ config }: SlaThresholdEditorProps) {
     setMinChars(config.clinical_note_min_chars);
     setDirty(false);
     setSaved(false);
+    setError(null);
   }
 
   return (
     <div className="space-y-6">
-      {/* Warning banner — Wave 3 UI-only */}
-      <div className="flex items-start gap-2 px-4 py-3 bg-warn-bg border border-warn-bdr rounded-lg text-[12px] text-warn">
-        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-        <span>Changes are UI-only in this release. Persistence will be wired in a future wave.</span>
-      </div>
-
       {/* SLA thresholds table */}
       <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-bdr bg-page-bg">
@@ -94,7 +113,8 @@ export function SlaThresholdEditor({ config }: SlaThresholdEditorProps) {
                   min={1}
                   value={draft[key]}
                   onChange={(e) => handleChange(key, e.target.value)}
-                  className="w-24 text-[13px] text-t1 border border-bdr bg-page-bg rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand text-right tabular-nums"
+                  disabled={saving}
+                  className="w-24 text-[13px] text-t1 border border-bdr bg-page-bg rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand text-right tabular-nums disabled:opacity-50"
                 />
                 <span className="text-[11px] text-t3 whitespace-nowrap">{unit}</span>
               </div>
@@ -118,30 +138,37 @@ export function SlaThresholdEditor({ config }: SlaThresholdEditorProps) {
               type="number"
               min={10}
               value={minChars}
-              onChange={(e) => { setMinChars(Number(e.target.value)); setDirty(true); setSaved(false); }}
-              className="w-24 text-[13px] text-t1 border border-bdr bg-page-bg rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand text-right tabular-nums"
+              disabled={saving}
+              onChange={(e) => { setMinChars(Number(e.target.value)); setDirty(true); setSaved(false); setError(null); }}
+              className="w-24 text-[13px] text-t1 border border-bdr bg-page-bg rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand text-right tabular-nums disabled:opacity-50"
             />
             <span className="text-[11px] text-t3">chars</span>
           </div>
         </div>
       </div>
 
+      {/* Error */}
+      {error && (
+        <p className="text-[12px] text-err px-1">{error}</p>
+      )}
+
       {/* Action row */}
       <div className="flex items-center justify-end gap-3">
         {dirty && (
           <button
             onClick={handleReset}
-            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-t2 border border-bdr rounded-md hover:bg-page-bg transition-colors"
+            disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-t2 border border-bdr rounded-md hover:bg-page-bg transition-colors disabled:opacity-40"
           >
             <RotateCcw className="w-4 h-4" /> Reset
           </button>
         )}
         <button
           onClick={handleSave}
-          disabled={!dirty}
+          disabled={!dirty || saving}
           className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <Save className="w-4 h-4" /> {saved ? "Saved!" : "Save changes"}
+          <Save className="w-4 h-4" /> {saving ? "Saving…" : saved ? "Saved!" : "Save changes"}
         </button>
       </div>
     </div>

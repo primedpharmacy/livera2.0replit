@@ -322,6 +322,12 @@ export function OrderDetailClient({
                   ryft_authorisation_id={order.ryft_authorisation_id}
                 />
 
+                {/* BLD-3.6 — first consumer of clinic.config.patient_sla_copy */}
+                <DCard icon={Activity} title="Patient-facing SLA messaging">
+                  <Row label="Clinical review" value={clinic.config.patient_sla_copy.clinical_review_message} />
+                  <Row label="Delivery"        value={clinic.config.patient_sla_copy.delivery_message} />
+                </DCard>
+
                 {order.status === "clinical_check" && (
                   <>
                     {/* BLD-3.1 — SlaTimerWidget */}

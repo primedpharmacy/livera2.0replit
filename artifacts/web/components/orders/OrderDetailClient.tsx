@@ -93,7 +93,7 @@ export function OrderDetailClient({ initialOrder, patient, clinic, clinicId }: O
   const slaBreached   = now > breachAt;
   const slaWarning    = !slaBreached && now > warnAt;
   const slaHoursLeft  = Math.max(0, Math.floor((breachAt - now) / 3600000));
-  const slaTotalHours = clinic.config.sla.approval_breach_hours;
+  const slaTotalHours = clinic.config.default_slas.approval_breach_hours;
   const weightLostKg  = +(patient.baseline.baseline_weight_kg - patient.latest.weight_kg).toFixed(1);
   const bmiDelta      = +(patient.baseline.baseline_bmi - patient.latest.bmi).toFixed(1);
   const weightGained  = weightLostKg < 0;

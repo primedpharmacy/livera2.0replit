@@ -42,7 +42,7 @@ export function TopNav() {
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-1.5 text-white/85 text-xs font-medium hover:bg-white/[0.08] rounded px-2 py-1 -mx-2 transition-colors outline-none">
             <span className="text-white/60">Workspace:</span>
-            <strong className="text-white font-semibold">{clinic.trading_name}</strong>
+            <strong className="text-white font-semibold">{clinic.config.clinic_name}</strong>
             <ChevronDown className="w-3 h-3 opacity-55 ml-0.5" aria-hidden={true} />
           </button>
         </DropdownMenuTrigger>

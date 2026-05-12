@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, FileText } from "lucide-react";
+import { Plus, FileText, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -31,47 +31,113 @@ interface GPLettersViewProps {
 export function GPLettersView({ initialLetters, patients, clinicId }: GPLettersViewProps) {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
+  const [consentFilter, setConsentFilter] = useState<"all" | "verified" | "missing">("all");
+  const [search, setSearch] = useState("");
 
   const patientMap = Object.fromEntries(patients.map((p) => [p.id, p]));
 
-  const filtered =
-    activeFilter === "all"
-      ? initialLetters
-      : initialLetters.filter((l) => l.status === activeFilter);
+  const draft     = initialLetters.filter((l) => l.status === "draft").length;
+  const sent      = initialLetters.filter((l) => l.status === "sent").length;
+  const delivered = initialLetters.filter((l) => l.status === "delivered").length;
+  const bounced   = initialLetters.filter((l) => l.status === "bounced").length;
+  const noConsent = initialLetters.filter((l) => !l.patient_consent_verified).length;
+
+  const kpis = [
+    { label: "Draft",            value: draft,     sub: "awaiting send",    alert: false },
+    { label: "Sent",             value: sent,      sub: "in transit",       alert: false },
+    { label: "Delivered",        value: delivered, sub: "confirmed",        alert: false },
+    { label: "Bounced",          value: bounced,   sub: "delivery failed",  alert: bounced > 0 },
+    { label: "Consent missing",  value: noConsent, sub: "need consent",     alert: noConsent > 0 },
+  ];
 
   const filters: { key: Filter; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "draft", label: "Draft" },
-    { key: "sent", label: "Sent" },
+    { key: "all",       label: "All" },
+    { key: "draft",     label: "Draft" },
+    { key: "sent",      label: "Sent" },
     { key: "delivered", label: "Delivered" },
-    { key: "bounced", label: "Bounced" },
+    { key: "bounced",   label: "Bounced" },
   ];
+
+  const filtered = initialLetters.filter((l) => {
+    const matchStatus  = activeFilter === "all" || l.status === activeFilter;
+    const matchConsent =
+      consentFilter === "all" ||
+      (consentFilter === "verified" && l.patient_consent_verified) ||
+      (consentFilter === "missing" && !l.patient_consent_verified);
+    const q           = search.toLowerCase();
+    const patient     = patientMap[l.patient_id];
+    const matchSearch = !q ||
+      l.id.toLowerCase().includes(q) ||
+      l.subject.toLowerCase().includes(q) ||
+      (patient?.demographic.full_name.toLowerCase().includes(q) ?? false);
+    return matchStatus && matchConsent && matchSearch;
+  });
 
   return (
     <div>
-      <div className="px-6 py-2 flex items-center justify-between border-b border-bdr bg-surface">
-        <div className="flex gap-1">
+      {/* KPI strip */}
+      <div className="grid grid-cols-5 gap-px bg-bdr border-b border-bdr">
+        {kpis.map((k) => (
+          <div key={k.label} className={cn("bg-surface px-5 py-3.5 flex flex-col gap-1", k.alert && "bg-err-bg")}>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-t2">{k.label}</span>
+            <span className={cn("text-[22px] font-bold leading-none tabular-nums", k.alert ? "text-err" : "text-t1")}>
+              {k.value}
+            </span>
+            <span className={cn("text-[10px] font-semibold", k.alert ? "text-err" : "text-t3")}>{k.sub}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter row */}
+      <div className="px-6 py-2.5 flex items-center gap-3 border-b border-bdr bg-surface flex-wrap">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-t3" />
+          <input
+            type="text"
+            placeholder="Search letters…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 pr-3 py-1.5 text-[12px] border border-bdr rounded-md bg-page-bg focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand text-t1 placeholder:text-t3 w-48"
+          />
+        </div>
+        <div className="flex items-center gap-1">
           {filters.map((f) => (
             <button
               key={f.key}
               onClick={() => setActiveFilter(f.key)}
               className={cn(
                 "px-3 py-1 text-[12px] font-medium rounded-md transition-colors",
-                activeFilter === f.key
-                  ? "bg-brand text-white"
-                  : "text-t2 hover:bg-brand-light hover:text-brand"
+                activeFilter === f.key ? "bg-brand text-white" : "text-t2 hover:bg-brand-light hover:text-brand"
               )}
             >
               {f.label}
             </button>
           ))}
         </div>
-        <Link href={`/${clinicId}/gp-letters/new`}>
-          <Button size="sm" className="h-7 text-[12px] gap-1">
-            <Plus className="w-3.5 h-3.5" />
-            New letter
-          </Button>
-        </Link>
+        <div className="flex items-center gap-1 ml-2">
+          {(["all", "verified", "missing"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setConsentFilter(v)}
+              className={cn(
+                "px-2.5 py-1 text-[11px] font-medium rounded-md border transition-colors",
+                consentFilter === v
+                  ? "bg-t1 text-white border-t1"
+                  : "text-t2 border-bdr hover:border-brand hover:text-brand"
+              )}
+            >
+              {v === "all" ? "All consent" : v === "verified" ? "Verified" : "Missing consent"}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto">
+          <Link href={`/${clinicId}/gp-letters/new`}>
+            <Button size="sm" className="h-7 text-[12px] gap-1">
+              <Plus className="w-3.5 h-3.5" />
+              New letter
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="px-6 py-4">

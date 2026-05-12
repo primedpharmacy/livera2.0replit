@@ -6,6 +6,10 @@ export type {
   CoachingLog,
   Clinic,
   ClinicConfig,
+  ClinicTeamMember,
+  ConsentTemplate,
+  HolidayEntry,
+  ConsultationTypeConfig,
   User,
   Role,
   ClinicId,
@@ -20,6 +24,7 @@ export type {
   GPLetter,
   GPLetterStatus,
   GPLetterTemplate,
+  GPCommunicationLifecycle,
   MondayItem,
   MondayBoardState,
 } from "@/lib/api/mock";

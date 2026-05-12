@@ -66,12 +66,12 @@ export function ClinicalCheckClient({ orders, clinic, clinicId }: ClinicalCheckC
             variant="neutral"
           />
           <StatTile
-            label={`Warning — within ${clinic.config.sla.approval_warn_hours}h`}
+            label={`Warning — within ${clinic.config.default_slas.approval_warn_hours}h`}
             value={warnCount}
             variant={warnCount > 0 ? "warn" : "neutral"}
           />
           <StatTile
-            label={`Breached — past ${clinic.config.sla.approval_breach_hours}h`}
+            label={`Breached — past ${clinic.config.default_slas.approval_breach_hours}h`}
             value={breachCount}
             variant={breachCount > 0 ? "err" : "neutral"}
           />

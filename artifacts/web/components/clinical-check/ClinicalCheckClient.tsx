@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Stethoscope, AlertTriangle } from "lucide-react";
 import { OrderListTable } from "@/components/orders/OrderListTable";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { NOW } from "@/lib/api/constants";
 import type { Order, Clinic } from "@/types";
 
 type SubTab = "all" | "awaiting_photos" | "g6_flagged" | "reorders";
@@ -24,7 +25,7 @@ interface ClinicalCheckClientProps {
 export function ClinicalCheckClient({ orders, clinic, clinicId }: ClinicalCheckClientProps) {
   const [activeTab, setActiveTab] = useState<SubTab>("all");
 
-  const now = Date.now();
+  const now = new Date(NOW).getTime();
 
   const warnCount = orders.filter((o) => {
     const warnAt   = new Date(o.sla_warn_at).getTime();
@@ -66,12 +67,12 @@ export function ClinicalCheckClient({ orders, clinic, clinicId }: ClinicalCheckC
             variant="neutral"
           />
           <StatTile
-            label={`Warning — within ${clinic.config.sla.approval_warn_hours}h`}
+            label={`Warning — within ${clinic.config.default_slas.approval_warn_hours}h`}
             value={warnCount}
             variant={warnCount > 0 ? "warn" : "neutral"}
           />
           <StatTile
-            label={`Breached — past ${clinic.config.sla.approval_breach_hours}h`}
+            label={`Breached — past ${clinic.config.default_slas.approval_breach_hours}h`}
             value={breachCount}
             variant={breachCount > 0 ? "err" : "neutral"}
           />

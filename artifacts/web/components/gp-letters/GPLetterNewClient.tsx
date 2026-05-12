@@ -21,8 +21,8 @@ function fillTemplate(template: string, patient: Patient, clinic: Clinic): strin
     .replace(/\{\{gp_name\}\}/g, patient.gp?.name ?? "Dear GP")
     .replace(/\{\{medication\}\}/g, "GLP-1 medication")
     .replace(/\{\{dose\}\}/g, "current prescribed dose")
-    .replace(/\{\{clinic_name\}\}/g, clinic.trading_name)
-    .replace(/\{\{clinic_email\}\}/g, `admin@${clinic.trading_name.toLowerCase().replace(/\s+/g, "")}.com`);
+    .replace(/\{\{clinic_name\}\}/g, clinic.config.clinic_name)
+    .replace(/\{\{clinic_email\}\}/g, `admin@${clinic.config.clinic_name.toLowerCase().replace(/\s+/g, "")}.com`);
 }
 
 export function GPLetterNewClient({ patients, templates, clinic, clinicId }: Props) {

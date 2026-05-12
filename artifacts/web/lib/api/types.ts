@@ -1,56 +1,200 @@
 /**
- * Livera API type definitions — extracted from mock.ts (Mini-wave 6a cleanup).
- * These types ARE the API contract. When Yohan's backend is ready, these stay
- * as the shared contract layer; only implementations move.
+ * Livera API type definitions — Wave 1 (Chunk 1 Foundations).
+ *
+ * ClinicConfig schema matches PRODUCT_VISION.md §6.1 exactly.
+ * These types ARE the API contract. When Yohan's backend is ready,
+ * these stay as the shared contract layer; only implementations move.
+ *
+ * Role notes (V1.2):
+ *   Active roles: Owner | Admin | Prescriber | Coach
+ *   Deprecated (code retained for migration): RM | Manager | Pharmacist | Technician
  */
 
 export type ClinicId = 'vsc' | 'feeltru';
-export type Role = 'Owner' | 'RM' | 'Prescriber' | 'Coach' | 'Admin';
 
+export type Role =
+  | 'Owner'
+  | 'Admin'
+  | 'Prescriber'
+  | 'Coach'
+  | 'RM'           // deprecated — retained for migration only
+  | 'Manager'      // deprecated — retired from UI per V1.2
+  | 'Pharmacist'   // deprecated — retired from UI per V1.2
+  | 'Technician';  // deprecated — retired from UI per V1.2
+
+// --- Consent template (DEC-32) ---
+export type ConsentTemplate = {
+  consent_id: string;
+  title: string;
+  body: string;             // markdown
+  mandatory: boolean;
+  order: number;            // display order on registration Screen 5a
+  version: number;
+  last_updated: string;     // ISO
+  last_updated_by: string;  // user_id
+};
+
+// --- Holiday entry (DEC-15) ---
+export type HolidayEntry = {
+  date: string;  // ISO date (YYYY-MM-DD)
+  name: string;
+};
+
+// --- Consultation type config (DEC-40) ---
+export type ConsultationTypeConfig = {
+  id: string;
+  name: string;
+  modality: 'phone' | 'video' | 'chat';
+  provider: string;  // e.g. 'intercom_phone', 'calendly+google_meet'
+  default_duration_min: number;
+  eligible_roles: Role[];
+  dpia_reference: string | null;
+  calendly_event_type_id: string | null;
+};
+
+// --- Clinic team member (per-clinic user view) ---
+export type ClinicTeamMember = {
+  user_id: string;
+  full_name: string;
+  email: string;
+  role: Role;
+  clinic_id: ClinicId;
+  professional_registration: {
+    body: string;
+    reg_number: string;
+    expiry: string;
+    status: 'active' | 'expired' | 'pending';
+  } | null;
+  active: boolean;
+  joined_at: string;  // ISO
+};
+
+// --- Clinic config (PRODUCT_VISION.md §6.1 — authoritative schema) ---
+export type ClinicConfig = {
+  // Identity
+  clinic_id: ClinicId;
+  clinic_name: string;
+  legal_entity_name: string;
+  cqc_provider_id: string | null;
+  gphc_pharmacy_id: string | null;
+
+  // Behavioural flags (BLD-1.1, DEC-02, DEC-16)
+  coaching_enabled: boolean;          // gated by DEC-02; per-clinic toggle per DEC-34 refined
+  gender_eligibility: 'female_only' | 'gender_neutral';  // DEC-16
+  amendment_window: 'pre_dispensed' | 'pre_approval';    // DEC-01: both clinics pre_dispensed
+
+  // Brand (§3.3 — injected via clinic_config; no hex codes in components)
+  brand_tokens: {
+    primary: string;
+    primary_dark: string;
+    accent: string;
+    gradient: string;
+    font_family: string;
+    logo_url: string;
+  };
+
+  // Comms (BLD-1.3)
+  reply_email: string;
+  patient_sla_copy: string;  // e.g. "Clinical review usually takes up to 4 hours"
+
+  // SLA values (BLD-1.4 — 10 values per DEC-04, DEC-35)
+  default_slas: {
+    approval_warn_hours: number;           // default 6
+    approval_breach_hours: number;         // default 24
+    intervention_resolution_wd: number;    // default 7 (working days)
+    gp_letter_send_hours: number;          // default 48
+    order_expiry_days: number;             // default 6 (calendar days)
+    complaint_ack_wd: number;              // default 3 (working days)
+    complaint_response_wd: number;         // default 20 (working days)
+    coach_escalation_response_wh: number;  // default 24 (working hours)
+    welcome_call_wd: number;               // default 5 (working days)
+    initial_coaching_call_days: number;    // default 7 (calendar days)
+  };
+
+  // Monday integration (BLD-1.3, DEC-29, DEC-37)
+  monday_incident_board_id: string;    // DEC-29: 18402056019 (shared severe SE board)
+  monday_complaints_board_id: string;  // DEC-37: 18409111860 (VSC) | 18402056040 (FeelTru)
+
+  // Calendly (DEC-34, DEC-40)
+  calendly_account_id: string | null;
+
+  // Consents (DEC-32) — fully customisable; 9-item default seed
+  consents: ConsentTemplate[];
+
+  // Holiday calendar (DEC-15) — pre-loaded UK public holidays + per-clinic additions
+  holiday_calendar: HolidayEntry[];
+
+  // Day-X nudge (DEC-30) — configurable per clinic; NOT hardcoded
+  day_x_nudge: {
+    enabled: boolean;
+    trigger_day: number;  // default 19
+    calendly_link_override: string | null;
+    custom_copy_override: string | null;
+  };
+
+  // Drug watchlist (DEC-39) — MHRA alert filter
+  drug_watchlist: string[];
+
+  // Consultation types (DEC-40) — per-clinic template
+  consultation_types: ConsultationTypeConfig[];
+
+  // Incident triage text — NO hardcoded clinical logic; all from config (§3.2 rule 3)
+  incident_triage_text: {
+    mild: string;
+    moderate: string;
+    severe: string;
+  };
+
+  // Intercom workspace
+  intercom_workspace_id: string;
+
+  // Feature flags
+  features: {
+    gp_letter_enabled: boolean;
+    pharmacy_comms_enabled: boolean;
+    bmi_ai_validation_enabled: boolean;
+    primed_flag_mirror_enabled: boolean;
+    video_consultations_enabled: boolean;
+    welcome_calls_enabled: boolean;                // always true at V1 per DEC-34
+    ai_clinical_note_drafting_enabled: boolean;    // gated by BLD-6.5 sign-off
+  };
+
+  // Rule-engine stubs — concrete types added in Chunks 13/16a/17
+  // Both clinic fixtures seed these with [] until the rule types land.
+  flag_rules: unknown[];            // G6 flag evaluation rules (Chunk 16a)
+  treatment_gap_rules: unknown[];   // Treatment gap rules (Chunk 13)
+  dose_escalation_rules: unknown[]; // Dose escalation protocol (Chunk 13)
+  primed_flag_rules: unknown[];     // Primed flag mirror rules (Chunk 17)
+  questionnaire_order: unknown[];   // New-patient questionnaire config (Chunk 13)
+  questionnaire_reorder: unknown[]; // Reorder questionnaire config (Chunk 13)
+};
+
+// --- Clinic (outer entity) ---
+// All identity + config fields now live inside ClinicConfig (§6.1).
 export type Clinic = {
   id: ClinicId;
-  legal_entity_name: string;
-  trading_name: string;
-  cqc_registration: string | null;
-  gphc_pharmacy_id: string | null;
-  brand_tokens: { logo_url: string; primary_color: string; secondary_color: string };
-  timezone: string;
-  currency: 'GBP';
-  features: { coaching_enabled: boolean; ai_clinical_note_drafting_enabled: boolean };
   config: ClinicConfig;
 };
 
-export type ClinicConfig = {
-  sla: { approval_warn_hours: number; approval_breach_hours: number; patient_sla_copy: string };
-  day_X_nudge: { enabled: boolean; trigger_day: number; calendly_link: string; copy: string };
-  consents: Array<{ id: string; title: string; body: string; mandatory: boolean; version: string }>;
-  consultation_types: Array<{
-    id: string;
-    name: string;
-    modality: 'phone' | 'video' | 'chat';
-    provider: string;
-    default_duration_min: number;
-    eligible_roles: Role[];
-    dpia_reference: string | null;
-    calendly_event_type_id: string | null;
-  }>;
-  monday_board_ids: { incidents: string; complaints: string };
-  incident_triage_text: { mild: string; moderate: string; severe: string };
-  intercom_workspace_id: string;
-};
-
+// --- User ---
 export type User = {
   id: string;
   email: string;
   full_name: string;
   roles: Role[];
   active_clinic_id: ClinicId;
-  professional_registrations: Array<{ body: string; reg_number: string; expiry: string; status: string }>;
+  professional_registrations: Array<{
+    body: string;
+    reg_number: string;
+    expiry: string;
+    status: string;
+  }>;
   active: boolean;
 };
 
+// --- Patient ---
 export type Patient = {
-  id: string; // PT-XXXXX
+  id: string;  // PT-XXXXX
   clinic_id: ClinicId;
   demographic: {
     full_name: string;
@@ -60,10 +204,20 @@ export type Patient = {
     address: { line1: string; line2?: string; city: string; postcode: string };
   };
   contact: { email: string; phone: string; preferred_channel: 'email' | 'sms' | 'phone' };
-  gp: { name: string; address: string; phone: string; email: string; nhs_ods_id: string } | null;
+  gp: {
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    nhs_ods_id: string;
+  } | null;
   baseline: { height_cm: number; baseline_weight_kg: number; baseline_bmi: number };
   latest: { weight_kg: number; bmi: number; recorded_at: string };
-  verification: { sumsub_id: string; identity_verified_at: string | null; bmi_verified_at: string | null };
+  verification: {
+    sumsub_id: string;
+    identity_verified_at: string | null;
+    bmi_verified_at: string | null;
+  };
   consents_given: Array<{ consent_id: string; version: string; given_at: string }>;
   flags: Array<{ id: string; code: string; severity: 'low' | 'medium' | 'high'; raised_at: string }>;
   status: 'new' | 'active' | 'monitoring' | 'suspended';
@@ -72,6 +226,7 @@ export type Patient = {
   updated_at: string;
 };
 
+// --- Order ---
 export type OrderStatus =
   | 'received'
   | 'clinical_check'
@@ -84,15 +239,16 @@ export type OrderStatus =
   | 'cancelled';
 
 export type Order = {
-  id: string; // ORD-XXXXX
+  id: string;  // ORD-XXXXX
   clinic_id: ClinicId;
   patient_id: string;
   type: 'new' | 'reorder';
   status: OrderStatus;
   product: { medication: string; dose: string; strength: string; plan: string };
   questionnaire_responses: Record<string, unknown>;
-  amendment_window: 'pre_dispensed' | 'pre_approval';
+  amendment_window: 'pre_dispensed' | 'pre_approval';  // DEC-01
   primed_order_id: string | null;
+  primed_clinical_check_completed: boolean;  // DEC-28: boundary state for data sync
   ryft_authorisation_id: string | null;
   amount_charged: number | null;
   amount_authorised: number | null;
@@ -109,6 +265,7 @@ export type Order = {
   updated_at: string;
 };
 
+// --- Consultation (DEC-40 — unified entity) ---
 export type Consultation = {
   id: string;
   clinic_id: ClinicId;
@@ -121,16 +278,17 @@ export type Consultation = {
   actual_start: string | null;
   actual_end: string | null;
   status: 'scheduled' | 'in_progress' | 'completed' | 'no_show' | 'cancelled' | 'rescheduled';
-  provider: string; // e.g. 'calendly+google_meet'
+  provider: string;  // provider-agnostic per DEC-40 — e.g. 'calendly+google_meet'
   provider_event_id: string | null;
   join_url_clinician: string | null;
   join_url_patient: string | null;
-  recording_enabled: false; // V1 always false (DEC-40)
-  transcription_enabled: false; // V1 always false
+  recording_enabled: false;      // V1 always false (DEC-40)
+  transcription_enabled: false;  // V1 always false (DEC-40)
   clinical_note_id: string | null;
   linked_order_id: string | null;
 };
 
+// --- Monday (DEC-29, DEC-37) ---
 export type MondayItem = {
   id: string;
   name: string;
@@ -144,6 +302,7 @@ export type MondayBoardState = {
   etag: string;
 };
 
+// --- Incident ---
 export type IncidentType =
   | 'medication_error'
   | 'adverse_event'
@@ -152,6 +311,7 @@ export type IncidentType =
   | 'allergic_reaction'
   | 'near_miss'
   | 'other';
+
 export type IncidentSeverity = 'mild' | 'moderate' | 'severe';
 export type IncidentStatus = 'open' | 'on_hold' | 'investigating' | 'resolved' | 'closed';
 
@@ -180,6 +340,7 @@ export type Incident = {
   created_at: string;
 };
 
+// --- Complaint (DEC-37 — Monday source of truth; Livera mirrors) ---
 export type ComplaintSeverity = 'low' | 'medium' | 'high';
 export type ComplaintStatus = 'received' | 'acknowledged' | 'investigating' | 'resolved' | 'closed';
 
@@ -203,6 +364,7 @@ export type Complaint = {
   assigned_to_user_id: string | null;
 };
 
+// --- Amendment (DEC-38) ---
 export type Amendment = {
   id: string;
   clinic_id: ClinicId;
@@ -217,7 +379,15 @@ export type Amendment = {
   decision_rationale: string | null;
 };
 
+// --- GP Communication (DEC-22) ---
 export type GPLetterStatus = 'draft' | 'sent' | 'delivered' | 'bounced';
+
+export type GPCommunicationLifecycle =
+  | 'awaiting_consent'  // patient hasn't consented to GP correspondence
+  | 'owed'              // consented + first treatment approved → letter queued
+  | 'sent'              // Postmark delivery confirmed
+  | 'cancelled'         // prescriber cancelled with reason (terminal)
+  | 'ad_hoc';           // one-off letter (dose change / discontinuation / safeguarding)
 
 export type GPLetter = {
   id: string;
@@ -226,6 +396,7 @@ export type GPLetter = {
   template_id: string;
   subject: string;
   body: string;
+  lifecycle_status: GPCommunicationLifecycle;
   status: GPLetterStatus;
   patient_consent_verified: boolean;
   sent_at: string | null;
@@ -240,6 +411,7 @@ export type GPLetterTemplate = {
   body_template: string;
 };
 
+// --- Coaching log (DEC-05) ---
 export type CoachingLog = {
   id: string;
   clinic_id: ClinicId;

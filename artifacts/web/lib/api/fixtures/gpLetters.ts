@@ -112,6 +112,7 @@ Kind regards,
 The Clinical Team
 FeelTru
 admin@feeltru.com`,
+    lifecycle_status: 'sent',
     status: 'delivered',
     patient_consent_verified: true,
     sent_at: '2026-04-10T10:30:00Z',
@@ -137,6 +138,7 @@ Kind regards,
 The Clinical Team
 FeelTru
 admin@feeltru.com`,
+    lifecycle_status: 'owed',
     status: 'draft',
     patient_consent_verified: true,
     sent_at: null,
@@ -162,6 +164,7 @@ Kind regards,
 The Clinical Team
 FeelTru
 admin@feeltru.com`,
+    lifecycle_status: 'awaiting_consent',
     status: 'draft',
     patient_consent_verified: false,
     sent_at: null,
@@ -190,6 +193,7 @@ Kind regards,
 The Clinical Team
 VSC Health
 admin@vsc.com`,
+    lifecycle_status: 'sent',
     status: 'sent',
     patient_consent_verified: true,
     sent_at: '2026-05-08T09:00:00Z',
@@ -232,6 +236,7 @@ export async function createGPLetter(
     template_id: data.template_id,
     subject: data.subject,
     body: data.body,
+    lifecycle_status: consentVerified ? 'owed' : 'awaiting_consent',
     status: 'draft',
     patient_consent_verified: consentVerified,
     sent_at: null,

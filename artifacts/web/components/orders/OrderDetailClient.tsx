@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, CURRENT_USER } from "@/lib/api/mock";
+import { decideOrder, CURRENT_USER, NOW } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import type { Order, Patient, Clinic, ClinicId } from "@/types";
 import { DCard, Row, Metric, EmptyPane } from "./orderPrimitives";
@@ -87,13 +87,13 @@ export function OrderDetailClient({ initialOrder, patient, clinic, clinicId }: O
   const d             = patient.demographic;
   const age           = formatAge(d.dob);
   const hasB4         = patient.flags.some((f) => f.code === "B4");
-  const now           = Date.now();
+  const now           = new Date(NOW).getTime();
   const warnAt        = new Date(order.sla_warn_at).getTime();
   const breachAt      = new Date(order.sla_breach_at).getTime();
   const slaBreached   = now > breachAt;
   const slaWarning    = !slaBreached && now > warnAt;
   const slaHoursLeft  = Math.max(0, Math.floor((breachAt - now) / 3600000));
-  const slaTotalHours = clinic.config.sla.approval_breach_hours;
+  const slaTotalHours = clinic.config.default_slas.approval_breach_hours;
   const weightLostKg  = +(patient.baseline.baseline_weight_kg - patient.latest.weight_kg).toFixed(1);
   const bmiDelta      = +(patient.baseline.baseline_bmi - patient.latest.bmi).toFixed(1);
   const weightGained  = weightLostKg < 0;

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { getClinic, listConsultations, listPatients } from "@/lib/api/mock";
+import { NOW } from "@/lib/api/constants";
 import type { ClinicId } from "@/types";
 import { CoachDashboardClient } from "@/components/schedule/CoachDashboardClient";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -17,7 +18,7 @@ export default async function CoachPage({ params }: Props) {
 
 async function CoachContent({ clinicId }: { clinicId: ClinicId }) {
   const clinic = await getClinic(clinicId);
-  const coachingEnabled = clinic.features.coaching_enabled;
+  const coachingEnabled = clinic.config.coaching_enabled;
 
   if (!coachingEnabled) {
     return (
@@ -36,7 +37,7 @@ async function CoachContent({ clinicId }: { clinicId: ClinicId }) {
     listPatients(clinicId),
   ]);
 
-  const now = "2026-05-11T08:00:00Z";
+  const now = NOW;
   const upcomingSessions = allConsultations
     .filter((c) => c.scheduled_start >= now && c.status === "scheduled")
     .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start));

@@ -240,9 +240,10 @@ export type OrderStatus =
   | 'received'
   | 'clinical_check'
   | 'approved'
+  | 'in_dispensing'   // BLD-5.3 — between approved and dispatched; amendment window still open
   | 'dispatched'
   | 'delivered'
-  | 'on_hold'
+  | 'on_hold'         // queried / intervention pending
   | 'declined'
   | 'expired'
   | 'cancelled';
@@ -270,6 +271,8 @@ export type Order = {
   sla_warn_at: string;
   sla_breach_at: string;
   g6_flags: string[];
+  intervention_raised_at: string | null;  // BLD-4.6.1 — set when decision='queried'
+  expired_at: string | null;              // BLD-4.6.3 — set by detectOrderExpiry
   created_at: string;
   updated_at: string;
 };
@@ -461,7 +464,7 @@ export type ClinicalEscalationFlag = {
   sla_deadline: string;           // raised_at + 24 working hours via addWorkingHours
 };
 
-// --- ClinicalNote (BLD-4.1 — 17 fields) ----
+// --- ClinicalNote (BLD-4.1 — 20 fields) ----
 // All clinical mutations are protected by the 3-layer safety chain:
 //   Layer 1: UI gate (role + min-chars)
 //   Layer 2: APIError('SAFETY_VIOLATION') server gate
@@ -482,12 +485,49 @@ export type ClinicalNote = {
     previous_body: string;
   }>;
   approval_gate_for_order_id: string | null;  // BLD-4.4 — must match order.id to gate approve
-  ai_drafted: boolean;                         // BLD-6.5 (future)
-  ai_draft_accepted_at: string | null;
-  ai_draft_edited_by: string | null;
-  ai_prompt_version_id: string | null;
+  ai_drafted: boolean;                         // BLD-6.5 — true if AI produced initial draft
+  ai_draft_accepted_at: string | null;         // when prescriber opened the AI draft
+  ai_draft_edited_by: string | null;           // prescriber who edited
+  ai_prompt_version_id: string | null;         // AI_CLINICAL_NOTE_PROMPT_VERSION_ID
+  // BLD-6.1 — AI audit trail (DEC-07)
+  ai_draft_original: string | null;            // what the model first produced
+  ai_draft_edits: Array<{                      // diff log of prescriber edits (timestamped)
+    edited_at: string;
+    prev_body: string;
+    new_body: string;
+  }>;
+  final_note: string | null;                   // what was signed off and saved
   tags: string[];                              // e.g. ['clinical_check', 'follow_up']
   visibility: 'clinical_team' | 'patient_record';
+};
+
+// --- Pharmacy Comm Thread (DEC-23, BLD-5.3) ---
+// Order-anchored OR patient-anchored. Bidirectional with Primed (DEC-19 assumed APIs).
+export type PharmacyCommAnchorType = 'order' | 'patient';
+
+export type PharmacyCommMessage = {
+  id: string;
+  thread_id: string;
+  direction: 'outbound' | 'inbound';    // outbound = clinic→Primed; inbound = Primed→clinic
+  body: string;
+  sent_by_user_id: string | null;       // null for inbound from Primed
+  sent_at: string;                      // ISO
+  attachments: string[];                // file URLs
+};
+
+export type PharmacyCommThread = {
+  id: string;
+  clinic_id: ClinicId;
+  anchor_type: PharmacyCommAnchorType;
+  anchor_id: string;                    // order_id or patient_id
+  topic: string;                        // e.g. 'patient_address_change', 'amendment'
+  priority: 'routine' | 'urgent';
+  status: 'open' | 'awaiting_response' | 'resolved';
+  created_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+  messages: PharmacyCommMessage[];
+  amendment_id: string | null;          // linked Amendment if thread = amendment comms (DEC-28)
 };
 
 // --- SlaBreach (BLD-3.2) ---

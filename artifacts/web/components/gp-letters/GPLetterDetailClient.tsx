@@ -9,6 +9,7 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { sendGPLetter, CURRENT_USER } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
+import { SlaTimerWidget } from "@/components/sla/SlaTimerWidget";
 import type { GPLetter, Patient, Clinic, ClinicId } from "@/types";
 
 interface Props {
@@ -81,6 +82,21 @@ export function GPLetterDetailClient({ initialLetter, patient, clinic, clinicId 
           </Button>
         )}
       </div>
+
+      {/* BLD-4.6.2 — GP letter send SLA timer (owed lifecycle) */}
+      {letter.lifecycle_status === "owed" && (
+        <div className="mx-6 mt-4">
+          <SlaTimerWidget
+            sla_deadline={new Date(
+              new Date(letter.created_at).getTime() +
+                clinic.config.default_slas.gp_letter_send_hours * 3_600_000
+            ).toISOString()}
+            label={`GP Letter Send SLA (${clinic.config.default_slas.gp_letter_send_hours}h)`}
+            total_hours={clinic.config.default_slas.gp_letter_send_hours}
+            variant="full"
+          />
+        </div>
+      )}
 
       {isDraft && !letter.patient_consent_verified && (
         <div className="mx-6 mt-4 flex items-start gap-3 bg-err-bg border border-err-bdr rounded-lg px-4 py-3">

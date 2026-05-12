@@ -1,13 +1,14 @@
 /**
  * Livera clinical notes fixtures — BLD-4.1, BLD-4.2, BLD-4.5 (Wave 3).
+ * BLD-6.1, BLD-6.4 (Wave 4) — AI audit trail fields + updateClinicalNote extension.
  *
  * 3-layer safety chain on all mutations:
  *   Layer 1 (UI): role gate + min-chars enforced in ClinicalNoteEditor
  *   Layer 2 (server): APIError('SAFETY_VIOLATION') thrown here if bypassed
  *   Layer 3 (audit): [AUDIT] console entry on every write / update
  *
- * createClinicalNote: sets approval_gate_for_order_id from payload
- * updateClinicalNote: appends prior body to edit_history (BLD-4.5)
+ * BLD-6.1: Added 3 AI audit trail fields to all seeds (null/[]).
+ * BLD-6.4: updateClinicalNote extended to persist AI audit diff when ai_drafted=true.
  */
 
 import type { ClinicId, ClinicalNote } from '../types';
@@ -17,6 +18,7 @@ import { can } from '@/lib/permissions';
 
 // ---------------------------------------------------------------------------
 // Seeds — 13 notes across both clinics
+// BLD-6.1: All seeds carry null AI audit trail fields (populated by BLD-6.4 on sign-off).
 // ---------------------------------------------------------------------------
 
 export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
@@ -37,6 +39,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['clinical_check', 'reorder'],
     visibility: 'clinical_team',
   },
@@ -56,6 +61,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['intake', 'initial_review'],
     visibility: 'clinical_team',
   },
@@ -81,6 +89,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['escalation', 'follow_up'],
     visibility: 'clinical_team',
   },
@@ -102,6 +113,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['clinical_check', 'reorder'],
     visibility: 'clinical_team',
   },
@@ -121,6 +135,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['dose_escalation'],
     visibility: 'clinical_team',
   },
@@ -142,6 +159,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['intake', 'initial_review'],
     visibility: 'clinical_team',
   },
@@ -163,6 +183,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['quarterly_review'],
     visibility: 'clinical_team',
   },
@@ -182,6 +205,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['admin', 'consent'],
     visibility: 'clinical_team',
   },
@@ -203,6 +229,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['adverse_event', 'monitoring'],
     visibility: 'clinical_team',
   },
@@ -224,6 +253,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['intake'],
     visibility: 'clinical_team',
   },
@@ -243,6 +275,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['monitoring', 'follow_up'],
     visibility: 'clinical_team',
   },
@@ -262,6 +297,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['admin'],
     visibility: 'clinical_team',
   },
@@ -281,6 +319,9 @@ export const MOCK_CLINICAL_NOTES: ClinicalNote[] = [
     ai_draft_accepted_at: null,
     ai_draft_edited_by: null,
     ai_prompt_version_id: null,
+    ai_draft_original: null,
+    ai_draft_edits: [],
+    final_note: null,
     tags: ['g6pd', 'lab_result'],
     visibility: 'clinical_team',
   },
@@ -311,9 +352,9 @@ export async function getClinicalNote(clinicId: ClinicId, noteId: string): Promi
 }
 
 /**
- * createClinicalNote — BLD-4.2
+ * createClinicalNote — BLD-4.2 + BLD-6.2 (AI audit trail on creation)
  * 3-layer chain:
- *   Layer 1 (UI): ClinicalNoteEditor enforces role + minChars before calling
+ *   Layer 1 (UI): ClinicalNoteEditor / AINoteDraftingModal enforces role + minChars before calling
  *   Layer 2 (server): role + minChars re-checked here
  *   Layer 3 (audit): [AUDIT] on success AND failure
  */
@@ -326,6 +367,14 @@ export async function createClinicalNote(
     approval_gate_for_order_id: string | null;
     tags?: string[];
     visibility?: ClinicalNote['visibility'];
+    // BLD-6.2 AI audit fields (optional — null when not AI-drafted)
+    ai_drafted?: boolean;
+    ai_draft_original?: string | null;
+    ai_draft_edits?: ClinicalNote['ai_draft_edits'];
+    final_note?: string | null;
+    ai_draft_accepted_at?: string | null;
+    ai_draft_edited_by?: string | null;
+    ai_prompt_version_id?: string | null;
   },
 ): Promise<ClinicalNote> {
   await delay();
@@ -345,6 +394,8 @@ export async function createClinicalNote(
     throw new APIError('SAFETY_VIOLATION', `Clinical note must be at least ${minChars} characters`);
   }
 
+  const aiDrafted = payload.ai_drafted ?? false;
+
   const note: ClinicalNote = {
     id: `NOTE-${String(MOCK_CLINICAL_NOTES.length + 1).padStart(5, '0')}`,
     patient_id: payload.patient_id,
@@ -357,10 +408,14 @@ export async function createClinicalNote(
     updated_at: NOW,
     edit_history: [],
     approval_gate_for_order_id: payload.approval_gate_for_order_id,
-    ai_drafted: false,
-    ai_draft_accepted_at: null,
-    ai_draft_edited_by: null,
-    ai_prompt_version_id: null,
+    ai_drafted: aiDrafted,
+    ai_draft_accepted_at: payload.ai_draft_accepted_at ?? null,
+    ai_draft_edited_by: payload.ai_draft_edited_by ?? null,
+    ai_prompt_version_id: payload.ai_prompt_version_id ?? null,
+    // BLD-6.1 — AI audit trail
+    ai_draft_original: payload.ai_draft_original ?? null,
+    ai_draft_edits: payload.ai_draft_edits ?? [],
+    final_note: aiDrafted ? payload.body : null,
     tags: payload.tags ?? [],
     visibility: payload.visibility ?? 'clinical_team',
   };
@@ -369,23 +424,27 @@ export async function createClinicalNote(
 
   // Layer 3 — audit
   console.log('[AUDIT]', {
-    event_type: 'clinical_note_created',
-    outcome: 'success',
-    actor_id: CURRENT_USER.id,
-    note_id: note.id,
-    patient_id: note.patient_id,
-    clinic_id: clinicId,
-    approval_gate: note.approval_gate_for_order_id,
-    body_length: note.body.length,
-    timestamp: NOW,
+    event_type:     'clinical_note_created',
+    outcome:        'success',
+    actor_id:       CURRENT_USER.id,
+    note_id:        note.id,
+    patient_id:     note.patient_id,
+    clinic_id:      clinicId,
+    approval_gate:  note.approval_gate_for_order_id,
+    body_length:    note.body.length,
+    ai_drafted:     note.ai_drafted,
+    prompt_version: note.ai_prompt_version_id,
+    timestamp:      NOW,
   });
 
   return note;
 }
 
 /**
- * updateClinicalNote — BLD-4.5
- * Appends prior body to edit_history before saving.
+ * updateClinicalNote — BLD-4.5 + BLD-6.4
+ * BLD-4.5: Appends prior body to edit_history before saving.
+ * BLD-6.4: When ai_drafted=true on the note, compute diff, append to ai_draft_edits,
+ *           update final_note. [AUDIT] with event_type 'ai_clinical_note_saved'.
  * 3-layer chain same as create.
  */
 export async function updateClinicalNote(
@@ -421,6 +480,11 @@ export async function updateClinicalNote(
     throw new APIError('SAFETY_VIOLATION', 'You may only edit your own clinical notes');
   }
 
+  // BLD-6.4 — AI diff tracking: if this note was AI-drafted, append to ai_draft_edits
+  const newAiDraftEdits = existing.ai_drafted && payload.body !== existing.body
+    ? [...existing.ai_draft_edits, { edited_at: NOW, prev_body: existing.body, new_body: payload.body }]
+    : existing.ai_draft_edits;
+
   const updated: ClinicalNote = {
     ...existing,
     body: payload.body,
@@ -429,20 +493,27 @@ export async function updateClinicalNote(
       ...existing.edit_history,
       { edited_at: NOW, edited_by: CURRENT_USER.id, previous_body: existing.body },
     ],
+    // BLD-6.4: update final_note and ai_draft_edits if AI-drafted
+    ai_draft_edits: newAiDraftEdits,
+    final_note: existing.ai_drafted ? payload.body : existing.final_note,
   };
 
   MOCK_CLINICAL_NOTES[idx] = updated;
 
   // Layer 3 — audit
+  const eventType = existing.ai_drafted ? 'ai_clinical_note_saved' : 'clinical_note_updated';
   console.log('[AUDIT]', {
-    event_type:  'clinical_note_updated',
-    outcome:     'success',
-    actor_id:    CURRENT_USER.id,
-    note_id:     noteId,
-    clinic_id:   clinicId,
-    body_length: updated.body.length,
-    edit_count:  updated.edit_history.length,
-    timestamp:   NOW,
+    event_type:     eventType,
+    outcome:        'success',
+    actor_id:       CURRENT_USER.id,
+    note_id:        noteId,
+    clinic_id:      clinicId,
+    body_length:    updated.body.length,
+    edit_count:     updated.edit_history.length,
+    ai_drafted:     updated.ai_drafted,
+    prompt_version: updated.ai_prompt_version_id,
+    edits_count:    updated.ai_draft_edits.length,
+    timestamp:      NOW,
   });
 
   return updated;

@@ -7,15 +7,10 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { DashboardView } from "@/components/dashboard/DashboardView";
 import {
   getClinic,
-  getClinicalCheckQueue,
-  listPatients,
-  listOrders,
-  listComplaints,
-  listConsultations,
-  listIncidents,
   listClinicalEscalationFlags,
+  CURRENT_USER,
 } from "@/lib/api/mock";
-import type { ClinicId } from "@/types";
+import type { ClinicId, ClinicalEscalationFlag } from "@/types";
 
 type DashboardPageProps = { params: Promise<{ clinic_id: string }> };
 
@@ -41,47 +36,16 @@ async function DashboardContent({ clinicId }: { clinicId: ClinicId }) {
     const clinic = await getClinic(clinicId);
     const coachingEnabled = clinic.config.coaching_enabled;
 
-    const fetches: Promise<unknown>[] = [
-      getClinicalCheckQueue(clinicId),
-      listPatients(clinicId),
-      listOrders(clinicId),
-      listComplaints(clinicId),
-      listConsultations(clinicId),
-      listIncidents(clinicId),
-    ];
-
-    if (coachingEnabled) {
-      fetches.push(listClinicalEscalationFlags(clinicId, { status: "open" }));
-    }
-
-    const results = await Promise.all(fetches);
-    const clinicalQueue   = results[0] as Awaited<ReturnType<typeof getClinicalCheckQueue>>;
-    const patients        = results[1] as Awaited<ReturnType<typeof listPatients>>;
-    const orders          = results[2] as Awaited<ReturnType<typeof listOrders>>;
-    const complaints      = results[3] as Awaited<ReturnType<typeof listComplaints>>;
-    const consultations   = results[4] as Awaited<ReturnType<typeof listConsultations>>;
-    const incidents       = results[5] as Awaited<ReturnType<typeof listIncidents>>;
-    const openEscalations = coachingEnabled
-      ? (results[6] as Awaited<ReturnType<typeof listClinicalEscalationFlags>>)
+    const openEscalations: ClinicalEscalationFlag[] = coachingEnabled
+      ? await listClinicalEscalationFlags(clinicId, { status: "open" })
       : [];
-
-    const patientNames: Record<string, string> = Object.fromEntries(
-      patients.map((p) => [p.id, p.demographic.full_name])
-    );
 
     return (
       <DashboardView
         clinicId={clinicId}
-        clinic={clinic}
-        orders={orders}
-        clinicalQueue={clinicalQueue}
-        complaints={complaints}
-        consultations={consultations}
-        incidents={incidents}
-        patients={patients}
-        patientNames={patientNames}
         coachingEnabled={coachingEnabled}
-        openEscalationCount={openEscalations.length}
+        openEscalations={openEscalations}
+        currentUserRoles={CURRENT_USER.roles}
       />
     );
   } catch (err) {

@@ -69,7 +69,7 @@ async function ProfileContent({
 
     const showCoachingTab = coachingEnabled;
     const d   = patient.demographic;
-    const age = formatAge(d.dob);
+    const age = String(formatAge(d.dob));
     const hasB4 = patient.flags.some((f) => f.code === "B4");
 
     // ── Tab labels ────────────────────────────────────────────────────────────

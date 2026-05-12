@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { addCoachingLog } from "@/lib/api/mock";
+import { addCoachingLog, raiseClinicalEscalation } from "@/lib/api/mock";
 import { CURRENT_USER } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
-import type { ClinicId, CoachingLog } from "@/types";
+import type { ClinicId, CoachingLog, ClinicalEscalationFlag } from "@/types";
 
 interface Props {
   clinicId: ClinicId;
@@ -34,20 +34,27 @@ const STATUSES = [
   { value: "cancelled", label: "Cancelled" },
 ] as const;
 
+const SEVERITIES: { value: ClinicalEscalationFlag["severity"]; label: string }[] = [
+  { value: "high",   label: "High — immediate prescriber review required" },
+  { value: "medium", label: "Medium — review within SLA" },
+  { value: "low",    label: "Low — for prescriber awareness" },
+];
+
 export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel }: Props) {
   const today = NOW.slice(0, 16); // "YYYY-MM-DDTHH:MM"
 
-  const [entryType, setEntryType]             = useState<CoachingLog["entry_type"]>("check_in");
-  const [entryDate, setEntryDate]             = useState(today);
-  const [scheduledDate, setScheduledDate]     = useState(today);
-  const [useScheduledDate, setUseScheduledDate] = useState(true);
-  const [duration, setDuration]               = useState("");
-  const [modality, setModality]               = useState<string>("phone");
-  const [summary, setSummary]                 = useState("");
-  const [nextAction, setNextAction]           = useState("");
-  const [status, setStatus]                   = useState<CoachingLog["status"]>("completed");
-  const [loading, setLoading]                 = useState(false);
-  const [error, setError]                     = useState<string | null>(null);
+  const [entryType, setEntryType]                 = useState<CoachingLog["entry_type"]>("check_in");
+  const [entryDate, setEntryDate]                 = useState(today);
+  const [scheduledDate, setScheduledDate]         = useState(today);
+  const [useScheduledDate, setUseScheduledDate]   = useState(true);
+  const [duration, setDuration]                   = useState("");
+  const [modality, setModality]                   = useState<string>("phone");
+  const [summary, setSummary]                     = useState("");
+  const [nextAction, setNextAction]               = useState("");
+  const [status, setStatus]                       = useState<CoachingLog["status"]>("completed");
+  const [escalationSeverity, setEscalationSeverity] = useState<ClinicalEscalationFlag["severity"]>("medium");
+  const [loading, setLoading]                     = useState(false);
+  const [error, setError]                         = useState<string | null>(null);
 
   // ── 3-layer client-side safety check (server also validates) ──────────────
   function validatePermissions(): string | null {
@@ -71,21 +78,52 @@ export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel 
 
     setLoading(true);
     try {
+      if (entryType === "escalation") {
+        // 1. Raise the clinical escalation flag FIRST.
+        //    If this fails, we surface the error and do NOT create the log.
+        const flag = await raiseClinicalEscalation(clinicId, {
+          patient_id:       patientId,
+          coaching_log_id:  "", // placeholder — log id not yet known
+          severity:         escalationSeverity,
+          description:      summary.trim(),
+        });
+
+        // 2. Create the coaching log entry referencing the new flag.
+        const log = await addCoachingLog(clinicId, {
+          patient_id:                   patientId,
+          coach_id:                     CURRENT_USER.id,
+          entry_type:                   entryType,
+          entry_date:                   new Date(entryDate).toISOString(),
+          scheduled_date:               null,
+          duration_minutes:             null,
+          modality:                     null,
+          summary:                      summary.trim(),
+          next_action:                  nextAction.trim() || null,
+          status,
+          clinical_escalation_flag_id:  flag.id,
+          consultation_id:              null,
+        });
+
+        onSuccess(log);
+        return;
+      }
+
+      // ── Non-escalation entry ─────────────────────────────────────────────
       const log = await addCoachingLog(clinicId, {
-        patient_id: patientId,
-        coach_id:   CURRENT_USER.id,
-        entry_type: entryType,
-        entry_date: new Date(entryDate).toISOString(),
-        scheduled_date: useScheduledDate && entryType !== "note" && entryType !== "escalation"
+        patient_id:                   patientId,
+        coach_id:                     CURRENT_USER.id,
+        entry_type:                   entryType,
+        entry_date:                   new Date(entryDate).toISOString(),
+        scheduled_date: useScheduledDate && entryType !== "note"
           ? new Date(scheduledDate).toISOString()
           : null,
-        duration_minutes: duration ? parseInt(duration, 10) : null,
-        modality: modality as CoachingLog["modality"] || null,
-        summary: summary.trim(),
-        next_action: nextAction.trim() || null,
+        duration_minutes:             duration ? parseInt(duration, 10) : null,
+        modality:                     modality as CoachingLog["modality"] || null,
+        summary:                      summary.trim(),
+        next_action:                  nextAction.trim() || null,
         status,
-        clinical_escalation_flag_id: null,
-        consultation_id: null,
+        clinical_escalation_flag_id:  null,
+        consultation_id:              null,
       });
       onSuccess(log);
     } catch (err) {
@@ -137,6 +175,23 @@ export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel 
           </select>
         </div>
       </div>
+
+      {/* Escalation severity — shown only for escalation type */}
+      {entryType === "escalation" && (
+        <div>
+          <label className={labelCls}>Escalation severity *</label>
+          <select
+            className={inputCls}
+            value={escalationSeverity}
+            onChange={(e) => setEscalationSeverity(e.target.value as ClinicalEscalationFlag["severity"])}
+            required
+          >
+            {SEVERITIES.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Dates */}
       <div className="grid grid-cols-2 gap-3">
@@ -208,11 +263,17 @@ export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel 
 
       {/* Summary */}
       <div>
-        <label className={labelCls}>Summary * (min 20 chars)</label>
+        <label className={labelCls}>
+          {entryType === "escalation" ? "Clinical concern description * (min 20 chars)" : "Summary * (min 20 chars)"}
+        </label>
         <textarea
           className={`${inputCls} resize-y`}
           rows={4}
-          placeholder="Brief clinical narrative of the session…"
+          placeholder={
+            entryType === "escalation"
+              ? "Describe the clinical concern in full…"
+              : "Brief clinical narrative of the session…"
+          }
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           required
@@ -233,11 +294,11 @@ export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel 
         />
       </div>
 
-      {/* Escalation note */}
+      {/* Escalation warning banner */}
       {entryType === "escalation" && (
         <div className="rounded-md bg-err-bg border border-err-bdr px-3 py-2.5 text-[12px] text-err">
-          <strong>Escalation entry:</strong> saving this log will raise a clinical escalation flag
-          and notify the prescriber. Please ensure the summary fully describes the clinical concern.
+          <strong>Escalation:</strong> this will create a coaching log entry AND raise a clinical
+          escalation flag, notifying prescribers and admins.
         </div>
       )}
 
@@ -256,7 +317,7 @@ export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel 
           disabled={loading}
           className="px-4 py-2 text-[13px] font-semibold text-white bg-brand rounded-md hover:bg-brand-dark transition-colors disabled:opacity-50"
         >
-          {loading ? "Saving…" : "Save entry"}
+          {loading ? "Saving…" : entryType === "escalation" ? "Raise escalation" : "Save entry"}
         </button>
       </div>
     </form>

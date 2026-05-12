@@ -33,6 +33,7 @@ const DEFAULT_SLAS: ClinicConfig['default_slas'] = {
   coach_escalation_response_wh: 24, // Coach Clinical Escalation prescriber response (working hours)
   welcome_call_wd: 5,               // Welcome Call (working days from registration completion)
   initial_coaching_call_days: 7,    // Initial Coaching Call (calendar days from first dispatch)
+  coaching_overdue_days: 35,        // Overdue check-in threshold (calendar days since last log)
 };
 
 // ---------------------------------------------------------------------------

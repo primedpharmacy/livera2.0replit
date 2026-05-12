@@ -10,12 +10,17 @@
  *   3. Ownership: patient.coach_id === caller.id
  *
  * FCM stub: console.info('[FCM]', userIds, payload)
+ * Audit: one [AUDIT] entry per FCM recipient (event_type 'fcm_notification_sent').
+ *
+ * acknowledgeClinicalEscalation / resolveClinicalEscalation:
+ *   Allowed roles: Prescriber and Admin only. Owner and RM excluded per Wave 2 scope.
  */
 
 import type { ClinicId, ClinicalEscalationFlag } from '../types';
 import { delay, scopedToClinic, CURRENT_USER, NOW } from '../constants';
 import { getClinicSync } from './clinics';
 import { getPatient } from './patients';
+import { getPrescriberAndAdminIds } from './users';
 import { addWorkingHours } from '@/lib/utils/workingHours';
 import { can } from '@/lib/permissions';
 
@@ -134,23 +139,36 @@ export async function raiseClinicalEscalation(
   MOCK_ESCALATION_FLAGS.push(flag);
 
   console.info('[AUDIT]', {
-    action: 'clinical_escalation.raised',
+    event_type: 'clinical_escalation.raised',
     flag_id: flag.id,
     patient_id: flag.patient_id,
-    coach_id: flag.raised_by_coach_id,
+    actor: CURRENT_USER.id,
     severity: flag.severity,
     clinic_id,
-    timestamp: new Date().toISOString(),
+    timestamp: NOW,
   });
 
-  // ── FCM stub — notify all Prescribers + Owner at the clinic ─────────────
-  const userIds = ['user_qadir']; // placeholder; Wave 11 will query team roster
+  // ── FCM stub — query all Prescribers + Admins at this clinic ─────────────
+  const recipientIds = getPrescriberAndAdminIds(clinic_id);
   const payload = {
     title: `Clinical escalation — ${data.severity.toUpperCase()}`,
     body: `Patient ${data.patient_id}: ${data.description.slice(0, 80)}...`,
     flag_id: flag.id,
   };
-  console.info('[FCM]', userIds, payload);
+  console.info('[FCM]', recipientIds, payload);
+
+  // ── Audit log entry per recipient ────────────────────────────────────────
+  for (const recipientId of recipientIds) {
+    console.info('[AUDIT]', {
+      event_type: 'fcm_notification_sent',
+      actor: 'system',
+      target_user_id: recipientId,
+      entity: 'clinical_escalation_flag',
+      entity_id: flag.id,
+      clinic_id,
+      timestamp: NOW,
+    });
+  }
 
   return flag;
 }
@@ -161,11 +179,11 @@ export async function acknowledgeClinicalEscalation(
 ): Promise<ClinicalEscalationFlag> {
   await delay(300);
 
-  // ── Layer 1: role check (Owner or Prescriber) ────────────────────────────
+  // ── Layer 1: role check — Prescriber and Admin only ─────────────────────
   const hasRole = CURRENT_USER.roles.some((r) =>
-    ['Owner', 'Prescriber', 'Admin', 'RM'].includes(r)
+    ['Prescriber', 'Admin'].includes(r)
   );
-  if (!hasRole) throw new Error('FORBIDDEN: insufficient role to acknowledge escalation');
+  if (!hasRole) throw new Error('FORBIDDEN: only Prescriber or Admin may acknowledge escalations');
 
   // ── Layer 2: coaching_enabled gate ──────────────────────────────────────
   const clinic = getClinicSync(clinic_id);
@@ -183,11 +201,11 @@ export async function acknowledgeClinicalEscalation(
   flag.acknowledged_at = NOW;
 
   console.info('[AUDIT]', {
-    action: 'clinical_escalation.acknowledged',
+    event_type: 'clinical_escalation.acknowledged',
     flag_id,
-    user_id: CURRENT_USER.id,
+    actor: CURRENT_USER.id,
     clinic_id,
-    timestamp: new Date().toISOString(),
+    timestamp: NOW,
   });
 
   return flag;
@@ -200,11 +218,11 @@ export async function resolveClinicalEscalation(
 ): Promise<ClinicalEscalationFlag> {
   await delay(300);
 
-  // ── Layer 1: role check ──────────────────────────────────────────────────
+  // ── Layer 1: role check — Prescriber and Admin only ─────────────────────
   const hasRole = CURRENT_USER.roles.some((r) =>
-    ['Owner', 'Prescriber', 'Admin', 'RM'].includes(r)
+    ['Prescriber', 'Admin'].includes(r)
   );
-  if (!hasRole) throw new Error('FORBIDDEN: insufficient role to resolve escalation');
+  if (!hasRole) throw new Error('FORBIDDEN: only Prescriber or Admin may resolve escalations');
 
   // ── Layer 2: coaching_enabled gate ──────────────────────────────────────
   const clinic = getClinicSync(clinic_id);
@@ -223,11 +241,11 @@ export async function resolveClinicalEscalation(
   flag.resolution_notes = resolution_notes;
 
   console.info('[AUDIT]', {
-    action: 'clinical_escalation.resolved',
+    event_type: 'clinical_escalation.resolved',
     flag_id,
-    user_id: CURRENT_USER.id,
+    actor: CURRENT_USER.id,
     clinic_id,
-    timestamp: new Date().toISOString(),
+    timestamp: NOW,
   });
 
   return flag;

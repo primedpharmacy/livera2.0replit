@@ -16,6 +16,7 @@ import {
   Clock,
 } from "lucide-react";
 import Link from "next/link";
+import { NOW } from "@/lib/api/constants";
 import type { Consultation, ClinicalEscalationFlag, ClinicId } from "@/types";
 import type { CoachKpi, RosterRow } from "@/app/(workspace)/[clinic_id]/coach/page";
 
@@ -27,6 +28,7 @@ interface Props {
   todaySessions: Consultation[];
   openEscalations: ClinicalEscalationFlag[];
   coachName: string;
+  overdueThresholdDays: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -57,14 +59,18 @@ function kpiVariant(n: number, d: number, goodThreshold: number, warnThreshold: 
   return "err";
 }
 
-function rosterStatus(row: RosterRow): { label: string; cls: string } {
+function rosterStatus(
+  row: RosterRow,
+  overdueThresholdDays: number
+): { label: string; cls: string } {
   if (row.hasOpenEscalation)
     return { label: "Escalated", cls: "bg-err-bg text-err border-err-bdr" };
   if (!row.lastLog)
     return { label: "New", cls: "bg-slate-100 text-t3 border-bdr" };
   const daysSinceLog =
-    (Date.now() - new Date(row.lastLog.entry_date).getTime()) / (1000 * 60 * 60 * 24);
-  if (daysSinceLog > 35)
+    (new Date(NOW).getTime() - new Date(row.lastLog.entry_date).getTime()) /
+    (1000 * 60 * 60 * 24);
+  if (daysSinceLog > overdueThresholdDays)
     return { label: "Overdue", cls: "bg-warn-bg text-warn border-warn-bdr" };
   return { label: "On track", cls: "bg-ok-bg text-ok border-ok-bdr" };
 }
@@ -137,11 +143,21 @@ export function CoachDashboardClient({
   todaySessions,
   openEscalations,
   coachName,
+  overdueThresholdDays,
 }: Props) {
   if (!coachingEnabled) return <LockedState />;
 
   const k1Variant = kpiVariant(kpis.initial_call_within_7d.n, kpis.initial_call_within_7d.d, 0.8, 0.6);
   const k3Variant = kpiVariant(kpis.escalation_sla_met.n, kpis.escalation_sla_met.d, 0.9, 0.7);
+
+  // Overdue check-ins: patients with last log > threshold days ago, no open escalation
+  const overdueRoster = roster.filter((row) => {
+    if (!row.lastLog || row.hasOpenEscalation) return false;
+    const daysSinceLog =
+      (new Date(NOW).getTime() - new Date(row.lastLog.entry_date).getTime()) /
+      (1000 * 60 * 60 * 24);
+    return daysSinceLog > overdueThresholdDays;
+  });
 
   return (
     <>
@@ -224,7 +240,7 @@ export function CoachDashboardClient({
                 </thead>
                 <tbody>
                   {roster.map((row) => {
-                    const { label, cls } = rosterStatus(row);
+                    const { label, cls } = rosterStatus(row, overdueThresholdDays);
                     const ModalityIcon = row.lastLog?.modality
                       ? MODALITY_ICON[row.lastLog.modality]
                       : null;
@@ -350,6 +366,51 @@ export function CoachDashboardClient({
               )}
             </div>
 
+            {/* Overdue check-ins */}
+            {overdueRoster.length > 0 && (
+              <div className="bg-surface rounded-xl border border-warn-bdr overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-warn-bdr bg-warn-bg">
+                  <h2 className="text-sm font-semibold text-warn flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Overdue check-ins
+                  </h2>
+                  <span className="text-xs font-bold text-white bg-warn px-2 py-px rounded-full">
+                    {overdueRoster.length}
+                  </span>
+                </div>
+                <div className="flex flex-col divide-y divide-bdr">
+                  {overdueRoster.map((row) => {
+                    const daysSinceLog = row.lastLog
+                      ? Math.floor(
+                          (new Date(NOW).getTime() - new Date(row.lastLog.entry_date).getTime()) /
+                            (1000 * 60 * 60 * 24)
+                        )
+                      : null;
+                    return (
+                      <Link
+                        key={row.patient.id}
+                        href={`/${clinicId}/patients/${row.patient.id}?tab=coaching`}
+                        className="flex items-start gap-3 px-4 py-3 hover:bg-page-bg transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-t1 truncate">
+                            {row.patient.demographic.full_name}
+                          </p>
+                          <p className="text-[11px] text-t3 font-mono">{row.patient.id}</p>
+                        </div>
+                        {daysSinceLog !== null && (
+                          <span className="text-[11px] font-semibold text-warn shrink-0">
+                            {daysSinceLog}d ago
+                          </span>
+                        )}
+                        <ChevronRight className="w-4 h-4 text-t3 shrink-0 mt-0.5" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Open escalations */}
             {openEscalations.length > 0 && (
               <div className="bg-surface rounded-xl border border-err-bdr overflow-hidden">
@@ -358,7 +419,7 @@ export function CoachDashboardClient({
                     <ShieldAlert className="w-4 h-4" />
                     Open escalations
                   </h2>
-                  <span className="text-xs font-bold text-err bg-err text-white px-2 py-px rounded-full">
+                  <span className="text-xs font-bold text-white bg-err px-2 py-px rounded-full">
                     {openEscalations.length}
                   </span>
                 </div>

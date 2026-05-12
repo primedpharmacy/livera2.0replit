@@ -58,6 +58,7 @@ async function CoachContent({ clinicId }: { clinicId: ClinicId }) {
         todaySessions={[]}
         openEscalations={[]}
         coachName={CURRENT_USER.full_name}
+      overdueThresholdDays={clinic.config.default_slas.coaching_overdue_days}
       />
     );
   }
@@ -190,6 +191,7 @@ async function CoachContent({ clinicId }: { clinicId: ClinicId }) {
       todaySessions={todaySessions}
       openEscalations={openEscalations}
       coachName={CURRENT_USER.full_name}
+      overdueThresholdDays={clinic.config.default_slas.coaching_overdue_days}
     />
   );
 }

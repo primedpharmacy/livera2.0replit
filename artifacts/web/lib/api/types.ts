@@ -109,6 +109,7 @@ export type ClinicConfig = {
     coach_escalation_response_wh: number;  // default 24 (working hours)
     welcome_call_wd: number;               // default 5 (working days)
     initial_coaching_call_days: number;    // default 7 (calendar days)
+    coaching_overdue_days: number;         // default 35 (calendar days since last log)
   };
 
   // Monday integration (BLD-1.3, DEC-29, DEC-37)

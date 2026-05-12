@@ -39,6 +39,9 @@ Each wave prompt will say "Build BLD-X, BLD-Y, BLD-Z." Replit Agent must:
 4. Apply the 3-layer safety chain (§3.2 rule 4) on every safety-critical mutation.
 5. Stop and flag if anything in the prompt contradicts a DEC.
 6. Push to GitHub. Claude Code on Mac will audit. Lock the wave only after audit sign-off.
+7. **Minimal means minimal.** When a BLD says "minimal" or "light touch" or "just the X", the file added must be a small file. If you find yourself writing more than ~100 lines for a "minimal" component, STOP and ask before continuing.
+8. **NEVER commit wave work to local main.** Create a local feature branch (wave-N-shortname) before any changes. Push only that branch to GitHub. Local main mirrors GitHub main and should only move when GitHub main moves.
+9. **Spec-first wave prompts.** Wave prompts must quote PRODUCT_VISION.md §8 chunk content verbatim, not paraphrase. If the planned wave needs scope beyond what §8 says, update §8 first (separate doc commit), then draft the wave prompt against the updated doc.
 
 ### Monday API access
 
@@ -664,23 +667,85 @@ The Monday tracker organises work into 16 chunks plus governance/discovery items
 
 ---
 
-### CHUNK 3 — Patient Lifecycle SLAs and Expiry (P0)
+### CHUNK 3 — SLA Infrastructure (P0)
+
+6 items.
+
+| BLD | Title | Tag | Complexity | Status |
+|-----|-------|-----|------------|--------|
+| BLD-3.1 | SLA timer widget — pure presentational, clinic-config-driven thresholds, works against any sla_deadline + warn_at | NEW-BUILD | M | Built |
+| BLD-3.2 | SLA breach detection — mock cron, creates SlaBreach records, dedup-safe, audited per breach | NEW-BUILD | M | Built |
+| BLD-3.3 | Dashboard SLA breach banner — Coach-hidden, red/amber differentiation, light-touch addition to DashboardView | NEW-BUILD | S | Built |
+| BLD-3.4 | Per-clinic SLA threshold config UI — Admin-only, server-persisted, 3-layer safety chain on save | NEW-BUILD | M | Built |
+| BLD-3.5 | Monday board write integration — writeSlaBreach stub behind LIVERA_MONDAY_LIVE feature flag, wired into detectSlaBreaches | NEW-BUILD | S | Built |
+| BLD-3.6 | Patient-facing SLA copy customisable per clinic (DEC-35) — clinic_config.patient_sla_copy, rendered in patient-facing surfaces | NEW-BUILD | S | Built (schema); patient-facing consumer in Wave 5 GP Letters |
+
+**Architecture notes:**
+- SLA timer widget is service-agnostic. Wave 5 GP Letters and Wave 6 Incidents wire their entity-specific SLAs through the same widget — no widget changes needed downstream.
+- The breach detection cron currently scans orders. Wave 6 extends it to coaching_escalation + gp_letter entity types (separate BLD).
+- The Monday board write currently fires on order SLA breaches. Wave 6 extends to incident severity escalations.
+
+**Working-hours arithmetic:** SLA deadlines computed via `addWorkingHours()` from Wave 2 BLD-2.7. Skips weekends + `clinic_config.holiday_calendar`.
+
+---
+
+### CHUNK 4 — Clinical Notes Infrastructure (P0)
 
 7 items.
 
 | BLD | Title | Tag | Complexity | Status |
 |-----|-------|-----|------------|--------|
-| BLD-3.1 | Intervention 7-working-day SLA timer + breach auto-flag | NEW-BUILD | M | Proto done |
-| BLD-3.2 | GP letter 48h SLA timer + breach auto-flag | NEW-BUILD | M | Proto done |
-| BLD-3.3 | Order Expiry auto-transition at 6 calendar days | NEW-BUILD | M | Not started |
-| BLD-3.4 | Expired tab on Orders Queue (SCR-009) | NEW-BUILD | S | Proto done |
-| BLD-3.5 | On expiry: release Ryft auth + Omnisend template + log event | NEW-BUILD | M | Not started |
-| BLD-3.6 | Four-scenario dispatch date calculator (DEC-15) | NEW-BUILD | M | Proto done |
-| BLD-3.7 | UK public holiday calendar — Settings sub-screen | NEW-BUILD | M | Proto done |
+| BLD-4.1 | `clinical_note` entity — 17 fields including 4 AI scaffolding fields (ai_drafted, ai_draft_accepted_at, ai_draft_edited_by, ai_prompt_version_id) for Wave 4 BLD-6.5 | NEW-BUILD | M | Built |
+| BLD-4.2 | Clinical Note editor — textarea with live char counter, clinic-config-driven min chars (default 40), 3-layer safety chain | NEW-BUILD | M | Built |
+| BLD-4.3 | Unified Notes timeline — adapter pattern (clinical_note + coaching_log + order_event + gp_letter), role-aware filtering, sortable by occurred_at desc | NEW-BUILD | M | Built |
+| BLD-4.4 | Mandatory clinical note on order approval — hard gate, 3-layer safety chain (UI gate + server gate + audit log) | NEW-BUILD | M | Built |
+| BLD-4.5 | Note edit history audit trail — edit_history array on clinical_note, written by updateClinicalNote, displayed in editor | NEW-BUILD | S | Built |
+| BLD-4.6 | Note search/filter on timeline — client-side filter by type, date range, author | NEW-BUILD | S | Built |
+| BLD-4.7 | AUD-04 clinical notes CSV export — Admin/Owner only, audited per attempt, foundation for Wave 12 BLD-12.5 | NEW-BUILD | M | Built |
 
-**Dispatch calculator inputs:** `order_at`, `delivery_type ('standard'|'next_day'|'timed')`, holiday calendar.
-**Outputs:** `dispatch_date`, `delivery_date`.
-Holiday calendar pre-loaded UK public holidays + configurable per clinic.
+**Architecture notes:**
+- AI scaffolding fields are null/false in Wave 3. Wave 4 BLD-6.5 (AI Note Drafting) populates them when AI drafts → reviewed/edited by prescriber → saved.
+- The timeline adapter pattern is the template for all future timeline entry types. New entries (Admin Note in Chunk 4.5, Welcome Call notes in Chunk 11) extend by adding one adapter file each — no timeline component changes.
+- The gp_letter adapter is fully functional and pulls from existing `gp_letter` fixtures. Wave 5 GP Letters extends gp_letter content; the timeline display already works.
+- BLD-4.4 hard gate satisfies CQC clinical reasoning documentation requirement before clinical decisions.
+
+**Mandatory note rule:** A `clinical_note` record with `approval_gate_for_order_id === order.id` and `body.length >= clinic_config.clinical_note_min_chars` MUST exist before `approveOrder` succeeds. Enforced at all three layers.
+
+---
+
+### CHUNK 4.5 — Admin Notes (P1, deferred to Wave 5)
+
+3 items. Originally part of PV V1.1 Chunk 4 — separated from clinical infrastructure during Wave 3 reconciliation.
+
+| BLD | Title | Tag | Complexity | Status |
+|-----|-------|-----|------------|--------|
+| BLD-4.5.1 | `admin_note` entity — 9 fields, non-clinical operational notes (handoffs, follow-up reminders, admin context) | NEW-BUILD | S | Not started |
+| BLD-4.5.2 | Admin Note FAB modal on Patient Profile — quick-entry interface for operational notes | NEW-BUILD | M | Not started |
+| BLD-4.5.3 | Admin Note timeline adapter — extends Wave 3 BLD-4.3 timeline with blue lane entries | NEW-BUILD | S | Not started |
+
+**Notes:**
+- Admin notes are distinct from clinical notes — no min-char gate, no AI drafting, no hard gate on order approval. Authorable by Admin and Owner.
+- Adds the 5th timeline adapter to the Wave 3 BLD-4.3 aggregateTimeline.
+- Visible to all roles except Coach (Coach sees only coaching_log + gp_letter per Wave 3 §2.3.2 role filter).
+- Timeline 3-colour scheme (Clinical green / Admin blue / Coaching purple) lands when this chunk ships.
+
+Built in Wave 5 alongside Chunk 7 GP Letters.
+
+---
+
+### CHUNK 4.6 — Patient Lifecycle Expiry (P0, deferred to Wave 4)
+
+7 items. Originally part of PV V1.1 Chunk 3 — separated from SLA infrastructure during Wave 3 reconciliation. These BLDs ship in Wave 4 alongside Chunk 5 Amendments because they share order lifecycle state.
+
+| BLD | Title | Tag | Complexity | Status |
+|-----|-------|-----|------------|--------|
+| BLD-4.6.1 | Intervention 7-working-day SLA wiring — uses Wave 3 BLD-3.1 widget, Wave 3 BLD-3.2 breach detection | BUILT-AMEND | S | Foundation in Wave 3 |
+| BLD-4.6.2 | GP letter 48h SLA wiring — uses Wave 3 BLD-3.1 widget + BLD-3.2 breach detection | BUILT-AMEND | S | Foundation in Wave 3 |
+| BLD-4.6.3 | Order expiry auto-transition at 6 calendar days | NEW-BUILD | M | Not started |
+| BLD-4.6.4 | Expired tab on Orders Queue (SCR-009) | NEW-BUILD | S | Proto done |
+| BLD-4.6.5 | On expiry: release Ryft auth + Omnisend "Order expired" template + activity_log entry | NEW-BUILD | M | Not started |
+| BLD-4.6.6 | Four-scenario dispatch date calculator (DEC-15) | NEW-BUILD | M | Proto done |
+| BLD-4.6.7 | UK public holiday calendar Settings sub-screen — UI for the `clinic_config.holiday_calendar` already loaded in Wave 1 | NEW-BUILD | M | Proto done |
 
 **Order expiry rule:** Six calendar days from creation. On expiry:
 1. Status transitions to `expired`
@@ -690,26 +755,10 @@ Holiday calendar pre-loaded UK public holidays + configurable per clinic.
 
 **Payment copy rule (critical):** Never say "refund" for declined or expired orders. Use "order released" / "no charge taken."
 
----
+**Dispatch calculator inputs:** `order_at`, `delivery_type ('standard'|'next_day'|'timed')`, holiday calendar.
+**Outputs:** `dispatch_date`, `delivery_date`.
 
-### CHUNK 4 — Notes Timeline + Admin Notes (P0)
-
-5 items.
-
-| BLD | Title | Tag | Complexity | Status |
-|-----|-------|-----|------------|--------|
-| BLD-4.1 | `admin_note` entity — 9 fields | NEW-BUILD | S | Not started |
-| BLD-4.2 | Admin Note entry form modal (Patient Profile FAB) | NEW-BUILD | M | Proto done |
-| BLD-4.3 | Unified Notes timeline — Clinical (green) + Admin (blue) + Coaching (purple, FeelTru) | BUILT-AMEND | M | Proto done |
-| BLD-4.4 | Remove 'General' option from clinical note authoring UI | BUILT-AMEND | S | Not started |
-| BLD-4.5 | General-type migration — `deprecated_general_type` flag | BUILT-AMEND | S | Not started |
-
-**Filters on timeline:** All / Clinical / Admin / Coaching.
-
-**General-type migration (V1.2 §4.3.5):**
-- Existing `clinical_note` records with `note_type='General'` are preserved with `deprecated_general_type=true`
-- New clinical_note records cannot be `General` — option removed from UI
-- Audit-3 exports filter on the flag (legacy_general_type records not counted in completeness scoring)
+Holiday calendar pre-loaded UK public holidays + configurable per clinic.
 
 ---
 
@@ -1685,9 +1734,9 @@ Build in waves. Each wave: prompt → build → push → audit → lock. Do not 
 |------|-------|----------------|
 | **Wave 1** | Chunk 1 Foundations (BLD-1.1 through 1.7) | Blocks everything; clinic_config must be right first |
 | **Wave 2** | Chunk 2 Coach Surface (BLD-2.1 through 2.9) | Coach role + RBAC + Dashboard + coaching_log |
-| **Wave 3** | Chunk 3 SLAs + Chunk 4 Notes (BLD-3.1 through 4.5) | Patient lifecycle plumbing + unified timeline |
-| **Wave 4** | Chunk 5 Amendment alignment + Chunk 6 AI Note Drafting (BLDs 5/6) | Locks DEC-01 in code; AI surfaces (BLD-6.5 governance first) |
-| **Wave 5** | Chunk 7 GP Letters (BLD-7.1 through 7.7) + DEC-22 consent workflow | Critical-path PDF generation (BLD-7.2) |
+| **Wave 3** | Chunk 3 SLA Infrastructure + Chunk 4 Clinical Notes Infrastructure (BLD-3.1 through 4.7) | Patient lifecycle SLA plumbing + unified notes timeline + AI scaffolding for Wave 4 |
+| **Wave 4** | Chunk 5 Amendment alignment + Chunk 4.6 Patient Lifecycle Expiry + Chunk 6 AI Note Drafting (BLDs 5/4.6/6) | Locks DEC-01 in code; order expiry uses Wave 3 SLA infrastructure; AI surfaces (BLD-6.5 governance first) |
+| **Wave 5** | Chunk 7 GP Letters (BLD-7.1 through 7.7) + Chunk 4.5 Admin Notes + DEC-22 consent workflow | Critical-path PDF generation (BLD-7.2); admin notes extend Wave 3 timeline |
 | **Wave 6** | Chunk 8 Incidents + Chunk 9 Complaints (DEC-37 Monday-mirror) | Locks DEC-37 / DEC-10 source-of-truth |
 | **Wave 7** | Chunk 10 Women-only filter + Chunk 11 Royal Mail (DEC-14/16) | DEC-16 data purge is hard-deadline GDPR |
 | **Wave 8** | Chunk 13 V1.2 critical gap closure (BLD-13.1 through 13.5) | Tasks, Welcome calls, questionnaire builder |

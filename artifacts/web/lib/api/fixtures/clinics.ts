@@ -254,6 +254,14 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
         welcome_calls_enabled: true,               // always true per DEC-34
         ai_clinical_note_drafting_enabled: true,
       },
+
+      // Rule-engine stubs — [] until Chunks 13/16a/17 land
+      flag_rules: [],
+      treatment_gap_rules: [],
+      dose_escalation_rules: [],
+      primed_flag_rules: [],
+      questionnaire_order: [],
+      questionnaire_reorder: [],
     },
   },
 
@@ -354,6 +362,14 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
         welcome_calls_enabled: true,               // always true per DEC-34
         ai_clinical_note_drafting_enabled: true,
       },
+
+      // Rule-engine stubs — [] until Chunks 13/16a/17 land
+      flag_rules: [],
+      treatment_gap_rules: [],
+      dose_escalation_rules: [],
+      primed_flag_rules: [],
+      questionnaire_order: [],
+      questionnaire_reorder: [],
     },
   },
 };

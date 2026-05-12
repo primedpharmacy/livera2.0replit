@@ -1,55 +1,32 @@
-import { Suspense } from "react";
-import { LoadingState } from "@/components/shared/LoadingState";
-import { DashboardView } from "@/components/dashboard/DashboardView";
-import {
-  getClinic,
-  getClinicalCheckQueue,
-  listOrders,
-  listComplaints,
-  listConsultations,
-  listIncidents,
-  listPatients,
-} from "@/lib/api/mock";
-import type { ClinicId } from "@/types";
+import { Home } from "lucide-react";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { Breadcrumb } from "@/components/shell/Breadcrumb";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type Props = { params: Promise<{ clinic_id: string }> };
+type DashboardPageProps = { params: Promise<{ clinic_id: string }> };
 
-export default async function DashboardPage({ params }: Props) {
-  const { clinic_id } = await params;
+export default async function DashboardPage({ params }: DashboardPageProps) {
+  await params;
   return (
-    <Suspense key={clinic_id} fallback={<LoadingState.Detail />}>
-      <DashboardContent clinicId={clinic_id as ClinicId} />
-    </Suspense>
-  );
-}
-
-async function DashboardContent({ clinicId }: { clinicId: ClinicId }) {
-  const [clinic, orders, clinicalQueue, complaints, consultations, incidents, patients] =
-    await Promise.all([
-      getClinic(clinicId),
-      listOrders(clinicId),
-      getClinicalCheckQueue(clinicId),
-      listComplaints(clinicId),
-      listConsultations(clinicId),
-      listIncidents(clinicId),
-      listPatients(clinicId),
-    ]);
-
-  const patientNames = Object.fromEntries(
-    patients.map((p) => [p.id, p.demographic.full_name])
-  );
-
-  return (
-    <DashboardView
-      clinicId={clinicId}
-      clinic={clinic}
-      orders={orders}
-      clinicalQueue={clinicalQueue}
-      complaints={complaints}
-      consultations={consultations}
-      incidents={incidents}
-      patients={patients}
-      patientNames={patientNames}
-    />
+    <>
+      <Breadcrumb items={[{ label: "Dashboard" }]} />
+      <PageHeader
+        icon={Home}
+        title="Dashboard"
+        subtitle="Overview of activity across the clinic"
+      />
+      <div className="p-6">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="text-base">Coming soon</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-t2">
+              Dashboard widgets will appear here in Mini-wave 5.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

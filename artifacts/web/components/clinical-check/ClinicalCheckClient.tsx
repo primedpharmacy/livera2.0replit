@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Stethoscope, AlertTriangle } from "lucide-react";
 import { OrderListTable } from "@/components/orders/OrderListTable";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { NOW } from "@/lib/api/constants";
 import type { Order, Clinic } from "@/types";
 
 type SubTab = "all" | "awaiting_photos" | "g6_flagged" | "reorders";
@@ -24,7 +25,7 @@ interface ClinicalCheckClientProps {
 export function ClinicalCheckClient({ orders, clinic, clinicId }: ClinicalCheckClientProps) {
   const [activeTab, setActiveTab] = useState<SubTab>("all");
 
-  const now = Date.now();
+  const now = new Date(NOW).getTime();
 
   const warnCount = orders.filter((o) => {
     const warnAt   = new Date(o.sla_warn_at).getTime();

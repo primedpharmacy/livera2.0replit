@@ -1,16 +1,9 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { LoadingState } from "@/components/shared/LoadingState";
-import { CoachDashboardClient } from "@/components/schedule/CoachDashboardClient";
-import {
-  getClinic,
-  listConsultations,
-  listPatients,
-  listCoachingLogs,
-  listOrders,
-} from "@/lib/api/mock";
+import { getClinic, listConsultations, listPatients } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
 import type { ClinicId } from "@/types";
+import { CoachDashboardClient } from "@/components/schedule/CoachDashboardClient";
+import { LoadingState } from "@/components/shared/LoadingState";
 
 type Props = { params: Promise<{ clinic_id: string }> };
 
@@ -25,31 +18,33 @@ export default async function CoachPage({ params }: Props) {
 
 async function CoachContent({ clinicId }: { clinicId: ClinicId }) {
   const clinic = await getClinic(clinicId);
+  const coachingEnabled = clinic.config.coaching_enabled;
 
-  if (!clinic.config.coaching_enabled) {
-    redirect(`/${clinicId}/dashboard`);
+  if (!coachingEnabled) {
+    return (
+      <CoachDashboardClient
+        clinicId={clinicId}
+        coachingEnabled={false}
+        upcomingSessions={[]}
+        pastSessions={[]}
+        patients={[]}
+      />
+    );
   }
 
-  const [allConsultations, patients, coachingLogs, orders] = await Promise.all([
+  const [allConsultations, patients] = await Promise.all([
     listConsultations(clinicId, { type: "coaching" }),
     listPatients(clinicId),
-    listCoachingLogs(clinicId),
-    listOrders(clinicId),
   ]);
 
-  const WEEK_END = "2026-05-17T23:59:59Z";
-
+  const now = NOW;
   const upcomingSessions = allConsultations
-    .filter((c) => c.scheduled_start >= NOW && c.status === "scheduled")
+    .filter((c) => c.scheduled_start >= now && c.status === "scheduled")
     .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start));
 
   const pastSessions = allConsultations
     .filter((c) => c.status === "completed")
     .sort((a, b) => b.scheduled_start.localeCompare(a.scheduled_start));
-
-  const thisWeekSessions = upcomingSessions.filter(
-    (s) => s.scheduled_start <= WEEK_END
-  );
 
   return (
     <CoachDashboardClient
@@ -57,10 +52,7 @@ async function CoachContent({ clinicId }: { clinicId: ClinicId }) {
       coachingEnabled={true}
       upcomingSessions={upcomingSessions}
       pastSessions={pastSessions}
-      thisWeekSessions={thisWeekSessions}
       patients={patients}
-      coachingLogs={coachingLogs}
-      orders={orders}
     />
   );
 }

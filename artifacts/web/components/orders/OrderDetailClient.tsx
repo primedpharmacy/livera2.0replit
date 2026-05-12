@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, CURRENT_USER } from "@/lib/api/mock";
+import { decideOrder, CURRENT_USER, NOW } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import type { Order, Patient, Clinic, ClinicId } from "@/types";
 import { DCard, Row, Metric, EmptyPane } from "./orderPrimitives";
@@ -87,7 +87,7 @@ export function OrderDetailClient({ initialOrder, patient, clinic, clinicId }: O
   const d             = patient.demographic;
   const age           = formatAge(d.dob);
   const hasB4         = patient.flags.some((f) => f.code === "B4");
-  const now           = Date.now();
+  const now           = new Date(NOW).getTime();
   const warnAt        = new Date(order.sla_warn_at).getTime();
   const breachAt      = new Date(order.sla_breach_at).getTime();
   const slaBreached   = now > breachAt;

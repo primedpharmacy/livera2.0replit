@@ -158,6 +158,15 @@ export type ClinicConfig = {
     welcome_calls_enabled: boolean;                // always true at V1 per DEC-34
     ai_clinical_note_drafting_enabled: boolean;    // gated by BLD-6.5 sign-off
   };
+
+  // Rule-engine stubs — concrete types added in Chunks 13/16a/17
+  // Both clinic fixtures seed these with [] until the rule types land.
+  flag_rules: unknown[];            // G6 flag evaluation rules (Chunk 16a)
+  treatment_gap_rules: unknown[];   // Treatment gap rules (Chunk 13)
+  dose_escalation_rules: unknown[]; // Dose escalation protocol (Chunk 13)
+  primed_flag_rules: unknown[];     // Primed flag mirror rules (Chunk 17)
+  questionnaire_order: unknown[];   // New-patient questionnaire config (Chunk 13)
+  questionnaire_reorder: unknown[]; // Reorder questionnaire config (Chunk 13)
 };
 
 // --- Clinic (outer entity) ---

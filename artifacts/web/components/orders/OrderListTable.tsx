@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { NOW } from "@/lib/api/constants";
 import {
   Table,
   TableBody,
@@ -26,7 +27,7 @@ export function OrderListTable({ orders, clinicId, clinic }: OrderListTableProps
   const router = useRouter();
 
   const withTint = useMemo(() => {
-    const now = Date.now();
+    const now = new Date(NOW).getTime();
     return orders.map((order) => {
       let tint = "";
       if (order.status === "clinical_check") {
@@ -102,7 +103,7 @@ export function OrderListTable({ orders, clinicId, clinic }: OrderListTableProps
 }
 
 function SLACell({ order, clinic }: { order: Order; clinic: Clinic }) {
-  const now = Date.now();
+  const now = new Date(NOW).getTime();
   const warnAt = new Date(order.sla_warn_at).getTime();
   const breachAt = new Date(order.sla_breach_at).getTime();
 

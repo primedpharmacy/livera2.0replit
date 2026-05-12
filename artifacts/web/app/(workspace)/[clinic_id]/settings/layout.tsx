@@ -13,10 +13,7 @@ type SettingsLayoutProps = {
 };
 
 const TABS = [
-  { key: "team",    label: "Team & roles",     path: "team" },
-  { key: "general", label: "General",           path: "general" },
-  { key: "slas",    label: "SLAs",              path: "slas" },
-  { key: "consents",label: "Consents",          path: "consents" },
+  { key: "team", label: "Team & roles", path: "team" },
 ] as const;
 
 export default async function SettingsLayout({ children, params }: SettingsLayoutProps) {

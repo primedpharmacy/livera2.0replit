@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Megaphone, Search } from "lucide-react";
+import { Megaphone } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatDate } from "@/lib/format";
@@ -17,15 +17,12 @@ import {
 } from "@/components/ui/table";
 import type { Complaint, Patient, Clinic, ClinicId } from "@/types";
 
-const NOW = new Date("2026-05-12T08:00:00Z");
-
 type Filter = Complaint["status"] | "all";
-type SevFilter = Complaint["severity"] | "all";
 
 const SEV_COLORS: Record<string, string> = {
-  low:    "bg-ok-bg text-ok border border-ok-bdr",
+  low: "bg-ok-bg text-ok border border-ok-bdr",
   medium: "bg-warn-bg text-warn border border-warn-bdr",
-  high:   "bg-err-bg text-err border border-err-bdr",
+  high: "bg-err-bg text-err border border-err-bdr",
 };
 
 interface Props {
@@ -38,109 +35,42 @@ interface Props {
 export function ComplaintsView({ initialComplaints, patients, clinicId }: Props) {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
-  const [sevFilter, setSevFilter] = useState<SevFilter>("all");
-  const [search, setSearch] = useState("");
 
   const patientMap = Object.fromEntries(patients.map((p) => [p.id, p]));
 
-  const openComplaints    = initialComplaints.filter((c) => !["resolved", "closed"].includes(c.status));
-  const overdueAck        = initialComplaints.filter((c) => !c.acknowledgement_sent_at && new Date(c.acknowledgement_due_at) < NOW);
-  const highSeverity      = initialComplaints.filter((c) => c.severity === "high");
-  const mondaySynced      = initialComplaints.filter((c) => c.sync_status === "in_sync");
+  const filtered =
+    activeFilter === "all"
+      ? initialComplaints
+      : initialComplaints.filter((c) => c.status === activeFilter);
 
-  const kpis = [
-    { label: "Open",           value: openComplaints.length, sub: "active cases",        alert: openComplaints.length > 0 },
-    { label: "Overdue ack",    value: overdueAck.length,     sub: "acknowledgement SLA",  alert: overdueAck.length > 0 },
-    { label: "High severity",  value: highSeverity.length,   sub: "cases",                alert: highSeverity.length > 0 },
-    { label: "Monday synced",  value: mondaySynced.length,   sub: `of ${initialComplaints.length} total`, alert: false },
-    { label: "Total",          value: initialComplaints.length, sub: "all time",          alert: false },
+  const filters: { key: Filter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "received", label: "Received" },
+    { key: "acknowledged", label: "Acknowledged" },
+    { key: "investigating", label: "Investigating" },
+    { key: "resolved", label: "Resolved" },
+    { key: "closed", label: "Closed" },
   ];
 
-  const statusFilters: { key: Filter; label: string }[] = [
-    { key: "all",            label: "All" },
-    { key: "received",       label: "Received" },
-    { key: "acknowledged",   label: "Acknowledged" },
-    { key: "investigating",  label: "Investigating" },
-    { key: "resolved",       label: "Resolved" },
-    { key: "closed",         label: "Closed" },
-  ];
-
-  const sevFilters: { key: SevFilter; label: string }[] = [
-    { key: "all",    label: "All severity" },
-    { key: "high",   label: "High" },
-    { key: "medium", label: "Medium" },
-    { key: "low",    label: "Low" },
-  ];
-
-  const filtered = initialComplaints.filter((c) => {
-    const matchStatus = activeFilter === "all" || c.status === activeFilter;
-    const matchSev    = sevFilter === "all" || c.severity === sevFilter;
-    const q           = search.toLowerCase();
-    const patient     = c.patient_id ? patientMap[c.patient_id] : null;
-    const matchSearch = !q ||
-      c.id.toLowerCase().includes(q) ||
-      c.subject.toLowerCase().includes(q) ||
-      (patient?.demographic.full_name.toLowerCase().includes(q) ?? false);
-    return matchStatus && matchSev && matchSearch;
-  });
+  const now = new Date();
 
   return (
     <div>
-      {/* KPI strip */}
-      <div className="grid grid-cols-5 gap-px bg-bdr border-b border-bdr">
-        {kpis.map((k) => (
-          <div key={k.label} className={cn("bg-surface px-5 py-3.5 flex flex-col gap-1", k.alert && "bg-err-bg")}>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-t2">{k.label}</span>
-            <span className={cn("text-[22px] font-bold leading-none tabular-nums", k.alert ? "text-err" : "text-t1")}>
-              {k.value}
-            </span>
-            <span className={cn("text-[10px] font-semibold", k.alert ? "text-err" : "text-t3")}>{k.sub}</span>
-          </div>
+      <div className="px-6 py-2 flex items-center gap-1 border-b border-bdr bg-surface">
+        {filters.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setActiveFilter(f.key)}
+            className={cn(
+              "px-3 py-1 text-[12px] font-medium rounded-md transition-colors",
+              activeFilter === f.key
+                ? "bg-brand text-white"
+                : "text-t2 hover:bg-brand-light hover:text-brand"
+            )}
+          >
+            {f.label}
+          </button>
         ))}
-      </div>
-
-      {/* Filter row */}
-      <div className="px-6 py-2.5 flex items-center gap-3 border-b border-bdr bg-surface flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-t3" />
-          <input
-            type="text"
-            placeholder="Search complaints…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-[12px] border border-bdr rounded-md bg-page-bg focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand text-t1 placeholder:text-t3 w-52"
-          />
-        </div>
-        <div className="flex items-center gap-1">
-          {statusFilters.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setActiveFilter(f.key)}
-              className={cn(
-                "px-3 py-1 text-[12px] font-medium rounded-md transition-colors",
-                activeFilter === f.key ? "bg-brand text-white" : "text-t2 hover:bg-brand-light hover:text-brand"
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1 ml-auto">
-          {sevFilters.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setSevFilter(f.key)}
-              className={cn(
-                "px-2.5 py-1 text-[11px] font-medium rounded-md border transition-colors",
-                sevFilter === f.key
-                  ? "bg-t1 text-white border-t1"
-                  : "text-t2 border-bdr hover:border-brand hover:text-brand"
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="px-6 py-4">
@@ -162,9 +92,9 @@ export function ComplaintsView({ initialComplaints, patients, clinicId }: Props)
               </TableHeader>
               <TableBody>
                 {filtered.map((complaint) => {
-                  const patient    = complaint.patient_id ? patientMap[complaint.patient_id] : null;
-                  const ackDue     = new Date(complaint.acknowledgement_due_at);
-                  const ackOverdue = !complaint.acknowledgement_sent_at && NOW > ackDue;
+                  const patient = complaint.patient_id ? patientMap[complaint.patient_id] : null;
+                  const ackDue = new Date(complaint.acknowledgement_due_at);
+                  const ackOverdue = !complaint.acknowledgement_sent_at && now > ackDue;
                   return (
                     <TableRow
                       key={complaint.id}

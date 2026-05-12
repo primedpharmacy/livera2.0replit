@@ -95,10 +95,12 @@ When in doubt, ask before deviating from any locked DEC.
   - Audit fix commit b8554f51 on wave-2-coach-surface: BLD-2.5 escalation BLOCKER, BLD-2.8 DashboardView BLOCKER, NOW drift, types/index.ts ClinicalEscalationFlag barrel, age:string cast — tsc zero errors
 - ✅ Wave 3 — Chunk 3 SLA Infrastructure + Chunk 4 Clinical Notes Infrastructure (LOCKED, commit cfffe2d): BLD-3.1–3.6, BLD-4.1–4.7. SLA timer widget, breach detection cron, breach banner, threshold config UI, Monday wiring, patient SLA copy schema, clinical_note entity (17 fields incl. 4 AI scaffolding fields for Wave 4 BLD-6.5), Clinical Note editor with hard gate on order approval, unified Notes timeline with 4 adapters, edit history audit trail, search/filter, AUD-04 export.
   - Audit fix commit 06b63e8 on wave-3-slas-and-clinical-notes: BLOCKER-1 clinical-note gate in decideOrder, BLOCKER-2 delete orphan PatientProfileView, DRIFT-3 [AUDIT] in detectSlaBreaches, DRIFT-4 NOW in clinicalNotesAud04, DRIFT-5 updateClinicSlaThresholds + Admin gate + SlaThresholdEditor wired, DRIFT-6 ClinicalNoteEditor edit-mode + history accordion + PatientNotesTimeline author filter + click-to-edit, DRIFT-7 patient_sla_copy consumer in OrderDetailClient
-- ⏳ Wave 4 — Chunk 5 Amendment alignment + Chunk 4.6 Patient Lifecycle Expiry + Chunk 6 AI Note Drafting (NEXT, awaiting explicit prompt). Chunk 6 BLD-6.5 BLOCKED on Yohan + Claire + Mobeen signing off the AI prompt (spec sent — in their hands).
+- ✅ Wave 4 — Lifecycle Expiry + Amendments + AI Note Drafting (LOCKED, merge commit 403e6db): 15 BLDs delivered — see Wave 4 section below for full detail.
+  - Audit fix commit 7c032cd on wave-4-amendments-expiry-ai: 4 BLOCKERs (BLD-6.2 ApproveConfirmModal, BLD-6.3/6.4 handleDecideWithNote aiData wiring, BLD-4.6.7 role gate, permissions matrix pharmacy_comms/holiday_calendar), low-severity drift — tsc zero errors at merge
 - 🔒 Branch wave-1-foundations retained as audit anchor — do not delete
 - 🔒 Branch wave-2-coach-surface retained as audit anchor — do not delete
 - 🔒 Branch wave-3-slas-and-clinical-notes retained as audit anchor — do not delete
+- 🔒 Branch wave-4-amendments-expiry-ai retained as audit anchor — do not delete
 - 🔒 Branch wave-experimental-coach-and-patient retained (now mostly drained)
 
 ## Authoritative product/design briefs
@@ -125,3 +127,94 @@ After every mini-wave delivery, before marking it locked in this file:
 5. Only after all four checks pass, update the mini-wave status to locked.
 
 Mini-waves are NOT locked based on the build agent's self-report. They are locked based on verified code.
+
+## Wave 4 — Lifecycle Expiry + Amendments + AI Note Drafting ✅ LOCKED
+
+**Merge commit:** 403e6db (merge --no-ff of
+wave-4-amendments-expiry-ai 7c032cd into main 2e21057)
+**Date locked:** 12 May 2026
+**Diff:** 27 files changed, +3,412/-128, 13 new files
+**BLDs delivered (15):** 4.6.1, 4.6.2, 4.6.3, 4.6.4, 4.6.5, 4.6.6,
+4.6.7, 5.1, 5.2, 5.3, 6.1, 6.2, 6.3, 6.4, 6.5
+
+### Capability landed
+
+**Patient Lifecycle Expiry (Chunk 4.6 — 7 BLDs):**
+- Intervention 7-working-day SLA wiring on order detail
+- GP letter 48-hour SLA wiring on letter detail
+- Order expiry 6-calendar-day auto-transition with Ryft release +
+  Omnisend notify + activity log
+- Expired tab on Orders Queue (Option A locked — Active filters
+  out expired)
+- 4-scenario dispatch date calculator (DEC-15)
+- UK public holiday calendar Settings sub-screen (Admin/Owner)
+
+**Amendment Alignment (Chunk 5 — 3 BLDs):**
+- DEC-01 reversal — both clinics show pre_dispensed amendment
+  buttons
+- Amendment Window panel (informational)
+- amendOrder endpoint guards with DEC-28 Pharmacy Comms fork
+  (pre/post Primed clinical check)
+
+**AI Clinical Note Drafting (Chunk 6 — 5 BLDs):**
+- 3 new audit trail fields on ClinicalNote (ai_draft_original,
+  ai_draft_edits, final_note)
+- AINoteDraftingModal with feature flag
+  LIVERA_AI_NOTE_DRAFTING_LIVE (default false)
+- ApproveConfirmModal + DeclineConfirmModal +
+  InterventionConfirmModal — all with mandatory clinical note gate
+  + "Use AI Draft" wiring
+- handleDecideWithNote enforces 3-layer chain (createClinicalNote
+  → decideOrder → audit)
+- Signed-off system prompt v1-2026-05-12 at
+  lib/ai/clinicalNotePrompt.ts (25,592 chars)
+
+### New entities (extends data model)
+
+- PharmacyCommThread + PharmacyCommMessage + PharmacyCommAnchorType
+  (per DEC-23 anchor pattern)
+- holiday_calendar (clinic_config field, server CRUD)
+- expired status (Order status extension)
+
+### Permissions matrix extended (lib/permissions.ts)
+
+- pharmacy_comms: Admin/Owner read+write, Prescriber read, others
+  denied
+- holiday_calendar: Admin/Owner read+write, others read
+
+### Status flow additions (lib/api/types.ts)
+
+- OrderStatus: 'in_dispensing' added
+- Order: intervention_raised_at, expired_at fields added
+- ClinicalNote: 7 AI audit fields total (4 from Wave 3 + 3 from
+  Wave 4)
+
+### Integration stubs (feature-flagged for live wiring)
+
+- ryft.releaseAuth — LIVERA_RYFT_LIVE
+- omnisend.sendTemplate — LIVERA_OMNISEND_LIVE
+- anthropic.generateClinicalNoteDraft — LIVERA_AI_NOTE_DRAFTING_LIVE
+
+### Audit history
+
+- 2 audit cycles (Cycle 1: 4 BLOCKERs + 5 low-severity;
+  Cycle 2: GO)
+- All Cycle 1 BLOCKERs were UI-level wiring gaps (schema + server
+  functions correct on first build, modal callbacks dropped aiData)
+- Mac re-audit at 7c032cd confirmed all fixes; tsc clean at merge
+
+### Deferred to V1.2/V1.5
+
+- BLD-6.2 patient context wiring — AINoteDraftingModal currently
+  uses placeholder data; live AI requires patient + order props
+  threaded through (TODO comment marks file)
+- Consent version sign-off UI (DEC-31)
+- BLD-4.6.5 real Ryft + Omnisend wiring (currently stubs)
+
+### Production gates before LIVERA_AI_NOTE_DRAFTING_LIVE=true
+
+- Claire Moynehan (prescriber) review of prompt content and worked
+  example
+- Patient context wiring (BLD-6.2 deferred item)
+- Anthropic API key configured in environment
+- Sample run on non-production data

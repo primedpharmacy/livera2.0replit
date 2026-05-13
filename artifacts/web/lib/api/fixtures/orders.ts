@@ -26,7 +26,12 @@ const SARAH_ORDER_FEELTRU: Order = {
   type: 'reorder',
   status: 'clinical_check',
   product: { medication: 'Mounjaro', dose: '7.5mg', strength: 'pre-filled pen', plan: '4 weeks' },
-  questionnaire_responses: { weight_today: 84.2, side_effects: 'mild nausea', medication_changes: 'none' },
+  questionnaire_responses: {
+    weight_today: 84.2,
+    side_effects: 'mild nausea',
+    medication_changes: 'none',
+    eating_pattern: 'restrictive',
+  },
   amendment_window: 'pre_dispensed',
   primed_order_id: null,
   primed_clinical_check_completed: false,
@@ -39,6 +44,35 @@ const SARAH_ORDER_FEELTRU: Order = {
   g6_flags: ['B4'],
   intervention_raised_at: null,
   expired_at: null,
+  // BLD-14.3 — NICE CG189 checklist (all confirmed for this dose-escalation order)
+  nice_checklist: [
+    { id: 'nc-1', label: 'BMI \u226527.5 with comorbidity (hypertension confirmed)', checked: true,  checked_by: 'user_claire', checked_at: '2026-05-11T07:10:00Z' },
+    { id: 'nc-2', label: 'Patient willing to receive treatment + monitoring',          checked: true,  checked_by: 'user_claire', checked_at: '2026-05-11T07:10:00Z' },
+    { id: 'nc-3', label: 'No contraindications (pancreatitis / MTC / MEN2)',           checked: true,  checked_by: 'user_claire', checked_at: '2026-05-11T07:11:00Z' },
+    { id: 'nc-4', label: 'Lifestyle conversation documented this cycle',               checked: true,  checked_by: 'user_claire', checked_at: '2026-05-11T07:11:00Z' },
+    { id: 'nc-5', label: 'Reviewed for stop criteria (5% loss at 6 months)',           checked: false },
+  ],
+  // BLD-14.4 — Dose escalation gate (5mg -> 7.5mg, eligible)
+  dose_escalation_gate: {
+    is_dose_escalation: true,
+    from_dose: '5mg',
+    to_dose: '7.5mg',
+    weeks_at_current_dose: 6,
+    weeks_required: 4,
+    weight_loss_pct: 4.1,
+    weight_loss_kg: 3.6,
+    prior_evidence_uploaded: true,
+    evidence_label: 'Reorder Q4 photo (pen pack \xb7 23 Apr 2026)',
+    eligible: true,
+  },
+  // BLD-14.5 — Weight trajectory (last 5 readings)
+  weight_history: [
+    { recorded_at: '2026-01-25T10:00:00Z', weight_kg: 92.5, bmi: 34.0 },
+    { recorded_at: '2026-02-22T10:00:00Z', weight_kg: 91.0, bmi: 33.4 },
+    { recorded_at: '2026-03-22T10:00:00Z', weight_kg: 88.5, bmi: 32.5 },
+    { recorded_at: '2026-04-19T10:00:00Z', weight_kg: 86.2, bmi: 31.7 },
+    { recorded_at: '2026-05-01T10:00:00Z', weight_kg: 84.2, bmi: 30.9 },
+  ],
   created_at: '2026-05-11T06:00:00Z',
   updated_at: NOW,
 };

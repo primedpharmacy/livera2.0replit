@@ -177,7 +177,7 @@ export function ClinicalCheckClient({
             description="Try switching to a different sub-tab."
           />
         ) : (
-          <OrderListTable orders={filtered} clinicId={clinicId} clinic={clinic} />
+          <OrderListTable orders={filtered} clinicId={clinicId} clinic={clinic} showQueueAge />
         )}
       </div>
     </div>

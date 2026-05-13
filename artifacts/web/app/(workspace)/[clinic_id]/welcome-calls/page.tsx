@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { WelcomeCallsClient } from "@/components/welcome-calls/WelcomeCallsClient";
-import { listConsultations, listPatients } from "@/lib/api/mock";
+import { listWelcomeCalls, listPatients } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 type Props = { params: Promise<{ clinic_id: string }> };
@@ -16,7 +16,7 @@ export default async function WelcomeCallsPage({ params }: Props) {
       <PageHeader
         icon={Phone}
         title="Welcome Calls"
-        subtitle="Onboarding calls for new patients"
+        subtitle="2-day onboarding calls for new patients after first dispatch"
       />
       <Suspense key={clinic_id} fallback={<LoadingState.Table />}>
         <WelcomeCallsContent clinicId={clinic_id as ClinicId} />
@@ -27,8 +27,8 @@ export default async function WelcomeCallsPage({ params }: Props) {
 
 async function WelcomeCallsContent({ clinicId }: { clinicId: ClinicId }) {
   try {
-    const [consultations, patients] = await Promise.all([
-      listConsultations(clinicId, { type: "welcome_call" }),
+    const [calls, patients] = await Promise.all([
+      listWelcomeCalls(clinicId),
       listPatients(clinicId),
     ]);
     const patientNames: Record<string, string> = {};
@@ -37,7 +37,7 @@ async function WelcomeCallsContent({ clinicId }: { clinicId: ClinicId }) {
     });
     return (
       <WelcomeCallsClient
-        consultations={consultations}
+        calls={calls}
         patientNames={patientNames}
         clinicId={clinicId}
       />
@@ -45,9 +45,7 @@ async function WelcomeCallsContent({ clinicId }: { clinicId: ClinicId }) {
   } catch (err) {
     return (
       <ErrorState
-        message={
-          err instanceof Error ? err.message : "Failed to load welcome calls"
-        }
+        message={err instanceof Error ? err.message : "Failed to load welcome calls"}
       />
     );
   }

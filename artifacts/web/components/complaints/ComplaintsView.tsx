@@ -19,10 +19,11 @@ import type { Complaint, Patient, Clinic, ClinicId } from "@/types";
 
 type Filter = Complaint["status"] | "all";
 
+// BLD-9.1: severity vocab migrated from low/medium/high → informal/formal/serious
 const SEV_COLORS: Record<string, string> = {
-  low: "bg-ok-bg text-ok border border-ok-bdr",
-  medium: "bg-warn-bg text-warn border border-warn-bdr",
-  high: "bg-err-bg text-err border border-err-bdr",
+  informal: "bg-ok-bg text-ok border border-ok-bdr",
+  formal:   "bg-warn-bg text-warn border border-warn-bdr",
+  serious:  "bg-err-bg text-err border border-err-bdr",
 };
 
 interface Props {
@@ -30,6 +31,19 @@ interface Props {
   patients: Patient[];
   clinicId: ClinicId;
   clinic: Clinic;
+}
+
+// Derive SLA ack due date at render: received_at + 3 working days (PV §8).
+// Due dates are NOT stored on the record (BLD-9.1 schema decision).
+function addWorkingDays(startIso: string, wdCount: number): Date {
+  const d = new Date(startIso);
+  let added = 0;
+  while (added < wdCount) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return d;
 }
 
 export function ComplaintsView({ initialComplaints, patients, clinicId }: Props) {
@@ -82,19 +96,20 @@ export function ComplaintsView({ initialComplaints, patients, clinicId }: Props)
               <TableHeader>
                 <TableRow className="bg-page-bg hover:bg-page-bg border-bdr">
                   <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Complaint</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Patient</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Complainant</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Severity</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Status</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Ack due</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Source</TableHead>
+                  <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Category</TableHead>
                   <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Received</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((complaint) => {
                   const patient = complaint.patient_id ? patientMap[complaint.patient_id] : null;
-                  const ackDue = new Date(complaint.acknowledgement_due_at);
-                  const ackOverdue = !complaint.acknowledgement_sent_at && now > ackDue;
+                  // SLA ack due derived at render from received_at + 3 working days (BLD-9.1)
+                  const ackDue = addWorkingDays(complaint.received_at, 3);
+                  const ackOverdue = !complaint.acknowledged_at && now > ackDue;
                   return (
                     <TableRow
                       key={complaint.id}
@@ -106,13 +121,12 @@ export function ComplaintsView({ initialComplaints, patients, clinicId }: Props)
                     >
                       <TableCell className="py-3">
                         <div className="font-mono text-[11px] font-bold text-t1">{complaint.id}</div>
-                        <div className="text-[11px] text-t2 mt-0.5 truncate max-w-[200px]">{complaint.subject}</div>
+                        <div className="text-[11px] text-t2 mt-0.5 truncate max-w-[200px] capitalize">{complaint.category}</div>
                       </TableCell>
                       <TableCell className="py-3">
-                        {patient ? (
-                          <div className="text-[12px] font-medium text-t1">{patient.demographic.full_name}</div>
-                        ) : (
-                          <span className="text-[12px] text-t3 italic">Anonymous</span>
+                        <div className="text-[12px] font-medium text-t1">{complaint.complainant_name}</div>
+                        {patient && (
+                          <div className="text-[11px] text-t3 mt-0.5">{patient.demographic.full_name}</div>
                         )}
                       </TableCell>
                       <TableCell className="py-3">
@@ -129,12 +143,12 @@ export function ComplaintsView({ initialComplaints, patients, clinicId }: Props)
                       </TableCell>
                       <TableCell className="py-3">
                         <span className={cn("text-[12px]", ackOverdue ? "text-err font-semibold" : "text-t2")}>
-                          {formatDate(complaint.acknowledgement_due_at)}
+                          {formatDate(ackDue.toISOString())}
                           {ackOverdue && " ⚠"}
                         </span>
                       </TableCell>
                       <TableCell className="py-3 text-[12px] text-t2 capitalize">
-                        {complaint.source.replace("_", " ")}
+                        {complaint.category}
                       </TableCell>
                       <TableCell className="py-3 text-[12px] text-t2">{formatDate(complaint.received_at)}</TableCell>
                     </TableRow>

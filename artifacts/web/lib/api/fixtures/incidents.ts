@@ -33,6 +33,8 @@ export const MOCK_INCIDENTS: Incident[] = [
     resolution_notes: null,
     sync_status: 'in_sync',
     created_at: '2026-05-08T09:15:00Z',
+    intercom_thread_url: null,
+    incident_origin: 'manual',
   },
   {
     id: 'INC-002',
@@ -57,6 +59,8 @@ export const MOCK_INCIDENTS: Incident[] = [
     resolution_notes: null,
     sync_status: 'in_sync',
     created_at: '2026-05-09T11:30:00Z',
+    intercom_thread_url: null,
+    incident_origin: 'manual',
   },
   {
     id: 'INC-003',
@@ -81,6 +85,8 @@ export const MOCK_INCIDENTS: Incident[] = [
     resolution_notes: null,
     sync_status: 'out_of_sync',
     created_at: '2026-05-07T14:00:00Z',
+    intercom_thread_url: null,
+    incident_origin: 'manual',
   },
   {
     id: 'INC-004',
@@ -105,6 +111,8 @@ export const MOCK_INCIDENTS: Incident[] = [
     resolution_notes: 'Near miss captured and reviewed. Prescriber briefed. Pre-approval check process reinforced across clinical team.',
     sync_status: 'in_sync',
     created_at: '2026-04-20T10:00:00Z',
+    intercom_thread_url: null,
+    incident_origin: 'manual',
   },
   {
     id: 'INC-005',
@@ -129,6 +137,8 @@ export const MOCK_INCIDENTS: Incident[] = [
     resolution_notes: null,
     sync_status: 'in_sync',
     created_at: '2026-05-01T08:00:00Z',
+    intercom_thread_url: null,
+    incident_origin: 'manual',
   },
 ];
 

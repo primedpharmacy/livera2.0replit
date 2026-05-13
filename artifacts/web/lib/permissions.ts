@@ -22,6 +22,10 @@
  * Wave 5 additions:
  *   - 'admin_notes': Admin/Owner read+write, Prescriber read, Coach NO ACCESS
  *   - 'gp_letter_templates': Admin/Owner write, all roles read
+ *
+ * Wave 6 additions (BLD-9.1):
+ *   - 'complaints': Owner/Admin/RM read+write; Prescriber read; Coach DENIED
+ *   - 'intercom_webhooks': system actor only (no human role write)
  */
 
 import type { User, Clinic, Patient } from '@/lib/api/types';
@@ -54,7 +58,10 @@ export type Resource =
   | 'holiday_calendar'     // Admin/Owner read+write; all others read
   // Wave 5 additions
   | 'admin_notes'          // Admin/Owner write; Prescriber read; Coach NO ACCESS
-  | 'gp_letter_templates'; // Admin/Owner write; all roles read
+  | 'gp_letter_templates'  // Admin/Owner write; all roles read
+  // Wave 6 additions (BLD-9.1)
+  | 'complaints'           // Owner/Admin/RM read+write; Prescriber read; Coach DENIED
+  | 'intercom_webhooks';   // system actor only (no human role write)
 
 // ---------------------------------------------------------------------------
 // Role permission tables
@@ -69,6 +76,7 @@ const PRESCRIBER_READ: Resource[] = [
   'holiday_calendar',     // read for all
   'admin_notes',          // read-only for Prescriber (Wave 5 BLD-4.5.1)
   'gp_letter_templates',  // read for all (Wave 5 BLD-7.6)
+  // complaints already in list above — Prescriber read-only (Wave 6 BLD-9.1)
 ];
 
 const PRESCRIBER_DECIDE: Resource[] = ['orders', 'amendments'];
@@ -79,6 +87,7 @@ const ADMIN_READ: Resource[] = [
   'holiday_calendar',     // Admin can read
   'admin_notes',          // Admin can read (Wave 5 BLD-4.5.1)
   'gp_letter_templates',  // Admin can read (Wave 5 BLD-7.6)
+  'complaints',           // Admin can read (Wave 6 BLD-9.1)
 ];
 
 const COACH_READ: Resource[] = [
@@ -137,6 +146,7 @@ function roleMatrix(
       if (action === 'write'       && resource === 'holiday_calendar')     return true;
       if (action === 'write'       && resource === 'admin_notes')          return true;  // Wave 5 BLD-4.5.1
       if (action === 'write'       && resource === 'gp_letter_templates')  return true;  // Wave 5 BLD-7.6
+      if (action === 'write'       && resource === 'complaints')           return true;  // Wave 6 BLD-9.1
       return false;
 
     // Deprecated roles — no access in V1.2 UI

@@ -767,7 +767,6 @@ function NotesTab({
       <AdminNoteFABModal
         clinicId={clinicId}
         patientId={patientId}
-        onCreated={() => {}}
       />
     </div>
   );

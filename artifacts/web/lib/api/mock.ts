@@ -50,4 +50,6 @@ export * from './fixtures/incidents';
 export * from './fixtures/clinicalNotes';
 export * from './fixtures/slaBreaches';
 export * from './fixtures/pharmacyComms';
+export * from './fixtures/tasks';
+export * from './fixtures/welcomeCalls';
 export * from './jobs/detectOrderExpiry';

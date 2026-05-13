@@ -9,9 +9,25 @@ import {
   getClinic,
   listClinicalEscalationFlags,
   listSlaBreaches,
+  getClinicalCheckQueue,
+  listOrders,
+  listComplaints,
+  listIncidents,
+  listTasks,
+  listWelcomeCalls,
+  listPatients,
   CURRENT_USER,
 } from "@/lib/api/mock";
-import type { ClinicId, ClinicalEscalationFlag, SlaBreach } from "@/types";
+import type {
+  ClinicId,
+  ClinicalEscalationFlag,
+  SlaBreach,
+  Order,
+  Complaint,
+  Incident,
+  Task,
+  WelcomeCall,
+} from "@/types";
 
 type DashboardPageProps = { params: Promise<{ clinic_id: string }> };
 
@@ -37,12 +53,47 @@ async function DashboardContent({ clinicId }: { clinicId: ClinicId }) {
     const clinic = await getClinic(clinicId);
     const coachingEnabled = clinic.config.coaching_enabled;
 
-    const [openEscalations, openSlaBreaches] = await Promise.all([
+    const [
+      openEscalations,
+      openSlaBreaches,
+      clinicalCheckOrders,
+      allOrders,
+      allComplaints,
+      allIncidents,
+      allTasks,
+      allWelcomeCalls,
+      allPatients,
+    ] = await Promise.all([
       coachingEnabled
         ? listClinicalEscalationFlags(clinicId, { status: "open" })
         : Promise.resolve([] as ClinicalEscalationFlag[]),
       listSlaBreaches(clinicId, { status: "open" }),
+      getClinicalCheckQueue(clinicId),
+      listOrders(clinicId),
+      listComplaints(clinicId),
+      listIncidents(clinicId),
+      listTasks(clinicId),
+      listWelcomeCalls(clinicId),
+      listPatients(clinicId),
     ]);
+
+    const patientMap: Record<string, string> = Object.fromEntries(
+      allPatients.map((p) => [p.id, p.demographic.full_name])
+    );
+
+    const openComplaints = allComplaints.filter(
+      (c) => !["resolved", "closed"].includes(c.status)
+    );
+    const recentIncidents = [...allIncidents]
+      .filter((i) => i.status !== "closed")
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, 3);
+    const myTasks = allTasks.filter(
+      (t) => t.owner_user_id === CURRENT_USER.id && t.status !== "done"
+    );
+    const welcomeCallsDue = allWelcomeCalls.filter(
+      (w) => w.status === "awaiting" || w.status === "attempted"
+    );
 
     return (
       <DashboardView
@@ -51,6 +102,13 @@ async function DashboardContent({ clinicId }: { clinicId: ClinicId }) {
         openEscalations={openEscalations}
         openSlaBreaches={openSlaBreaches as SlaBreach[]}
         currentUserRoles={CURRENT_USER.roles}
+        clinicalCheckOrders={clinicalCheckOrders as Order[]}
+        allOrders={allOrders as Order[]}
+        openComplaints={openComplaints as Complaint[]}
+        recentIncidents={recentIncidents as Incident[]}
+        myTasks={myTasks as Task[]}
+        welcomeCallsDue={welcomeCallsDue as WelcomeCall[]}
+        patientMap={patientMap}
       />
     );
   } catch (err) {

@@ -17,6 +17,7 @@ export type Role =
   | 'Admin'
   | 'Prescriber'
   | 'Coach'
+  | 'System'       // BLD-8.3 (Wave 6) — webhook-internal actor; no UI access
   | 'RM'           // deprecated — retained for migration only
   | 'Manager'      // deprecated — retired from UI per V1.2
   | 'Pharmacist'   // deprecated — retired from UI per V1.2
@@ -231,6 +232,11 @@ export type Patient = {
   status: 'new' | 'active' | 'monitoring' | 'suspended';
   vip: boolean;
   coach_id: string | null;  // FeelTru-only — assigned coach (DEC-05)
+  // BLD-8.3 (Wave 6) — Intercom user ID for webhook patient resolution.
+  // Set to Intercom's external_id value when the patient account is created in Intercom.
+  // Used by app/api/webhooks/intercom/route.ts to look up patient from webhook payload.
+  // Optional — null for patients not yet linked to an Intercom contact.
+  intercom_user_id?: string | null;
   created_at: string;
   updated_at: string;
 };

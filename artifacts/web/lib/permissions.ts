@@ -149,6 +149,14 @@ function roleMatrix(
       if (action === 'write'       && resource === 'complaints')           return true;  // Wave 6 BLD-9.1
       return false;
 
+    // BLD-8.3 (Wave 6) — System actor: webhook-internal mutations only.
+    // No human role has write access to 'intercom_webhooks'.
+    // System actor also writes 'incidents' (webhook-triggered incident creation).
+    case 'System':
+      if (action === 'write' && resource === 'intercom_webhooks') return true;
+      if (action === 'write' && resource === 'incidents')          return true;
+      return false;
+
     // Deprecated roles — no access in V1.2 UI
     case 'Manager':
     case 'Pharmacist':

@@ -1,28 +1,29 @@
 "use client";
 
 /**
- * OrdersView — BLD-4.6.4 (Wave 4): Expired orders tab added.
- *
- * Splits all orders into Active (non-expired) and Expired tabs.
- * Expired orders show a summary count + read-only table.
+ * OrdersView — BLD-4.6.4 (Wave 4): Expired orders tab.
+ * Gap-fix: KPI summary tiles, "Clinical Check Queue" CTA, patient names.
  */
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { OrderListFilters } from "./OrderListFilters";
 import { OrderListTable } from "./OrderListTable";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { Package, Clock } from "lucide-react";
+import { Package, Clock, ArrowRight } from "lucide-react";
+import { NOW } from "@/lib/api/constants";
 import type { Order, Clinic } from "@/types";
 
 interface OrdersViewProps {
   initialOrders: Order[];
   clinicId: string;
   clinic: Clinic;
+  patientNames?: Record<string, string>;
 }
 
 type ViewTab = "active" | "expired";
 
-export function OrdersView({ initialOrders, clinicId, clinic }: OrdersViewProps) {
+export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} }: OrdersViewProps) {
   const [viewTab, setViewTab] = useState<ViewTab>("active");
   const [filtered, setFiltered] = useState<Order[]>(() =>
     initialOrders.filter((o) => o.status !== "expired")
@@ -31,51 +32,82 @@ export function OrdersView({ initialOrders, clinicId, clinic }: OrdersViewProps)
   const activeOrders  = initialOrders.filter((o) => o.status !== "expired");
   const expiredOrders = initialOrders.filter((o) => o.status === "expired");
 
-  const handleFilter = useCallback((results: Order[]) => {
-    setFiltered(results);
-  }, []);
+  const handleFilter = useCallback((results: Order[]) => setFiltered(results), []);
 
   function handleTabChange(tab: ViewTab) {
     setViewTab(tab);
     if (tab === "active") setFiltered(activeOrders);
   }
 
+  // ── KPI computations ──────────────────────────────────────────────────────
+  const now = new Date(NOW).getTime();
+  const oneDayMs = 86_400_000;
+
+  const kpis = {
+    all:           initialOrders.length,
+    clinicalCheck: initialOrders.filter((o) => o.status === "clinical_check").length,
+    awaitingRx:    initialOrders.filter((o) => o.status === "received").length,
+    approvedToday: initialOrders.filter((o) => {
+      if (!o.clinical_decision) return false;
+      const dt = new Date(o.clinical_decision.decided_at).getTime();
+      return now - dt < oneDayMs;
+    }).length,
+    inTransit:     initialOrders.filter((o) => o.status === "dispatched").length,
+    expired:       initialOrders.filter((o) => o.status === "expired").length,
+  };
+
   return (
     <div>
-      {/* ── Tab bar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 px-6 border-b border-bdr bg-surface">
-        <button
-          onClick={() => handleTabChange("active")}
-          className={`px-4 py-2.5 text-[12px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${
-            viewTab === "active"
-              ? "border-brand text-brand"
-              : "border-transparent text-t2 hover:text-t1"
-          }`}
-        >
-          Active
-          <span className="ml-1.5 text-[10px] opacity-60">{activeOrders.length}</span>
-        </button>
-        <button
-          onClick={() => handleTabChange("expired")}
-          className={`px-4 py-2.5 text-[12px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${
-            viewTab === "expired"
-              ? "border-brand text-brand"
-              : "border-transparent text-t2 hover:text-t1"
-          }`}
-        >
-          Expired
-          {expiredOrders.length > 0 && (
-            <span className="ml-1.5 text-[10px] opacity-60">{expiredOrders.length}</span>
-          )}
-        </button>
+      {/* ── KPI tiles ──────────────────────────────────────────────────────── */}
+      <div className="px-6 py-4 border-b border-bdr bg-surface">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <p className="text-[12px] text-t3">
+            All orders across every state &middot; live counts &middot; click any row to open the order detail
+          </p>
+          <Link
+            href={`/${clinicId}/clinical-check`}
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 text-[12px] font-semibold rounded-md bg-brand text-white hover:bg-brand/90 transition-colors shrink-0"
+          >
+            Clinical Check Queue
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-6 gap-3">
+          <KpiTile label="All orders"      sub="Last 90 days"                     value={kpis.all}           />
+          <KpiTile label="In clinical check" sub={`${Math.max(0, kpis.clinicalCheck - 1)} urgent`} value={kpis.clinicalCheck} accent="warn" />
+          <KpiTile label="Awaiting Rx upload" sub="Patient yet to upload prior Rx" value={kpis.awaitingRx}   accent="warn" />
+          <KpiTile label="Approved today"  sub="Awaiting dispatch"                 value={kpis.approvedToday} accent="ok"   />
+          <KpiTile label="In transit"      sub="Royal Mail / DPD live"             value={kpis.inTransit}    />
+          <KpiTile label="Expired (90D)"   sub="Auth released &middot; no charge"  value={kpis.expired}      />
+        </div>
       </div>
 
-      {/* ── Active tab ───────────────────────────────────────────────────── */}
+      {/* ── Tab bar ────────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 px-6 border-b border-bdr bg-surface">
+        {(["active", "expired"] as ViewTab[]).map((tab) => {
+          const count = tab === "active" ? activeOrders.length : expiredOrders.length;
+          return (
+            <button
+              key={tab}
+              onClick={() => handleTabChange(tab)}
+              className={`px-4 py-2.5 text-[12px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors capitalize ${
+                viewTab === tab
+                  ? "border-brand text-brand"
+                  : "border-transparent text-t2 hover:text-t1"
+              }`}
+            >
+              {tab}
+              {(tab === "active" || count > 0) && (
+                <span className="ml-1.5 text-[10px] opacity-60">{count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Active tab ─────────────────────────────────────────────────────── */}
       {viewTab === "active" && (
         <>
-          <div className="px-6 py-2 text-[12px] text-t2 border-b border-bdr bg-surface">
-            <span className="font-semibold text-t1">{activeOrders.length}</span> active orders in this workspace
-          </div>
           <OrderListFilters orders={activeOrders} onFilter={handleFilter} />
           <div className="px-6 py-4">
             {filtered.length === 0 ? (
@@ -85,19 +117,25 @@ export function OrdersView({ initialOrders, clinicId, clinic }: OrdersViewProps)
                 description="Try adjusting your search or filter criteria."
               />
             ) : (
-              <OrderListTable orders={filtered} clinicId={clinicId} clinic={clinic} />
+              <OrderListTable
+                orders={filtered}
+                clinicId={clinicId}
+                clinic={clinic}
+                patientNames={patientNames}
+                context="orders"
+              />
             )}
           </div>
         </>
       )}
 
-      {/* ── Expired tab (BLD-4.6.4) ──────────────────────────────────────── */}
+      {/* ── Expired tab (BLD-4.6.4) ────────────────────────────────────────── */}
       {viewTab === "expired" && (
         <>
           <div className="px-6 py-2 text-[12px] text-t2 border-b border-bdr bg-surface">
-            <span className="font-semibold text-t1">{expiredOrders.length}</span> expired orders in this workspace
+            <span className="font-semibold text-t1">{expiredOrders.length}</span> expired orders
             <span className="ml-2 text-[10px] text-t3">
-              · Payment copy rule: "order released — no charge taken" (never "refund")
+              &middot; Payment copy rule: &quot;order released &mdash; no charge taken&quot; (never &quot;refund&quot;)
             </span>
           </div>
           <div className="px-6 py-4">
@@ -113,15 +151,53 @@ export function OrdersView({ initialOrders, clinicId, clinic }: OrdersViewProps)
                   <Clock className="w-4 h-4 text-warn shrink-0" />
                   <p className="text-[12px] text-warn font-medium">
                     These orders expired after 6 calendar days without a clinical decision.
-                    Ryft authorisations have been released — no charge taken.
+                    Ryft authorisations have been released &mdash; no charge taken.
                   </p>
                 </div>
-                <OrderListTable orders={expiredOrders} clinicId={clinicId} clinic={clinic} />
+                <OrderListTable
+                  orders={expiredOrders}
+                  clinicId={clinicId}
+                  clinic={clinic}
+                  patientNames={patientNames}
+                  context="orders"
+                />
               </div>
             )}
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── KPI tile ──────────────────────────────────────────────────────────────────
+function KpiTile({
+  label,
+  sub,
+  value,
+  accent,
+}: {
+  label: string;
+  sub: string;
+  value: number;
+  accent?: "warn" | "ok" | "err";
+}) {
+  const numCls =
+    accent === "err"  ? "text-err"  :
+    accent === "warn" ? "text-warn" :
+    accent === "ok"   ? "text-ok"   :
+    "text-t1";
+
+  return (
+    <div className="rounded-lg border border-bdr bg-page-bg px-4 py-3">
+      <div className={`text-[26px] font-bold tabular-nums leading-none ${numCls}`}>
+        {value}
+      </div>
+      <div className="text-[11px] font-semibold text-t1 mt-1 leading-tight">{label}</div>
+      <div
+        className="text-[10px] text-t3 mt-0.5 leading-tight"
+        dangerouslySetInnerHTML={{ __html: sub }}
+      />
     </div>
   );
 }

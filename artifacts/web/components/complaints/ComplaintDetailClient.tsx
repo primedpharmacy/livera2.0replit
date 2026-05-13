@@ -2,20 +2,23 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Megaphone, RefreshCw, CheckCircle } from "lucide-react";
+import { ArrowLeft, Megaphone, RefreshCw, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  acknowledgeComplaint,
-  updateComplaintStatus,
   syncComplaintFromMonday,
   CURRENT_USER,
   NOW,
 } from "@/lib/api/mock";
-import { can } from "@/lib/permissions";
 import type { Complaint, Clinic, ClinicId } from "@/types";
+
+// Decision E.1 (locked) — Pure read-only mirror per DEC-37.
+// acknowledgeComplaint + updateComplaintStatus exist in fixtures but are NOT
+// called from this UI. Status mutations happen in Monday (source of truth).
+// V1.1: No Acknowledge button, no Update status panel, no investigation textarea.
+// V1.2: May wire Monday-first status mutation if clinics request in-app flow.
 
 interface Props {
   initialComplaint: Complaint;
@@ -32,8 +35,10 @@ const SEV_COLORS: Record<string, string> = {
   serious:  "bg-err-bg text-err border border-err-bdr",
 };
 
-// Derive SLA due dates at render time from received_at.
-// SLAs: 3 working days (ack) / 20 working days (resolution) per PV §8 + clinic_config.default_slas.
+const MONDAY_BASE = "https://primedpharmacy-company.monday.com/boards";
+
+// Derive SLA due dates at render from clinic config — never hardcoded (BLD-9.2/9.3).
+// SLAs: clinic_config.default_slas.complaint_ack_wd / complaint_response_wd per PV §8.
 function addWorkingDays(startIso: string, wdCount: number): Date {
   const d = new Date(startIso);
   let added = 0;
@@ -71,7 +76,6 @@ function SLACard({ label, dueAt, done }: { label: string; dueAt: Date; done: boo
 export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Props) {
   const [complaint, setComplaint] = useState<Complaint>(initialComplaint);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isActing, setIsActing] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
 
   useEffect(() => {
@@ -80,38 +84,15 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
     return () => clearTimeout(t);
   }, [toast]);
 
-  const canManage = can(CURRENT_USER, "write", "complaints");
-  const isTerminal = complaint.status === "resolved" || complaint.status === "closed";
+  // BLD-9.3: SLA values from clinic config — never hardcoded
+  const ackWd  = clinic.config.default_slas.complaint_ack_wd;
+  const resWd  = clinic.config.default_slas.complaint_response_wd;
+  const ackDueAt = addWorkingDays(complaint.received_at, ackWd);
+  const resDueAt = addWorkingDays(complaint.received_at, resWd);
 
-  // SLA due dates derived at render from received_at (not stored on record — BLD-9.1)
-  const ackDueAt = addWorkingDays(complaint.received_at, 3);
-  const resDueAt = addWorkingDays(complaint.received_at, 20);
-
-  async function handleAcknowledge() {
-    setIsActing(true);
-    try {
-      const updated = await acknowledgeComplaint(clinicId, complaint.id);
-      setComplaint(updated);
-      setToast({ message: "Complaint acknowledged", type: "ok" });
-    } catch (err) {
-      setToast({ message: err instanceof Error ? err.message : "Failed", type: "err" });
-    } finally {
-      setIsActing(false);
-    }
-  }
-
-  async function handleStatusUpdate(status: Complaint["status"]) {
-    setIsActing(true);
-    try {
-      const updated = await updateComplaintStatus(clinicId, complaint.id, status);
-      setComplaint(updated);
-      setToast({ message: `Status updated to ${status}`, type: "ok" });
-    } catch (err) {
-      setToast({ message: err instanceof Error ? err.message : "Failed", type: "err" });
-    } finally {
-      setIsActing(false);
-    }
-  }
+  const mondayUrl = complaint.monday_item_id
+    ? `${MONDAY_BASE}/${complaint.monday_board_id}/pulses/${complaint.monday_item_id}`
+    : null;
 
   async function handleSync() {
     setIsSyncing(true);
@@ -137,6 +118,7 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
         </div>
       )}
 
+      {/* Header */}
       <div className="border-b border-bdr px-6 py-3 flex items-center gap-3 bg-surface">
         <Link href={`/${clinicId}/complaints`} className="text-t3 hover:text-t1 transition-colors">
           <ArrowLeft className="w-4 h-4" />
@@ -153,18 +135,39 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
             {complaint.severity.charAt(0).toUpperCase() + complaint.severity.slice(1)}
           </span>
         </div>
+        {/* Resync pulls latest data FROM Monday — acceptable read op per Decision E.1 */}
         {complaint.monday_item_id && (
           <Button size="sm" variant="outline" onClick={handleSync} disabled={isSyncing} className="h-7 text-[12px] gap-1.5">
             <RefreshCw className={cn("w-3.5 h-3.5", isSyncing && "animate-spin")} />
             Resync
           </Button>
         )}
-        {canManage && complaint.status === "received" && (
-          <Button size="sm" onClick={handleAcknowledge} disabled={isActing} className="h-7 text-[12px] gap-1.5">
-            <CheckCircle className="w-3.5 h-3.5" />
-            {isActing ? "Saving…" : "Acknowledge"}
+        {/* Primary action — Open in Monday (BLD-9.3) */}
+        {mondayUrl ? (
+          <a
+            href={mondayUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 h-7 px-3 text-[12px] font-medium rounded-md bg-brand text-white hover:bg-brand-dark transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Open in Monday
+          </a>
+        ) : (
+          <Button size="sm" disabled className="h-7 text-[12px] gap-1.5 opacity-50" title="Pending Monday sync">
+            <ExternalLink className="w-3.5 h-3.5" />
+            Open in Monday
           </Button>
         )}
+      </div>
+
+      {/* DEC-37 source-of-truth note (BLD-9.3) */}
+      <div className="mx-6 mt-4 flex items-start gap-3 bg-info-bg border border-info-bdr rounded-lg px-4 py-3">
+        <Megaphone className="w-4 h-4 text-info shrink-0 mt-0.5" />
+        <p className="text-[12px] text-t2 leading-relaxed">
+          <span className="font-semibold text-t1">Monday.com is the source of truth for complaints (DEC-37).</span>{" "}
+          Investigation, lesson learned, and resolution tracking happen in Monday. This is a read-only summary.
+        </p>
       </div>
 
       <div className="grid grid-cols-3 gap-4 px-6 py-4">
@@ -178,15 +181,17 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
             <p className="text-[13px] text-t1 leading-relaxed whitespace-pre-wrap">{complaint.body}</p>
           </div>
           <div className="bg-surface border border-bdr rounded-lg p-4">
-            <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-3">SLA tracking</h3>
+            <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-3">
+              SLA tracking (ack {ackWd}wd · response {resWd}wd)
+            </h3>
             <div className="grid grid-cols-2 gap-3">
               <SLACard
-                label="Acknowledgement (3 working days)"
+                label={`Acknowledgement (${ackWd} working days)`}
                 dueAt={ackDueAt}
                 done={Boolean(complaint.acknowledged_at)}
               />
               <SLACard
-                label="Resolution (20 working days)"
+                label={`Resolution (${resWd} working days)`}
                 dueAt={resDueAt}
                 done={Boolean(complaint.resolved_at)}
               />
@@ -196,25 +201,6 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
             <div className="bg-surface border border-bdr rounded-lg p-4">
               <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-3">Resolution / Lesson Learned</h3>
               <p className="text-[13px] text-t1 leading-relaxed whitespace-pre-wrap">{complaint.resolution}</p>
-            </div>
-          )}
-          {canManage && !isTerminal && (
-            <div className="bg-surface border border-bdr rounded-lg p-4">
-              <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-3">Update status</h3>
-              <div className="flex gap-2 flex-wrap">
-                {(["investigating", "resolved", "closed"] as const).map((s) => (
-                  <Button
-                    key={s}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleStatusUpdate(s)}
-                    disabled={isActing || complaint.status === s}
-                    className="h-7 text-[12px] capitalize"
-                  >
-                    Mark {s}
-                  </Button>
-                ))}
-              </div>
             </div>
           )}
         </div>

@@ -22,6 +22,7 @@ import type { ClinicId, Complaint, ComplaintSeverity, ComplaintStatus } from '..
 import { delay, APIError, scopedToClinic, CURRENT_USER, NOW } from '../constants';
 import { mondayWrite, mondayRead } from '../monday';
 import { can } from '@/lib/permissions';
+import { getClinicSync } from './clinics';
 
 // ── Seed data — 5 complaints across both clinics ─────────────────────────────
 // All monday_item_id values reference existing MOCK_MONDAY_BOARDS entries.
@@ -165,10 +166,12 @@ export async function getComplaint(clinic_id: ClinicId, id: string): Promise<Com
   return c;
 }
 
-// ── createComplaint — BLD-9.1 stub; BLD-9.4 extends with Monday-first write ──
-// Layer 1 (UI gate): no Livera create UI in V1 — creation driven by Intercom tag per DEC-37
-// Layer 2 (server gate): can() check below
-// Layer 3 (audit): [AUDIT] entry on creation
+// ── createComplaint — BLD-9.4: Monday-first write per DEC-37 ─────────────────
+// Layer 1 (UI gate): no Livera create UI in V1.1 — creation driven by Intercom
+//   tag action per DEC-37. createComplaint is callable from fixtures for testing
+//   but no Livera UI invokes it in V1.1.
+// Layer 2 (server gate): can() check → Monday write first → Livera mirror
+// Layer 3 (audit): [AUDIT] entries for both success and Monday write failure
 export async function createComplaint(
   clinic_id: ClinicId,
   params: {
@@ -178,7 +181,6 @@ export async function createComplaint(
     category: string;
     severity: ComplaintSeverity;
     body: string;
-    monday_board_id: string;  // caller provides clinic_config.monday_complaints_board_id
     source_intercom_tag?: string;
   },
   actor = CURRENT_USER
@@ -190,15 +192,62 @@ export async function createComplaint(
     throw new APIError('PERMISSION_DENIED', `User ${actor.id} cannot write complaints`);
   }
 
-  const id = `CMP-${String(MOCK_COMPLAINTS.length + 1).padStart(3, '0')}`;
+  // Get clinic config — board_id is NEVER hardcoded (BLD-9.4 acceptance criterion b)
+  const clinic = getClinicSync(clinic_id);
+  const board_id = clinic.config.monday_complaints_board_id;
 
-  // NOTE: BLD-9.4 extends this to call mondayWrite FIRST, then use the returned
-  // monday_item_id here. For now monday_item_id is null until BLD-9.4.
+  const id = `CMP-${String(MOCK_COMPLAINTS.length + 1).padStart(3, '0')}`;
+  // Generate Monday item id before write — mondayWrite('create') uses the id we provide
+  // (mondayWrite returns MondayBoardState, not MondayItem — id pre-assigned here)
+  const newMondayItemId = `mbc_new_${String(MOCK_COMPLAINTS.length + 1).padStart(4, '0')}`;
+
+  // Layer 2 continued — Monday-first write per DEC-37
+  // If Monday write fails: audit + throw; do NOT create Livera mirror (avoid orphaned state)
+  try {
+    await mondayWrite(board_id, 'create', {
+      id: newMondayItemId,
+      name: `${params.complainant_name} — ${params.category}`,
+      column_values: {
+        status: 'received',
+        severity: params.severity,
+        // TODO V1.2: Consider locking category to a per-clinic enum if vocabulary stabilises
+        category: params.category,
+        complainant_email: params.complainant_email ?? '',
+        patient_id: params.patient_id ?? '',
+        body: params.body,
+        received_at: NOW,
+        acknowledged_at: '',
+        resolved_at: '',
+        resolution: '',
+        regulator_escalation: '',
+        policy_register_link: '',
+      },
+    });
+  } catch (err) {
+    // Layer 3 — audit on Monday write failure
+    console.log('[AUDIT]', {
+      event_type: 'complaint_create_failed',
+      outcome: 'monday_write_error',
+      actor_id: actor.id,
+      clinic_id,
+      attempted_complaint_id: id,
+      monday_board_id: board_id,
+      error: err instanceof Error ? err.message : String(err),
+      timestamp: NOW,
+    });
+    // Rethrow — no Livera mirror created per DEC-37
+    throw new APIError(
+      'MONDAY_WRITE_FAILED',
+      'Cannot create complaint when Monday is unreachable per DEC-37'
+    );
+  }
+
+  // Monday write succeeded — create Livera mirror record (AFTER successful Monday write)
   const complaint: Complaint = {
     id,
     clinic_id,
-    monday_board_id: params.monday_board_id,
-    monday_item_id: null,
+    monday_board_id: board_id,
+    monday_item_id: newMondayItemId,
     patient_id: params.patient_id ?? null,
     complainant_name: params.complainant_name,
     complainant_email: params.complainant_email ?? null,
@@ -220,22 +269,26 @@ export async function createComplaint(
 
   MOCK_COMPLAINTS.push(complaint);
 
-  // Layer 3 — audit
+  // Layer 3 — audit on success
   console.log('[AUDIT]', {
     event_type: 'complaint_created',
     outcome: 'success',
     actor_id: actor.id,
     clinic_id,
     complaint_id: id,
+    monday_board_id: board_id,
+    monday_item_id: newMondayItemId,
     severity: params.severity,
     category: params.category,
-    monday_item_id: complaint.monday_item_id,
     source_intercom_tag: params.source_intercom_tag ?? null,
     timestamp: NOW,
   });
 
   return complaint;
 }
+
+// ── updateComplaintStatus — V1.1: not called from UI per DEC-37. ──────────────
+// May be wired Monday-first in V1.2 if clinics request in-app status mutation.
 
 // ── acknowledgeComplaint ──────────────────────────────────────────────────────
 export async function acknowledgeComplaint(clinic_id: ClinicId, id: string): Promise<Complaint> {
@@ -266,7 +319,6 @@ export async function acknowledgeComplaint(clinic_id: ClinicId, id: string): Pro
   return c;
 }
 
-// ── updateComplaintStatus ─────────────────────────────────────────────────────
 export async function updateComplaintStatus(
   clinic_id: ClinicId,
   id: string,

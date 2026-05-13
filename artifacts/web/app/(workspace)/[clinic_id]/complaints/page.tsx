@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { Suspense } from "react";
 import { Megaphone } from "lucide-react";
 import { PageHeader } from "@/components/shell/PageHeader";
@@ -5,13 +6,20 @@ import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ComplaintsView } from "@/components/complaints/ComplaintsView";
-import { listComplaints, listPatients, getClinicSync } from "@/lib/api/mock";
+import { listComplaints, listPatients, getClinicSync, CURRENT_USER } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 type Props = { params: Promise<{ clinic_id: string }> };
 
 export default async function ComplaintsPage({ params }: Props) {
   const { clinic_id } = await params;
+
+  // Page-level Coach gate — defence-in-depth (sidebar hides nav; this blocks direct URL access).
+  // Mirrors Wave 5 gp-letter-templates pattern. Coach DENIED per COACH_READ (BLD-9.1).
+  if (CURRENT_USER.roles.includes('Coach')) {
+    redirect(`/${clinic_id}/dashboard`);
+  }
+
   return (
     <div>
       <PageHeader

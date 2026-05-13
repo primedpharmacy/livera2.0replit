@@ -16,17 +16,18 @@ import { PatientNotesTimeline } from "@/components/timeline/PatientNotesTimeline
 import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
 import { AdminNoteFABModal } from "@/components/patients/AdminNoteFABModal";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
+import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import {
   getPatient, listOrders, getClinic, listCoachingLogs,
   listClinicalNotes, listGPLetters, listAdminNotesByPatient,
-  listIncidents, CURRENT_USER,
+  listIncidents, CURRENT_USER, getUpcomingCalendlyBookings,
 } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import type {
   Patient, Order, ClinicId, CoachingLog, ClinicalNote,
-  GPLetter, AdminNote, Incident, Clinic,
+  GPLetter, AdminNote, Incident, Clinic, CalendlyBooking,
 } from "@/lib/api/types";
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ async function ProfileContent({
 
     const [
       patient, orders, clinicalNotes, gpLetters, adminNotes,
-      coachingLogs, allIncidents,
+      coachingLogs, allIncidents, calendlyBookings,
     ] = await Promise.all([
       getPatient(clinicId, patientId),
       listOrders(clinicId, { patient_id: patientId }),
@@ -91,6 +92,9 @@ async function ProfileContent({
         ? listCoachingLogs(clinicId, { patient_id: patientId })
         : Promise.resolve([] as CoachingLog[]),
       listIncidents(clinicId),
+      coachingEnabled
+        ? getUpcomingCalendlyBookings(clinicId, patientId)
+        : Promise.resolve([] as CalendlyBooking[]),
     ]);
 
     const incidents = allIncidents.filter((i) => i.patient_id === patientId);
@@ -199,6 +203,7 @@ async function ProfileContent({
                   clinicId={clinicId}
                   logs={sortedLogs}
                   coachingEnabled={coachingEnabled}
+                  bookings={calendlyBookings}
                 />
               )}
               {activeTab === "pharmacy-comms" && <PharmacyCommsTab />}
@@ -781,11 +786,13 @@ function CoachingTab({
   clinicId,
   logs,
   coachingEnabled,
+  bookings,
 }: {
   patient: Patient;
   clinicId: ClinicId;
   logs: CoachingLog[];
   coachingEnabled: boolean;
+  bookings: CalendlyBooking[];
 }) {
   if (!coachingEnabled) {
     return (
@@ -802,7 +809,7 @@ function CoachingTab({
       </div>
     );
   }
-  return <CoachingLogTab patient={patient} clinicId={clinicId} logs={logs} />;
+  return <CoachingLogTab patient={patient} clinicId={clinicId} logs={logs} bookings={bookings} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -826,36 +833,9 @@ function PharmacyCommsTab() {
 // INTERCOM TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
+// BLD-INTERCOM-PHOTO-01 — delegates to client component for photo modal
 function IntercomTab({ patient }: { patient: Patient }) {
-  if (patient.intercom_user_id) {
-    return (
-      <div className="p-5 flex flex-col gap-4">
-        <div className="bg-ok-bg border border-ok-bdr rounded-lg px-4 py-3 flex items-center gap-3">
-          <MessageCircle className="w-4 h-4 text-ok shrink-0" />
-          <div>
-            <p className="text-[12px] font-semibold text-ok">Patient linked to Intercom</p>
-            <p className="text-[12px] text-t2 mt-px font-mono">{patient.intercom_user_id}</p>
-          </div>
-        </div>
-        <FuturePlaceholderCard
-          title="Intercom conversation thread display"
-          wave_reference="BLD-INT-INTERCOM-01"
-          description="Live Intercom conversation threads, tags, and labels for this patient will be embedded here."
-          icon={MessageCircle}
-        />
-      </div>
-    );
-  }
-  return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Patient not yet linked to Intercom"
-        wave_reference="BLD-INT-INTERCOM-01"
-        description="Once the patient's Intercom user ID is set via the webhook integration, their conversation threads and tags will appear here."
-        icon={MessageCircle}
-      />
-    </div>
-  );
+  return <IntercomPhotoTab patient={patient} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

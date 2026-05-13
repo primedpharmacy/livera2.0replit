@@ -96,12 +96,14 @@ When in doubt, ask before deviating from any locked DEC.
 - ✅ Wave 3 — Chunk 3 SLA Infrastructure + Chunk 4 Clinical Notes Infrastructure (LOCKED, commit cfffe2d): BLD-3.1–3.6, BLD-4.1–4.7. SLA timer widget, breach detection cron, breach banner, threshold config UI, Monday wiring, patient SLA copy schema, clinical_note entity (17 fields incl. 4 AI scaffolding fields for Wave 4 BLD-6.5), Clinical Note editor with hard gate on order approval, unified Notes timeline with 4 adapters, edit history audit trail, search/filter, AUD-04 export.
   - Audit fix commit 06b63e8 on wave-3-slas-and-clinical-notes: BLOCKER-1 clinical-note gate in decideOrder, BLOCKER-2 delete orphan PatientProfileView, DRIFT-3 [AUDIT] in detectSlaBreaches, DRIFT-4 NOW in clinicalNotesAud04, DRIFT-5 updateClinicSlaThresholds + Admin gate + SlaThresholdEditor wired, DRIFT-6 ClinicalNoteEditor edit-mode + history accordion + PatientNotesTimeline author filter + click-to-edit, DRIFT-7 patient_sla_copy consumer in OrderDetailClient
 - ✅ Wave 4 — Lifecycle Expiry + Amendments + AI Note Drafting (LOCKED, merge commit 403e6db): 15 BLDs delivered — see Wave 4 section below for full detail.
+- ✅ Wave 5 — Admin Notes + GP Communication Format (LOCKED, merge commit a2c4f84): BLD-4.5.1–4.5.3, 7.1–7.7 — AdminNote entity + FAB modal + timeline adapter, GPLetterTemplate split, pdfkit PDF generation, Postmark integration, GPLetterComposeModal, GP Letter Templates Settings, DEC-22 lifecycle + auto-trigger from decideOrder
   - Audit fix commit 7c032cd on wave-4-amendments-expiry-ai: 4 BLOCKERs (BLD-6.2 ApproveConfirmModal, BLD-6.3/6.4 handleDecideWithNote aiData wiring, BLD-4.6.7 role gate, permissions matrix pharmacy_comms/holiday_calendar), low-severity drift — tsc zero errors at merge
 - 🔒 Branch wave-1-foundations retained as audit anchor — do not delete
 - 🔒 Branch wave-2-coach-surface retained as audit anchor — do not delete
 - 🔒 Branch wave-3-slas-and-clinical-notes retained as audit anchor — do not delete
 - 🔒 Branch wave-4-amendments-expiry-ai retained as audit anchor — do not delete
 - 🔒 Branch wave-experimental-coach-and-patient retained (now mostly drained)
+- 🔒 Branch wave-5-gp-letters-admin-notes retained as audit anchor — do not delete
 
 ## Authoritative product/design briefs
 
@@ -218,3 +220,67 @@ wave-4-amendments-expiry-ai 7c032cd into main 2e21057)
 - Patient context wiring (BLD-6.2 deferred item)
 - Anthropic API key configured in environment
 - Sample run on non-production data
+
+## Wave 5 — Admin Notes + GP Communication Format ✅ LOCKED
+
+**Merge commit:** a2c4f84 (merge --no-ff of wave-5-gp-letters-admin-notes 73e3df5 into main 8d16dfa)
+**Date locked:** 13 May 2026
+**BLDs delivered (10):** 4.5.1, 4.5.2, 4.5.3, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7
+
+### Capability landed
+
+**Admin Notes (Chunk 4.5 — 3 BLDs):**
+- AdminNote entity (9 fields, 4-tag union: handoff/follow_up/context/general)
+- Admin Note FAB modal on Patient Profile (no min-chars gate — operational not clinical)
+- 5th timeline adapter (admin_note, blue lane shared with order_event, type-discriminated)
+- Coach role completely denied access (per §2.3.2 filter)
+- Timeline 3-colour scheme complete: Clinical green / Admin blue / Coaching purple
+
+**GP Letters (Chunk 7 — 7 BLDs):**
+- GPLetterTemplate split into email_body_template + pdf_letter_template
+- 5 seed templates across categories (initial_treatment, dose_change, safeguarding, progress_update)
+- Server-side PDF generation via pdfkit (LIVERA_PDF_GENERATION_LIVE flag default true in dev; %PDF-1.4 magic bytes verified)
+- Postmark integration with PDF attachment (LIVERA_POSTMARK_LIVE flag default false; nextMockMessageId monotonic counter)
+- GPLetter audit fields: email_body_sent, pdf_filename, postmark_message_id, byte_size, anchor_order_id, auto_triggered
+- GPLetterComposeModal (single-pane create → detail-page send)
+- GP Letter Templates Settings (Admin/Owner gated, full CRUD)
+- 5 lifecycle tabs: Awaiting Consent / Owed / Sent / Cancelled / Ad-hoc
+- DEC-22 trigger classification via createGPLetter — single source of truth
+- Auto-trigger from decideOrder approval path (try/catch isolated, failure does not block approval, both success + failure audited)
+- Cancelled is terminal: server-side blocks cancelled→ AND sent→ via SAFETY_VIOLATION
+
+### New entities
+
+- AdminNote (9 fields, 4-tag union)
+- Extended GPLetterTemplate (split template fields)
+- Extended GPLetter (6 audit + lifecycle fields)
+
+### Permissions matrix extended (lib/permissions.ts)
+
+- admin_notes: Admin/Owner read+write, Prescriber read, Coach DENIED, others read
+- gp_letter_templates: Admin/Owner read+write, others read
+
+### Integration stubs (feature-flagged for live wiring)
+
+- pdfkit.generateGpLetterPdf — LIVERA_PDF_GENERATION_LIVE (default true in dev)
+- postmark.sendViaPostmark — LIVERA_POSTMARK_LIVE (default false)
+
+### Audit history
+
+- 2 audit cycles (Cycle 1: 1 BLOCKER + 5 DRIFT + 4 POLISH; Cycle 2: GO)
+- Cycle 1 BLOCKER was page-level role gate missing (verbatim repeat of Wave 4 BLOCKER-3 pattern)
+- Cycle 1 CLARIFY surfaced the auto-trigger integration gap proactively (not in checklist — caught by code-reading)
+- Wave 5 fix cycle: 7 files, +92/-12 — tight, no scope creep
+
+### Deferred to V1.2/V1.5
+
+- BLD-7.5 two-pane preview UI (single-pane create + detail send is current pattern)
+- Server-side 20-char min on cancel_reason (currently UI-only enforcement)
+- Title-string slug for ConsentTemplate (currently consent_gp matched by ID constant — robust but flagged for future schema migration)
+
+### Production gates before LIVERA_POSTMARK_LIVE=true
+
+- Postmark API key configured in environment
+- DNS / SPF / DKIM setup for sending domain
+- Template content review (Claire Moynehan for clinical accuracy)
+- Test send to a non-production GP email

@@ -4,6 +4,7 @@ export type {
   OrderStatus,
   Consultation,
   CoachingLog,
+  CalendlyBooking,
   Clinic,
   ClinicConfig,
   ClinicTeamMember,
@@ -41,4 +42,13 @@ export type {
   AdminNote,
   AdminNoteTag,
   GpLetterTemplateCategory,
+  // Wave 8 additions (BLD-13.2)
+  Task,
+  TaskStatus,
+  TaskPriority,
+  TaskLinkedType,
+  TaskLinkedRecord,
+  TaskSubtask,
+  TaskActivityKind,
+  TaskActivity,
 } from "@/lib/api/mock";

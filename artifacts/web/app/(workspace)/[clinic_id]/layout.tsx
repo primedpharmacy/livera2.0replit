@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { TopNav } from "@/components/shell/TopNav";
 import { Sidebar } from "@/components/shell/Sidebar";
+import { GlobalFABSpeedDial } from "@/components/shell/GlobalFABSpeedDial";
 
 const VALID_CLINIC_IDS = ["vsc", "feeltru"];
 
@@ -25,6 +26,7 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
           {children}
         </main>
       </div>
+      <GlobalFABSpeedDial clinicId={clinic_id} />
     </div>
   );
 }

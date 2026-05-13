@@ -50,8 +50,11 @@ const SEV_CLS: Record<string, string> = {
 };
 
 // ── Filter types ─────────────────────────────────────────────────────────────
-type FilterTab     = "open" | "breached" | "investigating" | "resolved" | "escalated" | "all";
+type FilterTab      = "open" | "breached" | "investigating" | "resolved" | "escalated" | "all";
 type SeverityFilter = ComplaintSeverity | "all";
+type CategoryFilter = string | "all";
+type OwnerFilter    = string | "all";
+type DateRange      = "12m" | "6m" | "all";
 
 const FILTER_TABS: { key: FilterTab; label: string }[] = [
   { key: "open",          label: "Open"          },
@@ -80,11 +83,14 @@ interface Props {
 // ── Component ─────────────────────────────────────────────────────────────────
 export function ComplaintsView({ initialComplaints, patients, clinicId, clinic }: Props) {
   const router = useRouter();
-  const [complaints,    setComplaints]    = useState<Complaint[]>(initialComplaints);
-  const [activeTab,     setActiveTab]     = useState<FilterTab>("open");
-  const [activeSeverity,setActiveSeverity]= useState<SeverityFilter>("all");
-  const [search,        setSearch]        = useState("");
-  const [showFlow,      setShowFlow]      = useState(false);
+  const [complaints,      setComplaints]      = useState<Complaint[]>(initialComplaints);
+  const [activeTab,       setActiveTab]       = useState<FilterTab>("open");
+  const [activeSeverity,  setActiveSeverity]  = useState<SeverityFilter>("all");
+  const [activeCategory,  setActiveCategory]  = useState<CategoryFilter>("all");
+  const [activeOwner,     setActiveOwner]     = useState<OwnerFilter>("all");
+  const [dateRange,       setDateRange]       = useState<DateRange>("12m");
+  const [search,          setSearch]          = useState("");
+  const [showFlow,        setShowFlow]        = useState(true);
 
   const now   = useMemo(() => new Date(NOW), []);
   const ackWd = clinic.config.default_slas.complaint_ack_wd;
@@ -133,13 +139,25 @@ export function ComplaintsView({ initialComplaints, patients, clinicId, clinic }
 
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
+    const rangeMs = dateRange === "12m" ? 365 * 86_400_000 : dateRange === "6m" ? 183 * 86_400_000 : Infinity;
     return complaints.filter((c) => {
+      // date range
+      if (rangeMs !== Infinity && now.getTime() - new Date(c.received_at).getTime() > rangeMs) return false;
+      // tab
       if      (activeTab === "open")          { if (!OPEN_STATUSES.has(c.status)) return false; }
       else if (activeTab === "breached")      { if (!isBreached(c, now)) return false; }
       else if (activeTab === "investigating") { if (c.status !== "investigating") return false; }
       else if (activeTab === "resolved")      { if (c.status !== "resolved") return false; }
       else if (activeTab === "escalated")     { if (!c.regulator_escalation) return false; }
+      // severity
       if (activeSeverity !== "all" && c.severity !== activeSeverity) return false;
+      // category
+      if (activeCategory !== "all" && c.category !== activeCategory) return false;
+      // owner
+      if (activeOwner !== "all" &&
+          c.updated_by_user_id !== activeOwner &&
+          c.created_by_user_id !== activeOwner) return false;
+      // search
       if (search.trim()) {
         const q = search.toLowerCase();
         if (!c.id.toLowerCase().includes(q) &&
@@ -149,7 +167,7 @@ export function ComplaintsView({ initialComplaints, patients, clinicId, clinic }
       }
       return true;
     });
-  }, [complaints, activeTab, activeSeverity, search, now]);
+  }, [complaints, activeTab, activeSeverity, activeCategory, activeOwner, dateRange, search, now]);
 
   function handleResolve(e: React.MouseEvent, id: string) {
     e.stopPropagation();
@@ -231,7 +249,7 @@ export function ComplaintsView({ initialComplaints, patients, clinicId, clinic }
             );
           })}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-t3" />
             <input
@@ -239,7 +257,7 @@ export function ComplaintsView({ initialComplaints, patients, clinicId, clinic }
               placeholder="Search patient, ID, summary..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-7 pr-3 py-1 text-[12px] border border-bdr rounded-md bg-page-bg text-t1 placeholder:text-t3 focus:outline-none focus:border-brand w-52"
+              className="pl-7 pr-3 py-1 text-[12px] border border-bdr rounded-md bg-page-bg text-t1 placeholder:text-t3 focus:outline-none focus:border-brand w-48"
             />
           </div>
           <select
@@ -252,20 +270,59 @@ export function ComplaintsView({ initialComplaints, patients, clinicId, clinic }
             <option value="formal">Formal</option>
             <option value="serious">Serious</option>
           </select>
+          <select
+            value={activeCategory}
+            onChange={(e) => setActiveCategory(e.target.value as CategoryFilter)}
+            className="text-[12px] border border-bdr rounded-md px-2 py-1 bg-surface text-t1 focus:outline-none focus:border-brand"
+          >
+            <option value="all">Category: Any</option>
+            <option value="clinical">Clinical</option>
+            <option value="service">Service</option>
+            <option value="communication">Communication</option>
+            <option value="waiting_times">Waiting Times</option>
+            <option value="billing">Billing</option>
+            <option value="other">Other</option>
+          </select>
+          <select
+            value={activeOwner}
+            onChange={(e) => setActiveOwner(e.target.value as OwnerFilter)}
+            className="text-[12px] border border-bdr rounded-md px-2 py-1 bg-surface text-t1 focus:outline-none focus:border-brand"
+          >
+            <option value="all">Owner: Anyone</option>
+            {Object.entries(USER_MAP).map(([key, u]) => (
+              <option key={key} value={key}>{u.name}</option>
+            ))}
+          </select>
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value as DateRange)}
+            className="text-[12px] border border-bdr rounded-md px-2 py-1 bg-surface text-t1 focus:outline-none focus:border-brand"
+          >
+            <option value="12m">Last 12 months</option>
+            <option value="6m">Last 6 months</option>
+            <option value="all">All time</option>
+          </select>
         </div>
       </div>
 
       <div className="px-6 pt-4">
         {/* ── "How a complaint reaches this view" collapsible ─────────────── */}
-        <button
-          onClick={() => setShowFlow((v) => !v)}
-          className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-t2 hover:text-brand transition-colors mb-2"
-        >
-          {showFlow
-            ? <ChevronDown className="w-3.5 h-3.5" />
-            : <ChevronRight className="w-3.5 h-3.5" />}
-          How a complaint reaches this view
-        </button>
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => setShowFlow((v) => !v)}
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-t2 hover:text-brand transition-colors"
+          >
+            {showFlow
+              ? <ChevronDown className="w-3.5 h-3.5" />
+              : <ChevronRight className="w-3.5 h-3.5" />}
+            How a complaint reaches this view
+          </button>
+          {showFlow && (
+            <span className="text-[10px] text-t3">
+              Backend: Intercom tag listener &rarr; Monday auto-create + Livera task
+            </span>
+          )}
+        </div>
 
         {showFlow && (
           <div className="mb-4 border border-bdr rounded-lg bg-page-bg p-4 grid grid-cols-4 gap-3">

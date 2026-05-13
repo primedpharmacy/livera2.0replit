@@ -9,7 +9,7 @@
  */
 
 import type { Task, ClinicId } from '../types';
-import { NOW, APIError, delay, scopedToClinic } from '../constants';
+import { NOW, CURRENT_USER, APIError, delay, scopedToClinic } from '../constants';
 
 // ---------------------------------------------------------------------------
 // Seed data
@@ -402,5 +402,44 @@ export async function getTask(clinicId: ClinicId, taskId: string): Promise<Task>
   await delay(60);
   const task = ALL_TASKS.find(t => t.clinic_id === clinicId && t.id === taskId);
   if (!task) throw new APIError('404', `Task ${taskId} not found`);
+  return task;
+}
+
+// Running counter for FAB quick-create (starts above fixture seed range)
+let TASK_SEQ = 200;
+
+export async function createTask(
+  clinicId: ClinicId,
+  input: {
+    title: string;
+    priority: Task['priority'];
+    due_date: string;   // ISO date e.g. '2026-05-15'
+    description?: string;
+  }
+): Promise<Task> {
+  await delay(120);
+  const id  = `TSK-${String(TASK_SEQ++).padStart(4, '0')}`;
+  const now = new Date().toISOString();
+  const task: Task = {
+    id,
+    title:             input.title,
+    description:       input.description ?? '',
+    owner_user_id:     CURRENT_USER.id,
+    reporter_user_id:  CURRENT_USER.id,
+    priority:          input.priority,
+    status:            'todo',
+    due_date:          input.due_date,
+    clinic_id:         clinicId,
+    subtasks:          [],
+    activity: [{
+      id:              `act-fab-${TASK_SEQ}`,
+      kind:            'created',
+      actor_user_id:   CURRENT_USER.id,
+      timestamp:       now,
+    }],
+    created_at:  now,
+    updated_at:  now,
+  };
+  ALL_TASKS.push(task);
   return task;
 }

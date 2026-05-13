@@ -1,110 +1,76 @@
 "use client";
 
 import { useState } from "react";
-import { format, parseISO } from "date-fns";
-import { Phone, ExternalLink, ChevronRight } from "lucide-react";
-import Link from "next/link";
-import type { Consultation, ClinicId } from "@/types";
+import { Phone, PhoneOff, Check, AlertTriangle, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import type { WelcomeCall, WelcomeCallStatus, ClinicId } from "@/types";
 
-const STATUS_CONFIG: Record<
-  Consultation["status"],
-  { label: string; bg: string; text: string; border: string }
-> = {
-  scheduled: {
-    label: "Scheduled",
-    bg: "bg-info-bg",
-    text: "text-info",
-    border: "border-info-bdr",
-  },
-  in_progress: {
-    label: "In progress",
-    bg: "bg-warn-bg",
-    text: "text-warn",
-    border: "border-warn-bdr",
-  },
-  completed: {
-    label: "Completed",
-    bg: "bg-ok-bg",
-    text: "text-ok",
-    border: "border-ok-bdr",
-  },
-  no_show: {
-    label: "No-show",
-    bg: "bg-err-bg",
-    text: "text-err",
-    border: "border-err-bdr",
-  },
-  cancelled: {
-    label: "Cancelled",
-    bg: "bg-slate-100",
-    text: "text-t3",
-    border: "border-bdr",
-  },
-  rescheduled: {
-    label: "Rescheduled",
-    bg: "bg-warn-bg",
-    text: "text-warn",
-    border: "border-warn-bdr",
-  },
+const STATUS_CONFIG: Record<WelcomeCallStatus, { label: string; bg: string; text: string; border: string; icon: React.ElementType }> = {
+  awaiting:    { label: "Awaiting",    bg: "bg-warn-bg",  text: "text-warn",  border: "border-warn-bdr",  icon: Phone },
+  attempted:   { label: "Attempted",   bg: "bg-info-bg",  text: "text-info",  border: "border-info-bdr",  icon: Phone },
+  completed:   { label: "Completed",   bg: "bg-ok-bg",    text: "text-ok",    border: "border-ok-bdr",    icon: Check },
+  unreachable: { label: "Unreachable", bg: "bg-err-bg",   text: "text-err",   border: "border-err-bdr",   icon: AlertTriangle },
 };
 
-const CLINICIAN_LABELS: Record<string, string> = {
-  user_claire: "Claire Moynehan",
-  user_olwyn: "Olwyn Price",
-  user_qadir: "Qadir Hussain",
-  user_admin: "Admin",
-};
+type TabKey = "all" | WelcomeCallStatus;
 
-type TabStatus = "all" | Consultation["status"];
-
-const TABS: { id: TabStatus; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "scheduled", label: "Scheduled" },
-  { id: "completed", label: "Completed" },
-  { id: "no_show", label: "No-show" },
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "all",         label: "All" },
+  { key: "awaiting",    label: "Awaiting" },
+  { key: "attempted",   label: "Attempted" },
+  { key: "completed",   label: "Completed" },
+  { key: "unreachable", label: "Unreachable" },
 ];
 
+function hoursAgo(iso: string, nowIso = "2026-05-11T08:00:00Z"): string {
+  const h = Math.round((new Date(nowIso).getTime() - new Date(iso).getTime()) / 3600000);
+  if (h < 24) return `${h}h since trigger`;
+  const d = Math.floor(h / 24);
+  return `${d}d since trigger`;
+}
+
 interface Props {
-  consultations: Consultation[];
+  calls: WelcomeCall[];
   patientNames: Record<string, string>;
   clinicId: ClinicId;
 }
 
-export function WelcomeCallsClient({ consultations, patientNames, clinicId }: Props) {
-  const [activeTab, setActiveTab] = useState<TabStatus>("all");
+export function WelcomeCallsClient({ calls, patientNames, clinicId }: Props) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<TabKey>("all");
 
-  const filtered =
-    activeTab === "all"
-      ? consultations
-      : consultations.filter((c) => c.status === activeTab);
+  const filtered = activeTab === "all"
+    ? calls
+    : calls.filter((c) => c.status === activeTab);
+
+  const tabCount = (key: TabKey) =>
+    key === "all" ? calls.length : calls.filter((c) => c.status === key).length;
 
   return (
-    <div className="px-6 py-6 flex flex-col gap-4">
-      <div className="flex items-center gap-1 bg-surface border border-bdr rounded-xl p-1 w-fit">
+    <div className="px-6 py-5 flex flex-col gap-4">
+      {/* Tabs */}
+      <div className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1 w-fit">
         {TABS.map((tab) => {
-          const count =
-            tab.id === "all"
-              ? consultations.length
-              : consultations.filter((c) => c.status === tab.id).length;
+          const count = tabCount(tab.key);
+          const isErr = tab.key === "unreachable" && count > 0;
           return (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? "bg-brand text-white"
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors",
+                activeTab === tab.key
+                  ? isErr ? "bg-err text-white" : "bg-brand text-white"
                   : "text-t2 hover:text-t1"
-              }`}
+              )}
             >
               {tab.label}
               {count > 0 && (
-                <span
-                  className={`text-[10px] font-bold px-1.5 py-px rounded-full ${
-                    activeTab === tab.id
-                      ? "bg-white/20 text-white"
-                      : "bg-slate-100 text-t3"
-                  }`}
-                >
+                <span className={cn(
+                  "text-[10px] font-bold px-1.5 py-px rounded-full",
+                  activeTab === tab.key ? "bg-white/20 text-white" : "bg-surface-2 text-t3"
+                )}>
                   {count}
                 </span>
               )}
@@ -113,101 +79,83 @@ export function WelcomeCallsClient({ consultations, patientNames, clinicId }: Pr
         })}
       </div>
 
-      <div className="bg-surface rounded-xl border border-bdr overflow-hidden">
-        <table className="w-full text-sm">
+      {/* Table */}
+      <div className="bg-surface rounded-xl border border-border overflow-hidden">
+        <table className="w-full">
           <thead>
-            <tr className="border-b border-bdr bg-page-bg">
-              <th className="text-left px-4 py-3 text-xs font-bold text-t2 uppercase tracking-wider">
-                Patient
-              </th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-t2 uppercase tracking-wider">
-                Date &amp; Time
-              </th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-t2 uppercase tracking-wider">
-                Clinician
-              </th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-t2 uppercase tracking-wider">
-                Modality
-              </th>
-              <th className="text-left px-4 py-3 text-xs font-bold text-t2 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-4 py-3" />
+            <tr className="border-b border-border bg-surface-2">
+              {["Call ID", "Patient", "Trigger", "Attempts", "Status", ""].map((h) => (
+                <th key={h} className="text-left px-4 py-2.5 text-[10px] font-bold text-t3 uppercase tracking-wide">
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-10 text-center text-sm text-t3"
-                >
-                  No welcome calls in this view
+                <td colSpan={6} className="px-4 py-10 text-center text-[13px] text-t3">
+                  No welcome calls in this view.
                 </td>
               </tr>
             ) : (
-              filtered
-                .sort((a, b) =>
-                  b.scheduled_start.localeCompare(a.scheduled_start)
-                )
-                .map((c) => {
-                  const statusCfg = STATUS_CONFIG[c.status];
-                  const dt = parseISO(c.scheduled_start);
-                  return (
-                    <tr
-                      key={c.id}
-                      className="border-b border-bdr last:border-0 hover:bg-page-bg transition-colors"
-                    >
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-t1">
-                          {patientNames[c.patient_id] ?? c.patient_id}
-                        </p>
-                        <p className="text-xs text-t3 font-mono">
-                          {c.patient_id}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-t1">
-                          {format(dt, "EEE d MMM yyyy")}
-                        </p>
-                        <p className="text-xs text-t2">
-                          {format(dt, "HH:mm")} –{" "}
-                          {format(parseISO(c.scheduled_end), "HH:mm")} BST
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-t1">
-                        {CLINICIAN_LABELS[c.clinician_id] ?? c.clinician_id}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="flex items-center gap-1.5 text-t1">
-                          {c.modality === "video" ? (
-                            <ExternalLink className="w-3.5 h-3.5 text-t3" />
-                          ) : (
-                            <Phone className="w-3.5 h-3.5 text-t3" />
-                          )}
-                          {c.modality.charAt(0).toUpperCase() +
-                            c.modality.slice(1)}
+              filtered.map((call) => {
+                const sc = STATUS_CONFIG[call.status];
+                const StatusIcon = sc.icon;
+                const patientName = patientNames[call.patient_id] ?? call.patient_id;
+                const initials = patientName.split(" ").map((p: string) => p[0]).join("").toUpperCase().slice(0, 2);
+                const isUrgent = call.status === "unreachable" || call.status === "awaiting";
+
+                return (
+                  <tr
+                    key={call.id}
+                    onClick={() => router.push(`/${clinicId}/welcome-calls/${call.id}`)}
+                    className={cn(
+                      "border-b border-border last:border-0 hover:bg-surface-2 cursor-pointer transition-colors",
+                      isUrgent && "bg-warn-bg/30"
+                    )}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-[11px] text-t3 bg-surface-2 px-2 py-0.5 rounded">
+                        {call.id}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-brand text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {initials}
                         </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`text-xs font-bold px-2 py-px rounded-full border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}
-                        >
-                          {statusCfg.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/${clinicId}/schedule/${c.id}`}
-                          className="flex items-center gap-1 text-xs text-brand hover:underline"
-                        >
-                          Open
-                          <ChevronRight className="w-3 h-3" />
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })
+                        <div>
+                          <p className="text-[13px] font-medium text-t1">{patientName}</p>
+                          <p className="text-[11px] text-t3 font-mono">{call.patient_id}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-[12px] text-t2">{hoursAgo(call.triggered_at)}</p>
+                      <p className="text-[11px] text-t3 mt-0.5">{call.order_id}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-[13px] font-semibold text-t1">{call.attempts.length}</span>
+                      <span className="text-[11px] text-t3 ml-1">
+                        {call.attempts.length === 1 ? "attempt" : "attempts"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn(
+                        "inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border",
+                        sc.bg, sc.text, sc.border
+                      )}>
+                        <StatusIcon className="w-3 h-3 shrink-0" />
+                        {sc.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <ChevronRight className="w-4 h-4 text-t3" />
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

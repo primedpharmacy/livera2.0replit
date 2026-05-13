@@ -16,7 +16,8 @@ export type TimelineEntryType =
   | 'clinical_note'
   | 'coaching_log'
   | 'order_event'
-  | 'gp_letter';
+  | 'gp_letter'
+  | 'admin_note';  // BLD-4.5.3 — badge_color: blue (shared with order_event; type-discriminated in UI)
 
 export type TimelineEntry = {
   id: string;

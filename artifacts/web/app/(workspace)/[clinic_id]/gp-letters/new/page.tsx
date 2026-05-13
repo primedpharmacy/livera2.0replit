@@ -29,7 +29,7 @@ async function GPLetterNewContent({ clinicId }: { clinicId: ClinicId }) {
   try {
     const [patients, templates, clinic] = await Promise.all([
       listPatients(clinicId),
-      listGPLetterTemplates(),
+      listGPLetterTemplates(clinicId),
       Promise.resolve(getClinicSync(clinicId)),
     ]);
     return <GPLetterNewClient patients={patients} templates={templates} clinic={clinic} clinicId={clinicId} />;

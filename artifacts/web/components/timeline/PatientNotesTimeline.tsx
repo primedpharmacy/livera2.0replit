@@ -21,7 +21,7 @@ import { formatDateTime } from "@/lib/format";
 import { aggregateTimeline } from "@/lib/timeline/aggregateTimeline";
 import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
 import type { TimelineEntryType } from "@/lib/timeline/types";
-import type { ClinicId, ClinicalNote, CoachingLog, Order, GPLetter, User } from "@/types";
+import type { ClinicId, ClinicalNote, CoachingLog, Order, GPLetter, AdminNote, User } from "@/types";
 
 interface PatientNotesTimelineProps {
   clinicId:      ClinicId;
@@ -29,6 +29,7 @@ interface PatientNotesTimelineProps {
   coachingLogs:  CoachingLog[];
   orders:        Order[];
   gpLetters:     GPLetter[];
+  adminNotes:    AdminNote[];  // BLD-4.5.3 — hidden from Coach via aggregateTimeline
   actor:         User;
   minChars:      number;
   userNames?:    Record<string, string>;
@@ -39,6 +40,7 @@ const TYPE_LABELS: Record<TimelineEntryType, string> = {
   coaching_log:  "Coaching logs",
   order_event:   "Orders",
   gp_letter:     "GP letters",
+  admin_note:    "Admin notes",  // BLD-4.5.3
 };
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -61,6 +63,7 @@ export function PatientNotesTimeline({
   coachingLogs,
   orders,
   gpLetters,
+  adminNotes,
   actor,
   minChars,
   userNames,
@@ -78,14 +81,14 @@ export function PatientNotesTimeline({
   const entries = useMemo(
     () =>
       aggregateTimeline(
-        { clinicalNotes: notes, coachingLogs, orders, gpLetters, clinicId, actor, userNames },
+        { clinicalNotes: notes, coachingLogs, orders, gpLetters, adminNotes, clinicId, actor, userNames },
         {
           type:      typeFilter.length > 0 ? typeFilter : undefined,
           from_date: fromDate || undefined,
           to_date:   toDate   || undefined,
         },
       ),
-    [clinicId, notes, coachingLogs, orders, gpLetters, actor, userNames, typeFilter, fromDate, toDate],
+    [clinicId, notes, coachingLogs, orders, gpLetters, adminNotes, actor, userNames, typeFilter, fromDate, toDate],
   );
 
   // Unique authors from all entries (before author filter) for the dropdown
@@ -118,7 +121,7 @@ export function PatientNotesTimeline({
   const isCoach = actor.roles.includes("Coach") && !actor.roles.some((r) => r === "Prescriber" || r === "Admin" || r === "Owner");
   const availableTypes: TimelineEntryType[] = isCoach
     ? ["coaching_log", "order_event"]
-    : ["clinical_note", "coaching_log", "order_event", "gp_letter"];
+    : ["clinical_note", "coaching_log", "order_event", "gp_letter", "admin_note"];  // admin_note added BLD-4.5.3
 
   return (
     <div className="px-6 py-5 space-y-4">

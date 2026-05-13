@@ -16,10 +16,11 @@ type SettingsLayoutProps = {
 };
 
 const TABS = [
-  { key: "team",     label: "Team & roles",      path: "team"     },
-  { key: "slas",     label: "SLAs",              path: "slas"     },
-  { key: "exports",  label: "Exports",           path: "exports"  },
-  { key: "holidays", label: "Holiday calendar",  path: "holidays" },
+  { key: "team",                 label: "Team & roles",         path: "team"                 },
+  { key: "slas",                 label: "SLAs",                 path: "slas"                 },
+  { key: "exports",              label: "Exports",              path: "exports"              },
+  { key: "holidays",             label: "Holiday calendar",     path: "holidays"             },
+  { key: "gp-letter-templates",  label: "GP letter templates",  path: "gp-letter-templates"  },  // BLD-7.6
 ] as const;
 
 export default async function SettingsLayout({ children, params }: SettingsLayoutProps) {

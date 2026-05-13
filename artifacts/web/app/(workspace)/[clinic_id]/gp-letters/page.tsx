@@ -5,7 +5,7 @@ import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { GPLettersView } from "@/components/gp-letters/GPLettersView";
-import { listGPLetters, listPatients, getClinicSync } from "@/lib/api/mock";
+import { listGPLetters, listPatients, listGPLetterTemplates, getClinicSync } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 type Props = { params: Promise<{ clinic_id: string }> };
@@ -28,9 +28,10 @@ export default async function GPLettersPage({ params }: Props) {
 
 async function GPLettersContent({ clinicId }: { clinicId: ClinicId }) {
   try {
-    const [letters, patients, clinic] = await Promise.all([
+    const [letters, patients, templates, clinic] = await Promise.all([
       listGPLetters(clinicId),
       listPatients(clinicId),
+      listGPLetterTemplates(clinicId),
       Promise.resolve(getClinicSync(clinicId)),
     ]);
     if (letters.length === 0) {
@@ -42,7 +43,7 @@ async function GPLettersContent({ clinicId }: { clinicId: ClinicId }) {
         />
       );
     }
-    return <GPLettersView initialLetters={letters} patients={patients} clinicId={clinicId} clinic={clinic} />;
+    return <GPLettersView initialLetters={letters} patients={patients} templates={templates} clinicId={clinicId} clinic={clinic} />;
   } catch (err) {
     return <ErrorState message={err instanceof Error ? err.message : "Failed to load GP letters"} />;
   }

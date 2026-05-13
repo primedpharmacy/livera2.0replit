@@ -11,11 +11,12 @@
  * Filtering via TimelineFilter is applied AFTER role filtering.
  */
 
-import type { ClinicId, ClinicalNote, CoachingLog, Order, GPLetter, User } from '@/lib/api/types';
+import type { ClinicId, ClinicalNote, CoachingLog, Order, GPLetter, AdminNote, User } from '@/lib/api/types';
 import { adaptClinicalNote } from './adapters/clinicalNote';
 import { adaptCoachingLog }  from './adapters/coachingLog';
 import { adaptOrderEvent }   from './adapters/orderEvent';
 import { adaptGpLetter }     from './adapters/gpLetter';
+import { adaptAdminNote }    from './adapters/adminNote';
 import type { TimelineEntry, TimelineFilter } from './types';
 
 type TimelineInput = {
@@ -23,6 +24,7 @@ type TimelineInput = {
   coachingLogs:  CoachingLog[];
   orders:        Order[];
   gpLetters:     GPLetter[];
+  adminNotes:    AdminNote[];   // BLD-4.5.3 — hidden from Coach
   clinicId:      ClinicId;
   actor:         User;
   /** Optional display-name maps for author labels */
@@ -33,7 +35,7 @@ export function aggregateTimeline(
   input: TimelineInput,
   filter?: TimelineFilter,
 ): TimelineEntry[] {
-  const { clinicalNotes, coachingLogs, orders, gpLetters, clinicId, actor, userNames = {} } = input;
+  const { clinicalNotes, coachingLogs, orders, gpLetters, adminNotes, clinicId, actor, userNames = {} } = input;
 
   const isCoach = actor.roles.includes('Coach') && !actor.roles.some((r) => r === 'Prescriber' || r === 'Admin' || r === 'Owner');
 
@@ -63,6 +65,13 @@ export function aggregateTimeline(
   if (!isCoach) {
     for (const l of gpLetters) {
       entries.push(adaptGpLetter(l, clinicId, userNames[l.created_by_user_id]));
+    }
+  }
+
+  // ── Admin Notes (hidden from Coach) — BLD-4.5.3 ──────────────────────────
+  if (!isCoach) {
+    for (const n of adminNotes) {
+      entries.push(adaptAdminNote(n, clinicId, userNames[n.created_by_user_id]));
     }
   }
 

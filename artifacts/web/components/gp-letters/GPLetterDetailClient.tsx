@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { sendGPLetter, CURRENT_USER } from "@/lib/api/mock";
+import { sendGPLetterAction } from "@/lib/actions/gpLetterActions";
+import { CURRENT_USER } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import { SlaTimerWidget } from "@/components/sla/SlaTimerWidget";
 import type { GPLetter, Patient, Clinic, ClinicId } from "@/types";
@@ -40,7 +41,9 @@ export function GPLetterDetailClient({ initialLetter, patient, clinic, clinicId 
     if (!canSend || !isDraft || !letter.patient_consent_verified) return;
     setIsSending(true);
     try {
-      const updated = await sendGPLetter(clinicId, letter.id);
+      // BLD-7.3/7.4: server action orchestrates PDF generation (pdfkit) →
+      // Postmark send → sendGPLetter fixture (audit payload + Layer 3 log).
+      const updated = await sendGPLetterAction(clinicId, letter.id);
       setLetter(updated);
       setToast({ message: "Letter sent successfully", type: "ok" });
     } catch (err) {

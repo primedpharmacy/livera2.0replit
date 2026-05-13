@@ -14,10 +14,11 @@ import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEdit
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import {
   getPatient, listOrders, getClinic, listCoachingLogs,
-  listClinicalNotes, listGPLetters, CURRENT_USER,
+  listClinicalNotes, listGPLetters, listAdminNotesByPatient, CURRENT_USER,
 } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
-import type { Patient, Order, ClinicId, CoachingLog, ClinicalNote, GPLetter } from "@/types";
+import { AdminNoteFABModal } from "@/components/patients/AdminNoteFABModal";
+import type { Patient, Order, ClinicId, CoachingLog, ClinicalNote, GPLetter, AdminNote } from "@/types";
 
 type PatientProfilePageProps = {
   params: Promise<{ clinic_id: string; patient_id: string }>;
@@ -52,6 +53,7 @@ async function ProfileContent({
   let coachingLogs: CoachingLog[] = [];
   let clinicalNotes: ClinicalNote[] = [];
   let gpLetters: GPLetter[] = [];
+  let adminNotes: AdminNote[] = [];
 
   try {
     const clinic = await getClinic(clinicId);
@@ -62,6 +64,7 @@ async function ProfileContent({
       listOrders(clinicId, { patient_id: patientId }),
       listClinicalNotes(clinicId, { patient_id: patientId }),
       listGPLetters(clinicId, { patient_id: patientId }),
+      listAdminNotesByPatient(clinicId, patientId),  // BLD-4.5.3
     ];
 
     if (coachingEnabled) {
@@ -73,8 +76,9 @@ async function ProfileContent({
     orders        = results[1] as Order[];
     clinicalNotes = results[2] as ClinicalNote[];
     gpLetters     = results[3] as GPLetter[];
+    adminNotes    = results[4] as AdminNote[];
     if (coachingEnabled) {
-      coachingLogs = (results[4] as CoachingLog[]).sort(
+      coachingLogs = (results[5] as CoachingLog[]).sort(
         (a, b) => b.entry_date.localeCompare(a.entry_date)
       );
     }
@@ -180,8 +184,18 @@ async function ProfileContent({
               coachingLogs={coachingLogs}
               orders={orders}
               gpLetters={gpLetters}
+              adminNotes={adminNotes}
               actor={CURRENT_USER}
               minChars={clinic.config.clinical_note_min_chars}
+            />
+            {/* BLD-4.5.2 — Admin Note FAB (Layer 1: hidden from Coach/Prescriber in component) */}
+            <AdminNoteFABModal
+              clinicId={clinicId}
+              patientId={patientId}
+              onCreated={() => {
+                // In production this would trigger a revalidation. In mock, the
+                // note is already in-memory; a page refresh would show it.
+              }}
             />
           </div>
         ) : (

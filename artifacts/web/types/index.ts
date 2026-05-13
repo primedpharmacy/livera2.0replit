@@ -4,6 +4,7 @@ export type {
   OrderStatus,
   Consultation,
   CoachingLog,
+  CalendlyBooking,
   Clinic,
   ClinicConfig,
   ClinicTeamMember,

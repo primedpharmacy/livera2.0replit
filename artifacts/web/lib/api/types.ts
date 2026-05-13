@@ -359,6 +359,7 @@ export type Incident = {
   yellow_card_required: boolean;
   yellow_card_submitted: boolean;
   yellow_card_reference: string | null;
+  yellow_card_decision: 'filed' | 'not_applicable' | null; // BLD-YC-01
   cqc_notification_required: boolean;
   cqc_notified_at: string | null;
   escalated_to_user_id: string | null;
@@ -518,6 +519,24 @@ export type CoachingLog = {
   updated_at: string;
   // 17th field — free-form observations; NOT aggregated into any KPI (DEC-27)
   structured_observations?: Record<string, unknown> | null;
+};
+
+// --- Calendly booking mirror (DEC-40 — BLD-CALENDLY-MIRROR-01) ---
+// Mirrored from Calendly via webhook events:
+//   invitee.created · invitee.canceled · invitee_no_show.created
+export type CalendlyBooking = {
+  id: string;                        // Livera internal ID
+  patient_id: string;
+  clinic_id: ClinicId;
+  calendly_event_id: string;         // evt_xxxxxxxx
+  event_type: string;                // e.g. "Coaching session · 30-min check-in"
+  scheduled_at: string;              // ISO — start datetime
+  end_at: string;                    // ISO — end datetime
+  coach_name: string;
+  booking_method: 'patient_self_booked' | 'coach_booked' | 'admin_booked';
+  booked_at: string;                 // ISO — when booking was created in Calendly
+  join_url: string | null;           // video meeting link, if applicable
+  status: 'scheduled' | 'cancelled' | 'no_show';
 };
 
 // --- Clinical escalation flag (DEC-05 — BLD-2.7) ---

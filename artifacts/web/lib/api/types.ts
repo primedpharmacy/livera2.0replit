@@ -359,6 +359,7 @@ export type Incident = {
   yellow_card_required: boolean;
   yellow_card_submitted: boolean;
   yellow_card_reference: string | null;
+  yellow_card_decision: 'filed' | 'not_applicable' | null; // BLD-YC-01
   cqc_notification_required: boolean;
   cqc_notified_at: string | null;
   escalated_to_user_id: string | null;
@@ -520,6 +521,24 @@ export type CoachingLog = {
   structured_observations?: Record<string, unknown> | null;
 };
 
+// --- Calendly booking mirror (DEC-40 — BLD-CALENDLY-MIRROR-01) ---
+// Mirrored from Calendly via webhook events:
+//   invitee.created · invitee.canceled · invitee_no_show.created
+export type CalendlyBooking = {
+  id: string;                        // Livera internal ID
+  patient_id: string;
+  clinic_id: ClinicId;
+  calendly_event_id: string;         // evt_xxxxxxxx
+  event_type: string;                // e.g. "Coaching session · 30-min check-in"
+  scheduled_at: string;              // ISO — start datetime
+  end_at: string;                    // ISO — end datetime
+  coach_name: string;
+  booking_method: 'patient_self_booked' | 'coach_booked' | 'admin_booked';
+  booked_at: string;                 // ISO — when booking was created in Calendly
+  join_url: string | null;           // video meeting link, if applicable
+  status: 'scheduled' | 'cancelled' | 'no_show';
+};
+
 // --- Clinical escalation flag (DEC-05 — BLD-2.7) ---
 export type ClinicalEscalationFlag = {
   id: string;
@@ -603,6 +622,115 @@ export type PharmacyCommThread = {
   updated_at: string;
   messages: PharmacyCommMessage[];
   amendment_id: string | null;          // linked Amendment if thread = amendment comms (DEC-28)
+};
+
+// --- WelcomeCall (BLD-13.3) ---
+
+export type WelcomeCallStatus = 'awaiting' | 'attempted' | 'completed' | 'unreachable';
+export type WelcomeCallAttemptType = 'success' | 'no_answer' | 'voicemail';
+
+export type WelcomeCallAttempt = {
+  id: string;
+  type: WelcomeCallAttemptType;
+  timestamp: string;            // ISO
+  by_user_id: string;
+  duration_display: string;     // e.g. "8 min", "0:32"
+  channel: string;              // e.g. "Intercom telephone"
+  body: string;                 // plain text outcome line
+  notes?: string;               // clinician's own notes / quote
+};
+
+export type WelcomeCallOutcome = {
+  outcome_summary: string;
+  patient_receptive?: boolean;
+  comfortable_with_app?: boolean;
+  side_effects_understood?: boolean;
+  follow_up_needed?: boolean;
+  follow_up_note?: string;
+  flag_raised_text?: string;
+};
+
+export type WelcomeCallFlag = {
+  flag_id: string;
+  flag_name: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  reason: string;
+  raised_by_user_id: string;
+};
+
+export type WelcomeCall = {
+  id: string;                   // WC-XXXX
+  patient_id: string;
+  order_id: string;
+  clinic_id: ClinicId;
+  status: WelcomeCallStatus;
+  owner_user_id: string;
+  trigger_description: string;
+  triggered_at: string;         // ISO — when the dispatch fired
+  attempts: WelcomeCallAttempt[];
+  outcome?: WelcomeCallOutcome;
+  flag_raised?: WelcomeCallFlag;
+  created_at: string;           // ISO
+  updated_at: string;           // ISO
+};
+
+// --- Task (BLD-13.2) ---
+
+export type TaskStatus = 'todo' | 'progress' | 'done' | 'blocked';
+export type TaskPriority = 'high' | 'med' | 'low';
+export type TaskLinkedType = 'Patient' | 'Order' | 'Incident' | 'Complaint';
+
+export type TaskLinkedRecord = {
+  type: TaskLinkedType;
+  ref: string;
+  label: string;        // human-readable: e.g. "ORD-01287 · Sarah Chen · 0.25mg semaglutide"
+  meta?: string;        // e.g. "Status: In Clinical Check · Submitted 01 May 2026"
+};
+
+export type TaskSubtask = {
+  id: string;
+  title: string;
+  done: boolean;
+  due_label?: string;   // display string e.g. "Today", "02 May"
+};
+
+export type TaskActivityKind =
+  | 'created'
+  | 'status_change'
+  | 'assigned'
+  | 'comment'
+  | 'note'
+  | 'subtask_done'
+  | 'linked';
+
+export type TaskActivity = {
+  id: string;
+  kind: TaskActivityKind;
+  actor_user_id: string;
+  timestamp: string;           // ISO
+  content?: string;            // for comment / note
+  from_status?: TaskStatus;
+  to_status?: TaskStatus;
+  subtask_title?: string;
+  linked_ref?: string;
+  assigned_to_user_id?: string;
+};
+
+export type Task = {
+  id: string;                  // TSK-XXXX
+  title: string;
+  description: string;
+  owner_user_id: string;
+  reporter_user_id: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  due_date: string;            // ISO date e.g. '2026-05-11'
+  clinic_id: ClinicId;
+  linked?: TaskLinkedRecord;
+  subtasks: TaskSubtask[];
+  activity: TaskActivity[];
+  created_at: string;          // ISO
+  updated_at: string;          // ISO
 };
 
 // --- SlaBreach (BLD-3.2) ---

@@ -21,6 +21,8 @@ const TABS = [
   { key: "exports",              label: "Exports",              path: "exports"              },
   { key: "holidays",             label: "Holiday calendar",     path: "holidays"             },
   { key: "gp-letter-templates",  label: "GP letter templates",  path: "gp-letter-templates"  },  // BLD-7.6
+  { key: "intercom",             label: "Intercom",             path: "intercom"             },  // BLD-8.2 / BLD-INT-MHRA-02
+  { key: "mhra-alerts",         label: "MHRA alerts",          path: "mhra-alerts"          },  // BLD-INT-MHRA-01
 ] as const;
 
 export default async function SettingsLayout({ children, params }: SettingsLayoutProps) {

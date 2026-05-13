@@ -6,6 +6,7 @@ import { Megaphone, ExternalLink } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { formatDate, formatRelativeTime } from "@/lib/format";
+import { NOW } from "@/lib/api/constants";
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -79,7 +80,7 @@ export function ComplaintsView({ initialComplaints, patients, clinicId, clinic }
     { key: "serious",  label: "Serious" },
   ];
 
-  const now = new Date();
+  const now = new Date(NOW);
 
   return (
     <div>

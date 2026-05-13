@@ -4,41 +4,41 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { NOW } from "@/lib/api/constants";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Order } from "@/types";
-import type { Clinic } from "@/types";
+import type { Order, Clinic } from "@/types";
 
 interface OrderListTableProps {
   orders: Order[];
   clinicId: string;
   clinic: Clinic;
+  showQueueAge?: boolean; // BLD-15.1 — show "In queue" age badge (clinical check context only)
 }
 
-export function OrderListTable({ orders, clinicId, clinic }: OrderListTableProps) {
+export function OrderListTable({
+  orders,
+  clinicId,
+  clinic,
+  showQueueAge = false,
+}: OrderListTableProps) {
   const router = useRouter();
+  const now = new Date(NOW).getTime();
 
   const withTint = useMemo(() => {
-    const now = new Date(NOW).getTime();
     return orders.map((order) => {
       let tint = "";
       if (order.status === "clinical_check") {
-        const warnAt = new Date(order.sla_warn_at).getTime();
+        const warnAt   = new Date(order.sla_warn_at).getTime();
         const breachAt = new Date(order.sla_breach_at).getTime();
-        if (now > breachAt) tint = "bg-err-bg";
+        if (now > breachAt)    tint = "bg-err-bg";
         else if (now > warnAt) tint = "bg-warn-bg";
       }
       return { order, tint };
     });
-  }, [orders]);
+  }, [orders, now]);
 
   return (
     <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
@@ -49,6 +49,9 @@ export function OrderListTable({ orders, clinicId, clinic }: OrderListTableProps
             <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Patient</TableHead>
             <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Treatment</TableHead>
             <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Status</TableHead>
+            {showQueueAge && (
+              <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">In queue</TableHead>
+            )}
             <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">SLA</TableHead>
             <TableHead className="text-[10px] uppercase tracking-wider font-bold text-t3 py-2.5">Submitted</TableHead>
           </TableRow>
@@ -84,9 +87,14 @@ export function OrderListTable({ orders, clinicId, clinic }: OrderListTableProps
                   )}
                 </div>
               </TableCell>
+              {showQueueAge && (
+                <TableCell className="py-3">
+                  <QueueAgeBadge order={order} clinic={clinic} now={now} />
+                </TableCell>
+              )}
               <TableCell className="py-3">
                 {order.status === "clinical_check" ? (
-                  <SLACell order={order} clinic={clinic} />
+                  <SLACell order={order} now={now} />
                 ) : (
                   <span className="text-[11px] text-t3">—</span>
                 )}
@@ -102,30 +110,62 @@ export function OrderListTable({ orders, clinicId, clinic }: OrderListTableProps
   );
 }
 
-function SLACell({ order, clinic }: { order: Order; clinic: Clinic }) {
-  const now = new Date(NOW).getTime();
-  const warnAt = new Date(order.sla_warn_at).getTime();
+// BLD-15.1 — Queue age badge
+// Thresholds sourced from clinic.config.default_slas (Rule 4 — no hardcoded values).
+// Green  = order submitted within SLA warn window
+// Amber  = between warn and breach threshold
+// Red    = past breach threshold
+function QueueAgeBadge({
+  order,
+  clinic,
+  now,
+}: {
+  order: Order;
+  clinic: Clinic;
+  now: number;
+}) {
+  if (order.status !== "clinical_check") {
+    return <span className="text-[11px] text-t3">—</span>;
+  }
+
+  const elapsedMs    = now - new Date(order.created_at).getTime();
+  const elapsedHours = elapsedMs / 3600000;
+  const totalMins    = Math.floor(elapsedMs / 60000);
+  const hrs          = Math.floor(totalMins / 60);
+  const mins         = totalMins % 60;
+  const label        = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+
+  const warnHours   = clinic.config.default_slas.approval_warn_hours;
+  const breachHours = clinic.config.default_slas.approval_breach_hours;
+
+  const variant =
+    elapsedHours >= breachHours ? "err"  :
+    elapsedHours >= warnHours   ? "warn" :
+    "ok";
+
+  const cls =
+    variant === "err"  ? "bg-err-bg  border-err-bdr  text-err"  :
+    variant === "warn" ? "bg-warn-bg border-warn-bdr text-warn" :
+                         "bg-ok-bg   border-ok-bdr   text-ok";
+
+  return (
+    <span className={`inline-flex items-center text-[11px] font-semibold border rounded-full px-2 py-0.5 ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+function SLACell({ order, now }: { order: Order; now: number }) {
+  const warnAt   = new Date(order.sla_warn_at).getTime();
   const breachAt = new Date(order.sla_breach_at).getTime();
 
   if (now > breachAt) {
-    return (
-      <span className="text-[11px] font-bold text-err">
-        Breached
-      </span>
-    );
+    return <span className="text-[11px] font-bold text-err">Breached</span>;
   }
   if (now > warnAt) {
     const hoursLeft = Math.floor((breachAt - now) / 3600000);
-    return (
-      <span className="text-[11px] font-semibold text-warn">
-        {hoursLeft}h left
-      </span>
-    );
+    return <span className="text-[11px] font-semibold text-warn">{hoursLeft}h left</span>;
   }
   const hoursLeft = Math.floor((warnAt - now) / 3600000);
-  return (
-    <span className="text-[11px] text-t2">
-      Warn in {hoursLeft}h
-    </span>
-  );
+  return <span className="text-[11px] text-t2">Warn in {hoursLeft}h</span>;
 }

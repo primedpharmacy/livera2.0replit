@@ -36,4 +36,8 @@ export type {
   PharmacyCommThread,
   PharmacyCommMessage,
   PharmacyCommAnchorType,
+  // Wave 5 additions (BLD-4.5.1, BLD-7.1, BLD-7.6)
+  AdminNote,
+  AdminNoteTag,
+  GpLetterTemplateCategory,
 } from "@/lib/api/mock";

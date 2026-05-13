@@ -22,7 +22,9 @@
  *     amendments.ts     — MOCK_AMENDMENTS, listAmendments, getAmendment, decideAmendment
  *     consultations.ts  — MOCK_CONSULTATIONS, listConsultations, getConsultation
  *     coaching.ts       — MOCK_COACHING_LOGS, listCoachingLogs, addCoachingLog
- *     gpLetters.ts      — MOCK_GP_LETTERS, MOCK_GP_LETTER_TEMPLATES, all GP letter endpoints
+ *     gpLetters.ts         — MOCK_GP_LETTERS, all GP letter endpoints
+ *     gpLetterTemplates.ts — MOCK_GP_LETTER_TEMPLATES, listGPLetterTemplates, template CRUD (BLD-7.1/7.6)
+ *     adminNotes.ts        — MOCK_ADMIN_NOTES, listAdminNotesByPatient, createAdminNote, updateAdminNote (BLD-4.5.1)
  *     complaints.ts       — MOCK_COMPLAINTS, all complaint endpoints
  *     incidents.ts        — MOCK_INCIDENTS, all incident endpoints
  *     clinicalNotes.ts    — MOCK_CLINICAL_NOTES, listClinicalNotes, getClinicalNote, createClinicalNote, updateClinicalNote  (BLD-4.1, 4.2, 4.5)
@@ -41,6 +43,8 @@ export * from './fixtures/consultations';
 export * from './fixtures/coaching';
 export * from './fixtures/clinicalEscalationFlags';
 export * from './fixtures/gpLetters';
+export * from './fixtures/gpLetterTemplates';
+export * from './fixtures/adminNotes';
 export * from './fixtures/complaints';
 export * from './fixtures/incidents';
 export * from './fixtures/clinicalNotes';

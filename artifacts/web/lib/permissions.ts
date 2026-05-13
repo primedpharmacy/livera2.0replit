@@ -18,6 +18,10 @@
  * Wave 4 / Fix Cycle 1 additions (BLOCKER 4):
  *   - 'pharmacy_comms': Admin/Owner read+write, Prescriber read, others none
  *   - 'holiday_calendar': Admin/Owner read+write, all others read
+ *
+ * Wave 5 additions:
+ *   - 'admin_notes': Admin/Owner read+write, Prescriber read, Coach NO ACCESS
+ *   - 'gp_letter_templates': Admin/Owner write, all roles read
  */
 
 import type { User, Clinic, Patient } from '@/lib/api/types';
@@ -46,8 +50,11 @@ export type Resource =
   | 'clinical_notes'    // BLD-4.1 — Prescriber + Admin write; Coach cannot
   | 'sla_breaches'      // BLD-3.2 — Prescriber + Admin + Owner acknowledge
   // Wave 4 additions (Fix Cycle 1 — BLOCKER 4)
-  | 'pharmacy_comms'    // Admin/Owner read+write; Prescriber read; others none
-  | 'holiday_calendar'; // Admin/Owner read+write; all others read
+  | 'pharmacy_comms'       // Admin/Owner read+write; Prescriber read; others none
+  | 'holiday_calendar'     // Admin/Owner read+write; all others read
+  // Wave 5 additions
+  | 'admin_notes'          // Admin/Owner write; Prescriber read; Coach NO ACCESS
+  | 'gp_letter_templates'; // Admin/Owner write; all roles read
 
 // ---------------------------------------------------------------------------
 // Role permission tables
@@ -58,16 +65,20 @@ const PRESCRIBER_READ: Resource[] = [
   'incidents', 'complaints', 'gp_letters', 'schedule',
   'kpi_dashboard', 'clinical_flags', 'reports',
   'clinical_notes', 'sla_breaches',
-  'pharmacy_comms',    // read-only for Prescriber
-  'holiday_calendar',  // read for all
+  'pharmacy_comms',       // read-only for Prescriber
+  'holiday_calendar',     // read for all
+  'admin_notes',          // read-only for Prescriber (Wave 5 BLD-4.5.1)
+  'gp_letter_templates',  // read for all (Wave 5 BLD-7.6)
 ];
 
 const PRESCRIBER_DECIDE: Resource[] = ['orders', 'amendments'];
 
 const ADMIN_READ: Resource[] = [
   'patients', 'orders', 'welcome_calls', 'tasks',
-  'pharmacy_comms',    // Admin can read
-  'holiday_calendar',  // Admin can read
+  'pharmacy_comms',       // Admin can read
+  'holiday_calendar',     // Admin can read
+  'admin_notes',          // Admin can read (Wave 5 BLD-4.5.1)
+  'gp_letter_templates',  // Admin can read (Wave 5 BLD-7.6)
 ];
 
 const COACH_READ: Resource[] = [
@@ -75,9 +86,10 @@ const COACH_READ: Resource[] = [
   'schedule',
   'coach_dashboard',
   'coaching_log',
-  'gp_letters',        // read-only per BLD-2.1
-  'incidents',         // read-only per BLD-2.1
-  'holiday_calendar',  // read for all
+  'gp_letters',           // read-only per BLD-2.1
+  'incidents',            // read-only per BLD-2.1
+  'holiday_calendar',     // read for all
+  'gp_letter_templates',  // read for all (Wave 5 BLD-7.6) — admin_notes intentionally ABSENT
 ];
 
 // ---------------------------------------------------------------------------
@@ -119,10 +131,12 @@ function roleMatrix(
 
     case 'Admin':
       if (action === 'read') return ADMIN_READ.includes(resource as Resource);
-      if (action === 'write'       && resource === 'clinical_notes')  return true;
-      if (action === 'acknowledge' && resource === 'sla_breaches')    return true;
-      if (action === 'write'       && resource === 'pharmacy_comms')  return true;
-      if (action === 'write'       && resource === 'holiday_calendar') return true;
+      if (action === 'write'       && resource === 'clinical_notes')       return true;
+      if (action === 'acknowledge' && resource === 'sla_breaches')         return true;
+      if (action === 'write'       && resource === 'pharmacy_comms')       return true;
+      if (action === 'write'       && resource === 'holiday_calendar')     return true;
+      if (action === 'write'       && resource === 'admin_notes')          return true;  // Wave 5 BLD-4.5.1
+      if (action === 'write'       && resource === 'gp_letter_templates')  return true;  // Wave 5 BLD-7.6
       return false;
 
     // Deprecated roles — no access in V1.2 UI

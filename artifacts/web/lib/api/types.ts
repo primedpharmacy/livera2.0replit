@@ -407,7 +407,7 @@ export type GPLetter = {
   patient_id: string;
   template_id: string;
   subject: string;
-  body: string;
+  body: string;                           // rendered email body (editable in compose modal)
   lifecycle_status: GPCommunicationLifecycle;
   status: GPLetterStatus;
   patient_consent_verified: boolean;
@@ -415,12 +415,49 @@ export type GPLetter = {
   sent_to_email: string | null;
   created_by_user_id: string;
   created_at: string;
+  // BLD-7.7 — cancel workflow (terminal; server gate blocks reversion)
+  cancel_reason: string | null;
+  // BLD-7.4 — send audit trail
+  email_body_sent: string | null;         // actual rendered body at time of send (not template)
+  pdf_filename: string | null;            // e.g. gp_letter_{patient_id}_{timestamp}.pdf
+  postmark_message_id: string | null;     // null when Postmark stub
+  sent_by_user_id: string | null;
+  byte_size: number | null;               // PDF byte size in bytes
 };
+
+export type GpLetterTemplateCategory =
+  | 'initial_treatment'
+  | 'dose_change'
+  | 'safeguarding'
+  | 'progress_update'
+  | 'adverse_event';
 
 export type GPLetterTemplate = {
   id: string;
+  clinic_id: ClinicId | 'shared';     // 'shared' = available to all clinics
   name: string;
-  body_template: string;
+  description: string;
+  category: GpLetterTemplateCategory;
+  email_body_template: string;         // brief intro + reference to attached PDF (BLD-7.1)
+  pdf_letter_template: string;         // full clinical content for server-side PDF (BLD-7.2)
+};
+
+// --- Admin Note (BLD-4.5.1 — Wave 5) ---
+// Distinct from ClinicalNote: no min-char gate, no AI drafting, no order approval gate.
+// Authorable by Admin and Owner only. Coach has NO ACCESS.
+// 3-layer safety chain on all mutations (Layer 1 UI gate in BLD-4.5.2 FAB modal).
+export type AdminNoteTag = 'handoff' | 'follow_up' | 'context' | 'general';
+
+export type AdminNote = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  body: string;
+  created_by_user_id: string;
+  created_at: string;
+  updated_at: string | null;
+  updated_by_user_id: string | null;
+  tag: AdminNoteTag;
 };
 
 // --- Coaching log (DEC-05 — BLD-2.4 locked schema, 16+1 fields) ---

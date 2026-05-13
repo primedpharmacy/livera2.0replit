@@ -48,7 +48,7 @@ export function GPLetterNewClient({ patients, templates, clinic, clinicId }: Pro
     setSelectedTemplateId(templateId);
     const tpl = templates.find((t) => t.id === templateId);
     if (tpl && selectedPatient) {
-      setBody(fillTemplate(tpl.body_template, selectedPatient, clinic));
+      setBody(fillTemplate(tpl.email_body_template, selectedPatient, clinic));
       setSubject(`${tpl.name} — ${selectedPatient.demographic.full_name}`);
     }
   }

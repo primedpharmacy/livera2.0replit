@@ -22,7 +22,7 @@
 
 import PDFDocument from 'pdfkit';
 import type { Patient, Order, Clinic } from '@/lib/api/types';
-import { APIError } from '@/lib/api/constants';
+import { APIError, NOW } from '@/lib/api/constants';
 
 export type GpLetterPdfInput = {
   /** The pdf_letter_template string with {{variable}} placeholders */
@@ -66,7 +66,7 @@ function formatDob(dob: string): string {
 function todayFormatted(): string {
   // Use a fixed reference date consistent with NOW anchor.
   // In production this would use real Date.now().
-  return new Date('2026-05-11T08:00:00Z').toLocaleDateString('en-GB', {
+  return new Date(NOW).toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -194,7 +194,7 @@ export async function generateGpLetterPdf(
   const isLive = flag === undefined || flag === 'true'; // default true in dev
 
   // File naming: gp_letter_{patient_id}_{timestamp-slug}.pdf
-  const timestamp = '2026-05-11T080000Z'; // fixed to NOW anchor for mock consistency
+  const timestamp = NOW.replace(/[^0-9]/g, '').slice(0, 15); // derived from NOW — single source of truth
   const filename = `gp_letter_${input.patient.id}_${timestamp}.pdf`;
 
   try {

@@ -423,6 +423,9 @@ export type GPLetter = {
   postmark_message_id: string | null;     // null when Postmark stub
   sent_by_user_id: string | null;
   byte_size: number | null;               // PDF byte size in bytes
+  // CLARIFY-1 (Wave 5) — auto-trigger traceability
+  anchor_order_id: string | null;         // order that triggered this letter (null = manual compose)
+  auto_triggered: boolean;               // true = created by decideOrder on approval
 };
 
 export type GpLetterTemplateCategory =

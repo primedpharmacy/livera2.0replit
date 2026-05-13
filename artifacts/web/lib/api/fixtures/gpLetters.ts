@@ -60,6 +60,8 @@ admin@feeltru.com`,
     postmark_message_id: 'postmark-msg-gpl001',
     sent_by_user_id: 'user_qadir',
     byte_size: 48392,
+    anchor_order_id: null,
+    auto_triggered: false,
   },
   // GPL-002: feeltru — owed (consented, awaiting send)
   {
@@ -91,6 +93,8 @@ admin@feeltru.com`,
     postmark_message_id: null,
     sent_by_user_id: null,
     byte_size: null,
+    anchor_order_id: null,
+    auto_triggered: false,
   },
   // GPL-003: feeltru — awaiting_consent
   {
@@ -122,6 +126,8 @@ admin@feeltru.com`,
     postmark_message_id: null,
     sent_by_user_id: null,
     byte_size: null,
+    anchor_order_id: null,
+    auto_triggered: false,
   },
   // GPL-004: vsc — sent (workflow letter)
   {
@@ -153,6 +159,8 @@ admin@vsc.com`,
     postmark_message_id: 'postmark-msg-gpl004',
     sent_by_user_id: 'user_vsc_admin',
     byte_size: 51204,
+    anchor_order_id: null,
+    auto_triggered: false,
   },
   // GPL-005: feeltru — cancelled (terminal state seed)
   {
@@ -175,6 +183,8 @@ admin@vsc.com`,
     postmark_message_id: null,
     sent_by_user_id: null,
     byte_size: null,
+    anchor_order_id: null,
+    auto_triggered: false,
   },
   // GPL-006: feeltru — ad_hoc (dose change follow-up, not consent-triggered workflow)
   {
@@ -206,6 +216,8 @@ admin@feeltru.com`,
     postmark_message_id: null,
     sent_by_user_id: null,
     byte_size: null,
+    anchor_order_id: null,
+    auto_triggered: false,
   },
 ];
 
@@ -251,7 +263,16 @@ export async function getGPLetter(clinic_id: ClinicId, id: string): Promise<GPLe
  */
 export async function createGPLetter(
   clinic_id: ClinicId,
-  data: { patient_id: string; template_id: string; subject: string; body: string },
+  data: {
+    patient_id: string;
+    template_id?: string;
+    subject?: string;
+    body?: string;
+    // CLARIFY-1 (Wave 5) — auto-trigger fields (passed by decideOrder on approval)
+    anchor_order_id?: string;
+    prescriber_id?: string;
+    auto_triggered?: boolean;
+  },
 ): Promise<GPLetter> {
   await delay(400);
 
@@ -288,15 +309,15 @@ export async function createGPLetter(
     id: `GPL-${String(MOCK_GP_LETTERS.length + 1).padStart(3, '0')}`,
     clinic_id,
     patient_id: data.patient_id,
-    template_id: data.template_id,
-    subject: data.subject,
-    body: data.body,
+    template_id: data.template_id ?? '',
+    subject: data.subject ?? '',
+    body: data.body ?? '',
     lifecycle_status,
     status: 'draft',
     patient_consent_verified: consentVerified,
     sent_at: null,
     sent_to_email: null,
-    created_by_user_id: CURRENT_USER.id,
+    created_by_user_id: data.prescriber_id ?? CURRENT_USER.id,
     created_at: NOW,
     cancel_reason: null,
     email_body_sent: null,
@@ -304,6 +325,8 @@ export async function createGPLetter(
     postmark_message_id: null,
     sent_by_user_id: null,
     byte_size: null,
+    anchor_order_id: data.anchor_order_id ?? null,
+    auto_triggered: data.auto_triggered ?? false,
   };
 
   MOCK_GP_LETTERS.push(letter);

@@ -12,6 +12,7 @@ import { MOCK_PATIENTS } from './patients';
 import { MOCK_CLINICAL_NOTES } from './clinicalNotes';
 import { getClinicSync } from './clinics';
 import { createPharmacyCommThread } from './pharmacyComms';
+import { createGPLetter } from './gpLetters'; // CLARIFY-1 (Wave 5) — auto-trigger on approval
 
 // ---------------------------------------------------------------------------
 // Seeds
@@ -356,6 +357,40 @@ export async function decideOrder(
     intervention_raised_at: o.intervention_raised_at,
     timestamp: NOW,
   });
+
+  // CLARIFY-1 (Wave 5) — Auto-trigger GP letter on order approval (DEC-22 §8).
+  // "Letter enters Owed queue when AND ONLY WHEN: patient consented + first treatment approved."
+  // createGPLetter is the single source of truth for DEC-22 lifecycle classification.
+  // Auto-trigger failure MUST NOT block the order approval — wrapped in try/catch.
+  if (decision === 'approved') {
+    try {
+      const letter = await createGPLetter(clinic_id, {
+        patient_id: o.patient_id,
+        anchor_order_id: o.id,
+        prescriber_id: o.clinical_decision?.prescriber_user_id ?? CURRENT_USER.id,
+        auto_triggered: true,
+      });
+      console.log('[AUDIT]', {
+        event_type: 'gp_letter_auto_triggered',
+        clinic_id,
+        order_id: id,
+        gp_letter_id: letter.id,
+        lifecycle_status: letter.lifecycle_status,
+        actor_id: CURRENT_USER.id,
+        timestamp: NOW,
+      });
+    } catch (err) {
+      console.log('[AUDIT]', {
+        event_type: 'gp_letter_auto_trigger_failed',
+        clinic_id,
+        order_id: id,
+        error: err instanceof Error ? err.message : String(err),
+        actor_id: CURRENT_USER.id,
+        timestamp: NOW,
+      });
+      // Auto-trigger failure does not throw — order approval already succeeded above.
+    }
+  }
 
   return o;
 }

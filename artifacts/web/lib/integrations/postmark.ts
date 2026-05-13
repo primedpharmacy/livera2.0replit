@@ -15,7 +15,18 @@
  * It MUST NOT be imported from a client component.
  */
 
-import { APIError } from '@/lib/api/constants';
+import { APIError, NOW } from '@/lib/api/constants';
+
+// ---------------------------------------------------------------------------
+// Mock message-ID generator — mirrors nextPCTM pattern (pharmacyComms.ts:22-26)
+// ---------------------------------------------------------------------------
+
+let postmarkMockCounter = 0;
+function nextMockMessageId(): string {
+  postmarkMockCounter += 1;
+  const stamp = NOW.replace(/[^0-9]/g, '').slice(-10);
+  return `mock-pm-${stamp}-${String(postmarkMockCounter).padStart(4, '0')}`;
+}
 
 export type PostmarkSendInput = {
   to_email: string;
@@ -35,7 +46,7 @@ export type PostmarkSendResult = {
 // ---------------------------------------------------------------------------
 
 function mockSend(input: PostmarkSendInput): PostmarkSendResult {
-  const message_id = `mock-pm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const message_id = nextMockMessageId();
   console.log('[POSTMARK_MOCK] sendViaPostmark —', {
     to:           input.to_email,
     subject:      input.subject,

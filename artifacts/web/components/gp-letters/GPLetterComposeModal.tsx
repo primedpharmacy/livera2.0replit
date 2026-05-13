@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { X, FileText, AlertCircle, CheckCircle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createGPLetter, CURRENT_USER } from "@/lib/api/mock";
+import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { ClinicId, Patient, Clinic, GPLetterTemplate } from "@/types";
@@ -38,7 +39,7 @@ function fillEmailTemplate(template: string, patient: Patient, clinic: Clinic): 
     .replace(/\{\{dose\}\}/g,         "current prescribed dose")
     .replace(/\{\{clinic_name\}\}/g,  clinic.config.clinic_name)
     .replace(/\{\{clinic_email\}\}/g, clinic.config.reply_email)
-    .replace(/\{\{today_date\}\}/g,   new Date("2026-05-11").toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }));
+    .replace(/\{\{today_date\}\}/g,   new Date(NOW).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }));
 }
 
 export function GPLetterComposeModal({ clinicId, patients, templates, clinic, onClose }: Props) {

@@ -17,7 +17,7 @@ export default async function IncidentsPage({ params }: Props) {
       <PageHeader
         icon={AlertTriangle}
         title="Incidents"
-        subtitle="Clinical incidents and safety events"
+        subtitle="Patient safety, clinical, and operational incidents"
       />
       <Suspense key={clinic_id} fallback={<LoadingState.Table />}>
         <IncidentsContent clinicId={clinic_id as ClinicId} />

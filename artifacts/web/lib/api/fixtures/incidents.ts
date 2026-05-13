@@ -30,6 +30,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: false,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: null,
@@ -56,14 +57,15 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: true,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: true,
     cqc_notified_at: null,
     escalated_to_user_id: 'user_qadir',
     resolution_notes: null,
     sync_status: 'in_sync',
     created_at: '2026-05-09T11:30:00Z',
-    intercom_thread_url: null,
-    incident_origin: 'manual',
+    intercom_thread_url: 'https://app.intercom.com/conversations/4821',
+    incident_origin: 'intercom_tag',
   },
   {
     id: 'INC-003',
@@ -82,6 +84,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: false,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: null,
@@ -108,6 +111,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: false,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: null,
@@ -134,6 +138,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: true,
     yellow_card_submitted: true,
     yellow_card_reference: 'MHRA-2026-005891',
+    yellow_card_decision: 'filed' as const,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: 'user_qadir',
@@ -220,8 +225,38 @@ export async function submitYellowCard(clinic_id: ClinicId, id: string): Promise
   if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
   if (i.yellow_card_submitted) throw new APIError('ALREADY_SUBMITTED', 'Yellow Card already submitted for this incident');
   i.yellow_card_submitted = true;
+  i.yellow_card_decision = 'filed';
   i.yellow_card_reference = `MHRA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(6, '0')}`;
   console.log('[AUDIT]', { action: 'yellow_card.submitted', incident_id: id, reference: i.yellow_card_reference, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  return i;
+}
+
+// BLD-YC-01 — prescriber records Yellow Card decision (filed with reference or not applicable)
+export async function recordYellowCardDecision(
+  clinic_id: ClinicId,
+  id: string,
+  decision: 'filed' | 'not_applicable',
+  reference?: string
+): Promise<Incident> {
+  await delay(500);
+  const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
+  if (i.yellow_card_decision === 'filed') throw new APIError('ALREADY_FILED', 'Yellow Card already filed for this incident');
+  i.yellow_card_decision = decision;
+  if (decision === 'filed') {
+    i.yellow_card_submitted = true;
+    i.yellow_card_required = true;
+    i.yellow_card_reference = reference?.trim() || `MHRA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(6, '0')}`;
+  }
+  console.log('[AUDIT]', {
+    action: 'yellow_card.decision_recorded',
+    decision,
+    reference: i.yellow_card_reference ?? null,
+    incident_id: id,
+    clinic_id,
+    user_id: CURRENT_USER.id,
+    timestamp: NOW,
+  });
   return i;
 }
 
@@ -302,6 +337,7 @@ export async function createIncident(
     yellow_card_required: false,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: null,

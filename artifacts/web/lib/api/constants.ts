@@ -83,6 +83,22 @@ export const USERS_REGISTRY: Record<string, User> = {
   },
 };
 
+// ── System actor — webhook-driven mutations (BLD-8.3, Wave 6) ───────────────
+// Used by app/api/webhooks/intercom/route.ts for incident creation triggered by
+// Intercom tag events. SYSTEM_USER has 'System' role which grants:
+//   write: 'incidents', write: 'intercom_webhooks' (see lib/permissions.ts)
+// active_clinic_id is set to 'feeltru' as required placeholder — system ops are
+// clinic-scoped by the patient/incident being operated on, not by this field.
+export const SYSTEM_USER: User = {
+  id: 'system',
+  email: 'system@livera.internal',
+  full_name: 'Livera System',
+  roles: ['System'],
+  active_clinic_id: 'feeltru',
+  professional_registrations: [],
+  active: true,
+};
+
 // ── Auth helpers (placeholder until Auth0/Supabase decided) ─────────────────
 export async function getCurrentUser(): Promise<User> {
   await delay(50);

@@ -32,6 +32,8 @@ const SARAH_FEELTRU: Patient = {
   status: 'active',
   vip: false,
   coach_id: 'user_olwyn',
+  // BLD-8.3 (Wave 6) — Intercom external_id set when patient account created in Intercom.
+  intercom_user_id: 'icom_pt00198_feeltru',
   created_at: '2026-01-15T14:30:00Z',
   updated_at: '2026-05-01T10:00:00Z',
 };
@@ -41,6 +43,8 @@ const SARAH_VSC: Patient = {
   clinic_id: 'vsc',
   id: 'PT-00012',
   coach_id: null,
+  // Override — VSC Intercom account is separate from FeelTru account
+  intercom_user_id: null,
 };
 
 // ── Additional VSC patients ──────────────────────────────────────────────────

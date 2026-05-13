@@ -17,6 +17,7 @@ export type Role =
   | 'Admin'
   | 'Prescriber'
   | 'Coach'
+  | 'System'       // BLD-8.3 (Wave 6) — webhook-internal actor; no UI access
   | 'RM'           // deprecated — retained for migration only
   | 'Manager'      // deprecated — retired from UI per V1.2
   | 'Pharmacist'   // deprecated — retired from UI per V1.2
@@ -231,6 +232,11 @@ export type Patient = {
   status: 'new' | 'active' | 'monitoring' | 'suspended';
   vip: boolean;
   coach_id: string | null;  // FeelTru-only — assigned coach (DEC-05)
+  // BLD-8.3 (Wave 6) — Intercom user ID for webhook patient resolution.
+  // Set to Intercom's external_id value when the patient account is created in Intercom.
+  // Used by app/api/webhooks/intercom/route.ts to look up patient from webhook payload.
+  // Optional — null for patients not yet linked to an Intercom contact.
+  intercom_user_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -310,6 +316,8 @@ export type MondayItem = {
 };
 
 export type MondayBoardState = {
+  name: string;          // Board display name (PV §7.3)
+  workspace_id: string;  // Monday workspace ID (PV §7.3)
   items: MondayItem[];
   etag: string;
 };
@@ -326,6 +334,13 @@ export type IncidentType =
 
 export type IncidentSeverity = 'mild' | 'moderate' | 'severe';
 export type IncidentStatus = 'open' | 'on_hold' | 'investigating' | 'resolved' | 'closed';
+
+// BLD-8.1 (Wave 6) — DEC-10: intercom_tag → Incident workflow
+export type IncidentOrigin =
+  | 'intercom_tag'
+  | 'manual'
+  | 'coach_escalation'
+  | 'system_severe_se'; // DEC-29: auto-write to board 18402056019
 
 export type Incident = {
   id: string;
@@ -350,30 +365,50 @@ export type Incident = {
   resolution_notes: string | null;
   sync_status: 'in_sync' | 'out_of_sync' | 'error';
   created_at: string;
+  // BLD-8.1 additions (Wave 6 — DEC-10)
+  intercom_thread_url: string | null;
+  incident_origin: IncidentOrigin;
 };
 
 // --- Complaint (DEC-37 — Monday source of truth; Livera mirrors) ---
-export type ComplaintSeverity = 'low' | 'medium' | 'high';
+// BLD-9.1 (Wave 6) — 21-field schema per Decision A/B (locked)
+// FeelTru-specific Monday fields (cqc_saf_quality_statements, you_said_we_did_action)
+// stay in Monday only — not mirrored to Livera per DEC-37.
+export type ComplaintSeverity = 'informal' | 'formal' | 'serious'; // per PV §8 Chunk 9 (Decision C)
 export type ComplaintStatus = 'received' | 'acknowledged' | 'investigating' | 'resolved' | 'closed';
 
 export type Complaint = {
-  id: string;
+  // 1. Identity
+  id: string;                              // CMP-XXXX format
   clinic_id: ClinicId;
-  monday_board_id: string;
-  monday_item_id: string;
-  patient_id: string | null;
-  received_at: string;
-  status: ComplaintStatus;
-  severity: ComplaintSeverity;
-  subject: string;
-  description: string;
-  acknowledgement_due_at: string;
-  acknowledgement_sent_at: string | null;
-  resolution_due_at: string;
-  source: 'intercom' | 'email' | 'phone' | 'external' | 'in_person';
-  cqc_quality_statements: Array<'Safe' | 'Effective' | 'Caring' | 'Responsive' | 'Well-led'>;
-  sync_status: 'in_sync' | 'out_of_sync' | 'error';
-  assigned_to_user_id: string | null;
+  // 2. Monday source-of-truth pointer (DEC-37)
+  monday_board_id: string;                 // routing key for all mondayWrite calls
+  monday_item_id: string | null;           // null until first Monday write (BLD-9.4)
+  // 3. Complainant
+  patient_id: string | null;              // null for non-patient complainants
+  complainant_name: string;
+  complainant_email: string | null;
+  // 4. Classification
+  status: ComplaintStatus;                 // 5 stages per PV §8
+  // TODO V1.2: Consider locking category to a per-clinic enum if
+  // category vocabulary stabilizes across complaint usage.
+  category: string;                        // free-form: 'clinical' | 'service' | 'billing' | 'communication' | 'other'
+  severity: ComplaintSeverity;             // 'informal' | 'formal' | 'serious'
+  // 5. Content
+  body: string;                            // complaint description
+  // 6. SLA tracking (due dates derived at render: received_at + clinic_config.default_slas)
+  received_at: string;                     // ISO 8601; SLA clock starts here
+  acknowledged_at: string | null;         // actual send date; null = not yet sent
+  resolved_at: string | null;             // actual resolution date; null = not yet resolved
+  // 7. Resolution (Monday board fields mirrored)
+  resolution: string | null;              // Lesson Learned per PV §8
+  regulator_escalation: 'cqc' | 'gphc' | null; // CQC/GPhC per PV §8
+  policy_register_link: string | null;    // Policy Register linkage per PV §8
+  // 8. Audit
+  created_at: string;
+  created_by_user_id: string;
+  updated_at: string | null;
+  updated_by_user_id: string | null;
 };
 
 // --- Amendment (DEC-38) ---

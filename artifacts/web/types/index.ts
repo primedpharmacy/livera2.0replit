@@ -17,6 +17,7 @@ export type {
   IncidentType,
   IncidentSeverity,
   IncidentStatus,
+  IncidentOrigin,
   Complaint,
   ComplaintSeverity,
   ComplaintStatus,

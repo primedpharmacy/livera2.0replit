@@ -35,6 +35,9 @@ import { RecentNotesCard } from "@/components/timeline/RecentNotesCard";
 import { DeclineConfirmModal } from "./DeclineConfirmModal";
 import { InterventionConfirmModal } from "./InterventionConfirmModal";
 import { ApproveConfirmModal } from "./ApproveConfirmModal";
+import { OrderNICEChecklistCard } from "./OrderNICEChecklistCard";
+import { OrderDoseEscalationGateCard } from "./OrderDoseEscalationGateCard";
+import { OrderWeightTrajectoryCard } from "./OrderWeightTrajectoryCard";
 import { addWorkingHours } from "@/lib/utils/workingHours";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -376,6 +379,25 @@ export function OrderDetailClient({
 
             {activeTab === "clinical_evidence" && (
               <div className="space-y-4">
+
+                {/* BLD-14.3 — NICE CG189 checklist */}
+                {order.nice_checklist && order.nice_checklist.length > 0 && (
+                  <OrderNICEChecklistCard
+                    orderStatus={order.status}
+                    initialChecklist={order.nice_checklist}
+                  />
+                )}
+
+                {/* BLD-14.4 — Dose escalation gate */}
+                {order.dose_escalation_gate?.is_dose_escalation && (
+                  <OrderDoseEscalationGateCard gate={order.dose_escalation_gate} />
+                )}
+
+                {/* BLD-14.5 — Weight trajectory */}
+                {order.weight_history && order.weight_history.length > 0 && (
+                  <OrderWeightTrajectoryCard history={order.weight_history} />
+                )}
+
                 <DCard icon={Scale} title="Weight Journey">
                   <div className="grid grid-cols-3 gap-3 mb-3">
                     <Metric label="Baseline weight" value={formatWeight(patient.baseline.baseline_weight_kg)} sub={`BMI ${formatBMI(patient.baseline.baseline_bmi)}`} />

@@ -365,7 +365,7 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
       // Feature flags
       features: {
         gp_letter_enabled: true,
-        pharmacy_comms_enabled: false,
+        pharmacy_comms_enabled: true,   // BLD-16.1 — enabled for FeelTru
         bmi_ai_validation_enabled: false,
         primed_flag_mirror_enabled: false,
         video_consultations_enabled: true,

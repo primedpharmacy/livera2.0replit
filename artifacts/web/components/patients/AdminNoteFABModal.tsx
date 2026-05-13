@@ -24,7 +24,7 @@ import type { ClinicId, AdminNote } from "@/types";
 interface Props {
   clinicId:  ClinicId;
   patientId: string;
-  onCreated: (note: AdminNote) => void;
+  onCreated?: (note: AdminNote) => void;
 }
 
 const TAG_OPTIONS: { value: AdminNote["tag"]; label: string }[] = [
@@ -36,7 +36,7 @@ const TAG_OPTIONS: { value: AdminNote["tag"]; label: string }[] = [
 
 interface Toast { message: string; type: "ok" | "err" }
 
-export function AdminNoteFABModal({ clinicId, patientId, onCreated }: Props) {
+export function AdminNoteFABModal({ clinicId, patientId, onCreated = () => {} }: Props) {
   const [open, setOpen]       = useState(false);
   const [body, setBody]       = useState("");
   const [tag, setTag]         = useState<AdminNote["tag"]>("general");

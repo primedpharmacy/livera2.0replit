@@ -96,14 +96,15 @@ When in doubt, ask before deviating from any locked DEC.
 - ✅ Wave 3 — Chunk 3 SLA Infrastructure + Chunk 4 Clinical Notes Infrastructure (LOCKED, commit cfffe2d): BLD-3.1–3.6, BLD-4.1–4.7. SLA timer widget, breach detection cron, breach banner, threshold config UI, Monday wiring, patient SLA copy schema, clinical_note entity (17 fields incl. 4 AI scaffolding fields for Wave 4 BLD-6.5), Clinical Note editor with hard gate on order approval, unified Notes timeline with 4 adapters, edit history audit trail, search/filter, AUD-04 export.
   - Audit fix commit 06b63e8 on wave-3-slas-and-clinical-notes: BLOCKER-1 clinical-note gate in decideOrder, BLOCKER-2 delete orphan PatientProfileView, DRIFT-3 [AUDIT] in detectSlaBreaches, DRIFT-4 NOW in clinicalNotesAud04, DRIFT-5 updateClinicSlaThresholds + Admin gate + SlaThresholdEditor wired, DRIFT-6 ClinicalNoteEditor edit-mode + history accordion + PatientNotesTimeline author filter + click-to-edit, DRIFT-7 patient_sla_copy consumer in OrderDetailClient
 - ✅ Wave 4 — Lifecycle Expiry + Amendments + AI Note Drafting (LOCKED, merge commit 403e6db): 15 BLDs delivered — see Wave 4 section below for full detail.
-- ✅ Wave 5 — Admin Notes + GP Communication Format (LOCKED, merge commit a2c4f84): BLD-4.5.1–4.5.3, 7.1–7.7 — AdminNote entity + FAB modal + timeline adapter, GPLetterTemplate split, pdfkit PDF generation, Postmark integration, GPLetterComposeModal, GP Letter Templates Settings, DEC-22 lifecycle + auto-trigger from decideOrder
   - Audit fix commit 7c032cd on wave-4-amendments-expiry-ai: 4 BLOCKERs (BLD-6.2 ApproveConfirmModal, BLD-6.3/6.4 handleDecideWithNote aiData wiring, BLD-4.6.7 role gate, permissions matrix pharmacy_comms/holiday_calendar), low-severity drift — tsc zero errors at merge
+- ✅ Wave 6 — Incidents + Complaints (LOCKED, merge commit 90b74b7): 10 BLDs delivered — see Wave 6 section below for full detail.
+  - 1 audit cycle, no fix cycle required — GO at commit 27bd9e1
 - 🔒 Branch wave-1-foundations retained as audit anchor — do not delete
 - 🔒 Branch wave-2-coach-surface retained as audit anchor — do not delete
 - 🔒 Branch wave-3-slas-and-clinical-notes retained as audit anchor — do not delete
 - 🔒 Branch wave-4-amendments-expiry-ai retained as audit anchor — do not delete
+- 🔒 Branch wave-6-incidents-complaints retained as audit anchor — do not delete
 - 🔒 Branch wave-experimental-coach-and-patient retained (now mostly drained)
-- 🔒 Branch wave-5-gp-letters-admin-notes retained as audit anchor — do not delete
 
 ## Authoritative product/design briefs
 
@@ -221,66 +222,203 @@ wave-4-amendments-expiry-ai 7c032cd into main 2e21057)
 - Anthropic API key configured in environment
 - Sample run on non-production data
 
-## Wave 5 — Admin Notes + GP Communication Format ✅ LOCKED
+## Wave 6 — Incidents + Complaints ✅ LOCKED
 
-**Merge commit:** a2c4f84 (merge --no-ff of wave-5-gp-letters-admin-notes 73e3df5 into main 8d16dfa)
+**Merge commit:** 90b74b7 (merge --no-ff of
+wave-6-incidents-complaints 27bd9e1 into main dda63cda3b7f)
 **Date locked:** 13 May 2026
-**BLDs delivered (10):** 4.5.1, 4.5.2, 4.5.3, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7
+**BLDs delivered (10):** 8.1, 8.2, 8.3, 8.4, 9.0, 9.1, 9.2, 9.3,
+9.4, 9.5
 
 ### Capability landed
 
-**Admin Notes (Chunk 4.5 — 3 BLDs):**
-- AdminNote entity (9 fields, 4-tag union: handoff/follow_up/context/general)
-- Admin Note FAB modal on Patient Profile (no min-chars gate — operational not clinical)
-- 5th timeline adapter (admin_note, blue lane shared with order_event, type-discriminated)
-- Coach role completely denied access (per §2.3.2 filter)
-- Timeline 3-colour scheme complete: Clinical green / Admin blue / Coaching purple
+**Monday API integration foundation (BLD-9.0):**
+- lib/api/monday.ts: MOCK_MONDAY_BOARDS Record with all 3 boards
+  per PV §7.3 — 18402056019 (Severe SE incidents shared, DEC-29
+  cross-workspace anomaly preserved), 18409111860 (VSC Complaints
+  Register), 18402056040 (FeelTru Complaints & Feedback)
+- mondayRead emits [MONDAY READ]; mondayWrite emits [MONDAY WRITE]
+- LIVERA_MONDAY_LIVE feature flag (default false): when true
+  throws descriptive V1.2-deferred error
+- nextMondayEtag function (NOW-derived stamp + monotonic counter,
+  mirrors Wave 4 nextPCTM / Wave 5 nextMockMessageId pattern)
+- Wave 3 SLA breach path (lib/integrations/monday.ts writeSlaBreach) 
+  untouched — no regression on existing Monday mock layer
 
-**GP Letters (Chunk 7 — 7 BLDs):**
-- GPLetterTemplate split into email_body_template + pdf_letter_template
-- 5 seed templates across categories (initial_treatment, dose_change, safeguarding, progress_update)
-- Server-side PDF generation via pdfkit (LIVERA_PDF_GENERATION_LIVE flag default true in dev; %PDF-1.4 magic bytes verified)
-- Postmark integration with PDF attachment (LIVERA_POSTMARK_LIVE flag default false; nextMockMessageId monotonic counter)
-- GPLetter audit fields: email_body_sent, pdf_filename, postmark_message_id, byte_size, anchor_order_id, auto_triggered
-- GPLetterComposeModal (single-pane create → detail-page send)
-- GP Letter Templates Settings (Admin/Owner gated, full CRUD)
-- 5 lifecycle tabs: Awaiting Consent / Owed / Sent / Cancelled / Ad-hoc
-- DEC-22 trigger classification via createGPLetter — single source of truth
-- Auto-trigger from decideOrder approval path (try/catch isolated, failure does not block approval, both success + failure audited)
-- Cancelled is terminal: server-side blocks cancelled→ AND sent→ via SAFETY_VIOLATION
+**Incident extension (BLD-8.1):**
+- IncidentOrigin union: 'intercom_tag' | 'manual' |
+  'coach_escalation' | 'system_severe_se'
+- Incident interface extended with intercom_thread_url +
+  incident_origin
+- 5 existing seeds (INC-001 through INC-005) backfilled with
+  incident_origin: 'manual' and intercom_thread_url: null
 
-### New entities
+**Complaint entity — 21 fields per DEC-37 source-of-truth (BLD-9.1):**
+- Final schema: id, clinic_id, monday_board_id, monday_item_id,
+  patient_id, complainant_name, complainant_email, status,
+  category, severity, body, received_at, acknowledged_at,
+  resolved_at, resolution, regulator_escalation,
+  policy_register_link, created_at, created_by_user_id,
+  updated_at, updated_by_user_id
+- ComplaintSeverity migrated 'low'/'medium'/'high' →
+  'informal'/'formal'/'serious' (per PV §8 Chunk 9 verbatim)
+- ComplaintStatus 5-stage union: received/acknowledged/
+  investigating/resolved/closed
+- category typed as free-form string with TODO V1.2 comment for
+  future enum lockdown
+- 5 seed complaints across both clinics (3 FeelTru, 2 VSC) with
+  full status mix and severity spread
+- Cross-reference invariant verified: every Complaint seed's
+  monday_item_id matches an existing entry in MOCK_MONDAY_BOARDS
 
-- AdminNote (9 fields, 4-tag union)
-- Extended GPLetterTemplate (split template fields)
-- Extended GPLetter (6 audit + lifecycle fields)
+**Permissions matrix extended:**
+- 'complaints' resource: Owner read+write, RM read+write, Admin
+  read+write, Prescriber read, Coach DENIED
+- 'intercom_webhooks' resource: System write only
+- 'incidents' write extended for System (webhook-driven
+  auto-create)
+- 'System' role added to Role union for webhook actor
 
-### Permissions matrix extended (lib/permissions.ts)
+**Monday-first createComplaint (BLD-9.4):**
+- monday_board_id NEVER hardcoded — sourced via
+  getClinicSync(clinic_id).config.monday_complaints_board_id
+- mondayWrite called BEFORE MOCK_COMPLAINTS.push — Monday-first
+  ordering enforced
+- APIError('MONDAY_WRITE_FAILED') thrown on Monday failure with
+  DEC-37 message; Livera mirror never created (no orphaned state)
+- [AUDIT] 'complaint_created' (success) + 'complaint_create_failed'
+  (failure) entries
 
-- admin_notes: Admin/Owner read+write, Prescriber read, Coach DENIED, others read
-- gp_letter_templates: Admin/Owner read+write, others read
+**Complaints list — SCR-041 (BLD-9.2):**
+- Status filter tabs (6) + Severity filter row (Informal/Formal/
+  Serious)
+- 3-day ack countdown reads clinic.config.default_slas.
+  complaint_ack_wd (NOT hardcoded)
+- "View in Monday" deep-link per row
+  (https://primedpharmacy-company.monday.com/boards/
+  {monday_board_id}/pulses/{monday_item_id})
+- ExternalLink icon, target="_blank", "Pending sync" disabled
+  state when monday_item_id null
+- 8 columns including Last Update (formatRelativeTime),
+  duplicate Category column removed (kept as subtitle in
+  Complaint cell)
 
-### Integration stubs (feature-flagged for live wiring)
+**Complaint Detail — SCR-042 (BLD-9.3, Decision E.1 read-only
+mirror):**
+- Per DEC-37: "No detail/investigation surface needed in Livera"
+- "Update status" panel REMOVED
+- "Acknowledge" button REMOVED
+- SLA cards (ack + resolution) driven by clinic.config.default_slas
+- Prominent "Open in Monday" primary header button (brand-primary
+  link, ExternalLink icon)
+- DEC-37 explanatory callout banner: "Monday.com is the source of
+  truth for complaints (DEC-37). Investigation, lesson learned,
+  and resolution tracking happen in Monday. This is a read-only
+  summary."
+- updateComplaintStatus retained in fixtures with V1.1/V1.2
+  comment (not called from UI; may be wired Monday-first in V1.2)
 
-- pdfkit.generateGpLetterPdf — LIVERA_PDF_GENERATION_LIVE (default true in dev)
-- postmark.sendViaPostmark — LIVERA_POSTMARK_LIVE (default false)
+**Sidebar nav (BLD-9.5):**
+- Complaints nav item in Care quality section with Megaphone icon
+- Permission gate { action: "read", resource: "complaints" } —
+  Coach correctly hidden
+- Badge: count of non-resolved/non-closed complaints
+
+**Page-level Coach redirect gates (defence-in-depth):**
+- Both routes (complaints/page.tsx + complaints/[complaint_id]/
+  page.tsx) have Coach redirect BEFORE <Suspense> and data
+  fetching
+- Mirrors Wave 5 gp-letter-templates pattern (BLOCKER-1 carry-over
+  prevented)
+
+**Intercom webhook integration (BLD-8.2, 8.3, 8.4):**
+- lib/integrations/intercom.ts: LIVERA_INTERCOM_LIVE flag
+  (default false), X-Hub-Signature HMAC-SHA1 documented
+- app/api/webhooks/intercom/route.ts: POST handler returns 200
+  on ALL paths (success + every error path — prevents Intercom
+  retry loops)
+- Webhook event names documented: conversation_tag_created
+  (Intercom v2.11+) + legacy alias conversation.tag_added;
+  conversation_closed + alias conversation.closed
+- INCIDENT_TAG_NAME constant 'Incident'
+- Patient.intercom_user_id field added (string | null), 2 seeds
+  set (PT-00198 SARAH_FEELTRU has 'icom_pt00198_feeltru';
+  SARAH_VSC override has null to prevent spread inheritance)
+- SYSTEM_USER constant in constants.ts (id 'system', roles
+  ['System'], scoped to feeltru)
+- createIncident signature extended:
+  (patient_id, origin, body, options?, actor?) with
+  intercom_thread_url + clinic_id + incident_type + severity
+- Stub mode short-circuits before createIncident call (logs
+  [INTERCOM_WEBHOOK_STUB] would_create_incident, does NOT create
+  incident)
+- Orphan handling: patient not found → [AUDIT]
+  'incident_webhook_orphan', no incident created
+- Closure rule (BLD-8.4):
+  - handleConversationClosed: incident.status NOT terminal →
+    [AUDIT] 'intercom_closure_blocked' + blockIntercomClosure
+    stub; terminal → [AUDIT] 'intercom_closure_allowed'
+  - updateIncidentStatus closure-allow hook: captures prevStatus
+    BEFORE mutation, fires only on isNowTerminal && !wasTerminal
+    && i.intercom_thread_url (single transition into terminal)
+  - allowIntercomClosure stub call + [AUDIT]
+    'intercom_closure_released'
 
 ### Audit history
 
-- 2 audit cycles (Cycle 1: 1 BLOCKER + 5 DRIFT + 4 POLISH; Cycle 2: GO)
-- Cycle 1 BLOCKER was page-level role gate missing (verbatim repeat of Wave 4 BLOCKER-3 pattern)
-- Cycle 1 CLARIFY surfaced the auto-trigger integration gap proactively (not in checklist — caught by code-reading)
-- Wave 5 fix cycle: 7 files, +92/-12 — tight, no scope creep
+- 1 audit cycle (no fix cycle required)
+- Audit verdict: GO at commit 27bd9e1 — all 10 BLDs verified clean
+- Cross-reference invariant manually verified across all 5
+  Complaint seeds
+- updateIncidentStatus hook firing conditions traced through 4
+  state transitions
+- Monday-first ordering proven safe (try/catch wraps mondayWrite
+  before MOCK_COMPLAINTS.push)
+- Pre-existing tech debt flagged (POLISH, non-blocking): 4
+  `new Date().toISOString()` in incidents.ts functions not
+  touched by Wave 6 (submitYellowCard, notifyCQC,
+  syncIncidentFromMonday); similar drift in amendments.ts,
+  coaching.ts, anthropic.ts. Hygiene mini-wave or Wave 7 cascade
+  candidate.
+
+### New entities
+
+- Complaint (21 fields)
+- Extended Incident (+intercom_thread_url, +incident_origin)
+- Extended Patient (+intercom_user_id)
+
+### Integration stubs (feature-flagged for live wiring)
+
+- monday.mondayWrite — LIVERA_MONDAY_LIVE (default false)
+- intercom.* — LIVERA_INTERCOM_LIVE (default false)
 
 ### Deferred to V1.2/V1.5
 
-- BLD-7.5 two-pane preview UI (single-pane create + detail send is current pattern)
-- Server-side 20-char min on cancel_reason (currently UI-only enforcement)
-- Title-string slug for ConsentTemplate (currently consent_gp matched by ID constant — robust but flagged for future schema migration)
+- BLD-9.3 updateComplaintStatus from Livera UI — currently
+  read-only per Decision E.1 (DEC-37 strict interpretation);
+  may be wired Monday-first if clinic operators request
+  in-app status mutation
+- Real Intercom HMAC signature verification (currently stubbed)
+- Real Intercom API closure block/release calls (currently
+  log-only)
+- ConsentTemplate slug field (currently using consent_id
+  'consent_gp' via constant)
+- Closed enum for Complaint.category (currently free-form string)
 
-### Production gates before LIVERA_POSTMARK_LIVE=true
+### Production gates before LIVERA_MONDAY_LIVE=true
 
-- Postmark API key configured in environment
-- DNS / SPF / DKIM setup for sending domain
-- Template content review (Claire Moynehan for clinical accuracy)
-- Test send to a non-production GP email
+- Real Monday.com GraphQL API integration wired
+- Per-clinic Monday API tokens stored securely (clinic_config)
+- Schema mapping verified against live board column structures
+  (column IDs, status labels, severity values)
+- Error retry policy for transient Monday API failures
+
+### Production gates before LIVERA_INTERCOM_LIVE=true
+
+- Real Intercom HMAC-SHA1 signature verification implemented
+- Intercom webhook secret stored in environment per clinic
+- Public webhook URL configured in Intercom workspace settings
+- 'Incident' tag configured in clinic's Intercom workspace
+- Webhook event subscriptions: conversation_tag_created,
+  conversation_closed
+- Test webhook delivery against staging environment

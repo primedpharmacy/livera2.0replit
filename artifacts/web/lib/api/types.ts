@@ -310,6 +310,8 @@ export type MondayItem = {
 };
 
 export type MondayBoardState = {
+  name: string;          // Board display name (PV §7.3)
+  workspace_id: string;  // Monday workspace ID (PV §7.3)
   items: MondayItem[];
   etag: string;
 };

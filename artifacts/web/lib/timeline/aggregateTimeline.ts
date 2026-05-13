@@ -1,14 +1,16 @@
 /**
  * aggregateTimeline — BLD-4.3, BLD-4.6 (Wave 3).
  *
- * Combines ClinicalNotes, CoachingLogs (FeelTru only), Orders, and
- * GPLetters into a single descending-chronological TimelineEntry[].
+ * Combines ClinicalNotes, CoachingLogs (FeelTru only), Orders,
+ * GPLetters, and AdminNotes into a single descending-chronological
+ * TimelineEntry[].
  *
- * Role-based visibility:
- *   Coach → coaching_log + order_event only (DEC-05)
- *   All other roles → all entry types
+ * Role-based visibility (Wave 6.5 cascade fix):
+ *   All clinical roles → all entry types (read access is universal).
+ *   Write access is enforced at component level (ClinicalNoteEditor,
+ *   AdminNoteFABModal) via can() checks.
  *
- * Filtering via TimelineFilter is applied AFTER role filtering.
+ * Filtering via TimelineFilter is applied after aggregation.
  */
 
 import type { ClinicId, ClinicalNote, CoachingLog, Order, GPLetter, AdminNote, User } from '@/lib/api/types';
@@ -37,15 +39,13 @@ export function aggregateTimeline(
 ): TimelineEntry[] {
   const { clinicalNotes, coachingLogs, orders, gpLetters, adminNotes, clinicId, actor, userNames = {} } = input;
 
-  const isCoach = actor.roles.includes('Coach') && !actor.roles.some((r) => r === 'Prescriber' || r === 'Admin' || r === 'Owner');
-
   const entries: TimelineEntry[] = [];
 
-  // ── Clinical notes (hidden from Coach) ────────────────────────────────────
-  if (!isCoach) {
-    for (const n of clinicalNotes) {
-      entries.push(adaptClinicalNote(n, clinicId, userNames[n.author_user_id]));
-    }
+  // ── Clinical notes ─────────────────────────────────────────────────────────
+  // Wave 6.5 cascade fix: all roles read clinical notes. Write is gated at
+  // component level (ClinicalNoteEditor checks can(actor,'write','clinical_notes')).
+  for (const n of clinicalNotes) {
+    entries.push(adaptClinicalNote(n, clinicId, userNames[n.author_user_id]));
   }
 
   // ── Coaching logs ─────────────────────────────────────────────────────────
@@ -61,18 +61,17 @@ export function aggregateTimeline(
     entries.push(...adaptOrderEvent(o, clinicId, prescriberName));
   }
 
-  // ── GP Letters (hidden from Coach) ────────────────────────────────────────
-  if (!isCoach) {
-    for (const l of gpLetters) {
-      entries.push(adaptGpLetter(l, clinicId, userNames[l.created_by_user_id]));
-    }
+  // ── GP Letters ────────────────────────────────────────────────────────────
+  // Wave 6.5 cascade fix: all roles read GP letters.
+  for (const l of gpLetters) {
+    entries.push(adaptGpLetter(l, clinicId, userNames[l.created_by_user_id]));
   }
 
-  // ── Admin Notes (hidden from Coach) — BLD-4.5.3 ──────────────────────────
-  if (!isCoach) {
-    for (const n of adminNotes) {
-      entries.push(adaptAdminNote(n, clinicId, userNames[n.created_by_user_id]));
-    }
+  // ── Admin Notes ───────────────────────────────────────────────────────────
+  // Wave 6.5 cascade fix: all roles read admin notes. Write is gated at
+  // component level (AdminNoteFABModal checks can(actor,'write','admin_notes')).
+  for (const n of adminNotes) {
+    entries.push(adaptAdminNote(n, clinicId, userNames[n.created_by_user_id]));
   }
 
   // ── Apply filter ───────────────────────────────────────────────────────────

@@ -359,6 +359,7 @@ export type Incident = {
   yellow_card_required: boolean;
   yellow_card_submitted: boolean;
   yellow_card_reference: string | null;
+  yellow_card_decision: 'filed' | 'not_applicable' | null; // BLD-YC-01
   cqc_notification_required: boolean;
   cqc_notified_at: string | null;
   escalated_to_user_id: string | null;

@@ -15,14 +15,16 @@ import Link from "next/link";
 import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
   MessageSquare, ShieldAlert, Scale, ShieldCheck, AlertTriangle,
-  Stethoscope, Pencil, Activity, Clock, Send,
+  Stethoscope, Pencil, Activity, Clock, Send, Mail, CreditCard,
+  FileText, Camera,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, createClinicalNote, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, CURRENT_USER, NOW } from "@/lib/api/mock";
 import { type AIDraftResult } from "@/components/clinical-notes/AINoteDraftingModal";
 import { can } from "@/lib/permissions";
-import type { Order, Patient, Clinic, ClinicId, ClinicalNote, Amendment } from "@/types";
+import type { Order, Patient, Clinic, ClinicId, ClinicalNote, Amendment, CourierEvent } from "@/types";
+import { CourierTrackingCard } from "@/components/orders/CourierTrackingCard";
 import { DCard, Row, Metric, EmptyPane } from "./orderPrimitives";
 import { OrderDecisionDialogs, type Modal, type ToastState } from "./OrderDecisionDialogs";
 import { OrderQuestionnaireCard } from "./OrderQuestionnaireCard";
@@ -35,6 +37,13 @@ import { RecentNotesCard } from "@/components/timeline/RecentNotesCard";
 import { DeclineConfirmModal } from "./DeclineConfirmModal";
 import { InterventionConfirmModal } from "./InterventionConfirmModal";
 import { ApproveConfirmModal } from "./ApproveConfirmModal";
+import { LogIncidentModal } from "@/components/incidents/LogIncidentModal";
+import { OrderNICEChecklistCard } from "./OrderNICEChecklistCard";
+import { OrderDoseEscalationGateCard } from "./OrderDoseEscalationGateCard";
+import { OrderWeightTrajectoryCard } from "./OrderWeightTrajectoryCard";
+import { OrderBMIValidationCard } from "./OrderBMIValidationCard";
+import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
+import { DispatchDateCard } from "./DispatchDateCard";
 import { addWorkingHours } from "@/lib/utils/workingHours";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -48,7 +57,7 @@ interface OrderDetailClientProps {
   initialClinicalNotes: ClinicalNote[];
 }
 
-type RightTab = "questionnaire" | "clinical_evidence" | "prescription" | "amendments" | "activity" | "notes";
+type RightTab = "questionnaire" | "clinical_evidence" | "prescription" | "amendments" | "activity" | "notes" | "pharmacy_comms";
 
 const RIGHT_TABS: { key: RightTab; label: string }[] = [
   { key: "questionnaire",     label: "Questionnaire"     },
@@ -56,6 +65,7 @@ const RIGHT_TABS: { key: RightTab; label: string }[] = [
   { key: "prescription",      label: "Prescription"      },
   { key: "notes",             label: "Notes"             },
   { key: "amendments",        label: "Amendments"        },
+  { key: "pharmacy_comms",    label: "Pharmacy Comms"    },
   { key: "activity",          label: "Activity log"      },
 ];
 
@@ -73,6 +83,26 @@ const AMENDMENT_TYPES: { value: Amendment["type"]; label: string }[] = [
   { value: "refund",         label: "Refund"            },
 ];
 
+// Consent definitions — three canonical consent types across all Livera clinics.
+// Given/declined derived from patient.consents_given at render time.
+const CONSENT_DEFS = [
+  {
+    id:   "consent_treatment",
+    label: "Clinical treatment",
+    meta:  "Patient consented to GLP-1 prescribing under Livera clinical pathway",
+  },
+  {
+    id:   "consent_gp",
+    label: "GP communication",
+    meta:  "Patient consented to GP letter on first prescription and material clinical changes",
+  },
+  {
+    id:   "consent_photo",
+    label: "Photo evidence",
+    meta:  "Patient consented to share weight/scale/injection-site photos for clinical evidence",
+  },
+] as const;
+
 export function OrderDetailClient({
   initialOrder,
   patient,
@@ -85,7 +115,7 @@ export function OrderDetailClient({
   const [rationale, setRationale]     = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast]             = useState<ToastState | null>(null);
-  const [activeTab, setActiveTab]     = useState<RightTab>("questionnaire");
+  const [activeTab, setActiveTab]     = useState<RightTab>("clinical_evidence");
   const [notes, setNotes]             = useState<ClinicalNote[]>(initialClinicalNotes);
 
   // BLD-6.3 — new modal state (replaces modal='decline' / modal='query')
@@ -93,6 +123,14 @@ export function OrderDetailClient({
   const [declineOpen, setDeclineOpen]           = useState(false);
   const [interventionOpen, setInterventionOpen] = useState(false);
   const [approveOpen, setApproveOpen]           = useState(false);
+  const [incidentOpen, setIncidentOpen]         = useState(false);
+  // BLD-14.7 — Intercom "Request info" drawer
+  const [requestInfoOpen, setRequestInfoOpen]   = useState(false);
+  const [requestInfoMsg, setRequestInfoMsg]     = useState("");
+  const [requestInfoSent, setRequestInfoSent]   = useState(false);
+
+  // BLD-11.2 — Royal Mail courier events
+  const [courierEvents, setCourierEvents]     = useState<CourierEvent[]>([]);
 
   // BLD-5.1/5.2 — amendments tab state
   const [amendments, setAmendments]           = useState<Amendment[]>([]);
@@ -107,6 +145,13 @@ export function OrderDetailClient({
     const t = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // BLD-11.2 — Load Royal Mail courier events for dispatched/delivered orders
+  useEffect(() => {
+    if (order.status === "dispatched" || order.status === "delivered") {
+      listCourierEvents(clinicId, { order_id: order.id }).then(setCourierEvents).catch(() => {});
+    }
+  }, [order.id, order.status, clinicId]);
 
   // Load amendments when tab is opened
   useEffect(() => {
@@ -193,18 +238,48 @@ export function OrderDetailClient({
   const minChars          = clinic.config.clinical_note_min_chars;
   const canWriteNotes     = can(CURRENT_USER, "write", "clinical_notes");
   const canDecide         = order.status === "clinical_check" && can(CURRENT_USER, "decide", "orders");
+  const canWriteIncident  = can(CURRENT_USER, "write", "incidents");
 
   const hasHighSeverityFlag = patient.flags.some((f) => f.severity === "high");
   const hasB4Acknowledged   = patient.flags.some((f) => f.code === "B4_acknowledged");
-  const isDoseEscalation    = "dose_escalation" in order.questionnaire_responses && !order.questionnaire_responses["prior_dose_evidence"];
+  const isDoseEscalation    = order.dose_escalation_gate?.is_dose_escalation === true && !(order.dose_escalation_gate?.prior_evidence_uploaded ?? false);
+
+  // BLD-14.2 — Three-gate Clinical Check sequence enforcement
+  const niceChecklistIncomplete =
+    order.nice_checklist != null &&
+    order.nice_checklist.length > 0 &&
+    order.nice_checklist.some((item) => !item.checked);
+
+  const weightHistoryMissing =
+    order.weight_history != null &&
+    order.weight_history.length === 0;
+
+  // BLD-15.2 — ED safeguarding flag detection (questionnaire trigger keys)
+  const ED_TRIGGER_KEYS: Record<string, string[]> = {
+    eating_pattern:          ["binge_eating", "restrictive", "purging", "restriction"],
+    ed_history:              ["yes", "current", "active"],
+    purging_behaviour:       ["yes"],
+    restriction_behaviour:   ["yes"],
+    eating_disorder_current: ["yes"],
+  };
+  const edSafeguardingTrigger =
+    Object.entries(order.questionnaire_responses).find(([key, value]) => {
+      const triggers = ED_TRIGGER_KEYS[key];
+      return Boolean(triggers && triggers.includes(String(value).toLowerCase()));
+    }) ?? null;
 
   // Fix Cycle 1 BLOCKER 2: hasApprovalNote gate removed — the approval note is now
   // created inside ApproveConfirmModal via handleDecideWithNote (3-layer chain).
+  // BLD-14.2: all three gates must be clear before approve is enabled.
   const approveBlockedReason =
     hasHighSeverityFlag && !hasB4Acknowledged
       ? "Patient has an unacknowledged high-severity flag — acknowledge before approving"
+      : niceChecklistIncomplete
+      ? "Complete all NICE CG189 checklist items on the Clinical evidence tab before approving"
       : isDoseEscalation
       ? "Dose escalation requires prior dose evidence in the questionnaire"
+      : weightHistoryMissing
+      ? "No weight history on record — patient must log a check-in weight before approval"
       : null;
   const approveBlocked = approveBlockedReason !== null;
 
@@ -267,92 +342,268 @@ export function OrderDetailClient({
             </div>
           </div>
 
-          {canDecide && (
-            <div className="flex items-center gap-2">
-              {/* BLD-6.3 — opens InterventionConfirmModal instead of modal='query' */}
+          <div className="flex items-center gap-2">
+            {/* BLD-14.7 — Intercom "Request info" */}
+            <button
+              onClick={() => { setRequestInfoOpen(true); setRequestInfoSent(false); setRequestInfoMsg(""); }}
+              className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-t2 border border-bdr bg-surface hover:border-brand hover:text-brand rounded-md transition-colors"
+            >
+              <Mail className="w-4 h-4" /> Request info
+            </button>
+            {canWriteIncident && (
               <button
-                onClick={() => setInterventionOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-info border border-info-bdr bg-info-bg hover:bg-info hover:text-white rounded-md transition-colors"
+                onClick={() => setIncidentOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-err border border-err-bdr bg-err-bg hover:bg-err hover:text-white rounded-md transition-colors"
               >
-                <MessageSquare className="w-4 h-4" /> Query
+                <AlertTriangle className="w-4 h-4" /> Log incident
               </button>
-              {/* BLD-6.3 — opens DeclineConfirmModal instead of modal='decline' */}
-              <button
-                onClick={() => setDeclineOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-err border border-err-bdr bg-err-bg hover:bg-err hover:text-white rounded-md transition-colors"
-              >
-                <XCircle className="w-4 h-4" /> Decline
-              </button>
-              <div className="flex flex-col items-end gap-1">
-                {/* Fix Cycle 1 BLOCKER 2: opens ApproveConfirmModal (clinical note + AI audit captured inside) */}
+            )}
+            {canDecide && (
+              <>
+                {/* BLD-6.3 — opens InterventionConfirmModal instead of modal='query' */}
                 <button
-                  onClick={() => { if (!approveBlocked) setApproveOpen(true); }}
-                  disabled={approveBlocked}
-                  className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-md transition-colors shadow-sm ${
-                    approveBlocked
-                      ? "bg-ok/40 text-white cursor-not-allowed"
-                      : "text-white bg-ok hover:bg-ok/90"
-                  }`}
+                  onClick={() => setInterventionOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-info border border-info-bdr bg-info-bg hover:bg-info hover:text-white rounded-md transition-colors"
                 >
-                  <CheckCircle className="w-4 h-4" /> Approve
+                  <MessageSquare className="w-4 h-4" /> Query
                 </button>
-                {approveBlocked && approveBlockedReason && (
-                  <span className="text-[10px] text-err max-w-[220px] text-right leading-tight">
-                    {approveBlockedReason}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
+                {/* BLD-6.3 — opens DeclineConfirmModal instead of modal='decline' */}
+                <button
+                  onClick={() => setDeclineOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-err border border-err-bdr bg-err-bg hover:bg-err hover:text-white rounded-md transition-colors"
+                >
+                  <XCircle className="w-4 h-4" /> Decline
+                </button>
+                <div className="flex flex-col items-end gap-1">
+                  {/* Fix Cycle 1 BLOCKER 2: opens ApproveConfirmModal (clinical note + AI audit captured inside) */}
+                  <button
+                    onClick={() => { if (!approveBlocked) setApproveOpen(true); }}
+                    disabled={approveBlocked}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-md transition-colors shadow-sm ${
+                      approveBlocked
+                        ? "bg-ok/40 text-white cursor-not-allowed"
+                        : "text-white bg-ok hover:bg-ok/90"
+                    }`}
+                  >
+                    <CheckCircle className="w-4 h-4" /> Approve
+                  </button>
+                  {approveBlocked && approveBlockedReason && (
+                    <span className="text-[10px] text-err max-w-[220px] text-right leading-tight">
+                      {approveBlockedReason}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
+
+        {/* BLD-15.2 — ED safeguarding banner */}
+        {edSafeguardingTrigger && (
+          <div className="mx-6 mt-4 bg-err-bg border border-err-bdr rounded-lg px-4 py-3">
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="w-4 h-4 text-err shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-err">Eating Disorder Safeguarding Flag</p>
+                <p className="text-[12px] text-err mt-1 leading-relaxed">
+                  This patient's questionnaire contains an eating disorder indicator
+                  {" ("}
+                  <span className="font-mono font-semibold">
+                    {edSafeguardingTrigger[0]}: {String(edSafeguardingTrigger[1])}
+                  </span>
+                  {"). Follow the ED referral pathway before prescribing. Do not approve without clinical escalation."}
+                </p>
+              </div>
+              <a
+                href="https://www.beateatingdisorders.org.uk/get-information-and-support/get-help-for-myself/i-need-support-now/helplines/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-[11px] font-semibold text-err border border-err-bdr rounded-md px-2.5 py-1.5 hover:bg-err hover:text-white transition-colors whitespace-nowrap"
+              >
+                ED pathway
+              </a>
+            </div>
+          </div>
+        )}
+
         <div className="px-6 py-5 grid grid-cols-5 gap-4 items-start">
 
-          {/* Left — patient panel 2/5 */}
-          <div className="col-span-2 space-y-4 sticky top-5">
-            <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-bdr bg-page-bg">
-                <User className="w-3.5 h-3.5 text-brand" />
-                <h2 className="text-[11px] font-bold text-t2 uppercase tracking-wider">Patient</h2>
+          {/* Left — order sidebar 2/5 */}
+          <div className="col-span-2 space-y-3 sticky top-5">
+
+            {/* ── Patient strip ── */}
+            <div className="bg-surface border border-bdr rounded-lg px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-mid to-brand flex items-center justify-center text-white text-xs font-bold shrink-0">
+                  {d.full_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[13px] font-semibold text-t1 truncate">{d.full_name}</span>
+                    {hasB4 && <span className="text-[9px] font-bold bg-warn-bg text-warn border border-warn-bdr px-1.5 py-px rounded shrink-0">B4</span>}
+                    {patient.vip && <span className="text-[9px] font-bold bg-coach-bg text-coach border border-coach-bdr px-1.5 py-px rounded shrink-0">VIP</span>}
+                  </div>
+                  <div className="text-[10.5px] text-t3 font-mono">{patient.id} · {age} yrs · {d.sex_at_birth}</div>
+                </div>
               </div>
-              <div className="p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-mid to-brand flex items-center justify-center text-white text-sm font-bold shrink-0">
-                    {d.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[13px] font-semibold text-t1">{d.full_name}</span>
-                      {hasB4 && <span className="text-[9px] font-bold bg-warn-bg text-warn border border-warn-bdr px-1.5 py-px rounded">B4</span>}
-                      {patient.vip && <span className="text-[9px] font-bold bg-coach-bg text-coach border border-coach-bdr px-1.5 py-px rounded">VIP</span>}
-                    </div>
-                    <div className="text-[11px] text-t3 font-mono">{patient.id}</div>
-                  </div>
+              <Link
+                href={`/${clinicId}/patients/${patient.id}`}
+                className="mt-2.5 flex items-center gap-1 text-[11.5px] font-semibold text-brand hover:underline"
+              >
+                View patient profile →
+              </Link>
+            </div>
+
+            {/* ── Order summary ── */}
+            <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-bdr bg-page-bg">
+                <FileText className="w-3.5 h-3.5 text-brand" />
+                <h2 className="text-[11px] font-bold text-t2 uppercase tracking-wider">Order summary</h2>
+              </div>
+              <div className="px-4 py-3 space-y-2 text-[12px]">
+                <div className="flex justify-between gap-2">
+                  <span className="text-t3">Product</span>
+                  <span className="text-t1 font-medium text-right">{order.product.medication} {order.product.dose}</span>
                 </div>
-                <div className="space-y-1.5 text-[12px]">
-                  <div className="flex justify-between gap-2"><span className="text-t3">Age / sex</span><span className="text-t1 font-medium">{age} yrs · {d.sex_at_birth}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-t3">BMI</span><span className="text-t1 font-medium">{formatBMI(patient.latest.bmi)}</span></div>
-                  <div className="flex justify-between gap-2"><span className="text-t3">Weight</span><span className="text-t1 font-medium">{formatWeight(patient.latest.weight_kg)}</span></div>
-                  {patient.gp && (
-                    <div className="flex justify-between gap-2"><span className="text-t3">GP</span><span className="text-t1 font-medium text-right">{patient.gp.name}</span></div>
-                  )}
+                <div className="flex justify-between gap-2">
+                  <span className="text-t3">Quantity</span>
+                  <span className="text-t1 font-medium">{order.product.plan} · {order.product.strength}</span>
                 </div>
-                <Link href={`/${clinicId}/patients/${patient.id}`} className="mt-4 flex items-center justify-center gap-1.5 w-full py-1.5 text-[12px] font-semibold text-brand bg-brand-light hover:bg-brand hover:text-white rounded-md transition-colors">
-                  View full profile
-                </Link>
+                <div className="flex justify-between gap-2">
+                  <span className="text-t3">Total</span>
+                  <span className="text-t1 font-medium">
+                    {order.amount_authorised != null ? `£${order.amount_authorised.toFixed(2)}` : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-t3">Payment</span>
+                  <span className={`font-medium ${order.amount_charged != null ? "text-ok" : "text-warn"}`}>
+                    {order.amount_charged != null
+                      ? `Captured · ${order.ryft_authorisation_id ?? "—"}`
+                      : order.ryft_authorisation_id
+                        ? `Authorised · ${order.ryft_authorisation_id}`
+                        : "Pending"}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-t3">Submitted</span>
+                  <span className="text-t1 font-medium">{formatDate(order.created_at)}</span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-t3">Source</span>
+                  <span className="text-t1 font-medium capitalize">{order.type === "reorder" ? "Reorder questionnaire" : "New patient questionnaire"}</span>
+                </div>
               </div>
             </div>
 
-            {/* BLD-4.6.1 — Intervention SLA widget (left panel, on_hold only) */}
+            {/* ── Patient consent ── */}
+            <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-bdr bg-page-bg">
+                <ShieldCheck className="w-3.5 h-3.5 text-brand" />
+                <h2 className="text-[11px] font-bold text-t2 uppercase tracking-wider">Patient consent</h2>
+              </div>
+              <div className="divide-y divide-bdr">
+                {CONSENT_DEFS.map((cd) => {
+                  const record = patient.consents_given.find((c) => c.consent_id === cd.id);
+                  const given  = !!record;
+                  return (
+                    <div key={cd.id} className={`flex items-start gap-3 px-4 py-2.5 ${given ? "" : "bg-err-bg/30"}`}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold ${given ? "bg-ok text-white" : "bg-err text-white"}`}>
+                        {given ? "✓" : "✕"}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[12px] font-semibold text-t1">{cd.label}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-px rounded ${given ? "bg-ok-bg text-ok" : "bg-err-bg text-err"}`}>
+                            {given ? "Given" : "Declined"}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-t3 mt-0.5 leading-snug">{cd.meta}</p>
+                        {record && (
+                          <p className="text-[10px] text-t3 mt-0.5">
+                            {formatDate(record.given_at)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── GP letter quick action ── */}
+            {clinic.config.features.gp_letter_enabled && (
+              <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-bdr bg-page-bg">
+                  <Mail className="w-3.5 h-3.5 text-brand" />
+                  <h2 className="text-[11px] font-bold text-t2 uppercase tracking-wider">GP letter</h2>
+                </div>
+                <div className="px-4 py-3">
+                  {patient.consents_given.some((c) => c.consent_id === "consent_gp") ? (
+                    <div className="flex items-start gap-2.5">
+                      <CheckCircle className="w-4 h-4 text-ok shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-semibold text-ok">GP letter can be sent</p>
+                        {patient.gp && (
+                          <p className="text-[10.5px] text-t3 mt-0.5">
+                            Patient has given GP communication consent · {patient.gp.name}
+                          </p>
+                        )}
+                        <Link
+                          href={`/${clinicId}/gp-letters`}
+                          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md transition-colors"
+                        >
+                          <Mail className="w-3.5 h-3.5" /> Send GP letter
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2.5">
+                      <XCircle className="w-4 h-4 text-err shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[12px] font-semibold text-err">GP letter blocked</p>
+                        <p className="text-[10.5px] text-t3 mt-0.5">
+                          Patient has not consented to GP communication. UK GDPR Article 9.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {order.dose_escalation_gate?.is_dose_escalation && (
+                    <p className="text-[10px] text-t3 mt-2 leading-snug border-t border-bdr pt-2">
+                      Auto-trigger rule: dose escalations to 10mg+ automatically queue a GP notification (consent permitting).
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* BLD-4.6.1 — Intervention SLA widget (on_hold only) */}
             {order.status === "on_hold" && interventionSlaDeadline && (
               <SlaTimerWidget
                 sla_deadline={interventionSlaDeadline}
                 label={`Intervention SLA (${clinic.config.default_slas.intervention_resolution_wd} working days)`}
                 total_hours={interventionResolutionHours}
                 variant="full"
+              />
+            )}
+
+            {/* BLD-4.6.3 — Four-scenario dispatch date calculator */}
+            <DispatchDateCard
+              approvedAt={order.clinical_decision?.decided_at ?? order.created_at}
+              holidays={clinic.config.holiday_calendar}
+              orderStatus={order.status}
+            />
+
+            {/* BLD-11.2 — Royal Mail tracking (dispatched / delivered orders) */}
+            {(order.status === "dispatched" || order.status === "delivered") && order.royal_mail_tracking_id && (
+              <CourierTrackingCard
+                trackingId={order.royal_mail_tracking_id ?? null}
+                events={courierEvents}
+                compact
               />
             )}
           </div>
@@ -376,6 +627,30 @@ export function OrderDetailClient({
 
             {activeTab === "clinical_evidence" && (
               <div className="space-y-4">
+
+                {/* BLD-14.3 — NICE CG189 checklist */}
+                {order.nice_checklist && order.nice_checklist.length > 0 && (
+                  <OrderNICEChecklistCard
+                    orderStatus={order.status}
+                    initialChecklist={order.nice_checklist}
+                  />
+                )}
+
+                {/* BLD-16.2 — BMI AI Validation (FeelTru only while flag is off for VSC) */}
+                {clinic.config.features.bmi_ai_validation_enabled && (
+                  <OrderBMIValidationCard patient={patient} order={order} />
+                )}
+
+                {/* BLD-14.4 — Dose escalation gate */}
+                {order.dose_escalation_gate?.is_dose_escalation && (
+                  <OrderDoseEscalationGateCard gate={order.dose_escalation_gate} />
+                )}
+
+                {/* BLD-14.5 — Weight trajectory */}
+                {order.weight_history && order.weight_history.length > 0 && (
+                  <OrderWeightTrajectoryCard history={order.weight_history} />
+                )}
+
                 <DCard icon={Scale} title="Weight Journey">
                   <div className="grid grid-cols-3 gap-3 mb-3">
                     <Metric label="Baseline weight" value={formatWeight(patient.baseline.baseline_weight_kg)} sub={`BMI ${formatBMI(patient.baseline.baseline_bmi)}`} />
@@ -654,6 +929,15 @@ export function OrderDetailClient({
               </div>
             )}
 
+            {/* BLD-16.1 / BLD-16.10 — Pharmacy Comms tab */}
+            {activeTab === "pharmacy_comms" && (
+              <PharmacyCommsPanel
+                clinicId={clinicId}
+                anchorType="order"
+                anchorId={order.id}
+              />
+            )}
+
             {activeTab === "activity" && (
               <OrderActivityTimeline order={order} />
             )}
@@ -706,6 +990,120 @@ export function OrderDetailClient({
         isSubmitting={isSubmitting}
         onApprove={(body, aiData) => handleDecideWithNote("approved", body, aiData)}
       />
+      {incidentOpen && (
+        <LogIncidentModal
+          clinicId={clinicId}
+          patients={[]}
+          orders={[order]}
+          prefilledPatient={patient}
+          prefilledOrder={order}
+          onClose={() => setIncidentOpen(false)}
+          onSave={() => setIncidentOpen(false)}
+        />
+      )}
+
+      {/* BLD-14.7 — Intercom "Request info" drawer */}
+      {requestInfoOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/30 z-40"
+            onClick={() => setRequestInfoOpen(false)}
+          />
+          {/* Panel */}
+          <div className="fixed right-0 top-0 h-full w-[420px] bg-surface border-l border-bdr shadow-2xl z-50 flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-bdr bg-page-bg">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-brand" />
+                <div>
+                  <p className="text-[13px] font-bold text-t1">Request information</p>
+                  <p className="text-[11px] text-t3">Intercom · {patient.demographic.full_name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRequestInfoOpen(false)}
+                className="text-t3 hover:text-t1 transition-colors p-1 rounded"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Thread */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              {/* System message */}
+              <div className="text-center">
+                <span className="text-[10px] font-semibold text-t3 bg-page-bg border border-bdr px-3 py-1 rounded-full">
+                  Conversation started · {formatDate(order.created_at)}
+                </span>
+              </div>
+              {/* Incoming (patient) */}
+              <div className="flex gap-2">
+                <div className="w-7 h-7 rounded-full bg-brand/20 border border-brand/30 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-[10px] font-bold text-brand">
+                    {patient.demographic.full_name.split(" ").map((n) => n[0]).join("").slice(0,2)}
+                  </span>
+                </div>
+                <div className="bg-page-bg border border-bdr rounded-xl rounded-tl-none px-3 py-2 max-w-[260px]">
+                  <p className="text-[12px] text-t1 leading-relaxed">
+                    Hi, I wanted to check — should I continue with the same dose or wait for my next appointment?
+                  </p>
+                  <p className="text-[10px] text-t3 mt-1">{formatDateTime(order.created_at)}</p>
+                </div>
+              </div>
+              {/* Outgoing (clinic) */}
+              <div className="flex gap-2 justify-end">
+                <div className="bg-brand text-white rounded-xl rounded-tr-none px-3 py-2 max-w-[260px]">
+                  <p className="text-[12px] leading-relaxed">
+                    Hi {patient.demographic.full_name.split(" ")[0]}, thanks for reaching out. We&apos;re reviewing your order now — we may need a few more details.
+                  </p>
+                  <p className="text-[10px] text-white/70 mt-1">Livera Care Team · {formatDate(order.created_at)}</p>
+                </div>
+              </div>
+              {/* Sent confirmation */}
+              {requestInfoSent && (
+                <div className="flex gap-2 justify-end">
+                  <div className="bg-brand text-white rounded-xl rounded-tr-none px-3 py-2 max-w-[260px]">
+                    <p className="text-[12px] leading-relaxed">{requestInfoMsg}</p>
+                    <p className="text-[10px] text-white/70 mt-1 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" /> Sent just now
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Compose */}
+            {!requestInfoSent ? (
+              <div className="border-t border-bdr px-4 py-3 space-y-2 bg-surface">
+                <textarea
+                  rows={3}
+                  placeholder={`Ask ${patient.demographic.full_name.split(" ")[0]} for more information…`}
+                  value={requestInfoMsg}
+                  onChange={(e) => setRequestInfoMsg(e.target.value)}
+                  className="w-full text-[13px] border border-bdr rounded-lg px-3 py-2 bg-page-bg text-t1 placeholder:text-t3 resize-none focus:outline-none focus:border-brand"
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] text-t3">Sent via Intercom · patient will be notified by email</p>
+                  <button
+                    disabled={!requestInfoMsg.trim()}
+                    onClick={() => { if (requestInfoMsg.trim()) setRequestInfoSent(true); }}
+                    className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Send className="w-3.5 h-3.5" /> Send
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="border-t border-bdr px-4 py-3 bg-ok-bg">
+                <p className="text-[12px] font-semibold text-ok text-center flex items-center justify-center gap-1.5">
+                  <CheckCircle className="w-4 h-4" /> Message sent to {patient.demographic.full_name.split(" ")[0]}
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

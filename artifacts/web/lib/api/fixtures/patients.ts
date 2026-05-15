@@ -3,10 +3,15 @@
  *
  * Wave 2 additions (BLD-2.1):
  *   - coach_id: string | null added to all patients (FeelTru patients assigned user_olwyn)
+ *
+ * Wave 10 additions (BLD-10.1/10.4):
+ *   - RYAN_FEELTRU: demo male patient at FeelTru (triggers gender eligibility banner)
+ *   - purgePatientData(): UK GDPR Art 5(1)(c) — gender mismatch data purge
  */
 
 import type { ClinicId, Patient } from '../types';
-import { delay, APIError } from '../constants';
+import { delay, APIError, CURRENT_USER, NOW } from '../constants';
+import { can } from '@/lib/permissions';
 
 // ── Sarah Cookland — persona spine ──────────────────────────────────────────
 const SARAH_FEELTRU: Patient = {
@@ -236,10 +241,128 @@ const FIONA_FEELTRU: Patient = {
   updated_at: '2026-04-20T14:00:00Z',
 };
 
+// ── Welcome-call canonical patients (BLD-13.3) ───────────────────────────────
+
+const MICHELLE_FEELTRU: Patient = {
+  id: 'PT-00210',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Michelle Clarke',
+    dob: '1982-07-03',
+    sex_at_birth: 'female',
+    ethnicity: 'White British',
+    address: { line1: '8 Maple Drive', city: 'Bristol', postcode: 'BS1 4TN' },
+  },
+  contact: { email: 'michelle.clarke@example.com', phone: '+44 7700 900701', preferred_channel: 'email' },
+  gp: { name: 'Dr. Owens', address: 'Central Surgery, Bristol BS1 5RT', phone: '+44 117 555 0100', email: 'central@nhs.net', nhs_ods_id: 'L83042' },
+  baseline: { height_cm: 167, baseline_weight_kg: 97.0, baseline_bmi: 34.8 },
+  latest: { weight_kg: 97.0, bmi: 34.8, recorded_at: '2026-04-28T10:00:00Z' },
+  verification: { sumsub_id: 'sumsub_mc210', identity_verified_at: '2026-04-28T10:00:00Z', bmi_verified_at: '2026-04-28T10:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-04-28T10:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-04-28T10:00:00Z' },
+  ],
+  flags: [{ id: 'flag_wc053', code: 'FLAG-004', severity: 'medium', raised_at: '2026-05-06T11:25:00Z' }],
+  status: 'active',
+  vip: false,
+  coach_id: 'user_olwyn',
+  intercom_user_id: 'icom_pt00210_feeltru',
+  created_at: '2026-04-28T10:00:00Z',
+  updated_at: '2026-05-06T11:25:00Z',
+};
+
+const SARAH_CHEN_FEELTRU: Patient = {
+  id: 'PT-00214',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Sarah Chen',
+    dob: '1990-02-18',
+    sex_at_birth: 'female',
+    ethnicity: 'Chinese',
+    address: { line1: '22 Riverside Court', city: 'London', postcode: 'E1 7RG' },
+  },
+  contact: { email: 'sarah.chen@example.com', phone: '+44 7700 900714', preferred_channel: 'email' },
+  gp: { name: 'Dr. Kim', address: 'East End Practice, London E1 8PQ', phone: '+44 20 7555 0200', email: 'eastend@nhs.net', nhs_ods_id: 'G85011' },
+  baseline: { height_cm: 160, baseline_weight_kg: 82.0, baseline_bmi: 32.0 },
+  latest: { weight_kg: 82.0, bmi: 32.0, recorded_at: '2026-05-01T09:30:00Z' },
+  verification: { sumsub_id: 'sumsub_sc214', identity_verified_at: '2026-05-01T09:30:00Z', bmi_verified_at: '2026-05-01T09:35:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-05-01T09:30:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-05-01T09:30:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: 'user_olwyn',
+  intercom_user_id: 'icom_pt00214_feeltru',
+  created_at: '2026-05-01T09:30:00Z',
+  updated_at: '2026-05-08T07:00:00Z',
+};
+
+const BETH_FEELTRU: Patient = {
+  id: 'PT-00199',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Beth Newman',
+    dob: '1975-11-09',
+    sex_at_birth: 'female',
+    ethnicity: 'White British',
+    address: { line1: '3 Chestnut Avenue', city: 'Leeds', postcode: 'LS1 2WZ' },
+  },
+  contact: { email: 'beth.newman@example.com', phone: '+44 7700 900199', preferred_channel: 'phone' },
+  gp: { name: 'Dr. Hassan', address: 'Kirkgate Surgery, Leeds LS1 3PQ', phone: '+44 113 555 0300', email: 'kirkgate@nhs.net', nhs_ods_id: 'B82031' },
+  baseline: { height_cm: 169, baseline_weight_kg: 105.0, baseline_bmi: 36.8 },
+  latest: { weight_kg: 105.0, bmi: 36.8, recorded_at: '2026-04-25T11:00:00Z' },
+  verification: { sumsub_id: 'sumsub_bn199', identity_verified_at: '2026-04-25T11:00:00Z', bmi_verified_at: '2026-04-25T11:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-04-25T11:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-04-25T11:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: 'user_olwyn',
+  intercom_user_id: 'icom_pt00199_feeltru',
+  created_at: '2026-04-25T11:00:00Z',
+  updated_at: '2026-05-07T08:00:00Z',
+};
+
+// ── BLD-10.1 — Ryan Mitchell — demo male patient registered at FeelTru ───────
+// Triggers the gender eligibility mismatch banner (DEC-16, UK Equality Act 2010 Sch 3 Para 27).
+// FeelTru is female_only; this patient should be redirected to VSC or data purged per BLD-10.4.
+const RYAN_FEELTRU: Patient = {
+  id: 'PT-00556',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Ryan Mitchell',
+    dob: '1989-07-14',
+    sex_at_birth: 'male',
+    ethnicity: 'White British',
+    address: { line1: '14 Grafton Street', city: 'Manchester', postcode: 'M1 5GF' },
+  },
+  contact: { email: 'ryan.mitchell@example.com', phone: '+44 7700 900556', preferred_channel: 'email' },
+  gp: { name: 'Dr. Patel', address: 'Northern Quarter Surgery, Manchester M1 2AB', phone: '+44 161 555 0100', email: 'nq@nhs.net', nhs_ods_id: 'P84721' },
+  baseline: { height_cm: 182, baseline_weight_kg: 105.0, baseline_bmi: 31.7 },
+  latest: { weight_kg: 105.0, bmi: 31.7, recorded_at: '2026-05-10T14:00:00Z' },
+  verification: { sumsub_id: 'sumsub_rm556', identity_verified_at: '2026-05-10T14:00:00Z', bmi_verified_at: null },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-05-10T14:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: null,
+  intercom_user_id: 'icom_pt00556_feeltru',
+  created_at: '2026-05-10T14:00:00Z',
+  updated_at: '2026-05-10T14:00:00Z',
+};
+
 export const MOCK_PATIENTS: Patient[] = [
   SARAH_FEELTRU, SARAH_VSC,
   JAMES_VSC, MIRIAM_VSC, TOM_VSC, PRIYA_VSC,
   EMMA_FEELTRU, ZARA_FEELTRU, FIONA_FEELTRU,
+  MICHELLE_FEELTRU, SARAH_CHEN_FEELTRU, BETH_FEELTRU,
+  RYAN_FEELTRU,
 ];
 
 export async function listPatients(
@@ -266,4 +389,40 @@ export async function getPatient(clinic_id: ClinicId, id: string): Promise<Patie
   const p = MOCK_PATIENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!p) throw new APIError('NOT_FOUND', 'Patient not found');
   return p;
+}
+
+// ── BLD-10.4 — purgePatientData — UK GDPR Art 5(1)(c) data minimisation ──────
+// Called when a male/non-binary patient is identified at a female_only clinic.
+// Owner/Admin only. Audit-logged with legal basis. Removes from Livera mirror only
+// (Primed API purge is a V1.2 concern — noted in audit trail).
+export async function purgePatientData(
+  clinic_id: ClinicId,
+  patient_id: string,
+  actor = CURRENT_USER
+): Promise<void> {
+  await delay(500);
+
+  if (!can(actor, 'write', 'patients')) {
+    throw new APIError('PERMISSION_DENIED', `User ${actor.id} cannot purge patient data`);
+  }
+
+  const idx = MOCK_PATIENTS.findIndex((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (idx === -1) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  const patient = MOCK_PATIENTS[idx];
+
+  MOCK_PATIENTS.splice(idx, 1);
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_data_purged',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    patient_name_hash: patient.demographic.full_name.length, // hashed — no PII in audit log
+    legal_basis: 'UK GDPR Art 5(1)(c) — data minimisation — gender eligibility mismatch (DEC-16)',
+    legal_gateway: 'UK Equality Act 2010 Sch 3 Para 27',
+    primed_api_purge: 'PENDING — V1.2 concern (requires Yohan backend wiring)',
+    timestamp: NOW,
+  });
 }

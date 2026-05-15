@@ -169,13 +169,12 @@ export type ClinicConfig = {
   };
 
   // Rule-engine stubs — concrete types added in Chunks 13/16a/17
-  // Both clinic fixtures seed these with [] until the rule types land.
-  flag_rules: unknown[];            // G6 flag evaluation rules (Chunk 16a)
-  treatment_gap_rules: unknown[];   // Treatment gap rules (Chunk 13)
-  dose_escalation_rules: unknown[]; // Dose escalation protocol (Chunk 13)
-  primed_flag_rules: unknown[];     // Primed flag mirror rules (Chunk 17)
-  questionnaire_order: unknown[];   // New-patient questionnaire config (Chunk 13)
-  questionnaire_reorder: unknown[]; // Reorder questionnaire config (Chunk 13)
+  flag_rules: unknown[];                   // G6 flag evaluation rules (Chunk 16a)
+  treatment_gap_rules: TreatmentGapRule[]; // Treatment gap rules (BLD-14.6)
+  dose_escalation_rules: unknown[];        // Dose escalation protocol (Chunk 13)
+  primed_flag_rules: unknown[];            // Primed flag mirror rules (Chunk 17)
+  questionnaire_order: QuestionItem[];     // New-patient questionnaire config (BLD-13.4)
+  questionnaire_reorder: QuestionItem[];   // Reorder questionnaire config (BLD-13.4)
 };
 
 // --- Clinic (outer entity) ---
@@ -277,10 +276,66 @@ export type Order = {
   sla_warn_at: string;
   sla_breach_at: string;
   g6_flags: string[];
+  contextual_flags?: string[];            // Behavioural flags for display in queue (Dose increase, Safeguarding, etc.)
   intervention_raised_at: string | null;  // BLD-4.6.1 — set when decision='queried'
   expired_at: string | null;              // BLD-4.6.3 — set by detectOrderExpiry
+
+  // BLD-14.3 — NICE CG189 checklist (toggled by prescriber during clinical_check)
+  nice_checklist?: Array<{
+    id: string;
+    label: string;
+    checked: boolean;
+    checked_by?: string;
+    checked_at?: string;
+  }> | null;
+
+  // BLD-14.4 — Dose escalation gate (computed from questionnaire + treatment history)
+  dose_escalation_gate?: {
+    is_dose_escalation: boolean;
+    from_dose: string;
+    to_dose: string;
+    weeks_at_current_dose: number;
+    weeks_required: number;
+    weight_loss_pct: number;
+    weight_loss_kg: number;
+    prior_evidence_uploaded: boolean;
+    evidence_label?: string;
+    eligible: boolean;
+  } | null;
+
+  // BLD-14.5 — Weight trajectory (last ≤5 readings snapshotted at order submission)
+  weight_history?: Array<{
+    recorded_at: string;  // ISO
+    weight_kg: number;
+    bmi: number;
+  }> | null;
+
+  royal_mail_tracking_id?: string | null;   // BLD-11.1 — RM1234567890GB format
+  dispatched_at?: string | null;            // BLD-11.2 — ISO timestamp; set when status → dispatched
   created_at: string;
   updated_at: string;
+};
+
+// --- Courier Event (BLD-11.1 — Royal Mail webhook events) ---
+export type CourierEventType =
+  | 'accepted'          // RM accepted parcel from pharmacy
+  | 'collected'         // RM driver collected from depot
+  | 'in_transit'        // en route to delivery office
+  | 'out_for_delivery'  // on vehicle today
+  | 'delivered'         // successfully delivered
+  | 'exception';        // failed delivery / problem
+
+export type CourierEvent = {
+  id: string;
+  clinic_id: ClinicId;
+  order_id: string;
+  event_type: CourierEventType;
+  occurred_at: string;            // ISO 8601
+  location: string | null;        // e.g. "Manchester Delivery Office"
+  description: string;
+  is_exception: boolean;
+  exception_code: string | null;  // 'NOT_HOME' | 'ADDRESS_NOT_FOUND' | 'REFUSED' | 'DAMAGED'
+  postmark_triggered: boolean;    // BLD-11.3 — Postmark template fired for this event
 };
 
 // --- Consultation (DEC-40 — unified entity) ---
@@ -359,6 +414,7 @@ export type Incident = {
   yellow_card_required: boolean;
   yellow_card_submitted: boolean;
   yellow_card_reference: string | null;
+  yellow_card_decision: 'filed' | 'not_applicable' | null; // BLD-YC-01
   cqc_notification_required: boolean;
   cqc_notified_at: string | null;
   escalated_to_user_id: string | null;
@@ -368,6 +424,18 @@ export type Incident = {
   // BLD-8.1 additions (Wave 6 — DEC-10)
   intercom_thread_url: string | null;
   incident_origin: IncidentOrigin;
+  // Creator attribution
+  created_by_user_id: string | null;
+};
+
+export type IncidentComment = {
+  id: string;
+  incident_id: string;
+  user_id: string;
+  user_name: string;
+  user_initials: string;
+  body: string;
+  created_at: string;
 };
 
 // --- Complaint (DEC-37 — Monday source of truth; Livera mirrors) ---
@@ -520,6 +588,24 @@ export type CoachingLog = {
   structured_observations?: Record<string, unknown> | null;
 };
 
+// --- Calendly booking mirror (DEC-40 — BLD-CALENDLY-MIRROR-01) ---
+// Mirrored from Calendly via webhook events:
+//   invitee.created · invitee.canceled · invitee_no_show.created
+export type CalendlyBooking = {
+  id: string;                        // Livera internal ID
+  patient_id: string;
+  clinic_id: ClinicId;
+  calendly_event_id: string;         // evt_xxxxxxxx
+  event_type: string;                // e.g. "Coaching session · 30-min check-in"
+  scheduled_at: string;              // ISO — start datetime
+  end_at: string;                    // ISO — end datetime
+  coach_name: string;
+  booking_method: 'patient_self_booked' | 'coach_booked' | 'admin_booked';
+  booked_at: string;                 // ISO — when booking was created in Calendly
+  join_url: string | null;           // video meeting link, if applicable
+  status: 'scheduled' | 'cancelled' | 'no_show';
+};
+
 // --- Clinical escalation flag (DEC-05 — BLD-2.7) ---
 export type ClinicalEscalationFlag = {
   id: string;
@@ -603,6 +689,181 @@ export type PharmacyCommThread = {
   updated_at: string;
   messages: PharmacyCommMessage[];
   amendment_id: string | null;          // linked Amendment if thread = amendment comms (DEC-28)
+};
+
+// --- WelcomeCall (BLD-13.3) ---
+
+export type WelcomeCallStatus = 'awaiting' | 'attempted' | 'completed' | 'unreachable';
+export type WelcomeCallAttemptType = 'success' | 'no_answer' | 'voicemail';
+
+export type WelcomeCallAttempt = {
+  id: string;
+  type: WelcomeCallAttemptType;
+  timestamp: string;            // ISO
+  by_user_id: string;
+  duration_display: string;     // e.g. "8 min", "0:32"
+  channel: string;              // e.g. "Intercom telephone"
+  body: string;                 // plain text outcome line
+  notes?: string;               // clinician's own notes / quote
+};
+
+export type WelcomeCallOutcome = {
+  outcome_summary: string;
+  patient_receptive?: boolean;
+  comfortable_with_app?: boolean;
+  side_effects_understood?: boolean;
+  follow_up_needed?: boolean;
+  follow_up_note?: string;
+  flag_raised_text?: string;
+};
+
+export type WelcomeCallFlag = {
+  flag_id: string;
+  flag_name: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  reason: string;
+  raised_by_user_id: string;
+};
+
+export type WelcomeCall = {
+  id: string;                   // WC-XXXX
+  patient_id: string;
+  order_id: string;
+  clinic_id: ClinicId;
+  status: WelcomeCallStatus;
+  owner_user_id: string;
+  trigger_description: string;
+  triggered_at: string;         // ISO — when the dispatch fired
+  attempts: WelcomeCallAttempt[];
+  outcome?: WelcomeCallOutcome;
+  flag_raised?: WelcomeCallFlag;
+  created_at: string;           // ISO
+  updated_at: string;           // ISO
+};
+
+// --- Task (BLD-13.2) ---
+
+export type TaskStatus = 'todo' | 'progress' | 'done' | 'blocked';
+export type TaskPriority = 'high' | 'med' | 'low';
+export type TaskLinkedType = 'Patient' | 'Order' | 'Incident' | 'Complaint';
+
+export type TaskLinkedRecord = {
+  type: TaskLinkedType;
+  ref: string;
+  label: string;        // human-readable: e.g. "ORD-01287 · Sarah Chen · 0.25mg semaglutide"
+  meta?: string;        // e.g. "Status: In Clinical Check · Submitted 01 May 2026"
+};
+
+export type TaskSubtask = {
+  id: string;
+  title: string;
+  done: boolean;
+  due_label?: string;   // display string e.g. "Today", "02 May"
+};
+
+export type TaskActivityKind =
+  | 'created'
+  | 'status_change'
+  | 'assigned'
+  | 'comment'
+  | 'note'
+  | 'subtask_done'
+  | 'linked';
+
+export type TaskActivity = {
+  id: string;
+  kind: TaskActivityKind;
+  actor_user_id: string;
+  timestamp: string;           // ISO
+  content?: string;            // for comment / note
+  from_status?: TaskStatus;
+  to_status?: TaskStatus;
+  subtask_title?: string;
+  linked_ref?: string;
+  assigned_to_user_id?: string;
+};
+
+export type Task = {
+  id: string;                  // TSK-XXXX
+  title: string;
+  description: string;
+  owner_user_id: string;
+  reporter_user_id: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  due_date: string;            // ISO date e.g. '2026-05-11'
+  clinic_id: ClinicId;
+  linked?: TaskLinkedRecord;
+  subtasks: TaskSubtask[];
+  activity: TaskActivity[];
+  created_at: string;          // ISO
+  updated_at: string;          // ISO
+};
+
+// --- DiscontinuationProtocol (BLD-13.5) ---
+// Created when a patient's treatment is discontinued for any reason.
+// Triggers GP notification (GP letter) + follow-up SLA.
+export type DiscontinuationReason =
+  | 'patient_request'
+  | 'clinical_decision'
+  | 'non_compliance'
+  | 'adverse_event'
+  | 'lost_to_follow_up';
+
+export type DiscontinuationStatus =
+  | 'initiated'
+  | 'gp_notified'
+  | 'follow_up_pending'
+  | 'closed';
+
+export type DiscontinuationProtocol = {
+  id: string;                        // DISC-XXXXX
+  clinic_id: ClinicId;
+  patient_id: string;
+  order_id: string | null;           // linked order if applicable
+  reason: DiscontinuationReason;
+  reason_detail: string;
+  created_at: string;                // ISO
+  created_by: string;                // user_id
+  status: DiscontinuationStatus;
+  gp_notified_at: string | null;     // ISO — when GP letter was sent
+  follow_up_call_at: string | null;  // ISO — when follow-up call was completed
+  sla_follow_up_days: number;        // from clinic config, default 7
+  closed_at: string | null;
+  notes: string;
+};
+
+// --- QuestionItem (BLD-13.4) ---
+// Configurable questionnaire question — used in ClinicConfig.questionnaire_order
+// and questionnaire_reorder. The builder in Settings → Questionnaire edits these.
+export type QuestionType = 'text' | 'yes_no' | 'scale' | 'number' | 'choice';
+
+export type QuestionItem = {
+  id: string;
+  label: string;
+  type: QuestionType;
+  required: boolean;
+  order: number;
+  placeholder?: string;
+  help_text?: string;
+  options?: string[];      // for type = 'choice'
+  scale_min?: number;      // for type = 'scale'
+  scale_max?: number;      // for type = 'scale'
+};
+
+// --- TreatmentGapRule (BLD-14.6) ---
+// Configurable rules that fire when a patient's reorder gap exceeds thresholds.
+// Stored in ClinicConfig.treatment_gap_rules[].
+export type TreatmentGapAction = 'warn' | 'block_reorder' | 'require_consult';
+
+export type TreatmentGapRule = {
+  id: string;
+  label: string;
+  gap_days_min: number;          // minimum gap since last dispensed order (calendar days)
+  gap_days_max: number | null;   // null = no upper bound
+  action: TreatmentGapAction;
+  action_copy: string;           // message shown to clinician when rule fires
+  enabled: boolean;
 };
 
 // --- SlaBreach (BLD-3.2) ---

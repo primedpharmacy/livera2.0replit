@@ -5,7 +5,7 @@ import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { OrdersView } from "@/components/orders/OrdersView";
-import { listOrders, getClinicSync } from "@/lib/api/mock";
+import { listOrders, getClinicSync, listPatients } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 type OrdersPageProps = { params: Promise<{ clinic_id: string }> };
@@ -17,7 +17,7 @@ export default async function OrdersPage({ params }: OrdersPageProps) {
       <PageHeader
         icon={Package}
         title="Orders"
-        subtitle="All orders for this workspace"
+        subtitle="All orders across every state"
       />
       <Suspense key={clinic_id} fallback={<LoadingState.Table />}>
         <OrdersContent clinicId={clinic_id as ClinicId} />
@@ -28,10 +28,12 @@ export default async function OrdersPage({ params }: OrdersPageProps) {
 
 async function OrdersContent({ clinicId }: { clinicId: ClinicId }) {
   try {
-    const [orders, clinic] = await Promise.all([
+    const [orders, clinic, patients] = await Promise.all([
       listOrders(clinicId),
       Promise.resolve(getClinicSync(clinicId)),
+      listPatients(clinicId),
     ]);
+
     if (orders.length === 0) {
       return (
         <EmptyState
@@ -41,7 +43,19 @@ async function OrdersContent({ clinicId }: { clinicId: ClinicId }) {
         />
       );
     }
-    return <OrdersView initialOrders={orders} clinicId={clinicId} clinic={clinic} />;
+
+    const patientNames: Record<string, string> = Object.fromEntries(
+      patients.map((p) => [p.id, p.demographic.full_name])
+    );
+
+    return (
+      <OrdersView
+        initialOrders={orders}
+        clinicId={clinicId}
+        clinic={clinic}
+        patientNames={patientNames}
+      />
+    );
   } catch (err) {
     return (
       <ErrorState

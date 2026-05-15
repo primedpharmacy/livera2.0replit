@@ -21,6 +21,12 @@ const TABS = [
   { key: "exports",              label: "Exports",              path: "exports"              },
   { key: "holidays",             label: "Holiday calendar",     path: "holidays"             },
   { key: "gp-letter-templates",  label: "GP letter templates",  path: "gp-letter-templates"  },  // BLD-7.6
+  { key: "intercom",             label: "Intercom",             path: "intercom"             },  // BLD-8.2 / BLD-INT-MHRA-02
+  { key: "mhra-alerts",            label: "MHRA alerts",          path: "mhra-alerts"            },  // BLD-INT-MHRA-01
+  { key: "consultation-types",     label: "Consultation types",   path: "consultation-types"     },  // BLD-CONS-SETTINGS-01
+  { key: "reorder-rules",          label: "Reorder rules",        path: "reorder-rules"          },  // BLD-14.6
+  { key: "questionnaire",          label: "Questionnaire",        path: "questionnaire"          },  // BLD-13.4
+  { key: "integrations",           label: "Integrations",         path: "integrations"           },  // BLD-CONS-PROVIDER-01 · BLD-1.7 · BLD-9.0
 ] as const;
 
 export default async function SettingsLayout({ children, params }: SettingsLayoutProps) {

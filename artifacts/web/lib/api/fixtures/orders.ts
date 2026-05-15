@@ -26,7 +26,12 @@ const SARAH_ORDER_FEELTRU: Order = {
   type: 'reorder',
   status: 'clinical_check',
   product: { medication: 'Mounjaro', dose: '7.5mg', strength: 'pre-filled pen', plan: '4 weeks' },
-  questionnaire_responses: { weight_today: 84.2, side_effects: 'mild nausea', medication_changes: 'none' },
+  questionnaire_responses: {
+    weight_today: 84.2,
+    side_effects: 'mild nausea',
+    medication_changes: 'none',
+    eating_pattern: 'restrictive',
+  },
   amendment_window: 'pre_dispensed',
   primed_order_id: null,
   primed_clinical_check_completed: false,
@@ -37,13 +42,43 @@ const SARAH_ORDER_FEELTRU: Order = {
   sla_warn_at: '2026-05-11T14:00:00Z',
   sla_breach_at: '2026-05-12T08:00:00Z',
   g6_flags: ['B4'],
+  contextual_flags: ['Dose increase', 'Cardiac history', 'BMI 29.5', 'Awaiting ID'],
   intervention_raised_at: null,
   expired_at: null,
+  // BLD-14.3 — NICE CG189 checklist (all confirmed for this dose-escalation order)
+  nice_checklist: [
+    { id: 'nc-1', label: 'BMI \u226527.5 with comorbidity (hypertension confirmed)', checked: true,  checked_by: 'user_claire', checked_at: '2026-05-11T07:10:00Z' },
+    { id: 'nc-2', label: 'Patient willing to receive treatment + monitoring',          checked: true,  checked_by: 'user_claire', checked_at: '2026-05-11T07:10:00Z' },
+    { id: 'nc-3', label: 'No contraindications (pancreatitis / MTC / MEN2)',           checked: true,  checked_by: 'user_claire', checked_at: '2026-05-11T07:11:00Z' },
+    { id: 'nc-4', label: 'Lifestyle conversation documented this cycle',               checked: true,  checked_by: 'user_claire', checked_at: '2026-05-11T07:11:00Z' },
+    { id: 'nc-5', label: 'Reviewed for stop criteria (5% loss at 6 months)',           checked: false },
+  ],
+  // BLD-14.4 — Dose escalation gate (5mg -> 7.5mg, eligible)
+  dose_escalation_gate: {
+    is_dose_escalation: true,
+    from_dose: '5mg',
+    to_dose: '7.5mg',
+    weeks_at_current_dose: 6,
+    weeks_required: 4,
+    weight_loss_pct: 4.1,
+    weight_loss_kg: 3.6,
+    prior_evidence_uploaded: true,
+    evidence_label: 'Reorder Q4 photo (pen pack \xb7 23 Apr 2026)',
+    eligible: true,
+  },
+  // BLD-14.5 — Weight trajectory (last 5 readings)
+  weight_history: [
+    { recorded_at: '2026-01-25T10:00:00Z', weight_kg: 92.5, bmi: 34.0 },
+    { recorded_at: '2026-02-22T10:00:00Z', weight_kg: 91.0, bmi: 33.4 },
+    { recorded_at: '2026-03-22T10:00:00Z', weight_kg: 88.5, bmi: 32.5 },
+    { recorded_at: '2026-04-19T10:00:00Z', weight_kg: 86.2, bmi: 31.7 },
+    { recorded_at: '2026-05-01T10:00:00Z', weight_kg: 84.2, bmi: 30.9 },
+  ],
   created_at: '2026-05-11T06:00:00Z',
   updated_at: NOW,
 };
 
-const SARAH_ORDER_VSC: Order = { ...SARAH_ORDER_FEELTRU, clinic_id: 'vsc', patient_id: 'PT-00012' };
+const SARAH_ORDER_VSC: Order = { ...SARAH_ORDER_FEELTRU, clinic_id: 'vsc', patient_id: 'PT-00012', amendment_window: 'pre_approval' };
 
 const JAMES_ORDER_VSC: Order = {
   id: 'ORD-00438',
@@ -53,7 +88,7 @@ const JAMES_ORDER_VSC: Order = {
   status: 'approved',
   product: { medication: 'Mounjaro', dose: '5mg', strength: 'pre-filled pen', plan: '4 weeks' },
   questionnaire_responses: { weight_today: 101.4, side_effects: 'none', medication_changes: 'none' },
-  amendment_window: 'pre_dispensed',
+  amendment_window: 'pre_approval',
   primed_order_id: null,
   primed_clinical_check_completed: true,
   ryft_authorisation_id: 'ryft_auth_jh1',
@@ -82,7 +117,7 @@ const MIRIAM_ORDER_VSC: Order = {
   status: 'clinical_check',
   product: { medication: 'Mounjaro', dose: '2.5mg', strength: 'pre-filled pen', plan: '4 weeks' },
   questionnaire_responses: { weight_today: 95.1, side_effects: 'none', medication_changes: 'none' },
-  amendment_window: 'pre_dispensed',
+  amendment_window: 'pre_approval',
   primed_order_id: null,
   primed_clinical_check_completed: false,
   ryft_authorisation_id: 'ryft_auth_mo1',
@@ -92,6 +127,7 @@ const MIRIAM_ORDER_VSC: Order = {
   sla_warn_at: '2026-05-11T06:00:00Z',
   sla_breach_at: '2026-05-11T12:00:00Z',
   g6_flags: [],
+  contextual_flags: ['Dose increase', 'Awaiting BMI'],
   intervention_raised_at: null,
   expired_at: null,
   created_at: '2026-05-10T12:00:00Z',
@@ -123,6 +159,8 @@ const EMMA_ORDER_FEELTRU: Order = {
   g6_flags: [],
   intervention_raised_at: null,
   expired_at: null,
+  royal_mail_tracking_id: 'RM123456789GB',
+  dispatched_at: '2026-05-07T08:00:00Z',
   created_at: '2026-05-05T10:00:00Z',
   updated_at: '2026-05-07T08:00:00Z',
 };
@@ -145,6 +183,7 @@ const ZARA_ORDER_FEELTRU: Order = {
   sla_warn_at: '2026-05-11T11:00:00Z',
   sla_breach_at: '2026-05-12T05:00:00Z',
   g6_flags: [],
+  contextual_flags: ['Duplicate address', 'Awaiting Rx evidence'],
   intervention_raised_at: null,
   expired_at: null,
   created_at: '2026-05-11T05:00:00Z',
@@ -190,7 +229,7 @@ const NINA_ORDER_VSC_EXPIRED: Order = {
   status: 'expired',
   product: { medication: 'Mounjaro', dose: '2.5mg', strength: 'pre-filled pen', plan: '4 weeks' },
   questionnaire_responses: { weight_today: 96.0, side_effects: 'none', medication_changes: 'none' },
-  amendment_window: 'pre_dispensed',
+  amendment_window: 'pre_approval',
   primed_order_id: null,
   primed_clinical_check_completed: false,
   ryft_authorisation_id: 'ryft_auth_ni1',

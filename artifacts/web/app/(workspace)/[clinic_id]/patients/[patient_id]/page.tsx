@@ -4,30 +4,34 @@ import {
   ArrowLeft, ChevronRight, Phone, Stethoscope, ShieldCheck,
   AlertTriangle, Scale, Package, FileText, MessageSquare,
   Camera, ClipboardList, Calendar, Pill, MessageCircle, Map,
-  TrendingDown, CreditCard, Clock, HeartPulse, Link2,
+  TrendingDown, CreditCard, Clock, HeartPulse, Link2, Truck,
 } from "lucide-react";
 import { differenceInWeeks, parseISO } from "date-fns";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { PatientQuickActions } from "@/components/patients/PatientQuickActions";
+import { GenderEligibilityBanner } from "@/components/patients/GenderEligibilityBanner";
 import { CoachingLogTab } from "@/components/patients/CoachingLogTab";
 import { PatientNotesTimeline } from "@/components/timeline/PatientNotesTimeline";
 import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
-import { AdminNoteFABModal } from "@/components/patients/AdminNoteFABModal";
+import { PatientFABSpeedDial } from "@/components/patients/PatientFABSpeedDial";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
+import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
+import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import {
   getPatient, listOrders, getClinic, listCoachingLogs,
   listClinicalNotes, listGPLetters, listAdminNotesByPatient,
-  listIncidents, CURRENT_USER,
+  listIncidents, listCourierEvents, CURRENT_USER, getUpcomingCalendlyBookings,
 } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import type {
   Patient, Order, ClinicId, CoachingLog, ClinicalNote,
-  GPLetter, AdminNote, Incident, Clinic,
+  GPLetter, AdminNote, Incident, Clinic, CalendlyBooking, CourierEvent,
 } from "@/lib/api/types";
+import { CourierTrackingCard } from "@/components/orders/CourierTrackingCard";
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 const TABS = [
@@ -80,7 +84,7 @@ async function ProfileContent({
 
     const [
       patient, orders, clinicalNotes, gpLetters, adminNotes,
-      coachingLogs, allIncidents,
+      coachingLogs, allIncidents, calendlyBookings, allCourierEvents,
     ] = await Promise.all([
       getPatient(clinicId, patientId),
       listOrders(clinicId, { patient_id: patientId }),
@@ -91,8 +95,14 @@ async function ProfileContent({
         ? listCoachingLogs(clinicId, { patient_id: patientId })
         : Promise.resolve([] as CoachingLog[]),
       listIncidents(clinicId),
+      coachingEnabled
+        ? getUpcomingCalendlyBookings(clinicId, patientId)
+        : Promise.resolve([] as CalendlyBooking[]),
+      listCourierEvents(clinicId),
     ]);
 
+    const patientOrderIds = new Set(orders.map((o) => o.id));
+    const courierEvents = allCourierEvents.filter((e) => patientOrderIds.has(e.order_id));
     const incidents = allIncidents.filter((i) => i.patient_id === patientId);
     const sortedLogs = [...coachingLogs].sort((a, b) => b.entry_date.localeCompare(a.entry_date));
     const latestOrder = orders.length > 0 ? orders[orders.length - 1] : null;
@@ -102,8 +112,11 @@ async function ProfileContent({
     const weightLost = rawWeightLost > 0 ? `${rawWeightLost.toFixed(1)} kg` : "—";
     const totalSpend = orders.reduce((s, o) => s + (o.amount_authorised ?? 0), 0);
     const canWriteNotes = can(CURRENT_USER, "write", "clinical_notes");
+    const canPurge = can(CURRENT_USER, "write", "patients");
+    const genderEligibility = clinic.config.gender_eligibility;
 
     return (
+      <>
       <div className="flex flex-col h-full">
         {/* Breadcrumb */}
         <div className="px-6 py-2.5 bg-surface border-b border-bdr flex items-center gap-1.5 text-[12px] text-t3 shrink-0">
@@ -125,6 +138,15 @@ async function ProfileContent({
 
           {/* Right column */}
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+            {/* BLD-10.2/10.3 — Gender eligibility mismatch banner */}
+            <GenderEligibilityBanner
+              clinicId={clinicId}
+              patientId={patient.id}
+              patientName={patient.demographic.full_name}
+              sexAtBirth={patient.demographic.sex_at_birth}
+              genderEligibility={genderEligibility}
+              canPurge={canPurge}
+            />
             {/* Tab bar */}
             <div className="flex bg-surface border-b border-bdr px-4 overflow-x-auto shrink-0">
               {TABS.map(({ key, label }) => {
@@ -199,15 +221,21 @@ async function ProfileContent({
                   clinicId={clinicId}
                   logs={sortedLogs}
                   coachingEnabled={coachingEnabled}
+                  bookings={calendlyBookings}
                 />
               )}
-              {activeTab === "pharmacy-comms" && <PharmacyCommsTab />}
+              {activeTab === "pharmacy-comms" && (
+                <PharmacyCommsTab clinicId={clinicId} patientId={patientId} />
+              )}
               {activeTab === "intercom" && <IntercomTab patient={patient} />}
-              {activeTab === "journey" && <JourneyTab />}
+              {activeTab === "journey" && <JourneyTab orders={orders as Order[]} courierEvents={courierEvents} />}
             </div>
           </div>
         </div>
       </div>
+      {/* Speed-dial FAB — visible on all tabs, actions gated by role */}
+      <PatientFABSpeedDial clinicId={clinicId} patientId={patientId} latestOrderId={latestOrder?.id ?? null} />
+      </>
     );
   } catch (err) {
     return (
@@ -763,11 +791,6 @@ function NotesTab({
         actor={CURRENT_USER}
         minChars={minChars}
       />
-      {/* FAB only shown on Notes tab; component hides itself if role lacks write */}
-      <AdminNoteFABModal
-        clinicId={clinicId}
-        patientId={patientId}
-      />
     </div>
   );
 }
@@ -781,11 +804,13 @@ function CoachingTab({
   clinicId,
   logs,
   coachingEnabled,
+  bookings,
 }: {
   patient: Patient;
   clinicId: ClinicId;
   logs: CoachingLog[];
   coachingEnabled: boolean;
+  bookings: CalendlyBooking[];
 }) {
   if (!coachingEnabled) {
     return (
@@ -802,22 +827,18 @@ function CoachingTab({
       </div>
     );
   }
-  return <CoachingLogTab patient={patient} clinicId={clinicId} logs={logs} />;
+  return <CoachingLogTab patient={patient} clinicId={clinicId} logs={logs} bookings={bookings} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PHARMACY COMMS TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PharmacyCommsTab() {
+// BLD-16.1 — Pharmacy Comms tab (patient-anchored threads)
+function PharmacyCommsTab({ clinicId, patientId }: { clinicId: ClinicId; patientId: string }) {
   return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Pharmacy Comms threads"
-        wave_reference="Wave 16 (BLD-16.1)"
-        description="Patient-anchored pharmacy communication threads across orders, initiated from the patient profile."
-        icon={Pill}
-      />
+    <div className="border-t border-bdr">
+      <PharmacyCommsPanel clinicId={clinicId} anchorType="patient" anchorId={patientId} />
     </div>
   );
 }
@@ -826,51 +847,66 @@ function PharmacyCommsTab() {
 // INTERCOM TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
+// BLD-INTERCOM-PHOTO-01 — delegates to client component for photo modal
 function IntercomTab({ patient }: { patient: Patient }) {
-  if (patient.intercom_user_id) {
-    return (
-      <div className="p-5 flex flex-col gap-4">
-        <div className="bg-ok-bg border border-ok-bdr rounded-lg px-4 py-3 flex items-center gap-3">
-          <MessageCircle className="w-4 h-4 text-ok shrink-0" />
-          <div>
-            <p className="text-[12px] font-semibold text-ok">Patient linked to Intercom</p>
-            <p className="text-[12px] text-t2 mt-px font-mono">{patient.intercom_user_id}</p>
-          </div>
-        </div>
-        <FuturePlaceholderCard
-          title="Intercom conversation thread display"
-          wave_reference="BLD-INT-INTERCOM-01"
-          description="Live Intercom conversation threads, tags, and labels for this patient will be embedded here."
-          icon={MessageCircle}
-        />
-      </div>
-    );
-  }
-  return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Patient not yet linked to Intercom"
-        wave_reference="BLD-INT-INTERCOM-01"
-        description="Once the patient's Intercom user ID is set via the webhook integration, their conversation threads and tags will appear here."
-        icon={MessageCircle}
-      />
-    </div>
-  );
+  return <IntercomPhotoTab patient={patient} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JOURNEY TAB
+// JOURNEY TAB — BLD-11.2
 // ─────────────────────────────────────────────────────────────────────────────
 
-function JourneyTab() {
+function JourneyTab({
+  orders,
+  courierEvents,
+}: {
+  orders: Order[];
+  courierEvents: CourierEvent[];
+}) {
+  const dispatched = orders.filter(
+    (o) => o.status === "dispatched" || o.status === "delivered"
+  );
+
+  if (dispatched.length === 0) {
+    return (
+      <div className="p-5">
+        <div className="rounded-lg border border-bdr bg-surface px-5 py-8 text-center">
+          <Package className="w-8 h-8 text-t3 mx-auto mb-3" />
+          <p className="text-[13px] font-semibold text-t2">No dispatched orders</p>
+          <p className="text-[12px] text-t3 mt-1">
+            Royal Mail tracking will appear here once an order has been dispatched.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Patient journey timeline"
-        wave_reference="later waves"
-        description="End-to-end patient journey — enrolment, orders, clinical checks, escalations, and resolution events — displayed as a chronological timeline."
-        icon={Map}
-      />
+    <div className="p-5 space-y-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Truck className="w-4 h-4 text-brand" />
+        <h2 className="text-[13px] font-bold text-t1">Royal Mail tracking</h2>
+        <span className="text-[11px] text-t3">— BLD-11.2</span>
+      </div>
+
+      {dispatched.map((order) => {
+        const events = courierEvents.filter((e) => e.order_id === order.id);
+        return (
+          <div key={order.id} className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Package className="w-3.5 h-3.5 text-t3" />
+              <span className="text-[12px] font-semibold text-t1">
+                {order.id} · {order.product.medication} {order.product.dose}
+              </span>
+              <StatusBadge value={order.status} kind="order" />
+            </div>
+            <CourierTrackingCard
+              trackingId={order.royal_mail_tracking_id ?? null}
+              events={events}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

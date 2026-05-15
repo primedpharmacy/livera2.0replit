@@ -8,7 +8,7 @@
  * BLD-1.3: reply_email + monday_incident_board_id + monday_complaints_board_id
  * BLD-1.4: default_slas — all 10 values with documented defaults (§5)
  *
- * DEC-01: Both FeelTru and VSC use amendment_window = 'pre_dispensed'.
+ * DEC-01: FeelTru uses amendment_window = 'pre_dispensed'. VSC corrected to 'pre_approval' in V1.1.
  * DEC-13: FeelTru has two Owners — Qadir + Mobeen (see fixtures/users.ts).
  * DEC-16: FeelTru gender_eligibility = 'female_only' (UK Equality Act 2010 Sch 3 Para 27).
  * DEC-34: coaching_enabled is a per-clinic platform feature toggle.
@@ -183,7 +183,7 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
       // Behavioural flags (BLD-1.1)
       coaching_enabled: false,             // DEC-02/34: disabled at V1.1
       gender_eligibility: 'gender_neutral', // DEC-16: VSC is mixed-gender
-      amendment_window: 'pre_dispensed',   // DEC-01: locked 10 May 2026
+      amendment_window: 'pre_approval',    // V1.1 correction — VSC moves to pre_approval
 
       // Brand (§3.3)
       brand_tokens: {
@@ -261,13 +261,47 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
         ai_clinical_note_drafting_enabled: true,
       },
 
-      // Rule-engine stubs — [] until Chunks 13/16a/17 land
+      // Rule-engine (BLD-14.6 seeds)
       flag_rules: [],
-      treatment_gap_rules: [],
+      treatment_gap_rules: [
+        {
+          id: 'tgr_vsc_1',
+          label: '8+ week gap — require consultation',
+          gap_days_min: 56,
+          gap_days_max: null,
+          action: 'require_consult' as const,
+          action_copy: 'Patient has not reordered for over 8 weeks. A consultation is required before approving this reorder to assess current weight, compliance, and clinical appropriateness.',
+          enabled: true,
+        },
+        {
+          id: 'tgr_vsc_2',
+          label: '4–8 week gap — warn prescriber',
+          gap_days_min: 28,
+          gap_days_max: 55,
+          action: 'warn' as const,
+          action_copy: 'Patient has a gap of 4–8 weeks since their last order. Verify current weight, compliance, and any relevant lifestyle changes before approving.',
+          enabled: true,
+        },
+      ],
       dose_escalation_rules: [],
       primed_flag_rules: [],
-      questionnaire_order: [],
-      questionnaire_reorder: [],
+      questionnaire_order: [
+        { id: 'vsc_oq_1', label: 'What is your current weight? (kg)',             type: 'number',  required: true,  order: 1, placeholder: 'Enter your current weight in kg' },
+        { id: 'vsc_oq_2', label: 'What is your goal weight? (kg)',                type: 'number',  required: true,  order: 2, placeholder: 'Enter your target weight in kg' },
+        { id: 'vsc_oq_3', label: 'Do you have any drug allergies?',               type: 'yes_no',  required: true,  order: 3 },
+        { id: 'vsc_oq_4', label: 'Are you taking any other medications?',         type: 'yes_no',  required: true,  order: 4 },
+        { id: 'vsc_oq_5', label: 'Which of the following conditions do you have?', type: 'choice', required: true,  order: 5, options: ['Type 2 diabetes', 'Hypertension', 'Thyroid disorder', 'Heart disease', 'None of the above'] },
+        { id: 'vsc_oq_6', label: 'Have you tried weight-loss medication before?', type: 'yes_no',  required: true,  order: 6 },
+        { id: 'vsc_oq_7', label: 'Anything else the prescriber should know?',     type: 'text',    required: false, order: 7, placeholder: 'Optional — relevant medical history, previous treatments, etc.' },
+      ],
+      questionnaire_reorder: [
+        { id: 'vsc_rq_1', label: 'What is your current weight? (kg)',                type: 'number', required: true,  order: 1, placeholder: 'Enter your weight in kg' },
+        { id: 'vsc_rq_2', label: 'Have you experienced any side effects?',           type: 'yes_no', required: true,  order: 2 },
+        { id: 'vsc_rq_3', label: 'If yes, please describe the side effects',         type: 'text',   required: false, order: 3, placeholder: 'e.g. nausea, injection site reaction, fatigue…' },
+        { id: 'vsc_rq_4', label: 'Are you still taking the same other medications?', type: 'yes_no', required: true,  order: 4 },
+        { id: 'vsc_rq_5', label: 'Any new medical diagnoses since last order?',      type: 'yes_no', required: true,  order: 5 },
+        { id: 'vsc_rq_6', label: 'How would you rate your progress? (1 = poor, 10 = excellent)', type: 'scale', required: true, order: 6, scale_min: 1, scale_max: 10 },
+      ],
     },
   },
 
@@ -365,21 +399,57 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
       // Feature flags
       features: {
         gp_letter_enabled: true,
-        pharmacy_comms_enabled: false,
-        bmi_ai_validation_enabled: false,
+        pharmacy_comms_enabled: true,   // BLD-16.1 — enabled for FeelTru
+        bmi_ai_validation_enabled: true, // BLD-16.2 — enabled for FeelTru
         primed_flag_mirror_enabled: false,
         video_consultations_enabled: true,
         welcome_calls_enabled: true,               // always true per DEC-34
         ai_clinical_note_drafting_enabled: true,
       },
 
-      // Rule-engine stubs — [] until Chunks 13/16a/17 land
+      // Rule-engine (BLD-14.6 seeds)
       flag_rules: [],
-      treatment_gap_rules: [],
+      treatment_gap_rules: [
+        {
+          id: 'tgr_ft_1',
+          label: '8+ week gap — require consultation',
+          gap_days_min: 56,
+          gap_days_max: null,
+          action: 'require_consult' as const,
+          action_copy: 'Patient has not reordered for over 8 weeks. A consultation is required before approving this reorder to assess current weight, compliance, and clinical appropriateness.',
+          enabled: true,
+        },
+        {
+          id: 'tgr_ft_2',
+          label: '4–8 week gap — warn prescriber',
+          gap_days_min: 28,
+          gap_days_max: 55,
+          action: 'warn' as const,
+          action_copy: 'Patient has a gap of 4–8 weeks since their last order. Verify current weight, compliance, and any relevant lifestyle changes before approving.',
+          enabled: true,
+        },
+      ],
       dose_escalation_rules: [],
       primed_flag_rules: [],
-      questionnaire_order: [],
-      questionnaire_reorder: [],
+      questionnaire_order: [
+        { id: 'ft_oq_1', label: 'What is your current weight? (kg)',               type: 'number',  required: true,  order: 1, placeholder: 'Enter your current weight in kg' },
+        { id: 'ft_oq_2', label: 'What is your goal weight? (kg)',                  type: 'number',  required: true,  order: 2, placeholder: 'Enter your target weight in kg' },
+        { id: 'ft_oq_3', label: 'Do you have any drug allergies?',                 type: 'yes_no',  required: true,  order: 3 },
+        { id: 'ft_oq_4', label: 'Are you currently taking any other medications?', type: 'yes_no',  required: true,  order: 4 },
+        { id: 'ft_oq_5', label: 'Which conditions apply to you?',                  type: 'choice',  required: true,  order: 5, options: ['PCOS', 'Insulin resistance', 'Type 2 diabetes', 'Hypertension', 'Thyroid disorder', 'None of the above'] },
+        { id: 'ft_oq_6', label: 'Are you pregnant or breastfeeding?',              type: 'yes_no',  required: true,  order: 6, help_text: 'GLP-1 medications are contraindicated during pregnancy and breastfeeding.' },
+        { id: 'ft_oq_7', label: 'Have you tried weight-loss medication before?',   type: 'yes_no',  required: true,  order: 7 },
+        { id: 'ft_oq_8', label: 'Anything else the prescriber should know?',       type: 'text',    required: false, order: 8, placeholder: 'Optional — relevant history, previous treatments, GP details…' },
+      ],
+      questionnaire_reorder: [
+        { id: 'ft_rq_1', label: 'What is your current weight? (kg)',                   type: 'number', required: true,  order: 1, placeholder: 'Enter your weight in kg' },
+        { id: 'ft_rq_2', label: 'Have you experienced any side effects?',              type: 'yes_no', required: true,  order: 2 },
+        { id: 'ft_rq_3', label: 'If yes, please describe the side effects',            type: 'text',   required: false, order: 3, placeholder: 'e.g. nausea, hair thinning, injection site reaction…' },
+        { id: 'ft_rq_4', label: 'Are you pregnant or breastfeeding?',                 type: 'yes_no', required: true,  order: 4, help_text: 'This must be answered at every reorder — clinical requirement.' },
+        { id: 'ft_rq_5', label: 'Any changes to your other medications since last order?', type: 'yes_no', required: true, order: 5 },
+        { id: 'ft_rq_6', label: 'Any new medical diagnoses since last order?',         type: 'yes_no', required: true,  order: 6 },
+        { id: 'ft_rq_7', label: 'How would you rate your progress? (1 = poor, 10 = excellent)', type: 'scale', required: true, order: 7, scale_min: 1, scale_max: 10 },
+      ],
     },
   },
 };

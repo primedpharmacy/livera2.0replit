@@ -5,7 +5,7 @@ import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PatientsView } from "@/components/patients/PatientsView";
-import { listPatients } from "@/lib/api/mock";
+import { listPatients, getClinic } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 type PatientsPageProps = { params: Promise<{ clinic_id: string }> };
@@ -28,7 +28,10 @@ export default async function PatientsPage({ params }: PatientsPageProps) {
 
 async function PatientsContent({ clinicId }: { clinicId: ClinicId }) {
   try {
-    const patients = await listPatients(clinicId);
+    const [patients, clinic] = await Promise.all([
+      listPatients(clinicId),
+      getClinic(clinicId),
+    ]);
     if (patients.length === 0) {
       return (
         <EmptyState
@@ -38,7 +41,13 @@ async function PatientsContent({ clinicId }: { clinicId: ClinicId }) {
         />
       );
     }
-    return <PatientsView initialPatients={patients} clinicId={clinicId} />;
+    return (
+      <PatientsView
+        initialPatients={patients}
+        clinicId={clinicId}
+        genderEligibility={clinic.config.gender_eligibility}
+      />
+    );
   } catch (err) {
     return (
       <ErrorState

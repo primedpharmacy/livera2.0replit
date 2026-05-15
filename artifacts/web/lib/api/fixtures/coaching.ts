@@ -10,7 +10,7 @@
  *   3. Ownership: patient.coach_id === caller.id  (canCoachAccessPatient)
  */
 
-import type { ClinicId, CoachingLog } from '../types';
+import type { ClinicId, CoachingLog, CalendlyBooking } from '../types';
 import { delay, scopedToClinic, CURRENT_USER, NOW } from '../constants';
 import { getClinicSync } from './clinics';
 import { getPatient } from './patients';
@@ -248,6 +248,48 @@ export const MOCK_COACHING_LOGS: CoachingLog[] = [
     updated_at: '2026-05-10T09:35:00Z',
   },
 ];
+
+// ── Calendly booking fixtures (BLD-CALENDLY-MIRROR-01) ──────────────────────
+const MOCK_CALENDLY_BOOKINGS: CalendlyBooking[] = [
+  {
+    id: 'CBKG-001',
+    patient_id: 'PT-00198',
+    clinic_id: 'feeltru',
+    calendly_event_id: 'evt_8a3f72e1',
+    event_type: 'Coaching session · 30-min check-in',
+    scheduled_at: '2026-05-26T11:00:00+01:00',
+    end_at: '2026-05-26T11:30:00+01:00',
+    coach_name: 'Sarah Wentworth',
+    booking_method: 'patient_self_booked',
+    booked_at: '2026-05-03T14:18:00+01:00',
+    join_url: 'https://meet.google.com/calendly-evt-8a3f72e1',
+    status: 'scheduled',
+  },
+  {
+    id: 'CBKG-002',
+    patient_id: 'PT-00198',
+    clinic_id: 'feeltru',
+    calendly_event_id: 'evt_9c2d18f4',
+    event_type: 'Coaching session · 30-min check-in',
+    scheduled_at: '2026-06-23T11:00:00+01:00',
+    end_at: '2026-06-23T11:30:00+01:00',
+    coach_name: 'Sarah Wentworth',
+    booking_method: 'patient_self_booked',
+    booked_at: '2026-04-28T09:42:00+01:00',
+    join_url: null,
+    status: 'scheduled',
+  },
+];
+
+export async function getUpcomingCalendlyBookings(
+  clinic_id: ClinicId,
+  patient_id: string
+): Promise<CalendlyBooking[]> {
+  await delay();
+  return MOCK_CALENDLY_BOOKINGS.filter(
+    (b) => b.clinic_id === clinic_id && b.patient_id === patient_id && b.status === 'scheduled'
+  );
+}
 
 export async function listCoachingLogs(
   clinic_id: ClinicId,

@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Livera — Order Detail · Questionnaire Results</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f0ef;color:#0d0d0d;font-size:14px}
+:root{
+  --brand:#6366f1;--brand-light:#eef2ff;--brand-dark:#4338ca;--brand-mid:#818cf8;
+  --surface:#ffffff;--surface-2:#f9f9f9;--surface-3:#f1f0ef;
+  --border:rgba(0,0,0,0.08);--border-strong:rgba(0,0,0,0.13);
+  --text-1:#0d0d0d;--text-2:#5c5c5c;--text-3:#9ca3af;
+  --amber:#b45309;--amber-bg:#fffbeb;--amber-border:#fde68a;
+  --red:#991b1b;--red-mid:#dc2626;--red-bg:#fff1f1;--red-border:#fca5a5;
+  --green:#166534;--green-bg:#f0fdf4;--green-border:#86efac;
+  --blue:#1e40af;--blue-bg:#eff6ff;--blue-border:#93c5fd;
+  --purple:#5b21b6;--purple-bg:#f5f3ff;--purple-border:#c4b5fd;
+  --grey:#6b6b6b;--grey-bg:#f5f5f5;--grey-border:#d4d4d4;
+  --r-sm:6px;--r-md:8px;--r-lg:12px;
+}
+
+.topnav{background:#1e1b4b;color:#fff;height:36px;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;position:sticky;top:0;z-index:100}
+.topnav .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.2px}
+.topnav .lmark{width:20px;height:20px;background:linear-gradient(135deg,#818cf8,#6366f1);border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800}
+.topnav .div{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 12px}
+.topnav .ws{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85)}
+.topnav .ws strong{color:#fff}
+.topnav .role{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:rgba(255,255,255,.7)}
+.topnav .role-pill{background:rgba(255,255,255,.12);padding:2px 8px;border-radius:999px;font-weight:600;letter-spacing:.3px}
+.ws-trigger{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.85);background:none;border:none;padding:4px 8px;margin:-4px -8px;border-radius:4px;font:inherit;cursor:pointer;transition:background .12s}
+.ws-trigger:hover{background:rgba(255,255,255,.08)}
+.ws-trigger strong{color:#fff;font-weight:700}
+.ws-trigger .ws-chev{font-size:9px;opacity:.55;margin-left:2px}
+
+.shell{display:flex;min-height:calc(100vh - 36px)}
+nav.sidebar{width:240px;background:#fff;border-right:1px solid #e2e8f0;padding:18px 12px;flex-shrink:0;position:sticky;top:36px;height:calc(100vh - 36px);overflow-y:auto}
+nav.sidebar .sec{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;font-weight:700;padding:0 10px;margin:18px 0 6px}
+nav.sidebar .sec:first-child{margin-top:0}
+nav.sidebar a{display:flex;align-items:center;gap:10px;padding:8px 10px;font-size:13px;font-weight:500;color:#475569;text-decoration:none;border-radius:6px;margin-bottom:1px;position:relative;transition:all .12s}
+nav.sidebar a:hover{background:#eef2ff;color:#0f172a}
+nav.sidebar a.active{background:#eef2ff;color:#6366f1;font-weight:600}
+nav.sidebar a.active::before{content:'';position:absolute;left:-12px;top:7px;bottom:7px;width:3px;background:#6366f1;border-radius:0 2px 2px 0}
+nav.sidebar a .ico{width:18px;text-align:center;font-size:14px}
+nav.sidebar .badge{margin-left:auto;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:#e2e8f0;color:#475569}
+nav.sidebar .badge.warn{background:#fffbeb;color:#f59e0b;border:.5px solid #fde68a}
+nav.sidebar .badge.err{background:#fef2f2;color:#ef4444;border:.5px solid #fecaca}
+nav.sidebar .badge.muted{background:#e2e8f0;color:#94a3b8}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{padding:11px 24px;background:var(--surface);border-bottom:.5px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.bc{font-size:12px;color:var(--text-3)}
+.bc a{color:var(--text-2);text-decoration:none}.bc a:hover{color:var(--brand-dark)}
+.bc .sep{margin:0 4px}
+.bc .cur{color:var(--text-1);font-weight:500}
+.topbar-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.pill{display:inline-flex;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;border:.5px solid}
+.p-active{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.btn-sm{padding:6px 12px;border-radius:var(--r-md);font-size:12px;font-weight:500;cursor:pointer;border:.5px solid var(--border-strong);font-family:inherit;background:var(--surface);color:var(--text-2);display:inline-flex;align-items:center;gap:6px}
+.btn-sm:hover{background:var(--surface-2)}
+.btn-sm.primary{background:var(--brand-dark);color:#fff;border-color:var(--brand-dark)}
+.btn-sm.primary:hover{background:#3730a3}
+
+.content{flex:1;display:flex;overflow:hidden}
+.left-col{width:320px;flex-shrink:0;background:var(--surface);border-right:.5px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.order-hero{padding:18px 20px;border-bottom:.5px solid var(--border)}
+.order-id{font-size:20px;font-weight:700;color:var(--text-1);letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+.order-type{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--purple-bg);color:var(--purple);border:.5px solid var(--purple-border)}
+.order-meta{font-size:12px;color:var(--text-3);margin-top:4px}
+
+.osec{padding:12px 14px;border-bottom:.5px solid var(--border)}
+.osec-t{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px}
+.dr{display:flex;justify-content:space-between;align-items:center;padding:3px 0}
+.dk{font-size:12px;color:var(--text-2)}
+.dv{font-size:12px;font-weight:500;color:var(--text-1);text-align:right}
+
+/* BMI score card */
+.bmi-card{margin:12px 14px;border-radius:var(--r-lg);overflow:hidden;border:1.5px solid var(--brand-mid)}
+.bmi-head{background:var(--brand-dark);padding:10px 14px;display:flex;align-items:center;gap:8px}
+.bmi-head-title{font-size:12px;font-weight:700;color:#fff;flex:1}
+.bmi-head-val{background:rgba(255,255,255,.22);color:#fff;font-size:13px;font-weight:800;padding:3px 12px;border-radius:999px}
+.bmi-body{background:var(--brand-light);padding:10px 14px;display:flex;flex-direction:column;gap:4px}
+.bmi-row{display:flex;justify-content:space-between;align-items:center}
+.bmi-k{font-size:12px;color:var(--brand-dark)}
+.bmi-v{font-size:12px;font-weight:600;color:var(--brand-dark)}
+.bmi-note{font-size:11px;color:var(--brand);line-height:1.45;padding-top:6px;border-top:.5px solid rgba(99,102,241,.2);margin-top:2px}
+
+/* Eligibility flag */
+.elig-flag{margin:0 14px 12px;border-radius:var(--r-md);padding:10px 12px;border:.5px solid var(--green-border);background:var(--green-bg);display:flex;gap:8px;align-items:flex-start}
+.elig-flag.amber{border-color:var(--amber-border);background:var(--amber-bg)}
+.elig-ico{font-size:14px;flex-shrink:0;margin-top:1px}
+.elig-body{flex:1;font-size:12px;color:var(--text-2);line-height:1.45}
+.elig-body strong{color:var(--text-1);font-weight:600}
+
+.right-col{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.tabs{display:flex;background:var(--surface);border-bottom:.5px solid var(--border);padding:0 24px;flex-shrink:0;overflow-x:auto}
+.tab{padding:11px 16px;font-size:13px;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-.5px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tab:hover{color:var(--text-1)}
+.tab.on{color:var(--brand-dark);border-bottom-color:var(--brand);font-weight:500}
+.tab-ct{background:var(--surface-2);color:var(--text-3);font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;border:.5px solid var(--border-strong)}
+.tab-ct.green{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.tab-ct.amber{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border)}
+
+.panel{display:none;flex:1;overflow-y:auto;padding:20px 24px;flex-direction:column;gap:14px}
+.panel.on{display:flex}
+
+.card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.card-head{padding:12px 16px;border-bottom:.5px solid var(--border);display:flex;align-items:center;gap:8px}
+.card-title{font-size:13px;font-weight:600;color:var(--text-1);flex:1}
+.card-sub{font-size:11px;color:var(--text-3)}
+.card-meta-pill{font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;border:.5px solid;white-space:nowrap}
+.card-body{padding:0}
+
+/* ── Questionnaire section header ── */
+.q-section{padding:10px 16px 8px;background:var(--surface-2);border-bottom:.5px solid var(--border);display:flex;align-items:center;gap:8px}
+.q-section-label{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.7px;flex:1}
+.q-section-count{font-size:10px;font-weight:600;color:var(--text-3)}
+
+/* ── Individual question row ── */
+.q-row{display:grid;grid-template-columns:36px 1fr;gap:0;border-bottom:.5px solid var(--border)}
+.q-row:last-child{border-bottom:none}
+.q-num{padding:14px 0 14px 16px;font-size:10px;font-weight:700;color:var(--text-3);line-height:1}
+.q-body{padding:14px 16px 14px 8px}
+.q-text{font-size:12.5px;font-weight:600;color:var(--text-1);line-height:1.4;margin-bottom:2px}
+.q-hint{font-size:11px;color:var(--text-3);margin-bottom:8px;line-height:1.4}
+.q-answer{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:6px;font-size:12.5px;font-weight:600}
+.q-answer.ok{background:var(--green-bg);color:var(--green);border:.5px solid var(--green-border)}
+.q-answer.warn{background:var(--amber-bg);color:var(--amber);border:.5px solid var(--amber-border)}
+.q-answer.info{background:var(--blue-bg);color:var(--blue);border:.5px solid var(--blue-border)}
+.q-answer.neutral{background:var(--surface-2);color:var(--text-1);border:.5px solid var(--border-strong)}
+.q-answer.multi{display:flex;flex-wrap:wrap;gap:6px;padding:0;background:transparent;border:none}
+.q-answer .chip{padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:500;background:var(--surface-2);border:.5px solid var(--border-strong);color:var(--text-1)}
+.q-flag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;margin-left:8px;letter-spacing:.3px;border:.5px solid}
+.q-flag.clinical{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+.q-flag.watch{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border)}
+.q-flag.clear{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.q-meta{font-size:10.5px;color:var(--text-3);margin-top:6px}
+
+/* ── Calculated BMI row ── */
+.q-bmi-calc{padding:8px 12px;background:var(--brand-light);border:.5px solid rgba(99,102,241,.2);border-radius:6px;font-size:12px;color:var(--brand-dark);display:flex;gap:16px;flex-wrap:wrap;margin-top:4px}
+.q-bmi-calc span{font-weight:500}
+.q-bmi-calc strong{font-weight:700}
+
+/* ── Consent row ── */
+.consent-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:6px;border:.5px solid}
+.consent-row.given{background:var(--green-bg);border-color:var(--green-border)}
+.consent-row.declined{background:var(--red-bg);border-color:var(--red-border)}
+.consent-ico{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0}
+.consent-ico.yes{background:#16a34a}
+.consent-ico.no{background:var(--red-mid)}
+.consent-txt{flex:1;font-size:12px;color:var(--text-1);font-weight:500;line-height:1.4}
+.consent-sub{font-size:11px;color:var(--text-3);margin-top:2px}
+
+/* ── Summary banner ── */
+.elig-banner{padding:14px 16px;display:flex;gap:12px;align-items:flex-start;border-bottom:.5px solid var(--border)}
+.elig-banner.pass{background:var(--green-bg)}
+.elig-banner.warn{background:var(--amber-bg)}
+.elig-banner-ico{font-size:20px;flex-shrink:0}
+.elig-banner-body{flex:1}
+.elig-banner-title{font-size:13px;font-weight:700;color:var(--text-1);margin-bottom:3px}
+.elig-banner-sub{font-size:12px;color:var(--text-2);line-height:1.5}
+.elig-banner-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.elig-chip{font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;border:.5px solid}
+.elig-chip.good{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.elig-chip.warn{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border)}
+.elig-chip.info{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)}
+
+/* Activity log */
+.act-list{display:flex;flex-direction:column}
+.act-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:.5px solid var(--border)}
+.act-row:last-child{border-bottom:none}
+.act-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.act-body{flex:1;min-width:0}
+.act-text{font-size:12px;color:var(--text-1);line-height:1.4}
+.act-text strong{font-weight:600}
+.act-meta{font-size:11px;color:var(--text-3);margin-top:2px}
+.act-time{font-size:11px;color:var(--text-3);white-space:nowrap;flex-shrink:0}
+
+/* Toast */
+.toast{position:fixed;bottom:28px;right:28px;background:#1f2937;color:#fff;font-size:12px;font-weight:500;padding:10px 16px;border-radius:999px;z-index:300;display:none;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.toast.show{display:flex}
+
+/* Annotation bar */
+.ann{background:#1e1b4b;color:#c7d2fe;padding:8px 24px;font-size:11px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;flex-shrink:0}
+.at{background:rgba(99,102,241,.2);color:#a5b4fc;padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600;border:.5px solid rgba(99,102,241,.3)}
+
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- Topnav -->
+<header class="topnav">
+  <div class="brand"><span class="lmark">L</span><span>Livera</span></div>
+  <div class="div"></div>
+  <div class="ws" style="position:relative">
+    <button type="button" class="ws-trigger" aria-expanded="false">
+      <span style="opacity:.6">Workspace:</span>
+      <strong>VSC — Quanta Healthcare Ltd</strong>
+      <span class="ws-chev">▾</span>
+    </button>
+  </div>
+  <div class="role"><span>Signed in as</span><span class="role-pill">Qadir Hussain · Owner</span></div>
+</header>
+
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sec">Operate</div>
+    <a href="livera_owner_dashboard.html"><span class="ico">⌂</span>Dashboard</a>
+    <a href="livera_patient_list.html"><span class="ico">👤</span>Patients<span class="badge muted">142</span></a>
+    <a href="livera_orders_list.html" class="active"><span class="ico">📦</span>Orders<span class="badge muted">23</span></a>
+    <a href="livera_prototype_02_clinical_check_queue.html"><span class="ico">🩺</span>Clinical Check<span class="badge warn">7</span></a>
+    <a href="livera_scr_tasks_list.html"><span class="ico">✓</span>Tasks<span class="badge">14</span></a>
+    <a href="livera_scr_welcome_call_queue.html"><span class="ico">📞</span>Welcome Calls<span class="badge muted">3</span></a>
+    <div class="sec">Care quality</div>
+    <a href="livera_scr_complaints.html"><span class="ico">📣</span>Complaints<span class="badge err">2</span></a>
+    <a href="livera_incidents_list.html"><span class="ico">🚨</span>Incidents<span class="badge muted">5</span></a>
+    <a href="livera_prototype_14_gp_letters.html"><span class="ico">📑</span>GP Letters<span class="badge muted">14</span></a>
+    <div class="sec">Insights</div>
+    <a href="livera_kpi_dashboard.html"><span class="ico">📊</span>KPI Dashboard</a>
+    <a href="livera_g6_flag_dashboard.html"><span class="ico">🚩</span>Clinical Flags</a>
+    <a href="livera_reports_landing.html"><span class="ico">📈</span>Reports</a>
+    <div class="sec">Configure</div>
+    <a href="livera_settings_landing.html"><span class="ico">⚙</span>Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="bc">
+        <a href="livera_orders_list.html">Orders</a>
+        <span class="sep">/</span>
+        <a href="livera_orders_list.html">Active</a>
+        <span class="sep">/</span>
+        <span class="cur">ORD-00289</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="pill p-active">● Pending clinical review</div>
+        <div style="font-size:11px;color:var(--text-3);font-weight:500">Submitted 15 May 2026 · 22:14 · awaiting prescriber</div>
+      </div>
+      <div class="topbar-right">
+        <a href="livera_vsc_questionnaire_flow.html" style="text-decoration:none"><button class="btn-sm">← View patient questionnaire</button></a>
+        <button class="btn-sm primary" onclick="showToast('Opening clinical check queue…')">Open clinical check →</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ─── LEFT PANEL ─── -->
+      <div class="left-col">
+
+        <div class="order-hero">
+          <div class="order-id">
+            ORD-00289
+            <span class="order-type">New patient</span>
+          </div>
+          <div class="order-meta">Sarah Mitchell · 15 May 2026 · 22:14</div>
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+            <span style="font-size:11px;color:var(--text-2);padding:3px 9px;background:var(--surface-2);border-radius:999px;border:.5px solid var(--border)">First order</span>
+            <span style="font-size:11px;color:var(--brand-dark);padding:3px 9px;background:var(--brand-light);border-radius:999px;border:.5px solid rgba(99,102,241,.2)">Source: VSC website</span>
+          </div>
+        </div>
+
+        <!-- BMI score card -->
+        <div class="bmi-card">
+          <div class="bmi-head">
+            <span style="font-size:16px">⚖</span>
+            <div class="bmi-head-title">Calculated BMI</div>
+            <div class="bmi-head-val">31.4</div>
+          </div>
+          <div class="bmi-body">
+            <div class="bmi-row"><span class="bmi-k">Height</span><span class="bmi-v">168 cm</span></div>
+            <div class="bmi-row"><span class="bmi-k">Weight</span><span class="bmi-v">88.5 kg</span></div>
+            <div class="bmi-row"><span class="bmi-k">Ethnicity</span><span class="bmi-v">White · standard threshold</span></div>
+            <div class="bmi-row"><span class="bmi-k">Eligibility threshold</span><span class="bmi-v">BMI ≥ 30 met ✓</span></div>
+            <div class="bmi-note">BMI of 31.4 with documented hypertension and sleep apnea. Meets NICE criteria for GLP-1 treatment without comorbidity exception needed.</div>
+          </div>
+        </div>
+
+        <!-- Eligibility flags -->
+        <div style="padding:0 14px 4px">
+          <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.7px;margin:12px 0 8px">Clinical flags from questionnaire</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div class="elig-flag">
+              <div class="elig-ico">✓</div>
+              <div class="elig-body"><strong>Age eligible</strong> — 18–74 range confirmed</div>
+            </div>
+            <div class="elig-flag">
+              <div class="elig-ico">✓</div>
+              <div class="elig-body"><strong>No disqualifying conditions</strong> — contraindication screen passed</div>
+            </div>
+            <div class="elig-flag amber">
+              <div class="elig-ico" style="font-size:13px">⚠</div>
+              <div class="elig-body"><strong>Diabetes — medicated</strong> · Q8 answer: takes medications for diabetes. Clinician must review interaction with GLP-1.</div>
+            </div>
+            <div class="elig-flag amber">
+              <div class="elig-ico" style="font-size:13px">⚠</div>
+              <div class="elig-body"><strong>On Levothyroxine</strong> · dose absorption may be affected. Clinician review required.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Order summary -->
+        <div class="osec" style="margin-top:12px">
+          <div class="osec-t">Order summary</div>
+          <div class="dr"><span class="dk">Product selected</span><span class="dv">Wegovy 0.25mg</span></div>
+          <div class="dr"><span class="dk">Plan</span><span class="dv">1mg · 1 month · £165.00</span></div>
+          <div class="dr"><span class="dk">Add-ons</span><span class="dv">None</span></div>
+          <div class="dr"><span class="dk">Total</span><span class="dv">£165.00</span></div>
+          <div class="dr"><span class="dk">Source</span><span class="dv">VSC website · intake form v1</span></div>
+        </div>
+
+        <!-- GP consent summary -->
+        <div class="osec">
+          <div class="osec-t">GP &amp; consent</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div class="consent-row given">
+              <div class="consent-ico yes">✓</div>
+              <div>
+                <div class="consent-txt">GP notification consented</div>
+                <div class="consent-sub">Patient agreed for GP to be informed · Q15</div>
+              </div>
+            </div>
+            <div class="consent-row given">
+              <div class="consent-ico yes">✓</div>
+              <div>
+                <div class="consent-txt">Terms &amp; conditions accepted</div>
+                <div class="consent-sub">Accepted at start of consultation · 15 May 22:10</div>
+              </div>
+            </div>
+            <div class="consent-row given">
+              <div class="consent-ico yes">✓</div>
+              <div>
+                <div class="consent-txt">Marketing email consented</div>
+                <div class="consent-sub">sarah.mitchell@gmail.com · captured Q16</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ─── RIGHT PANEL ─── -->
+      <div class="right-col">
+
+        <div class="tabs">
+          <div class="tab on" id="t-questionnaire" onclick="showTab('questionnaire',this)">Questionnaire <span class="tab-ct green">16</span></div>
+          <div class="tab" id="t-clinical" onclick="showTab('clinical',this)">Clinical check</div>
+          <div class="tab" id="t-prescription" onclick="showTab('prescription',this)">Prescription</div>
+          <div class="tab" id="t-activity" onclick="showTab('activity',this)">Activity log <span class="tab-ct">4</span></div>
+          <div class="tab" id="t-comms" onclick="showTab('comms',this)">Patient comms</div>
+        </div>
+
+        <!-- ══ QUESTIONNAIRE TAB ══ -->
+        <div class="panel on" id="panel-questionnaire">
+
+          <div class="card">
+            <!-- Eligibility summary banner -->
+            <div class="elig-banner pass">
+              <div class="elig-banner-ico">✅</div>
+              <div class="elig-banner-body">
+                <div class="elig-banner-title">Intake questionnaire passed — eligible for clinical review</div>
+                <div class="elig-banner-sub">16 questions completed · 2 clinical watch items · no disqualifying conditions · BMI 31.4 meets threshold. Submitted via VSC website · 15 May 2026 · 22:14 · session duration 4m 12s.</div>
+                <div class="elig-banner-chips">
+                  <span class="elig-chip good">✓ Age eligible</span>
+                  <span class="elig-chip good">✓ BMI ≥ 30</span>
+                  <span class="elig-chip good">✓ No contraindications</span>
+                  <span class="elig-chip warn">⚠ Diabetes + meds</span>
+                  <span class="elig-chip warn">⚠ Levothyroxine</span>
+                  <span class="elig-chip info">GP consent given</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION 1: Identity & eligibility screening -->
+            <div class="q-section">
+              <div class="q-section-label">Section 1 — Identity &amp; eligibility screening</div>
+              <div class="q-section-count">Q1–Q4</div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q1</div>
+              <div class="q-body">
+                <div class="q-text">Do you have an existing account with The Virtual Slimming Clinic?</div>
+                <div class="q-answer neutral">No — new patient</div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q2</div>
+              <div class="q-body">
+                <div class="q-text">Terms &amp; conditions acceptance</div>
+                <div class="q-hint">6 consent statements including T&amp;Cs, off-label treatment awareness, health data use</div>
+                <div class="q-answer ok"><span>✓</span> Accepted · 15 May 2026 · 22:10</div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q3</div>
+              <div class="q-body">
+                <div class="q-text">How old are you?</div>
+                <div class="q-answer ok"><span>✓</span> 18 to 74 <span class="q-flag clear">ELIGIBLE</span></div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q4</div>
+              <div class="q-body">
+                <div class="q-text">What sex were you assigned at birth?</div>
+                <div class="q-answer neutral">Female</div>
+              </div>
+            </div>
+
+            <!-- SECTION 2: BMI & ethnicity -->
+            <div class="q-section">
+              <div class="q-section-label">Section 2 — BMI &amp; ethnicity</div>
+              <div class="q-section-count">Q5–Q6</div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q5</div>
+              <div class="q-body">
+                <div class="q-text">Which ethnicity are you?</div>
+                <div class="q-hint">Used to apply correct BMI threshold (standard vs adjusted)</div>
+                <div class="q-answer neutral">White</div>
+                <div class="q-meta">Threshold applied: Standard · BMI ≥ 30 for medication without comorbidity</div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q6</div>
+              <div class="q-body">
+                <div class="q-text">What is your height &amp; weight?</div>
+                <div class="q-hint">Metric · used to calculate BMI</div>
+                <div class="q-bmi-calc">
+                  <span>Height: <strong>168 cm</strong></span>
+                  <span>Weight: <strong>88.5 kg</strong></span>
+                  <span>Calculated BMI: <strong>31.4</strong></span>
+                  <span style="color:#166534;font-weight:700">✓ BMI ≥ 30 — eligible</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION 3: Weight history -->
+            <div class="q-section">
+              <div class="q-section-label">Section 3 — Weight history</div>
+              <div class="q-section-count">Q7–Q8</div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q7</div>
+              <div class="q-body">
+                <div class="q-text">How long have you struggled with your weight?</div>
+                <div class="q-answer neutral">Last 10 years</div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q8</div>
+              <div class="q-body">
+                <div class="q-text">What have you tried in the past to lose weight?</div>
+                <div class="q-answer multi">
+                  <span class="chip">Dieting</span>
+                  <span class="chip">Exercise or being more active</span>
+                  <span class="chip">Calorie counting</span>
+                  <span class="chip">Weight loss programs</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECTION 4: Medical history -->
+            <div class="q-section">
+              <div class="q-section-label">Section 4 — Medical history</div>
+              <div class="q-section-count">Q9–Q13</div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q9</div>
+              <div class="q-body">
+                <div class="q-text">Have you been diagnosed with diabetes?</div>
+                <div class="q-answer warn"><span>⚠</span> I have diabetes and take medications for it <span class="q-flag watch">CLINICIAN REVIEW</span></div>
+                <div class="q-meta">Diabetes treatments can interact with GLP-1 medication — prescriber must review current diabetes medications before approving</div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q10</div>
+              <div class="q-body">
+                <div class="q-text">Do any of the following apply? <span style="font-size:10.5px;color:var(--text-3);font-weight:400">(Disqualifying conditions)</span></div>
+                <div class="q-hint">Chronic malabsorption, cholestasis, active cancer, diabetic retinopathy, severe heart failure, thyroid cancer history, severe hepatic/renal impairment, eating disorders, thyroid surgery, bariatric surgery</div>
+                <div class="q-answer ok"><span>✓</span> None of these statements apply to me <span class="q-flag clear">PASSED</span></div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q11</div>
+              <div class="q-body">
+                <div class="q-text">Do any of the following apply? <span style="font-size:10.5px;color:var(--text-3);font-weight:400">(Weight-related comorbidities)</span></div>
+                <div class="q-hint">Conditions often improved by weight loss — also used to lower BMI eligibility threshold to 27</div>
+                <div class="q-answer multi">
+                  <span class="chip" style="background:var(--amber-bg);border-color:var(--amber-border);color:var(--amber)">High blood pressure</span>
+                  <span class="chip" style="background:var(--amber-bg);border-color:var(--amber-border);color:var(--amber)">Sleep apnea</span>
+                  <span class="chip">Joint pains / aches</span>
+                </div>
+                <div class="q-meta" style="color:var(--amber)">⚠ Note: hypertension + sleep apnea are NICE comorbidity criteria — would qualify even if BMI were 27–29.9</div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q12</div>
+              <div class="q-body">
+                <div class="q-text">Do you have any other medical conditions?</div>
+                <div class="q-answer ok"><span>✓</span> No</div>
+              </div>
+            </div>
+
+            <!-- SECTION 5: Medications -->
+            <div class="q-section">
+              <div class="q-section-label">Section 5 — Medications &amp; allergies</div>
+              <div class="q-section-count">Q13–Q15</div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q13</div>
+              <div class="q-body">
+                <div class="q-text">Have you ever taken any of the following medications to help you lose weight?</div>
+                <div class="q-answer neutral">I have never taken medication to lose weight</div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q14</div>
+              <div class="q-body">
+                <div class="q-text">Do you currently take any other medication?</div>
+                <div class="q-hint">Prescribed, over-the-counter, supplements</div>
+                <div class="q-answer multi">
+                  <span class="chip" style="background:var(--amber-bg);border-color:var(--amber-border);color:var(--amber)">⚠ Levothyroxine</span>
+                </div>
+                <div class="q-meta" style="color:var(--amber)">⚠ Levothyroxine absorption can be reduced by GLP-1 slowed gastric emptying — clinician should advise on timing of doses</div>
+              </div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q15</div>
+              <div class="q-body">
+                <div class="q-text">Do you have any allergies?</div>
+                <div class="q-hint">Medication or general</div>
+                <div class="q-answer ok"><span>✓</span> No</div>
+              </div>
+            </div>
+
+            <!-- SECTION 6: Consent & data -->
+            <div class="q-section">
+              <div class="q-section-label">Section 6 — GP consent &amp; data capture</div>
+              <div class="q-section-count">Q16–Q17</div>
+            </div>
+
+            <div class="q-row">
+              <div class="q-num">Q16</div>
+              <div class="q-body">
+                <div class="q-text">Would you like your GP to be informed of this consultation?</div>
+                <div class="q-answer ok"><span>✓</span> Yes — GP communication consent given</div>
+                <div class="q-meta">Patient encouraged to share GP email. GP email not yet provided — follow-up task created.</div>
+              </div>
+            </div>
+
+            <div class="q-row" style="border-bottom:none">
+              <div class="q-num">Q17</div>
+              <div class="q-body">
+                <div class="q-text">Email address for marketing &amp; offers (optional)</div>
+                <div class="q-answer ok"><span>✓</span> sarah.mitchell@gmail.com — opted in</div>
+                <div class="q-meta">Added to email marketing list · GDPR-compliant opt-in captured</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Raw data download -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
+            <div style="font-size:11.5px;color:var(--text-3)">Questionnaire version: <strong style="color:var(--text-2)">VSC Intake Form v1</strong> · submitted 15 May 2026 22:14 · session 4m 12s · IP: 82.45.xxx.xxx (UK)</div>
+            <button class="btn-sm" onclick="showToast('Raw JSON download stub — full answer payload with timestamps')">⬇ Raw JSON</button>
+          </div>
+
+        </div>
+
+        <!-- ══ CLINICAL CHECK TAB ══ -->
+        <div class="panel" id="panel-clinical">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">🩺 Clinical check — pending</div>
+              <div class="card-sub">Awaiting prescriber assignment</div>
+            </div>
+            <div class="card-body" style="padding:16px">
+              <div style="text-align:center;padding:32px 16px;color:var(--text-3)">
+                <div style="font-size:32px;margin-bottom:12px">⏳</div>
+                <div style="font-size:14px;font-weight:600;color:var(--text-2);margin-bottom:6px">Awaiting clinical review</div>
+                <div style="font-size:12px;line-height:1.6">This is a new patient order. A UK-registered prescriber will review the questionnaire responses, BMI, and flagged items before approving or declining.</div>
+                <div style="margin-top:20px"><button class="btn-sm primary" onclick="showToast('Assigning to clinical check queue…')">Assign to clinical check queue →</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ PRESCRIPTION TAB ══ -->
+        <div class="panel" id="panel-prescription">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">📋 Prescription</div>
+            </div>
+            <div class="card-body" style="padding:16px;text-align:center;color:var(--text-3);padding:32px 16px">
+              <div style="font-size:32px;margin-bottom:12px">🔒</div>
+              <div style="font-size:14px;font-weight:600;color:var(--text-2);margin-bottom:6px">No prescription yet</div>
+              <div style="font-size:12px">Prescription will be issued by a UK-registered clinician after clinical check approval.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ ACTIVITY LOG TAB ══ -->
+        <div class="panel" id="panel-activity">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Activity log</div>
+              <div class="card-sub">4 events</div>
+            </div>
+            <div class="card-body" style="padding:0 16px">
+              <div class="act-list">
+                <div class="act-row">
+                  <div class="act-dot" style="background:var(--brand)"></div>
+                  <div class="act-body"><div class="act-text"><strong>Order ORD-00289 created</strong> — new patient intake questionnaire submitted via VSC website</div><div class="act-meta">Patient: Sarah Mitchell · Wegovy 0.25mg · £165.00</div></div>
+                  <div class="act-time">22:14</div>
+                </div>
+                <div class="act-row">
+                  <div class="act-dot" style="background:#10b981"></div>
+                  <div class="act-body"><div class="act-text"><strong>BMI calculated</strong> — 31.4 · eligible threshold met</div><div class="act-meta">Height 168cm · Weight 88.5kg · White ethnicity · standard threshold applied</div></div>
+                  <div class="act-time">22:14</div>
+                </div>
+                <div class="act-row">
+                  <div class="act-dot" style="background:#f59e0b"></div>
+                  <div class="act-body"><div class="act-text"><strong>Clinical watch items flagged</strong> — diabetes (medicated) + Levothyroxine</div><div class="act-meta">Auto-flagged from Q9 and Q14 · prescriber review required</div></div>
+                  <div class="act-time">22:14</div>
+                </div>
+                <div class="act-row">
+                  <div class="act-dot" style="background:#6366f1"></div>
+                  <div class="act-body"><div class="act-text"><strong>Payment authorised</strong> — £165.00 held pending clinical approval</div><div class="act-meta">Ryft authorise-not-capture · funds held · patient notified by email</div></div>
+                  <div class="act-time">22:15</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ PATIENT COMMS TAB ══ -->
+        <div class="panel" id="panel-comms">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Patient comms</div>
+            </div>
+            <div class="card-body" style="padding:16px">
+              <div class="act-list">
+                <div class="act-row">
+                  <div class="act-dot" style="background:#10b981"></div>
+                  <div class="act-body"><div class="act-text"><strong>Confirmation email sent</strong> — order received, payment held, clinical review in progress</div><div class="act-meta">To: sarah.mitchell@gmail.com · 15 May 22:15</div></div>
+                  <div class="act-time">22:15</div>
+                </div>
+              </div>
+              <div style="margin-top:12px"><button class="btn-sm" onclick="showToast('Opens manual message composer')">+ Send message</button></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Annotation bar -->
+    <div class="ann">
+      <span class="at">PROTOTYPE</span>
+      <span>Questionnaire tab shows VSC intake answers with clinical flags · linked from questionnaire flow</span>
+      <span class="at">→ Patient questionnaire: <a href="livera_vsc_questionnaire_flow.html" style="color:#818cf8;font-weight:700">livera_vsc_questionnaire_flow.html</a></span>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+function showTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('panel-' + name).classList.add('on');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>

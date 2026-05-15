@@ -43,6 +43,9 @@ export type {
   AdminNote,
   AdminNoteTag,
   GpLetterTemplateCategory,
+  // Wave 9 additions (BLD-13.4)
+  QuestionItem,
+  QuestionType,
   // Wave 8 additions (BLD-13.2 + BLD-13.3)
   WelcomeCall,
   WelcomeCallStatus,

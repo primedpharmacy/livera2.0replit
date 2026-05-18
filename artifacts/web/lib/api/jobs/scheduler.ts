@@ -36,7 +36,13 @@ export type SweepClinicSummary = {
   error_message: string | null;
 };
 
+export type SweepRecord = SweepClinicSummary & {
+  timestamp: string; // ISO — wall-clock time the sweep tick ran
+  sweep_id:  string; // shared across all clinic rows from the same tick
+};
+
 const RETRY_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
+const SWEEP_HISTORY_MAX = 100;
 
 // Task-92 — px-upload reminders need only daily granularity (48h after sent_at
 // / within 24h of expires_at), but we re-tick hourly so reminders land within
@@ -46,11 +52,34 @@ const PX_UPLOAD_REMINDER_INTERVAL_MS = 60 * 60 * 1000; // every 60 minutes
 declare global {
   // eslint-disable-next-line no-var
   var __LIVERA_SCHEDULER_STARTED__: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var __LIVERA_SWEEP_HISTORY__: SweepRecord[] | undefined;
+}
+
+function recordSweepEntries(entries: SweepRecord[]): void {
+  const buf = (globalThis.__LIVERA_SWEEP_HISTORY__ ??= []);
+  buf.push(...entries);
+  if (buf.length > SWEEP_HISTORY_MAX) {
+    buf.splice(0, buf.length - SWEEP_HISTORY_MAX);
+  }
+}
+
+/**
+ * Returns the most recent sweep records (newest first). Used by the ops
+ * "Retry sweeps" page so operators can confirm the loop is healthy without
+ * tailing server logs.
+ */
+export function getRecentRetrySweeps(limit = SWEEP_HISTORY_MAX): SweepRecord[] {
+  const buf = globalThis.__LIVERA_SWEEP_HISTORY__ ?? [];
+  return buf.slice(-limit).reverse();
 }
 
 export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSummary[]> {
   const clinics = await listClinics();
   const summaries: SweepClinicSummary[] = [];
+  const sweep_id = `sweep_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  const sweep_started_at = new Date().toISOString();
+  const records: SweepRecord[] = [];
 
   for (const clinic of clinics) {
     try {
@@ -68,6 +97,7 @@ export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSum
         error_message: null,
       };
       summaries.push(summary);
+      records.push({ ...summary, timestamp: sweep_started_at, sweep_id });
       console.log('[AUDIT]', {
         event_type:    'scheduled_retry_run',
         outcome:       'success',
@@ -84,7 +114,7 @@ export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSum
       });
     } catch (err) {
       const error_message = err instanceof Error ? err.message : String(err);
-      summaries.push({
+      const summary: SweepClinicSummary = {
         clinic_id:     clinic.id,
         outcome:       'error',
         considered:    0,
@@ -94,7 +124,9 @@ export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSum
         still_failing: 0,
         exhausted:     0,
         error_message,
-      });
+      };
+      summaries.push(summary);
+      records.push({ ...summary, timestamp: sweep_started_at, sweep_id });
       console.error('[AUDIT]', {
         event_type:    'scheduled_retry_run',
         outcome:       'error',
@@ -107,6 +139,7 @@ export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSum
     }
   }
 
+  recordSweepEntries(records);
   return summaries;
 }
 

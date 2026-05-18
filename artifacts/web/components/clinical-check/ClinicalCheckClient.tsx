@@ -9,7 +9,7 @@ import { LatestCoachingLogCard } from "@/components/clinical-check/LatestCoachin
 import { ClinicalCheckSlideOver } from "@/components/clinical-check/ClinicalCheckSlideOver";
 import { NOW } from "@/lib/api/constants";
 import { reverseDecision } from "@/lib/api/mock";
-import { countReviewNeeded } from "@/lib/questionnaire";
+import { listFlaggedAnswers, type FlaggedAnswer } from "@/lib/questionnaire";
 import { cn } from "@/lib/utils";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { Order, Clinic, CoachingLog, ClinicId } from "@/types";
@@ -227,17 +227,27 @@ export function ClinicalCheckClient({
     }
   }, [undoToast, isUndoing, clinicId]);
 
-  // ── Review-needed counts per order (safety-flagged "yes" answers) ──────────
-  const reviewNeededByOrderId = useMemo<Record<string, number>>(() => {
-    const map: Record<string, number> = {};
+  // ── Review-needed counts + flagged answers per order ──────────────────────
+  // The count drives the badge; the answer list drives the hover/focus popover
+  // so clinicians can see *which* questions were flagged without opening the
+  // slide-over.
+  const { reviewNeededByOrderId, flaggedAnswersByOrderId } = useMemo<{
+    reviewNeededByOrderId: Record<string, number>;
+    flaggedAnswersByOrderId: Record<string, FlaggedAnswer[]>;
+  }>(() => {
+    const counts: Record<string, number> = {};
+    const lists: Record<string, FlaggedAnswer[]> = {};
     for (const o of orders) {
       const config = o.type === "new"
         ? clinic.config.questionnaire_order
         : clinic.config.questionnaire_reorder;
-      const count = countReviewNeeded(config, o.questionnaire_responses);
-      if (count > 0) map[o.id] = count;
+      const flagged = listFlaggedAnswers(config, o.questionnaire_responses);
+      if (flagged.length > 0) {
+        counts[o.id] = flagged.length;
+        lists[o.id] = flagged;
+      }
     }
-    return map;
+    return { reviewNeededByOrderId: counts, flaggedAnswersByOrderId: lists };
   }, [orders, clinic]);
 
   // ── KPI tiles (always over the full queue) ────────────────────────────────
@@ -515,6 +525,7 @@ export function ClinicalCheckClient({
                 onRowClick={handleRowClick}
                 selectedOrderId={selectedOrderId ?? undefined}
                 reviewNeededByOrderId={reviewNeededByOrderId}
+                flaggedAnswersByOrderId={flaggedAnswersByOrderId}
                 onJumpToFlagged={handleJumpToFlagged}
               />
             )}

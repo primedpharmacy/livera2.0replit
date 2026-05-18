@@ -7,10 +7,11 @@
  * context="clinical_check" — PATIENT | WAITING | MEDICATION | ORDER TYPE | CLINICAL FLAGS | FLAGS | AI SUMMARY | ACTION
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
+import type { FlaggedAnswer } from "@/lib/questionnaire";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -77,6 +78,13 @@ export interface OrderListTableProps {
    */
   reviewNeededByOrderId?: Record<string, number>;
   /**
+   * Map of orderId → list of safety-flagged questions + the patient's answers.
+   * When supplied, hovering / focusing the "N review needed" badge shows a
+   * popover with this list so clinicians can triage low-signal cases without
+   * opening the slide-over.
+   */
+  flaggedAnswersByOrderId?: Record<string, FlaggedAnswer[]>;
+  /**
    * Called when a clinician clicks the "N review needed" badge on a row.
    * Lets the parent open the slide-over AND jump straight to the first
    * flagged questionnaire answer.
@@ -94,6 +102,7 @@ export function OrderListTable({
   onRowClick,
   selectedOrderId,
   reviewNeededByOrderId,
+  flaggedAnswersByOrderId,
   onJumpToFlagged,
 }: OrderListTableProps) {
   const router = useRouter();
@@ -202,6 +211,7 @@ export function OrderListTable({
                     onRowClick={onRowClick}
                     isSelected={isSelected}
                     reviewNeededCount={reviewNeededByOrderId?.[order.id] ?? 0}
+                    flaggedAnswers={flaggedAnswersByOrderId?.[order.id]}
                     onJumpToFlagged={onJumpToFlagged}
                   />
                 ) : (
@@ -303,6 +313,7 @@ function ClinicalCheckRow({
   onRowClick,
   isSelected,
   reviewNeededCount,
+  flaggedAnswers,
   onJumpToFlagged,
 }: {
   order: Order;
@@ -316,6 +327,7 @@ function ClinicalCheckRow({
   onRowClick?: (orderId: string) => void;
   isSelected?: boolean;
   reviewNeededCount?: number;
+  flaggedAnswers?: FlaggedAnswer[];
   onJumpToFlagged?: (orderId: string) => void;
 }) {
   const router = useRouter();
@@ -336,25 +348,11 @@ function ClinicalCheckRow({
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-[12.5px] font-medium text-t1 leading-tight">{name}</span>
               {reviewNeededCount && reviewNeededCount > 0 ? (
-                onJumpToFlagged ? (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onJumpToFlagged(order.id); }}
-                    title={`Jump to the first of ${reviewNeededCount} safety-flagged "yes" answer${reviewNeededCount === 1 ? "" : "s"} on the questionnaire`}
-                    className="inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none hover:bg-warn hover:text-white transition-colors cursor-pointer"
-                  >
-                    <AlertTriangle className="w-2.5 h-2.5" />
-                    {reviewNeededCount} review needed
-                  </button>
-                ) : (
-                  <span
-                    title={`${reviewNeededCount} safety-flagged "yes" answer${reviewNeededCount === 1 ? "" : "s"} on the questionnaire`}
-                    className="inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none"
-                  >
-                    <AlertTriangle className="w-2.5 h-2.5" />
-                    {reviewNeededCount} review needed
-                  </span>
-                )
+                <ReviewNeededBadge
+                  count={reviewNeededCount}
+                  flaggedAnswers={flaggedAnswers}
+                  onJump={onJumpToFlagged ? () => onJumpToFlagged(order.id) : undefined}
+                />
               ) : null}
             </div>
             <div className="text-[11px] text-t3 font-mono">{order.patient_id} · {order.id}</div>
@@ -458,6 +456,128 @@ function ClinicalCheckRow({
         )}
       </TableCell>
     </>
+  );
+}
+
+// ── Review-needed badge with hover/focus popover ──────────────────────────────
+/**
+ * "N review needed" badge. Hovering or keyboard-focusing it opens a small
+ * popover listing each safety-flagged question + the patient's answer so
+ * clinicians can triage low-signal cases without opening the slide-over.
+ * Esc dismisses the popover (and restores focus). Clicking the badge still
+ * jumps the parent to the first flagged answer in the slide-over.
+ */
+function ReviewNeededBadge({
+  count,
+  flaggedAnswers,
+  onJump,
+}: {
+  count: number;
+  flaggedAnswers?: FlaggedAnswer[];
+  onJump?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement | HTMLSpanElement | null>(null);
+  const hasList = !!flaggedAnswers && flaggedAnswers.length > 0;
+
+  // Esc dismisses; click outside dismisses.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+        const t = triggerRef.current;
+        if (t && "focus" in t) (t as HTMLElement).focus();
+      }
+    };
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
+
+  const fallbackTitle = `${count} safety-flagged "yes" answer${count === 1 ? "" : "s"} on the questionnaire`;
+  const badgeCls =
+    "inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none transition-colors";
+
+  const trigger = onJump ? (
+    <button
+      ref={(el) => { triggerRef.current = el; }}
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onJump(); }}
+      onFocus={() => setOpen(true)}
+      onBlur={(e) => {
+        if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+      aria-label={fallbackTitle}
+      aria-expanded={hasList ? open : undefined}
+      title={hasList ? undefined : fallbackTitle}
+      className={cn(badgeCls, "hover:bg-warn hover:text-white cursor-pointer")}
+    >
+      <AlertTriangle className="w-2.5 h-2.5" />
+      {count} review needed
+    </button>
+  ) : (
+    <span
+      ref={(el) => { triggerRef.current = el; }}
+      tabIndex={hasList ? 0 : -1}
+      onFocus={() => setOpen(true)}
+      onBlur={(e) => {
+        if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+      aria-label={fallbackTitle}
+      title={hasList ? undefined : fallbackTitle}
+      className={badgeCls}
+    >
+      <AlertTriangle className="w-2.5 h-2.5" />
+      {count} review needed
+    </span>
+  );
+
+  return (
+    <span
+      ref={wrapRef}
+      className="relative inline-flex"
+      onMouseEnter={() => hasList && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      {trigger}
+      {hasList && open && (
+        <div
+          role="tooltip"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full mt-1 z-50 w-72 max-w-[18rem] rounded-md border border-bdr bg-surface shadow-lg p-2.5 text-left"
+        >
+          <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1.5">
+            Flagged answers ({flaggedAnswers!.length})
+          </div>
+          <ul className="space-y-1.5">
+            {flaggedAnswers!.map((f) => (
+              <li key={f.id} className="text-[11px] leading-snug">
+                <div className="text-t1 font-medium">{f.label}</div>
+                <div className="text-warn font-semibold mt-0.5">
+                  Answered: {f.answer}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {onJump && (
+            <div className="text-[10px] text-t3 mt-2 pt-1.5 border-t border-bdr">
+              Click the badge to jump to the first flagged answer.
+            </div>
+          )}
+        </div>
+      )}
+    </span>
   );
 }
 

@@ -23,6 +23,7 @@ import {
   BookOpen,
   ShieldAlert,
   XCircle,
+  RotateCw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -300,6 +301,13 @@ function buildSections(
           label: "Settings",
           icon: Settings,
           href: `/${clinicId}/settings`,
+          permission: { action: "read", resource: "settings" },
+        },
+        {
+          key: "retry-sweeps",
+          label: "Retry Sweeps",
+          icon: RotateCw,
+          href: `/${clinicId}/ops/retry-sweeps`,
           permission: { action: "read", resource: "settings" },
         },
       ],

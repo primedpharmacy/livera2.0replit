@@ -4,14 +4,16 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react";
-import { CURRENT_USER, USERS_REGISTRY } from "@/lib/api/mock";
+import {
+  CURRENT_USER,
+  DEMO_OVERRIDE_COOKIE_NAME,
+  USERS_REGISTRY,
+} from "@/lib/api/mock";
 import type { User } from "@/lib/api/mock";
 
-const STORAGE_KEY = "livera:demo-current-user-id";
 const IS_DEV = process.env.NODE_ENV !== "production";
 
 type CurrentUserContextValue = {
@@ -22,29 +24,34 @@ type CurrentUserContextValue = {
 
 const CurrentUserContext = createContext<CurrentUserContextValue | null>(null);
 
-export function CurrentUserProvider({ children }: { children: React.ReactNode }) {
-  const [userId, setUserIdState] = useState<string>(CURRENT_USER.id);
-
-  useEffect(() => {
-    if (!IS_DEV) return;
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored && USERS_REGISTRY[stored]) {
-        setUserIdState(stored);
-      }
-    } catch {
-      // ignore — localStorage may be unavailable
-    }
-  }, []);
+export function CurrentUserProvider({
+  initialUserId,
+  children,
+}: {
+  initialUserId: string;
+  children: React.ReactNode;
+}) {
+  // The provider is seeded from the server (which reads the
+  // `livera_demo_uid` cookie via `next/headers`), so the very first
+  // client render hydrates with the same persona the server rendered —
+  // no SSR/client mismatch and no flash of the wrong persona's gated UI.
+  const seedId = USERS_REGISTRY[initialUserId] ? initialUserId : CURRENT_USER.id;
+  const [userId, setUserIdState] = useState<string>(seedId);
 
   const setUserId = useCallback((id: string) => {
     if (!IS_DEV) return;
     if (!USERS_REGISTRY[id]) return;
     setUserIdState(id);
+    // Mirror the choice into the demo cookie so that the next server render
+    // (e.g. a route navigation) resolves the same persona and stays
+    // hydration-consistent. This is the same non-httpOnly mirror cookie that
+    // `middleware.ts` writes on `?as=<uid>`.
     try {
-      window.localStorage.setItem(STORAGE_KEY, id);
+      document.cookie = `${DEMO_OVERRIDE_COOKIE_NAME}=${encodeURIComponent(
+        id,
+      )}; path=/; SameSite=Lax`;
     } catch {
-      // ignore
+      // ignore — document may be unavailable in tests
     }
   }, []);
 

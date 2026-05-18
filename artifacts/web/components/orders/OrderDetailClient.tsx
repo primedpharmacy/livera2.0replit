@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, reverseDecision, CURRENT_USER, NOW, USERS_REGISTRY } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, reverseDecision, NOW, USERS_REGISTRY } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { openOrderUndoWindow, readOrderUndoDeadline, clearOrderUndoWindow } from "@/lib/orderUndo";
 import {
@@ -190,6 +191,9 @@ export function OrderDetailClient({
   initialClinicalNotes,
 }: OrderDetailClientProps) {
   useQueueNavigation({ kind: "orders", currentId: initialOrder.id, clinicId });
+  // Task-182 — resolve the active demo persona via context so the first render
+  // matches what the server rendered (provider is seeded from the cookie).
+  const currentUser = useCurrentUser();
   const [order, setOrder]             = useState<Order>(initialOrder);
   const [modal, setModal]             = useState<Modal>(null);
   const [rationale, setRationale]     = useState("");
@@ -309,7 +313,7 @@ export function OrderDetailClient({
 
   const canUndoDecision =
     order.clinical_decision != null &&
-    order.clinical_decision.prescriber_user_id === CURRENT_USER.id &&
+    order.clinical_decision.prescriber_user_id === currentUser.id &&
     undoDeadline != null &&
     undoRemainingMs > 0;
 
@@ -326,7 +330,7 @@ export function OrderDetailClient({
   const canReverseDecision =
     order.clinical_decision != null &&
     REVERSAL_PRE_DISPENSING_STATUSES.includes(order.status) &&
-    can(CURRENT_USER, "decide", "orders");
+    can(currentUser, "decide", "orders");
   const [reverseOpen, setReverseOpen]       = useState(false);
   const [reverseReason, setReverseReason]   = useState("");
   const [isReversing, setIsReversing]       = useState(false);
@@ -746,7 +750,7 @@ export function OrderDetailClient({
         ai_draft_original:           aiData?.ai_draft_original ?? null,
         ai_prompt_version_id:        aiData?.prompt_version_id ?? null,
         ai_draft_accepted_at:        aiData?.ai_drafted ? NOW : null,
-        ai_draft_edited_by:          aiData?.ai_drafted ? CURRENT_USER.id : null,
+        ai_draft_edited_by:          aiData?.ai_drafted ? currentUser.id : null,
       });
       setNotes((prev) => [newNote, ...prev]);
 
@@ -800,9 +804,9 @@ export function OrderDetailClient({
   }
 
   const minChars          = clinic.config.clinical_note_min_chars;
-  const canWriteNotes     = can(CURRENT_USER, "write", "clinical_notes");
-  const canDecide         = order.status === "clinical_check" && can(CURRENT_USER, "decide", "orders");
-  const canWriteIncident  = can(CURRENT_USER, "write", "incidents");
+  const canWriteNotes     = can(currentUser, "write", "clinical_notes");
+  const canDecide         = order.status === "clinical_check" && can(currentUser, "decide", "orders");
+  const canWriteIncident  = can(currentUser, "write", "incidents");
 
   const hasHighSeverityFlag = patient.flags.some((f) => f.severity === "high");
   const hasB4Acknowledged   = patient.flags.some((f) => f.code === "B4_acknowledged");
@@ -1403,7 +1407,7 @@ export function OrderDetailClient({
                                 modal that triggers the hidden file input below
                                 so the same staff-upload validation + audit
                                 pipeline runs and captures the prior file. */}
-                            {can(CURRENT_USER, "write", "orders") && (
+                            {can(currentUser, "write", "orders") && (
                               <div className="flex items-center justify-between gap-3 pt-1">
                                 <p className="text-[11px] text-t3">
                                   Wrong file uploaded? Replace it — the previous
@@ -1587,7 +1591,7 @@ export function OrderDetailClient({
                                     cron still has something to send (link
                                     active, not consumed, not both reminders
                                     fired). */}
-                                {canSendManualReminder && can(CURRENT_USER, "write", "orders") && (
+                                {canSendManualReminder && can(currentUser, "write", "orders") && (
                                   <Button
                                     type="button"
                                     variant="outline"
@@ -1634,7 +1638,7 @@ export function OrderDetailClient({
                                 Coexists with the Task-91 resend button: staff can either
                                 re-issue the upload link OR, if the patient has already
                                 emailed/posted a copy, attach it here directly. */}
-                            {can(CURRENT_USER, "write", "orders") && (
+                            {can(currentUser, "write", "orders") && (
                               <div className="p-3 rounded-lg border border-bdr bg-surface">
                                 <p className="text-[12px] font-semibold text-t1">
                                   Upload on patient&apos;s behalf
@@ -1682,7 +1686,7 @@ export function OrderDetailClient({
                     order={order}
                     clinicId={clinicId}
                     weightWarningThresholds={clinic.config.weight_warning_thresholds}
-                    canAcknowledgeWarnings={can(CURRENT_USER, "decide", "orders")}
+                    canAcknowledgeWarnings={can(currentUser, "decide", "orders")}
                     onWarningAcknowledged={setOrder}
                   />
                 )}
@@ -1863,7 +1867,7 @@ export function OrderDetailClient({
                 </div>
 
                 {/* Raise amendment form (BLD-5.2) */}
-                {amendmentWindowOpen && can(CURRENT_USER, "write", "amendments") && (
+                {amendmentWindowOpen && can(currentUser, "write", "amendments") && (
                   <DCard icon={Pencil} title="Raise Amendment">
                     {!showAmendForm ? (
                       <Button
@@ -2288,7 +2292,7 @@ export function OrderDetailClient({
                   <span className="text-t1 text-right">
                     {USERS_REGISTRY[order.clinical_decision.prescriber_user_id]?.full_name
                       ?? order.clinical_decision.prescriber_user_id}
-                    {order.clinical_decision.prescriber_user_id !== CURRENT_USER.id && (
+                    {order.clinical_decision.prescriber_user_id !== currentUser.id && (
                       <span className="ml-1 text-[10px] text-warn font-semibold">(another clinician)</span>
                     )}
                   </span>

@@ -147,6 +147,92 @@ export function describeWeightWarningThreshold(
   }
 }
 
+// Task-211 — clinics can retune their weight-warning thresholds at any time
+// (via Settings → Weight warnings). Warnings older than the most recent edit
+// may have been triggered against different numbers, so each acknowledgement
+// captures the snapshot it fired under. These helpers let the chip surface
+// both the historical and current threshold values when they diverge.
+
+type Thresholds = ClinicConfig["weight_warning_thresholds"];
+
+/** Returns the threshold keys relevant to a given warning kind. */
+function thresholdKeysForKind(kind: WeightWarningKind): Array<keyof Thresholds> {
+  switch (kind) {
+    case "plateau":
+      return ["plateau_min_readings", "plateau_tolerance_kg"];
+    case "rapid_loss":
+      return ["rapid_loss_kg_per_week"];
+    case "bmi_below_threshold":
+      return ["bmi_continuation_floor"];
+    case "weight_regain":
+      // Weight regain isn't threshold-driven, so changes never affect it.
+      return [];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Task-211 — Returns true when the clinic thresholds *that matter for this
+ * warning kind* have changed between the historical snapshot and the current
+ * values. Returns false when the snapshot is missing (we have no history to
+ * compare against), or when the relevant numbers are identical.
+ */
+export function haveWeightWarningThresholdsChanged(
+  kind: WeightWarningKind,
+  historical: Thresholds | undefined | null,
+  current: Thresholds | undefined | null,
+): boolean {
+  if (!historical || !current) return false;
+  const keys = thresholdKeysForKind(kind);
+  return keys.some((k) => historical[k] !== current[k]);
+}
+
+/**
+ * Task-211 — Human-readable summary of the threshold values relevant to a
+ * specific warning kind. Renders the per-kind subset (e.g. "plateau 3 within
+ * 0.3kg") so the tooltip can show "Fired under: X — now Y" succinctly.
+ */
+export function summariseThresholdsForKind(
+  kind: WeightWarningKind,
+  thresholds: Thresholds | undefined | null,
+): string | null {
+  if (!thresholds) return null;
+  switch (kind) {
+    case "plateau":
+      return `plateau ${thresholds.plateau_min_readings} within ${thresholds.plateau_tolerance_kg}kg`;
+    case "rapid_loss":
+      return `> ${thresholds.rapid_loss_kg_per_week}kg/week`;
+    case "bmi_below_threshold":
+      return `BMI floor ${thresholds.bmi_continuation_floor}`;
+    case "weight_regain":
+      return null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Task-211 — Tooltip text for an acknowledged chip that captures both the
+ * current clinic threshold and the historical snapshot the warning fired
+ * under (when they differ). Falls back to the regular per-warning description
+ * when no snapshot exists or the values still match.
+ */
+export function describeAcknowledgedWeightWarningThreshold(
+  kind: WeightWarningKind,
+  historical: Thresholds | undefined | null,
+  current: Thresholds | undefined | null,
+): string | null {
+  const baseline = describeWeightWarningThreshold(kind, current);
+  if (!haveWeightWarningThresholdsChanged(kind, historical, current)) {
+    return baseline;
+  }
+  const firedUnder = summariseThresholdsForKind(kind, historical);
+  const now = summariseThresholdsForKind(kind, current);
+  if (!firedUnder || !now) return baseline;
+  return `Fired under: ${firedUnder} — now ${now}`;
+}
+
 export const WEIGHT_WARNING_CHIP_CLS: Record<WeightWarningSeverity, string> = {
   warn: "bg-warn-bg text-warn border-warn-bdr",
   err: "bg-err-bg text-err border-err-bdr",

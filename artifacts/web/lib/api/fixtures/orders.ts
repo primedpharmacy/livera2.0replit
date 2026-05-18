@@ -935,6 +935,16 @@ export async function acknowledgeWeightWarning(
   order_id: string,
   kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold',
   rationale: string,
+  // Task-211 — snapshot of the clinic's weight-warning thresholds in effect
+  // when the warning was evaluated. Persisted alongside the rationale so
+  // audits can reconstruct *which* numbers triggered the chip, even after
+  // Admin/Owner retunes them via Settings.
+  thresholds_snapshot?: {
+    bmi_continuation_floor: number;
+    rapid_loss_kg_per_week: number;
+    plateau_tolerance_kg: number;
+    plateau_min_readings: number;
+  } | null,
 ): Promise<Order> {
   await delay(200);
   const trimmed = rationale.trim();
@@ -958,6 +968,10 @@ export async function acknowledgeWeightWarning(
       acknowledged_by_user_id: CURRENT_USER.id,
       acknowledged_at: NOW,
       rationale: trimmed,
+      // Task-211 — snapshot the active clinic thresholds at acknowledgement
+      // time so future audits can compare "fired under" vs "current" even if
+      // the clinic retunes the numbers.
+      thresholds_snapshot: thresholds_snapshot ? { ...thresholds_snapshot } : null,
     },
   ];
   o.updated_at = NOW;

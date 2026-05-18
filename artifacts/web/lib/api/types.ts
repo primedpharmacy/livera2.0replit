@@ -379,6 +379,18 @@ export type Order = {
     acknowledged_by_user_id: string;
     acknowledged_at: string;  // ISO
     rationale: string;
+    // Task-211 — snapshot of the clinic's weight-warning thresholds in effect
+    // when this warning was first evaluated/acknowledged. Lets clinicians
+    // reviewing acknowledged warnings answer "what threshold value did this
+    // warning fire under?" even after Admin/Owner has retuned the numbers.
+    // Optional so legacy acknowledgements (from before Task-211 shipped) still
+    // load cleanly — callers treat a missing snapshot as "unknown history".
+    thresholds_snapshot?: {
+      bmi_continuation_floor: number;
+      rapid_loss_kg_per_week: number;
+      plateau_tolerance_kg: number;
+      plateau_min_readings: number;
+    } | null;
     edits?: Array<{
       edited_by_user_id: string;
       edited_at: string;       // ISO

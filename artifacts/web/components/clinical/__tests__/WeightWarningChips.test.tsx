@@ -98,6 +98,69 @@ describe('WeightWarningChips — Task-190', () => {
     expect(screen.getByRole('button', { name: /^undo$/i })).toBeInTheDocument();
   });
 
+  // Task-211 — when the clinic retunes the warning thresholds after a chip
+  // has been acknowledged, the chip surfaces a "Thresholds changed since this
+  // warning" badge so reviewers know the *current* numbers no longer match
+  // what the warning fired under.
+  it('shows the "thresholds changed" badge only when the snapshot diverges from current', async () => {
+    const historical = {
+      bmi_continuation_floor: 27.5,
+      rapid_loss_kg_per_week: 2,
+      plateau_tolerance_kg: 0.3,
+      plateau_min_readings: 3,
+    };
+    // Acknowledge under the historical numbers — the snapshot is persisted
+    // on the entry by acknowledgeWeightWarning (Task-211).
+    resetOrder('ORD-00438');
+    const acked = await acknowledgeWeightWarning(
+      'vsc',
+      'ORD-00438',
+      'plateau',
+      'Patient stable on review.',
+      historical,
+    );
+
+    // 1) Same thresholds → no badge.
+    const { unmount } = render(
+      <WeightWarningChips
+        order={acked}
+        clinicId="vsc"
+        warnings={[WARNING]}
+        canAcknowledge
+        thresholds={historical}
+      />,
+    );
+    expect(
+      screen.queryByText(/thresholds changed since this warning/i),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    // 2) Retune the plateau thresholds → badge appears.
+    render(
+      <WeightWarningChips
+        order={acked}
+        clinicId="vsc"
+        warnings={[WARNING]}
+        canAcknowledge
+        thresholds={{ ...historical, plateau_min_readings: 4, plateau_tolerance_kg: 0.5 }}
+      />,
+    );
+    expect(
+      screen.getByText(/thresholds changed since this warning/i),
+    ).toBeInTheDocument();
+
+    // Task-211 — the acknowledged chip's tooltip should spell out the
+    // "Fired under: X — now Y" contrast so a clinician hovering it can
+    // see exactly which numbers the warning originally triggered against.
+    const ackChip = screen
+      .getByText(WARNING.label)
+      .closest('span[title]');
+    expect(ackChip).toHaveAttribute(
+      'title',
+      'Fired under: plateau 3 within 0.3kg — now plateau 4 within 0.5kg',
+    );
+  });
+
   it('flips back to the unreviewed state after the undo flow completes', async () => {
     const acked = await seedAckedOrder();
 

@@ -5,6 +5,9 @@ import type { ClinicConfig, Order } from "@/lib/api/types";
 import {
   DEFAULT_WEIGHT_WARNING_THRESHOLDS,
   analyseWeightHistory,
+  describeAcknowledgedWeightWarningThreshold,
+  haveWeightWarningThresholdsChanged,
+  summariseThresholdsForKind,
 } from "../weightWarnings";
 
 type Reading = NonNullable<Order["weight_history"]>[number];
@@ -152,5 +155,108 @@ describe("analyseWeightHistory", () => {
     expect(analyseWeightHistory([reading(0, 90)])).toEqual([]);
     expect(analyseWeightHistory(null)).toEqual([]);
     expect(analyseWeightHistory(undefined)).toEqual([]);
+  });
+});
+
+// Task-211 — threshold-history helpers used by WeightWarningChips so that
+// clinicians reviewing an acknowledged warning can see what the limits *were*
+// when the chip first appeared (even after Admin/Owner has retuned them).
+describe("haveWeightWarningThresholdsChanged", () => {
+  const a: ClinicConfig["weight_warning_thresholds"] = {
+    bmi_continuation_floor: 27.5,
+    rapid_loss_kg_per_week: 2,
+    plateau_tolerance_kg: 0.3,
+    plateau_min_readings: 3,
+  };
+
+  it("returns false when the snapshot is missing", () => {
+    expect(haveWeightWarningThresholdsChanged("plateau", null, a)).toBe(false);
+    expect(haveWeightWarningThresholdsChanged("plateau", undefined, a)).toBe(
+      false,
+    );
+  });
+
+  it("returns false when only unrelated thresholds changed", () => {
+    // Plateau cares about plateau_* keys; BMI floor change must not flag it.
+    const next = { ...a, bmi_continuation_floor: 28 };
+    expect(haveWeightWarningThresholdsChanged("plateau", a, next)).toBe(false);
+    expect(
+      haveWeightWarningThresholdsChanged("bmi_below_threshold", a, next),
+    ).toBe(true);
+  });
+
+  it("returns true when a relevant threshold has been retuned", () => {
+    const next = { ...a, plateau_min_readings: 4, plateau_tolerance_kg: 0.5 };
+    expect(haveWeightWarningThresholdsChanged("plateau", a, next)).toBe(true);
+  });
+
+  it("treats weight_regain as never threshold-affected", () => {
+    const next = { ...a, plateau_min_readings: 99, bmi_continuation_floor: 99 };
+    expect(haveWeightWarningThresholdsChanged("weight_regain", a, next)).toBe(
+      false,
+    );
+  });
+});
+
+describe("describeAcknowledgedWeightWarningThreshold", () => {
+  const historical: ClinicConfig["weight_warning_thresholds"] = {
+    bmi_continuation_floor: 27.5,
+    rapid_loss_kg_per_week: 2,
+    plateau_tolerance_kg: 0.3,
+    plateau_min_readings: 3,
+  };
+
+  it("falls back to the live description when the snapshot matches", () => {
+    const tip = describeAcknowledgedWeightWarningThreshold(
+      "plateau",
+      historical,
+      historical,
+    );
+    expect(tip).toContain("Triggered when");
+  });
+
+  it("falls back to the live description when no snapshot exists", () => {
+    const tip = describeAcknowledgedWeightWarningThreshold(
+      "plateau",
+      null,
+      historical,
+    );
+    expect(tip).toContain("Triggered when");
+  });
+
+  it("contrasts historical vs current when relevant thresholds differ", () => {
+    const current = {
+      ...historical,
+      plateau_min_readings: 4,
+      plateau_tolerance_kg: 0.5,
+    };
+    const tip = describeAcknowledgedWeightWarningThreshold(
+      "plateau",
+      historical,
+      current,
+    );
+    expect(tip).toBe(
+      "Fired under: plateau 3 within 0.3kg — now plateau 4 within 0.5kg",
+    );
+  });
+});
+
+describe("summariseThresholdsForKind", () => {
+  const t: ClinicConfig["weight_warning_thresholds"] = {
+    bmi_continuation_floor: 27.5,
+    rapid_loss_kg_per_week: 2,
+    plateau_tolerance_kg: 0.3,
+    plateau_min_readings: 3,
+  };
+  it("returns a per-kind summary string", () => {
+    expect(summariseThresholdsForKind("plateau", t)).toBe(
+      "plateau 3 within 0.3kg",
+    );
+    expect(summariseThresholdsForKind("rapid_loss", t)).toBe("> 2kg/week");
+    expect(summariseThresholdsForKind("bmi_below_threshold", t)).toBe(
+      "BMI floor 27.5",
+    );
+    expect(summariseThresholdsForKind("weight_regain", t)).toBeNull();
+    expect(summariseThresholdsForKind("plateau", null)).toBeNull();
   });
 });

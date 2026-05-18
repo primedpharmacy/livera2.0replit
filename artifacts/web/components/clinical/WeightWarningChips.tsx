@@ -24,6 +24,8 @@ import {
   WEIGHT_WARNING_CHIP_CLS,
   WEIGHT_WARNING_ACK_CHIP_CLS,
   describeWeightWarningThreshold,
+  describeAcknowledgedWeightWarningThreshold,
+  haveWeightWarningThresholdsChanged,
   findAcknowledgement,
   type WeightWarning,
 } from "@/lib/clinical/weightWarnings";
@@ -72,7 +74,7 @@ export function WeightWarningChips({
           warning={w}
           size={size}
           canAcknowledge={canAcknowledge}
-          thresholdTooltip={describeWeightWarningThreshold(w.kind, thresholds)}
+          thresholds={thresholds}
           onAcknowledged={onAcknowledged}
         />
       ))}
@@ -95,7 +97,7 @@ function WeightWarningChip({
   warning,
   size,
   canAcknowledge,
-  thresholdTooltip,
+  thresholds,
   onAcknowledged,
 }: {
   order: Order;
@@ -103,10 +105,28 @@ function WeightWarningChip({
   warning: WeightWarning;
   size: "sm" | "md";
   canAcknowledge: boolean;
-  thresholdTooltip?: string | null;
+  thresholds?: ClinicConfig["weight_warning_thresholds"];
   onAcknowledged?: (updated: Order) => void;
 }) {
   const ack = findAcknowledgement(order, warning.kind);
+  // Task-211 — when this chip has been acknowledged, build a tooltip that
+  // contrasts the snapshot the warning fired under with the clinic's current
+  // numbers (if they've since changed). Unacknowledged chips just describe
+  // the live threshold as before (Task-143).
+  const thresholdTooltip = ack
+    ? describeAcknowledgedWeightWarningThreshold(
+        warning.kind,
+        ack.thresholds_snapshot,
+        thresholds,
+      )
+    : describeWeightWarningThreshold(warning.kind, thresholds);
+  const thresholdsChanged =
+    !!ack &&
+    haveWeightWarningThresholdsChanged(
+      warning.kind,
+      ack.thresholds_snapshot,
+      thresholds,
+    );
   const [mode, setMode] = useState<FormMode>("none");
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -154,6 +174,19 @@ function WeightWarningChip({
             <span className="ml-1 italic">(edited)</span>
           ) : null}
         </span>
+        {/* Task-211 — flag the chip when the clinic has retuned the relevant
+            thresholds since this warning fired. The full "Fired under: X — now
+            Y" comparison is in the chip's hover tooltip; this badge just makes
+            the divergence discoverable at a glance. */}
+        {thresholdsChanged && (
+          <span
+            title={thresholdTooltip ?? undefined}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full border border-warn-bdr bg-warn-bg text-warn"
+          >
+            <AlertTriangle className="w-3 h-3" />
+            Thresholds changed since this warning
+          </span>
+        )}
         {canAcknowledge && mode === "none" && isOwnAck && (
           <div className="inline-flex items-center gap-2 pt-0.5">
             <button
@@ -345,6 +378,9 @@ function WeightWarningChip({
                 order.id,
                 warning.kind,
                 text,
+                // Task-211 — capture the live clinic thresholds so audits can
+                // later reconstruct exactly which numbers this chip fired under.
+                thresholds,
               );
               reset();
               onAcknowledged?.(updated);

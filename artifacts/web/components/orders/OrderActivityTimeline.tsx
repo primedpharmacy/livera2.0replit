@@ -213,7 +213,7 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
           key: `px_link_auto_resent_failed_${idx}`,
           dot: "err",
           title: "System auto-resend of Px upload link failed to deliver",
-          meta: `to ${auto.to_email} · ${formatDateTime(auto.sent_at)} · ${auto.status}`,
+          meta: `to ${auto.to_email} · ${formatDateTime(auto.sent_at)} · ${auto.status} · by system`,
           ts: new Date(auto.sent_at).getTime(),
           rationale: auto.error_message ?? "Postmark did not return an error message.",
         });

@@ -22,6 +22,7 @@ const TABS = [
   { key: "holidays",             label: "Holiday calendar",     path: "holidays"             },
   { key: "gp-letter-templates",  label: "GP letter templates",  path: "gp-letter-templates"  },  // BLD-7.6
   { key: "intercom",             label: "Intercom",             path: "intercom"             },  // BLD-8.2 / BLD-INT-MHRA-02
+  { key: "intercom-attachments", label: "Intercom attachments", path: "intercom-attachments" },  // task #311 — clinic-scoped attachment audit
   { key: "mhra-alerts",            label: "MHRA alerts",          path: "mhra-alerts"            },  // BLD-INT-MHRA-01
   { key: "consultation-types",     label: "Consultation types",   path: "consultation-types"     },  // BLD-CONS-SETTINGS-01
   { key: "reorder-rules",          label: "Reorder rules",        path: "reorder-rules"          },  // BLD-14.6

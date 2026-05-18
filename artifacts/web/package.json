@@ -11,8 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:visual": "playwright test cancelRefundFlow.visual",
-    "test:visual:update": "playwright test cancelRefundFlow.visual --update-snapshots"
+    "test:visual": "playwright test .visual.spec",
+    "test:visual:update": "playwright test .visual.spec --update-snapshots"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.5",

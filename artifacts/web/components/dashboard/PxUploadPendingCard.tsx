@@ -46,6 +46,11 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
   const [reminderPendingId, setReminderPendingId] = useState<string | null>(null);
   const [markCalledPendingId, setMarkCalledPendingId] = useState<string | null>(null);
   const [toast, setToast]                   = useState<{ message: string; type: "ok" | "err" } | null>(null);
+  // Task-274 — Bulk reminder flow. Tracks which rows staff have ticked and
+  // whether a bulk send is in flight so we can disable the controls and
+  // show progress without blocking individual per-row actions.
+  const [selectedIds, setSelectedIds]       = useState<Set<string>>(new Set());
+  const [bulkPending, setBulkPending]       = useState(false);
   const canWriteOrders = can(CURRENT_USER, "write", "orders");
   // Task-263 — synchronous re-entrancy guard. The `pendingId` state above
   // doesn't update until React commits, so two rapid clicks (same row OR
@@ -177,6 +182,98 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
     }
   }
 
+  // Task-274 — Mirror of the per-row eligibility used in the render loop.
+  // We re-derive it here so the bulk handler can skip ineligible rows on
+  // the client without firing pointless POSTs, and so we can report those
+  // skips in the toast. Kept in lock-step with `canSendManualReminder`
+  // below — if the per-row gate changes, this must too.
+  function isReminderEligible(order: Order): boolean {
+    const link = order.px_upload_link;
+    if (!link) return false;
+    if (order.px_upload != null) return false;
+    const expired = Date.parse(link.expires_at) < Date.parse(NOW);
+    if (expired) return false;
+    if (link.consumed_at != null) return false;
+    const firstSent = link.reminder_sent_at != null;
+    const finalSent = link.final_reminder_sent_at != null;
+    if (firstSent && finalSent) return false;
+    return true;
+  }
+
+  function toggleSelected(orderId: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(orderId);
+      else next.delete(orderId);
+      return next;
+    });
+  }
+
+  // Task-274 — Bulk "Send reminder to selected". Iterates the ticked rows,
+  // skips any that no longer meet eligibility client-side (e.g. the link
+  // expired between selection and click), and hits the same per-order
+  // route the inline button uses. We sequence the requests so the toast
+  // can summarise successes/failures/skips deterministically without
+  // hammering the server. Each successful response patches its row in
+  // place exactly like the single-row handler does.
+  async function handleBulkSendReminders() {
+    if (!canWriteOrders || bulkPending) return;
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkPending(true);
+
+    let succeeded = 0;
+    let failed    = 0;
+    let skipped   = 0;
+
+    for (const orderId of ids) {
+      const order = rows.find((o) => o.id === orderId);
+      if (!order || !isReminderEligible(order)) {
+        skipped += 1;
+        continue;
+      }
+      try {
+        const res = await fetch(
+          `/api/orders/${clinicId}/${orderId}/px-upload-reminder`,
+          { method: "POST" },
+        );
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+          status?: "Delivered" | "Bounced" | "Failed";
+          px_upload_link?: Order["px_upload_link"];
+        };
+        if (!res.ok || body.status !== "Delivered") {
+          failed += 1;
+          continue;
+        }
+        succeeded += 1;
+        if (body.px_upload_link) {
+          setRows((prev) =>
+            prev.map((o) =>
+              o.id === orderId && body.px_upload_link
+                ? { ...o, px_upload_link: body.px_upload_link }
+                : o,
+            ),
+          );
+        }
+      } catch {
+        failed += 1;
+      }
+    }
+
+    setBulkPending(false);
+    setSelectedIds(new Set());
+
+    const parts: string[] = [];
+    parts.push(`${succeeded} sent`);
+    if (failed > 0)  parts.push(`${failed} failed`);
+    if (skipped > 0) parts.push(`${skipped} skipped (no longer eligible)`);
+    setToast({
+      message: `Bulk reminder: ${parts.join(", ")}.`,
+      type: failed === 0 && succeeded > 0 ? "ok" : failed > 0 ? "err" : "ok",
+    });
+  }
+
   // Task-269 — Count of rows where the auto-chase cron has escalated. Surfaced
   // in the header so staff see at a glance how many patients need a phone
   // call instead of another email tap.
@@ -191,6 +288,21 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
         <h3 className="text-[11px] font-bold text-warn uppercase tracking-wider flex-1">
           Awaiting Px upload
         </h3>
+        {canWriteOrders && selectedIds.size > 0 && (
+          <button
+            type="button"
+            data-testid="px-upload-bulk-reminder"
+            onClick={handleBulkSendReminders}
+            disabled={bulkPending}
+            title="Send the px-upload reminder email to every selected patient."
+            className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded bg-brand text-white hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Send className={`w-3 h-3 ${bulkPending ? "animate-pulse" : ""}`} />
+            {bulkPending
+              ? `Sending ${selectedIds.size}…`
+              : `Send reminder to selected (${selectedIds.size})`}
+          </button>
+        )}
         {escalatedCount > 0 && (
           <span
             data-testid="px-upload-escalated-count"
@@ -284,6 +396,10 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
                 ? "Sent today"
                 : `${ageDays}d since first sent`;
 
+            const isSelected = selectedIds.has(order.id);
+            const checkboxDisabled =
+              !canWriteOrders || !canSendManualReminder || bulkPending;
+
             return (
               <div
                 key={order.id}
@@ -294,6 +410,22 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
                     : "hover:bg-brand/5"
                 }`}
               >
+                {canWriteOrders && (
+                  <input
+                    type="checkbox"
+                    data-testid="px-upload-row-select"
+                    aria-label={`Select ${name} for bulk reminder`}
+                    checked={isSelected}
+                    disabled={checkboxDisabled}
+                    onChange={(e) => toggleSelected(order.id, e.target.checked)}
+                    title={
+                      !canSendManualReminder
+                        ? "This row isn't eligible for a reminder right now."
+                        : "Select to include in a bulk reminder send."
+                    }
+                    className="w-3.5 h-3.5 shrink-0 accent-brand disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
+                )}
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 ${
                     escalated

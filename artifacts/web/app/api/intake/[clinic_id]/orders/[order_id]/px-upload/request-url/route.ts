@@ -9,6 +9,9 @@
  *
  * Returns a presigned PUT URL the browser will upload to directly, plus the
  * `object_path` that should be passed back to the finalize endpoint.
+ *
+ * Auth: PATIENT-FACING — explicitly exempt from the staff session check
+ * (Task-122). Order existence + GLP-1 path validation gate the URL mint.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { findOrderForPxUpload, PX_UPLOAD_ALLOWED_TYPES, PX_UPLOAD_MAX_BYTES } from '@/lib/api/fixtures/orders';

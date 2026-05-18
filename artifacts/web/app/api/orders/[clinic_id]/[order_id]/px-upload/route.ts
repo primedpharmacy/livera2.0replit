@@ -4,8 +4,10 @@
  * Task-85 — Staff-side finalize for the GLP-1 prescription presigned-URL flow.
  * Mirrors the patient intake finalize at
  *   /api/intake/:clinic_id/orders/:order_id/px-upload
- * but tags the attach call with source='staff_upload' and CURRENT_USER as the
- * actor so the audit trail records who uploaded on the patient's behalf.
+ * but tags the attach call with source='staff_upload' and the authenticated
+ * staff user as the actor so the audit trail records who uploaded on the
+ * patient's behalf (Task-122: no fallback to CURRENT_USER — anonymous
+ * callers must 401).
  *
  * The browser uploads the file bytes to GCS via the same presigned URL the
  * patient flow uses (request-url route), so we only finalize here.
@@ -23,13 +25,17 @@ import {
   getObjectStoredMetadata,
   ObjectNotFoundError,
 } from '@/lib/storage/objectStorage';
-import { CURRENT_USER } from '@/lib/api/constants';
+import { getSessionUser } from '@/lib/auth/session';
 import type { ClinicId } from '@/types';
 
 type Params = { params: Promise<{ clinic_id: string; order_id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   const { clinic_id, order_id } = await params;
+  const user = getSessionUser(req);
+  if (!user) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body = (await req.json().catch(() => ({}))) as {
       object_path?: string;
@@ -78,7 +84,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         content_type: stored.contentType,
         object_path,
       },
-      { user_id: CURRENT_USER.id, source: 'staff_upload' },
+      { user_id: user.id, source: 'staff_upload' },
     );
 
     return NextResponse.json(

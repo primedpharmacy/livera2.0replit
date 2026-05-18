@@ -10,6 +10,9 @@
  *   Receives a multipart/form-data file from the patient-facing page and
  *   attaches it to the order linked to the token. Single-use: a consumed
  *   token returns 410 Gone on retry.
+ *
+ * Auth: PATIENT-FACING — explicitly exempt from the staff session check
+ * (Task-122). The single-use signed token is the authorization grant.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import {

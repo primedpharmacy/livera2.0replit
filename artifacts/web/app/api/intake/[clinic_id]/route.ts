@@ -3,6 +3,10 @@
  *
  * Receives the patient intake form submission and creates a new order
  * in the fixture store. The intake form calls this on final submit.
+ *
+ * Auth: PATIENT-FACING — explicitly exempt from the staff session check
+ * (Task-122). Patients submitting intake are anonymous; the route does
+ * not record a staff actor.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createIntakeOrder } from '@/lib/api/fixtures/orders';

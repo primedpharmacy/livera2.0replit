@@ -8,6 +8,10 @@
  *   3. Attach the object_path to the order via attachPxUpload
  *
  * Accepts JSON: { object_path, filename, size, content_type }. No file bytes.
+ *
+ * Auth: PATIENT-FACING — explicitly exempt from the staff session check
+ * (Task-122). The staff-side equivalent lives at
+ * /api/orders/:clinic_id/:order_id/px-upload and does require a session.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import {

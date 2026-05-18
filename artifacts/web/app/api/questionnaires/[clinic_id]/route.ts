@@ -1,9 +1,14 @@
 /**
  * GET  /api/questionnaires/:clinic_id → { order, reorder }
  * PUT  /api/questionnaires/:clinic_id ← { order, reorder } → { order, reorder }
+ *
+ * Staff-only — both GET and PUT require an authenticated session (Task-122).
+ * The questionnaire defines clinical intake fields and the reorder rules that
+ * gate restock; anonymous callers must not be able to read or mutate them.
  */
 import { type NextRequest } from 'next/server';
 import { getQuestionnaire, updateQuestionnaire } from '@/lib/api/fixtures/clinics';
+import { getSessionUser } from '@/lib/auth/session';
 import type { ClinicId } from '@/types';
 
 type Params = { params: Promise<{ clinic_id: string }> };
@@ -22,8 +27,9 @@ function err(message: string, status = 400) {
   });
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   const { clinic_id } = await params;
+  if (!getSessionUser(req)) return err('Unauthorized', 401);
   try {
     const raw = getQuestionnaire(clinic_id as ClinicId);
     // Safely strip non-JSON-safe values before serialisation
@@ -37,6 +43,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PUT(req: NextRequest, { params }: Params) {
   const { clinic_id } = await params;
+  if (!getSessionUser(req)) return err('Unauthorized', 401);
   try {
     const body = await req.json() as { order?: unknown[]; reorder?: unknown[] };
     const raw = updateQuestionnaire(

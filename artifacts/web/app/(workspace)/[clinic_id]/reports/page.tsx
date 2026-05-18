@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { TrendingUp, BarChart3, Flag, LayoutDashboard, FileText, Check, Clock, Package, ExternalLink } from "lucide-react";
+import { TrendingUp, BarChart3, Flag, LayoutDashboard, FileText, Check, Clock, Package, ExternalLink, History } from "lucide-react";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Breadcrumb } from "@/components/shell/Breadcrumb";
 
@@ -118,6 +118,15 @@ export default async function ReportsPage({ params }: Props) {
               badge="LIVE"
               bld="BLD-12.7"
               href={`/${clinic_id}/reports/aud-18-19`}
+            />
+            <AuditCard
+              icon={<History className="w-4 h-4" />}
+              code="AUD-20"
+              title="Patient Flag Changes"
+              description="Cross-patient activity log for VIP / status / coach changes. Filter by actor and date · click through to the affected patient."
+              badge="LIVE"
+              bld="Task-226"
+              href={`/${clinic_id}/reports/patient-flag-changes`}
             />
           </div>
         </section>

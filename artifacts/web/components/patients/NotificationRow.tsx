@@ -44,7 +44,9 @@ export function NotificationRow({
   const StatusIcon = statusMeta.Icon;
 
   return (
-    <div className="px-4 py-3">
+    // Task-201 — stable test hook so the SMS carrier-failure browser test
+    // can scope per-row assertions to the exact NotificationRow being checked.
+    <div className="px-4 py-3" data-testid={`notification-row-${n.id}`}>
       <div className="flex items-center gap-3 flex-wrap">
         <span className="font-mono text-[11px] font-semibold text-t2 shrink-0">{n.id}</span>
         <span

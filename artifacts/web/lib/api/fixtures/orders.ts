@@ -703,7 +703,7 @@ export async function decideOrder(
         anchor_order_id: o.id,
         prescriber_id: o.clinical_decision?.prescriber_user_id ?? CURRENT_USER.id,
         auto_triggered: true,
-      }, CURRENT_USER);
+      });
       console.log('[AUDIT]', {
         event_type: 'gp_letter_auto_triggered',
         clinic_id,
@@ -2503,7 +2503,7 @@ export async function createAmendment(
       priority: type === 'cancellation' ? 'urgent' : 'routine',
       body: `Amendment request: ${type}. Reason: ${reason}. Order is post-Primed clinical check — amendment held pending Primed approval (DEC-28).`,
       amendment_id: amendment.id,
-    }, CURRENT_USER);
+    });
     // Mark amendment as reviewing — pending Primed response
     amendment.status = 'reviewing';
     console.log('[AUDIT]', {

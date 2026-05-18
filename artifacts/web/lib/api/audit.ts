@@ -36,19 +36,6 @@ type DbModule = typeof import("@workspace/db");
 let dbModulePromise: Promise<DbModule | null> | null = null;
 function loadDbModule(): Promise<DbModule | null> {
   if (!dbModulePromise) {
-    // The `webpackIgnore` magic comment keeps webpack/Next.js from
-    // bundling `@workspace/db` (and its transitive `pg` driver, which
-    // requires Node's `fs`) into the client. A handful of client
-    // components static-import `lib/api/fixtures/*` which transitively
-    // imports this module, so without this hint webpack pulls the
-    // Postgres driver into the browser bundle and the Order Detail page
-    // 500s with "Module not found: Can't resolve 'fs'". At runtime
-    // Node ignores the comment and resolves the spec normally; Vitest
-    // still sees a literal `import("@workspace/db")` so `vi.mock` in
-    // `audit.test.ts` continues to intercept it. If a browser caller
-    // ever does reach this (it shouldn't — recordAudit is called from
-    // server-side fixture mutations), the import will fail and the
-    // .catch below downgrades it to an [AUDIT_PERSIST_FAIL] line.
     dbModulePromise = import(/* webpackIgnore: true */ "@workspace/db").catch((err) => {
       console.error("[AUDIT_PERSIST_FAIL]", {
         stage: "db_module_load",

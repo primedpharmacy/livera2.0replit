@@ -20,8 +20,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, reverseDecision, NOW, USERS_REGISTRY, getOrderAuditEvents } from "@/lib/api/mock";
-import { createClinicalNoteAction } from "@/lib/actions/clinicalNoteActions";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, reverseDecision, NOW, USERS_REGISTRY, getOrderAuditEvents } from "@/lib/api/mock";
 import { useCurrentUser } from "@/lib/context";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { openOrderUndoWindow, readOrderUndoDeadline, clearOrderUndoWindow } from "@/lib/orderUndo";
@@ -395,7 +394,7 @@ export function OrderDetailClient({
       const noteBody = trimmed.length >= minNoteChars
         ? `Decision reversal (${priorDecision} → returned to clinical check): ${trimmed}`
         : `Decision reversal (${priorDecision} → returned to clinical check): ${trimmed}${" ".repeat(Math.max(0, minNoteChars - trimmed.length))}`;
-      const note = await createClinicalNoteAction(clinicId, {
+      const note = await createClinicalNote(clinicId, {
         patient_id: patient.id,
         order_id: order.id,
         body: noteBody,
@@ -758,7 +757,7 @@ export function OrderDetailClient({
     setIsSubmitting(true);
     try {
       // Step 1 — create clinical note with full AI audit trail
-      const newNote = await createClinicalNoteAction(clinicId, {
+      const newNote = await createClinicalNote(clinicId, {
         patient_id:                  patient.id,
         order_id:                    order.id,
         body,

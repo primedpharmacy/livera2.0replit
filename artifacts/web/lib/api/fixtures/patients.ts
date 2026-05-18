@@ -890,3 +890,251 @@ export async function purgePatientData(
     },
   });
 }
+
+// ── Task-225 — updatePatientVip / updatePatientStatus / updatePatientCoach ──
+// Inline-editor mutators for the patient-level flags admins manage from the
+// LeftColumn. Each mirrors the updatePatientPreferredChannel safety chain:
+//   Layer 1 (UI gate): editor only renders if can(actor, 'write', 'patients').
+//   Layer 2 (server gate): can() check here; SAFETY_VIOLATION on denial.
+//   Layer 3 (audit log): [AUDIT] entry + recordAudit spine row + projection
+//     into PATIENT_FLAG_CHANGES so the per-patient Notification log breadcrumb
+//     introduced in task-150 stays in sync with real edits.
+function pushFlagChange(row: Omit<PatientFlagChange, 'id'>): void {
+  const seq = String(PATIENT_FLAG_CHANGES.length + 1).padStart(3, '0');
+  PATIENT_FLAG_CHANGES.push({ id: `PFC-${seq}`, ...row });
+}
+
+export async function updatePatientVip(
+  clinic_id: ClinicId,
+  patient_id: string,
+  vip: boolean,
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'write', 'patients')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_vip_updated',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      attempted_vip: vip,
+      timestamp: NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Insufficient permissions to update patient VIP flag');
+  }
+
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  const previous = patient.vip;
+  if (previous === vip) return patient;
+
+  patient.vip = vip;
+  patient.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_vip_updated',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_vip: previous,
+    new_vip: vip,
+    timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_vip_updated',
+    summary: `VIP flag for ${patient_id} ${vip ? 'set' : 'cleared'} by ${actor.full_name}.`,
+    before: { vip: previous },
+    after: { vip },
+  });
+
+  const registryActor = USERS_REGISTRY[actor.id];
+  pushFlagChange({
+    clinic_id,
+    patient_id,
+    kind: 'vip',
+    previous_value: String(previous),
+    new_value: String(vip),
+    previous_display: previous ? 'Yes' : 'No',
+    new_display: vip ? 'Yes' : 'No',
+    actor_id: actor.id,
+    actor_name: registryActor?.full_name ?? actor.full_name ?? actor.id,
+    changed_at: NOW,
+  });
+
+  return patient;
+}
+
+export type PatientStatus = Patient['status'];
+const PATIENT_STATUSES: readonly PatientStatus[] = ['new', 'active', 'monitoring', 'suspended'] as const;
+
+export async function updatePatientStatus(
+  clinic_id: ClinicId,
+  patient_id: string,
+  status: PatientStatus,
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'write', 'patients')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_status_updated',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      attempted_status: status,
+      timestamp: NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Insufficient permissions to update patient status');
+  }
+
+  if (!PATIENT_STATUSES.includes(status)) {
+    throw new APIError('VALIDATION', `Invalid patient status: ${status}`);
+  }
+
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  const previous = patient.status;
+  if (previous === status) return patient;
+
+  patient.status = status;
+  patient.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_status_updated',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_status: previous,
+    new_status: status,
+    timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_status_updated',
+    summary: `Status for ${patient_id} changed from ${previous} to ${status}.`,
+    before: { status: previous },
+    after: { status },
+  });
+
+  const registryActor = USERS_REGISTRY[actor.id];
+  pushFlagChange({
+    clinic_id,
+    patient_id,
+    kind: 'status',
+    previous_value: previous,
+    new_value: status,
+    previous_display: previous,
+    new_display: status,
+    actor_id: actor.id,
+    actor_name: registryActor?.full_name ?? actor.full_name ?? actor.id,
+    changed_at: NOW,
+  });
+
+  return patient;
+}
+
+export async function updatePatientCoach(
+  clinic_id: ClinicId,
+  patient_id: string,
+  coach_id: string | null,
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'write', 'patients')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_coach_updated',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      attempted_coach_id: coach_id,
+      timestamp: NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Insufficient permissions to update patient coach');
+  }
+
+  if (coach_id !== null) {
+    const candidate = USERS_REGISTRY[coach_id];
+    if (!candidate || !candidate.roles.includes('Coach')) {
+      throw new APIError('VALIDATION', `User ${coach_id} is not a coach`);
+    }
+    if (!candidate.active) {
+      throw new APIError('VALIDATION', `Coach ${coach_id} is not active`);
+    }
+    if (candidate.active_clinic_id !== clinic_id) {
+      throw new APIError(
+        'VALIDATION',
+        `Coach ${coach_id} does not belong to clinic ${clinic_id}`,
+      );
+    }
+  }
+
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  const previous = patient.coach_id ?? null;
+  if (previous === coach_id) return patient;
+
+  patient.coach_id = coach_id;
+  patient.updated_at = NOW;
+
+  const previousName = previous ? (USERS_REGISTRY[previous]?.full_name ?? previous) : 'Unassigned';
+  const newName = coach_id ? (USERS_REGISTRY[coach_id]?.full_name ?? coach_id) : 'Unassigned';
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_coach_updated',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_coach_id: previous,
+    new_coach_id: coach_id,
+    timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_coach_updated',
+    summary: `Coach for ${patient_id} changed from ${previousName} to ${newName}.`,
+    before: { coach_id: previous },
+    after: { coach_id },
+  });
+
+  const registryActor = USERS_REGISTRY[actor.id];
+  pushFlagChange({
+    clinic_id,
+    patient_id,
+    kind: 'coach',
+    previous_value: previous ?? 'unassigned',
+    new_value: coach_id ?? 'unassigned',
+    previous_display: previousName,
+    new_display: newName,
+    actor_id: actor.id,
+    actor_name: registryActor?.full_name ?? actor.full_name ?? actor.id,
+    changed_at: NOW,
+  });
+
+  return patient;
+}
+
+// Helper for the editor: list coach-role users in a clinic. Stays in-fixture
+// so the page can compute the option list server-side and pass it down.
+export function listCoachOptions(clinic_id: ClinicId): Array<{ id: string; full_name: string }> {
+  return Object.values(USERS_REGISTRY)
+    .filter((u) => u.active && u.roles.includes('Coach') && u.active_clinic_id === clinic_id)
+    .map((u) => ({ id: u.id, full_name: u.full_name }));
+}

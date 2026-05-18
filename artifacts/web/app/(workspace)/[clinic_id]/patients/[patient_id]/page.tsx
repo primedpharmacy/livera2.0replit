@@ -22,6 +22,7 @@ import { PatientQueueNav } from "@/components/patients/PatientQueueNav";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
 import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
+import { VipFlagEditor, StatusFlagEditor, CoachFlagEditor } from "@/components/patients/PatientFlagsEditor";
 import { LogWeightForm } from "@/components/patients/LogWeightForm";
 import { PreferredChannelHistory } from "@/components/patients/PreferredChannelHistory";
 import { NotificationRow, type ResendActionResult } from "@/components/patients/NotificationRow";
@@ -34,7 +35,7 @@ import {
   listClinicalNotes, listGPLetters, listAdminNotesByPatient,
   listIncidents, listCourierEvents, CURRENT_USER, getUpcomingCalendlyBookings,
   listPatientNotifications, listPatientPreferredChannelChanges,
-  listPatientFlagChanges,
+  listPatientFlagChanges, listCoachOptions,
 } from "@/lib/api/mock";
 import type { PatientNotification, PatientPreferredChannelChange, PatientFlagChange } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
@@ -143,6 +144,7 @@ async function ProfileContent({
       listPatientFlagChanges(clinicId, { patient_id: patientId }),
     ]);
 
+    const coachOptions = listCoachOptions(clinicId);
     const patientOrderIds = new Set(orders.map((o) => o.id));
     const courierEvents = allCourierEvents.filter((e) => patientOrderIds.has(e.order_id));
     const incidents = allIncidents.filter((i) => i.patient_id === patientId);
@@ -213,6 +215,8 @@ async function ProfileContent({
             age={age}
             canEditContact={canEditContact}
             canEditWeight={canEditContact}
+            canEditFlags={canEditContact}
+            coachOptions={coachOptions}
             channelChanges={channelChanges}
           />
 
@@ -357,6 +361,8 @@ function LeftColumn({
   age,
   canEditContact,
   canEditWeight,
+  canEditFlags,
+  coachOptions,
   channelChanges,
 }: {
   patient: Patient;
@@ -365,6 +371,8 @@ function LeftColumn({
   age: string;
   canEditContact: boolean;
   canEditWeight: boolean;
+  canEditFlags: boolean;
+  coachOptions: Array<{ id: string; full_name: string }>;
   channelChanges: PatientPreferredChannelChange[];
 }) {
   const d       = patient.demographic;
@@ -440,6 +448,29 @@ function LeftColumn({
         <DR k="Sex at birth" v={d.sex_at_birth} />
         <DR k="Ethnicity"   v={d.ethnicity.replace(/_/g, " ")} />
         <DR k="Address"     v={[d.address.line1, d.address.line2, d.address.city, d.address.postcode].filter(Boolean).join(", ")} />
+      </PSec>
+
+      {/* Flags — Task-225 inline editors (audited via PATIENT_FLAG_CHANGES) */}
+      <PSec title="Flags" icon={Star}>
+        <VipFlagEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.vip}
+          canEdit={canEditFlags}
+        />
+        <StatusFlagEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.status}
+          canEdit={canEditFlags}
+        />
+        <CoachFlagEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.coach_id ?? null}
+          coaches={coachOptions}
+          canEdit={canEditFlags}
+        />
       </PSec>
 
       {/* Contact */}

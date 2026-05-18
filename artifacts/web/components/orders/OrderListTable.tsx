@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Mail, MailX, MailCheck } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
 import {
   groupFlaggedAnswersByCategory,
@@ -17,6 +17,11 @@ import {
   type FlaggedAnswer,
 } from "@/lib/questionnaire";
 import type { OrderWeightWarningState } from "@/lib/clinical/weightWarnings";
+import {
+  computeReminderStatus,
+  REMINDER_PILL_LABEL,
+  type PxUploadReminderStatus,
+} from "@/lib/clinical/pxUploadReminderStatus";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -372,6 +377,12 @@ function ClinicalCheckRow({
                   onJump={onJumpToFlagged ? () => onJumpToFlagged(order.id) : undefined}
                 />
               ) : null}
+              {(() => {
+                const reminderStatus = computeReminderStatus(order);
+                return reminderStatus ? (
+                  <PxUploadReminderPill status={reminderStatus} />
+                ) : null;
+              })()}
               {weightWarningState && weightWarningState.hasUnacknowledged ? (
                 <span
                   className="inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none"
@@ -628,6 +639,140 @@ export function ReviewNeededBadge({
               Click the badge to jump to the first flagged answer.
             </div>
           )}
+        </div>
+      )}
+    </span>
+  );
+}
+
+// ── Px-upload reminder pill (Task-180) ────────────────────────────────────────
+/**
+ * Compact "Reminded" / "Final reminder sent" / "Reminder bounced" pill shown
+ * on the Clinical Check queue Patient cell when an order has a px_upload_link
+ * with at least one reminder attempt recorded. Hover/focus surfaces the failed
+ * attempt count and the latest Postmark error message so prescribers can
+ * triage who genuinely needs a human follow-up.
+ */
+export function PxUploadReminderPill({ status }: { status: PxUploadReminderStatus }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
+
+  const label = REMINDER_PILL_LABEL[status.state];
+  const cls =
+    status.state === "bounced"
+      ? "text-err bg-err-bg border-err-bdr"
+      : status.state === "final"
+      ? "text-warn bg-warn-bg border-warn-bdr"
+      : "text-t2 bg-page-bg border-bdr";
+  const Icon =
+    status.state === "bounced" ? MailX :
+    status.state === "final"   ? MailCheck :
+    Mail;
+
+  const showHover =
+    status.failureCount > 0 || status.sentCount > 1 || status.state !== "first";
+
+  return (
+    <span
+      ref={wrapRef}
+      className="relative inline-flex"
+      onMouseEnter={() => showHover && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <span
+        ref={triggerRef}
+        role={showHover ? "button" : undefined}
+        tabIndex={showHover ? 0 : -1}
+        aria-expanded={showHover ? open : undefined}
+        onFocus={() => showHover && setOpen(true)}
+        onBlur={(e) => {
+          if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (showHover) setOpen((v) => !v);
+        }}
+        onKeyDown={(e) => {
+          if (!showHover) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }
+        }}
+        aria-label={label}
+        className={cn(
+          "inline-flex items-center gap-1 text-[10px] font-bold border rounded-full px-1.5 py-px leading-none",
+          showHover && "cursor-pointer",
+          cls,
+        )}
+      >
+        <Icon className="w-2.5 h-2.5" />
+        {label}
+        {status.state !== "bounced" && status.sentCount > 1 ? (
+          <span className="opacity-70 tabular-nums">·{status.sentCount}x</span>
+        ) : null}
+      </span>
+      {showHover && open && (
+        <div
+          role="tooltip"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full mt-1 z-50 w-64 rounded-md border border-bdr bg-surface shadow-lg p-2.5 text-left"
+        >
+          <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1.5">
+            Reminder delivery
+          </div>
+          <div className="text-[11px] text-t1 leading-snug space-y-1">
+            <div className="tabular-nums">
+              <span className="font-semibold">{status.sentCount}</span> successful
+              {" · "}
+              <span
+                className={cn(
+                  "font-semibold",
+                  status.failureCount > 0 ? "text-err" : "text-t2",
+                )}
+              >
+                {status.failureCount}
+              </span>{" "}
+              failed
+            </div>
+            {status.latestFailure && (
+              <div className="pt-1.5 border-t border-bdr">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-0.5">
+                  Latest error ({status.latestFailure.kind})
+                </div>
+                <div className="text-err text-[11px] font-medium break-words">
+                  {status.latestFailure.status}
+                  {status.latestFailure.error_message
+                    ? ` — ${status.latestFailure.error_message}`
+                    : ""}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </span>

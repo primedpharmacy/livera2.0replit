@@ -1986,7 +1986,7 @@ export function OrderDetailClient({
               />
             )}
             {activeTab === "activity" && (
-              <OrderActivityTimeline order={order} />
+              <OrderActivityTimeline order={order} onOrderUpdated={setOrder} />
             )}
           </div>
         </div>

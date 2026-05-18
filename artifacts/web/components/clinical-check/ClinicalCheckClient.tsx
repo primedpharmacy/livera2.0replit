@@ -15,6 +15,7 @@ import {
   summariseOrderWeightWarnings,
   type OrderWeightWarningState,
 } from "@/lib/clinical/weightWarnings";
+import { computeReminderStatus } from "@/lib/clinical/pxUploadReminderStatus";
 import { cn } from "@/lib/utils";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { Order, Clinic, CoachingLog, ClinicId } from "@/types";
@@ -88,15 +89,16 @@ const SUB_QUEUES: {
 
 // ── Medication filter chips (secondary, within the selected sub-queue) ─────────
 
-type FilterChip = "all" | "flagged" | "review_needed" | "mounjaro" | "wegovy" | "dose_increase";
+type FilterChip = "all" | "flagged" | "review_needed" | "reminder_bounced" | "mounjaro" | "wegovy" | "dose_increase";
 
 const CHIPS: { value: FilterChip; label: string }[] = [
-  { value: "all",           label: "All orders"     },
-  { value: "flagged",       label: "Flagged only"   },
-  { value: "review_needed", label: "Review needed"  },
-  { value: "mounjaro",      label: "Mounjaro"       },
-  { value: "wegovy",        label: "Wegovy"         },
-  { value: "dose_increase", label: "Dose increase"  },
+  { value: "all",              label: "All orders"        },
+  { value: "flagged",          label: "Flagged only"      },
+  { value: "review_needed",    label: "Review needed"     },
+  { value: "reminder_bounced", label: "Reminder bounced"  },
+  { value: "mounjaro",         label: "Mounjaro"          },
+  { value: "wegovy",           label: "Wegovy"            },
+  { value: "dose_increase",    label: "Dose increase"     },
 ];
 
 interface ClinicalCheckClientProps {
@@ -343,6 +345,9 @@ export function ClinicalCheckClient({
       case "review_needed":
         list = subFiltered.filter((o) => (reviewNeededByOrderId[o.id] ?? 0) > 0);
         break;
+      case "reminder_bounced":
+        list = subFiltered.filter((o) => computeReminderStatus(o)?.state === "bounced");
+        break;
       case "mounjaro":
         list = subFiltered.filter((o) => o.product.medication.toLowerCase() === "mounjaro");
         break;
@@ -493,8 +498,20 @@ export function ClinicalCheckClient({
                     0,
                   )
                 : 0;
-            const count = chip.value === "review_needed" ? subReviewCount : undefined;
-            const disabled = chip.value === "review_needed" && subReviewCount === 0;
+            const subBouncedCount =
+              chip.value === "reminder_bounced"
+                ? subFiltered.reduce(
+                    (acc, o) => acc + (computeReminderStatus(o)?.state === "bounced" ? 1 : 0),
+                    0,
+                  )
+                : 0;
+            const count =
+              chip.value === "review_needed"    ? subReviewCount  :
+              chip.value === "reminder_bounced" ? subBouncedCount :
+              undefined;
+            const disabled =
+              (chip.value === "review_needed"    && subReviewCount === 0) ||
+              (chip.value === "reminder_bounced" && subBouncedCount === 0);
             return (
               <button
                 key={chip.value}

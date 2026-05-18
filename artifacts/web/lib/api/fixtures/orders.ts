@@ -374,7 +374,29 @@ const ZARA_ORDER_FEELTRU_PX_PENDING: Order = {
   contextual_flags: ['New intake', 'Px upload pending'],
   intervention_raised_at: null,
   px_upload: null,
-  px_upload_link: null,
+  // Task-180 — Demo seed for the prescriber-queue reminder-health pill.
+  // The 48h nudge bounced (hard bounce) and has not yet been re-sent
+  // successfully, so the queue should show a "Reminder bounced" pill.
+  px_upload_link: {
+    token: 'demo-zara-px-token',
+    expires_at: '2026-05-25T08:00:00Z',
+    sent_at: '2026-05-15T08:00:00Z',
+    first_sent_at: '2026-05-15T08:00:00Z',
+    consumed_at: null,
+    email_message_id: 'pm-zara-init-001',
+    to_email: 'zara.k@example.com',
+    reminder_sent_at: null,
+    final_reminder_sent_at: null,
+    reminder_failures: [
+      {
+        kind: 'first',
+        attempted_at: '2026-05-17T08:00:00Z',
+        to_email: 'zara.k@example.com',
+        status: 'Bounced',
+        error_message: 'Hard bounce — mailbox does not exist (550)',
+      },
+    ],
+  },
   expired_at: null,
   created_at: '2026-05-18T08:00:00Z',
   updated_at: '2026-05-18T08:00:00Z',
@@ -1638,6 +1660,177 @@ export async function sendPxUploadReminderNow(
   return {
     order,
     kind,
+    status:     sendResult.status,
+    message_id: sendResult.message_id,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Task-179 — Manual retry of a *failed* px-upload reminder.
+//
+// Task-129 surfaces Postmark Bounced/Failed reminder attempts on the order
+// timeline; previously the only path forward was waiting for the next daily
+// cron sweep, which would simply re-fail against the same bad address.
+//
+// This helper lets staff supply a fresh recipient email and resend the same
+// reminder (first or final). It reuses sendPxUploadReminderEmail and the
+// same idempotency flags as the cron, so a successful retry stops further
+// automated sends. The supplied email is also persisted onto px_upload_link
+// (link.to_email) so any subsequent cron sweep for the *final* reminder
+// targets the corrected address instead of the original bounced one.
+//
+// Outcome handling:
+//   - Delivered → flip reminder_sent_at / final_reminder_sent_at, update
+//                 link.to_email, and let the activity timeline render the
+//                 success row alongside the prior failure.
+//   - Bounced/Failed → push a new entry onto link.reminder_failures so the
+//                      timeline shows another failed attempt with the new
+//                      error message; staff can retry again.
+//
+// Refuses when:
+//   - no order / no link / link consumed / link expired
+//   - no prior failure of this kind to retry (would otherwise be a
+//     duplicate of the cron's first send)
+//   - the matching idempotency flag is already set (a successful send for
+//     this kind has already landed)
+//   - no recipient email supplied
+// ---------------------------------------------------------------------------
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function retryFailedPxUploadReminder(
+  clinic_id: ClinicId,
+  order_id: string,
+  args: { kind: 'first' | 'final'; to_email: string },
+  actor?: { user_id: string },
+): Promise<{
+  order:      Order;
+  kind:       'first' | 'final';
+  status:     'Delivered' | 'Bounced' | 'Failed';
+  message_id: string | null;
+}> {
+  const actorUserId = actor?.user_id ?? CURRENT_USER.id;
+  const toEmail     = args.to_email.trim();
+
+  console.log('[AUDIT]', {
+    event_type: 'px_upload_link_reminder_retry_attempt',
+    clinic_id,
+    order_id,
+    kind:       args.kind,
+    to_email:   toEmail,
+    by_user_id: actorUserId,
+    timestamp:  NOW,
+  });
+
+  if (!toEmail || !EMAIL_PATTERN.test(toEmail)) {
+    throw new APIError('INVALID_STATE', 'Please enter a valid recipient email.');
+  }
+
+  await delay(200);
+
+  const order = MOCK_ORDERS.find(
+    (o) => o.clinic_id === clinic_id && o.id === order_id,
+  );
+  if (!order) throw new APIError('NOT_FOUND', `Order ${order_id} not found`);
+
+  const link = order.px_upload_link;
+  if (!link) {
+    throw new APIError(
+      'INVALID_STATE',
+      'This order does not have a prescription upload link to remind about.',
+    );
+  }
+  if (order.px_upload != null || link.consumed_at) {
+    throw new APIError(
+      'INVALID_STATE',
+      'Prescription has already been uploaded — no reminder needed.',
+    );
+  }
+  if (new Date(link.expires_at).getTime() <= new Date(NOW).getTime()) {
+    throw new APIError(
+      'INVALID_STATE',
+      'Upload link has expired — send a fresh link instead.',
+    );
+  }
+
+  const alreadySent =
+    (args.kind === 'first'  && link.reminder_sent_at != null) ||
+    (args.kind === 'final'  && link.final_reminder_sent_at != null);
+  if (alreadySent) {
+    throw new APIError(
+      'INVALID_STATE',
+      `The ${args.kind} reminder has already been delivered.`,
+    );
+  }
+
+  const hasFailureToRetry =
+    (link.reminder_failures ?? []).some((f) => f.kind === args.kind);
+  if (!hasFailureToRetry) {
+    throw new APIError(
+      'INVALID_STATE',
+      `No failed ${args.kind} reminder on file to retry.`,
+    );
+  }
+
+  const patient = MOCK_PATIENTS.find(
+    (p) => p.clinic_id === clinic_id && p.id === order.patient_id,
+  );
+  const fullName = patient?.demographic.full_name ?? '';
+  const [firstName = 'there', ...rest] = fullName.split(/\s+/).filter(Boolean);
+  const lastName = rest.join(' ');
+
+  const sendResult = await sendPxUploadReminderEmail(
+    order,
+    { firstName, lastName, email: toEmail },
+    args.kind,
+  );
+
+  console.log('[AUDIT]', {
+    event_type:
+      sendResult.status === 'Delivered'
+        ? 'px_upload_link_reminder_retry_sent'
+        : 'px_upload_link_reminder_retry_failed',
+    outcome:       sendResult.status,
+    kind:          args.kind,
+    clinic_id,
+    order_id,
+    patient_id:    order.patient_id,
+    to_email:      toEmail,
+    by_user_id:    actorUserId,
+    message_id:    sendResult.message_id,
+    timestamp:     NOW,
+  });
+
+  // Persist the corrected recipient on the link regardless of this
+  // attempt's outcome. Staff have explicitly told us the previous
+  // address was bad, so future cron sweeps (which now prefer
+  // link.to_email — see sendPxUploadReminders) should target the new
+  // address even if this immediate resend also failed transiently.
+  link.to_email = toEmail;
+
+  if (sendResult.status === 'Delivered') {
+    // Flip the idempotency flag the cron uses so future sweeps skip
+    // this order for this reminder kind.
+    if (args.kind === 'first') link.reminder_sent_at = NOW;
+    else                       link.final_reminder_sent_at = NOW;
+    order.updated_at = NOW;
+  } else {
+    // Append a fresh failure entry so the timeline shows the new attempt
+    // and its Postmark error alongside the original failure.
+    if (!link.reminder_failures) link.reminder_failures = [];
+    link.reminder_failures.push({
+      kind:          args.kind,
+      attempted_at:  NOW,
+      to_email:      toEmail,
+      status:        sendResult.status,
+      error_message: sendResult.error_message ?? null,
+    });
+    order.updated_at = NOW;
+  }
+
+  return {
+    order,
+    kind:       args.kind,
     status:     sendResult.status,
     message_id: sendResult.message_id,
   };

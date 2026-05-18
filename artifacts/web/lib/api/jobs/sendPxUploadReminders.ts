@@ -99,7 +99,14 @@ export async function sendPxUploadReminders(
     const patient = MOCK_PATIENTS.find(
       (p) => p.clinic_id === clinicId && p.id === order.patient_id,
     );
-    const toEmail = patient?.contact.email ?? order.px_upload_link?.to_email ?? '';
+    // Task-179 — Prefer the link's recorded recipient over the patient
+    // record. When staff manually retry a failed reminder with a
+    // corrected address (retryFailedPxUploadReminder), the corrected
+    // value is persisted onto link.to_email; honouring it here ensures
+    // any later cron sweep (e.g. the final reminder after a corrected
+    // first one) targets the good address rather than the original
+    // bouncing patient.contact.email.
+    const toEmail = order.px_upload_link?.to_email || patient?.contact.email || '';
     if (!toEmail) {
       // No address to reach — record and skip; the prescriber queue still
       // shows the "Px upload pending" flag.

@@ -1,9 +1,22 @@
 "use client";
 
-import { Activity } from "lucide-react";
+import { useState } from "react";
+import { Activity, Send } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { DCard } from "./orderPrimitives";
-import { USERS_REGISTRY } from "@/lib/api/mock";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { USERS_REGISTRY, CURRENT_USER } from "@/lib/api/mock";
+import { can } from "@/lib/permissions";
 import { MOCK_CLINICAL_NOTES } from "@/lib/api/fixtures/clinicalNotes";
 import type { Order } from "@/types";
 
@@ -14,6 +27,11 @@ const WEIGHT_WARNING_LABEL: Record<string, string> = {
   bmi_below_threshold:  "BMI below continuation threshold",
 };
 
+type ReminderRetryAction = {
+  kind: "first" | "final";
+  toEmail: string;
+};
+
 type TimelineEntry = {
   key: string;
   dot: "ok" | "err" | "info" | "neutral";
@@ -22,6 +40,7 @@ type TimelineEntry = {
   ts: number;
   rationale?: string | null;
   subtext?: string | null;
+  reminderRetry?: ReminderRetryAction | null;
 };
 
 function TimelineItem({
@@ -55,9 +74,22 @@ function TimelineItem({
 
 interface Props {
   order: Order;
+  /**
+   * Task-179 — invoked after a successful retry of a failed reminder so the
+   * surrounding OrderDetailClient can refresh its `order` state (idempotency
+   * flag flipped, link.to_email persisted). Optional so existing callers that
+   * don't need write-back keep working.
+   */
+  onOrderUpdated?: (order: Order) => void;
 }
 
-export function OrderActivityTimeline({ order }: Props) {
+export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
+  const [retryFor, setRetryFor]   = useState<ReminderRetryAction | null>(null);
+  const [retryEmail, setRetryEmail] = useState("");
+  const [retryBusy, setRetryBusy] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [retryNotice, setRetryNotice] = useState<string | null>(null);
+
   const entries: TimelineEntry[] = [];
 
   entries.push({
@@ -131,9 +163,33 @@ export function OrderActivityTimeline({ order }: Props) {
   // Task-129 — Failed reminder attempts (Bounced / Failed sends from Postmark)
   // surface with the underlying error message so reviewers can see why a nudge
   // never landed and decide whether to chase the patient another way.
+  // Task-179 — The most recent failure of each kind (that hasn't since been
+  // superseded by a successful send) gets a "Retry reminder" action so staff
+  // can correct a bad address and resend without waiting for the daily sweep.
   if (order.px_upload_link?.reminder_failures?.length) {
-    order.px_upload_link.reminder_failures.forEach((failure, idx) => {
+    const link = order.px_upload_link;
+    const linkExpired = new Date(link.expires_at).getTime() <= Date.now();
+    const linkConsumed = link.consumed_at != null || order.px_upload != null;
+    const canRetryNow =
+      can(CURRENT_USER, "write", "orders") && !linkExpired && !linkConsumed;
+
+    // Identify the latest failure per kind so we don't show "Retry" on every
+    // historical entry — only the most recent one for that kind is actionable.
+    const failures = link.reminder_failures!;
+    const latestIdxByKind: Record<"first" | "final", number> = { first: -1, final: -1 };
+    failures.forEach((f, idx) => {
+      latestIdxByKind[f.kind] = idx;
+    });
+
+    failures.forEach((failure, idx) => {
       const isFinal = failure.kind === "final";
+      const kindAlreadySent =
+        (failure.kind === "first" && link.reminder_sent_at != null) ||
+        (failure.kind === "final" && link.final_reminder_sent_at != null);
+      const isLatestForKind = latestIdxByKind[failure.kind] === idx;
+      const showRetry =
+        canRetryNow && isLatestForKind && !kindAlreadySent;
+
       entries.push({
         key: `px_link_reminder_failed_${idx}`,
         dot: "err",
@@ -143,6 +199,9 @@ export function OrderActivityTimeline({ order }: Props) {
         meta: `to ${failure.to_email} · ${formatDateTime(failure.attempted_at)} · ${failure.status}`,
         ts: new Date(failure.attempted_at).getTime(),
         rationale: failure.error_message ?? "Postmark did not return an error message.",
+        reminderRetry: showRetry
+          ? { kind: failure.kind, toEmail: failure.to_email }
+          : null,
       });
     });
   }
@@ -314,6 +373,67 @@ export function OrderActivityTimeline({ order }: Props) {
   // Most recent first.
   entries.sort((a, b) => b.ts - a.ts);
 
+  function openRetry(action: ReminderRetryAction) {
+    setRetryFor(action);
+    setRetryEmail(action.toEmail);
+    setRetryError(null);
+    setRetryNotice(null);
+  }
+
+  function closeRetry() {
+    if (retryBusy) return;
+    setRetryFor(null);
+    setRetryEmail("");
+    setRetryError(null);
+  }
+
+  async function submitRetry() {
+    if (!retryFor) return;
+    const email = retryEmail.trim();
+    if (!email) {
+      setRetryError("Please enter a recipient email.");
+      return;
+    }
+    setRetryBusy(true);
+    setRetryError(null);
+    try {
+      const res = await fetch(
+        `/api/orders/${order.clinic_id}/${order.id}/px-upload/reminder-retry`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: retryFor.kind, to_email: email }),
+        },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        status?: "Delivered" | "Bounced" | "Failed";
+        px_upload_link?: Order["px_upload_link"];
+      };
+      if (!res.ok && res.status !== 502) {
+        throw new Error(body.message || `Retry failed (${res.status}).`);
+      }
+      // Apply the server-returned link snapshot locally so the timeline
+      // refreshes immediately (success entry / new failure row) without a
+      // full page reload.
+      const nextOrder: Order = { ...order, px_upload_link: body.px_upload_link ?? order.px_upload_link };
+      onOrderUpdated?.(nextOrder);
+
+      if (body.status === "Delivered") {
+        setRetryNotice(`Reminder sent to ${email}.`);
+        setRetryFor(null);
+        setRetryEmail("");
+      } else {
+        const detail = body.message ? ` (${body.message})` : "";
+        setRetryError(`Reminder still failed to deliver${detail}. You can edit the address and try again.`);
+      }
+    } catch (err) {
+      setRetryError(err instanceof Error ? err.message : "Could not send reminder. Please retry.");
+    } finally {
+      setRetryBusy(false);
+    }
+  }
+
   return (
     <DCard icon={Activity} title="Activity Log">
       <div className="relative">
@@ -335,10 +455,88 @@ export function OrderActivityTimeline({ order }: Props) {
               {entry.subtext && (
                 <p className="mt-1 text-[11px] text-t3">{entry.subtext}</p>
               )}
+              {entry.reminderRetry && (
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openRetry(entry.reminderRetry!)}
+                    className="gap-1.5 h-7 text-[11.5px]"
+                    title="Confirm or update the recipient email and resend this reminder."
+                  >
+                    <Send className="w-3 h-3" />
+                    Retry reminder
+                  </Button>
+                </div>
+              )}
             </TimelineItem>
           ))}
         </ol>
       </div>
+
+      {retryNotice && (
+        <div
+          role="status"
+          className="mt-3 text-[12px] text-ok bg-ok-bg border border-ok-bdr rounded px-3 py-2"
+        >
+          {retryNotice}
+        </div>
+      )}
+
+      <Dialog open={retryFor != null} onOpenChange={(open) => { if (!open) closeRetry(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {retryFor?.kind === "final"
+                ? "Retry final upload reminder"
+                : "Retry upload reminder"}
+            </DialogTitle>
+            <DialogDescription>
+              The previous attempt bounced or failed. Confirm or update the
+              recipient email and we'll resend the reminder right away —
+              reusing the same single-use upload link.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="retry-reminder-email" className="text-[12px]">
+              Recipient email
+            </Label>
+            <Input
+              id="retry-reminder-email"
+              type="email"
+              value={retryEmail}
+              onChange={(e) => setRetryEmail(e.target.value)}
+              disabled={retryBusy}
+              autoFocus
+            />
+            {retryError && (
+              <p className="text-[12px] text-err">{retryError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeRetry}
+              disabled={retryBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={submitRetry}
+              disabled={retryBusy || retryEmail.trim() === ""}
+              className="gap-1.5"
+            >
+              <Send className="w-3.5 h-3.5" />
+              {retryBusy ? "Sending…" : "Resend reminder"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DCard>
   );
 }

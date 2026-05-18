@@ -37,7 +37,10 @@ export type NotifyPatientInput = {
   preferred_channel: PreferredChannel;
   to_email: string | null;
   to_phone: string | null;
-  email: { subject: string; body: string };
+  // Task-131 — `html` is optional. When provided it is snapshotted on the
+  // envelope and forwarded to Postmark so the patient receives the styled
+  // version (and the "Preview email" modal can render exactly what they saw).
+  email: { subject: string; body: string; html?: string | null };
   sms: { body: string };
   payload: Record<string, unknown>;
 };
@@ -105,6 +108,7 @@ export async function notifyPatient(
       to_email:  input.to_email!,
       subject:   input.email.subject,
       text_body: input.email.body,
+      html_body: input.email.html ?? null,
       template:  input.template,
     };
     const emailResult = await sendPatientEmail(envelope);

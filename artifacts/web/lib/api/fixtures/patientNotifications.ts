@@ -38,6 +38,11 @@ export type PatientEmailEnvelope = {
   to_email: string;
   subject: string;
   text_body: string;
+  // Task-131 — optional HTML snapshot captured at first-send time so the
+  // "Preview email" modal can render the styled email the patient actually
+  // received (branding, buttons, formatting) rather than only the plain-text
+  // fallback. Older rows without an HTML snapshot fall back to `text_body`.
+  html_body?: string | null;
   template: string;
 };
 
@@ -114,6 +119,22 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
         'If you have any questions, just reply to this email and our team will be in touch.\n\n' +
         'Thanks,\n' +
         'The FeelTru team',
+      html_body:
+        '<!doctype html><html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;color:#1f2937;">' +
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;">' +
+        '<tr><td align="center">' +
+        '<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">' +
+        '<tr><td style="background:#0a7e57;padding:20px 28px;color:#ffffff;font-weight:600;font-size:18px;">FeelTru</td></tr>' +
+        '<tr><td style="padding:28px;font-size:15px;line-height:1.55;">' +
+        '<p style="margin:0 0 14px;">Hi Alex,</p>' +
+        '<p style="margin:0 0 14px;">We have processed a refund of <strong>£179.00</strong> to the card ending <strong>4242</strong> for your cancelled order <strong>ORD-00450</strong>.</p>' +
+        '<p style="margin:0 0 14px;"><span style="color:#6b7280;">Reason:</span> Order cancellation — relocating overseas.</p>' +
+        '<p style="margin:0 0 20px;">Refunds typically appear on your statement within 5–10 working days, depending on your bank.</p>' +
+        '<p style="margin:0 0 20px;"><a href="mailto:hello@feeltru.example" style="display:inline-block;background:#0a7e57;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">Contact our team</a></p>' +
+        '<p style="margin:0;color:#6b7280;">Thanks,<br/>The FeelTru team</p>' +
+        '</td></tr>' +
+        '</table>' +
+        '</td></tr></table></body></html>',
     },
   },
   // Task-128 — Failed row with retry budget remaining so reviewers can see and

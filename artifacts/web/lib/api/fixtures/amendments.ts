@@ -319,6 +319,20 @@ export async function processRefundAmendment(
         `3–5 working days.\n\n` +
         `If you have any questions, just reply to this email.\n\n` +
         `Thanks,\nThe Livera team`;
+      // Task-131 — branded HTML version snapshotted onto the envelope and
+      // forwarded to Postmark. Mirrors the plain-text body 1:1 so retry and
+      // bounce-handling stays text-equivalent.
+      const emailHtml =
+        `<!doctype html><html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;">` +
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">` +
+        `<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">` +
+        `<tr><td style="background:#0a7e57;padding:20px 28px;color:#ffffff;font-weight:600;font-size:18px;">Livera</td></tr>` +
+        `<tr><td style="padding:28px;font-size:15px;line-height:1.55;">` +
+        `<p style="margin:0 0 14px;">Hi ${firstName},</p>` +
+        `<p style="margin:0 0 14px;">We've processed a refund of <strong>£${input.amount_gbp.toFixed(2)}</strong> for order <strong>${order.id}</strong>. The funds will return to the card ending <strong>${cardLast4}</strong> within 3–5 working days.</p>` +
+        `<p style="margin:0 0 20px;">If you have any questions, just reply to this email.</p>` +
+        `<p style="margin:0;color:#6b7280;">Thanks,<br/>The Livera team</p>` +
+        `</td></tr></table></td></tr></table></body></html>`;
       const smsBody =
         `Livera: we've refunded £${input.amount_gbp.toFixed(2)} for order ` +
         `${order.id} to the card ending ${cardLast4}. Allow 3–5 working days.`;
@@ -332,7 +346,7 @@ export async function processRefundAmendment(
         preferred_channel: preferred,
         to_email:   toEmail,
         to_phone:   toPhone,
-        email: { subject, body: emailBody },
+        email: { subject, body: emailBody, html: emailHtml },
         sms:   { body: smsBody },
         payload: {
           order_id:        order.id,

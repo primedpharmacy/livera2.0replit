@@ -1,20 +1,28 @@
 "use client";
 
 /**
- * EmailPreviewButton — Task-98
+ * EmailPreviewButton — Task-98 / Task-131
  *
  * Renders a "Preview email" action for a notification row whose
  * `email_envelope` snapshot is non-null. Opens a modal that renders the
- * captured recipient, subject, and text body so staff can verify exactly
- * what the patient saw — without having to read the raw payload JSON.
+ * captured recipient, subject, and body so staff can verify exactly what
+ * the patient saw — without having to read the raw payload JSON.
  *
- * The envelope was captured at first-send time (see Task-66) so this is the
- * exact content delivered to the patient, including any retry resends.
+ * Task-131 — when the envelope captured an `html_body`, the modal defaults
+ * to a sandboxed iframe rendering of the styled HTML the patient actually
+ * received (branding, buttons, formatting). A tab lets staff switch to the
+ * plain-text fallback. Envelopes without an HTML snapshot (older rows)
+ * fall straight to the plain-text view.
+ *
+ * The iframe is sandboxed with no allow-* flags, so the captured HTML
+ * cannot run scripts, navigate the parent, or submit forms.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Mail, X } from "lucide-react";
 import type { PatientEmailEnvelope } from "@/lib/api/fixtures/patientNotifications";
+
+type Tab = "html" | "text";
 
 export function EmailPreviewButton({
   envelope,
@@ -24,15 +32,22 @@ export function EmailPreviewButton({
   notificationId: string;
 }) {
   const [open, setOpen] = useState(false);
+  const hasHtml = !!envelope.html_body;
+  const [tab, setTab] = useState<Tab>(hasHtml ? "html" : "text");
 
   useEffect(() => {
     if (!open) return;
+    // Reset to the richest view available each time the modal opens.
+    setTab(hasHtml ? "html" : "text");
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, hasHtml]);
+
+  // Memoise the srcdoc so the iframe doesn't reload on every render.
+  const htmlSrcDoc = useMemo(() => envelope.html_body ?? "", [envelope.html_body]);
 
   return (
     <>
@@ -82,13 +97,69 @@ export function EmailPreviewButton({
               <HeaderRow label="Template" value={envelope.template} mono />
             </div>
 
-            <div className="px-5 py-4 overflow-y-auto flex-1">
-              <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-t1">{envelope.text_body}</pre>
+            {hasHtml && (
+              <div
+                role="tablist"
+                aria-label="Email body format"
+                className="flex items-center gap-1 px-5 pt-3 border-b border-bdr shrink-0"
+              >
+                <TabButton
+                  active={tab === "html"}
+                  onClick={() => setTab("html")}
+                  label="HTML"
+                />
+                <TabButton
+                  active={tab === "text"}
+                  onClick={() => setTab("text")}
+                  label="Plain text"
+                />
+              </div>
+            )}
+
+            <div className="overflow-y-auto flex-1">
+              {hasHtml && tab === "html" ? (
+                <iframe
+                  title="Email HTML preview"
+                  sandbox=""
+                  srcDoc={htmlSrcDoc}
+                  className="w-full h-[60vh] bg-white border-0"
+                />
+              ) : (
+                <pre className="px-5 py-4 whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-t1">
+                  {envelope.text_body}
+                </pre>
+              )}
             </div>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`px-3 py-1.5 text-[12px] font-medium border-b-2 -mb-px transition-colors ${
+        active
+          ? "border-brand text-t1"
+          : "border-transparent text-t3 hover:text-t1"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

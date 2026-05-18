@@ -46,6 +46,11 @@ export type PatientEmailInput = {
   to_email: string;
   subject: string;
   text_body: string;
+  // Task-131 — optional HTML body. When present we send Postmark `HtmlBody`
+  // alongside `TextBody` so the patient receives the styled email; the
+  // plain-text version is kept as the text fallback for clients that block
+  // HTML.
+  html_body?: string | null;
   template: string;
 };
 
@@ -189,9 +194,10 @@ export async function sendPatientEmail(
   if (!isLive) {
     const message_id = nextMockMessageId();
     console.log('[POSTMARK_MOCK] sendPatientEmail —', {
-      to:       input.to_email,
-      subject:  input.subject,
-      template: input.template,
+      to:        input.to_email,
+      subject:   input.subject,
+      template:  input.template,
+      has_html:  !!input.html_body,
       message_id,
     });
     return { message_id, status: 'Delivered' };
@@ -221,6 +227,9 @@ export async function sendPatientEmail(
         To:       input.to_email,
         Subject:  input.subject,
         TextBody: input.text_body,
+        // Task-131 — include HtmlBody only when the caller captured one so
+        // text-only flows keep the same request shape.
+        ...(input.html_body ? { HtmlBody: input.html_body } : {}),
       }),
     });
 

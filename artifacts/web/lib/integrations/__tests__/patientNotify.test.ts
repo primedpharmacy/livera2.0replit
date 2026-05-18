@@ -133,6 +133,7 @@ describe('notifyPatient — SMS Failed / Bounced triggers email fallback', () =>
       to_email:  'patient@example.test',
       subject:   'Your refund',
       text_body: 'Hi, your refund is on its way.',
+      html_body: null,
       template:  'refund_initiated',
     });
 
@@ -140,6 +141,7 @@ describe('notifyPatient — SMS Failed / Bounced triggers email fallback', () =>
       to_email:  'patient@example.test',
       subject:   'Your refund',
       text_body: 'Hi, your refund is on its way.',
+      html_body: null,
       template:  'refund_initiated',
     });
   });

@@ -1764,6 +1764,20 @@ export async function cancelOrder(
           `Reason recorded: ${reason.trim()}\n\n` +
           `If you have any questions, just reply to this email.\n\n` +
           `Thanks,\nThe Livera team`;
+        // Task-131 — branded HTML version snapshotted on the envelope and
+        // sent to the patient. Plain-text body is kept as the text fallback.
+        const emailHtml =
+          `<!doctype html><html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;">` +
+          `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">` +
+          `<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">` +
+          `<tr><td style="background:#0a7e57;padding:20px 28px;color:#ffffff;font-weight:600;font-size:18px;">Livera</td></tr>` +
+          `<tr><td style="padding:28px;font-size:15px;line-height:1.55;">` +
+          `<p style="margin:0 0 14px;">Hi ${firstName},</p>` +
+          `<p style="margin:0 0 14px;">We've cancelled order <strong>${order.id}</strong>. ${authCopy}</p>` +
+          `<p style="margin:0 0 14px;"><span style="color:#6b7280;">Reason recorded:</span> ${reason.trim()}</p>` +
+          `<p style="margin:0 0 20px;">If you have any questions, just reply to this email.</p>` +
+          `<p style="margin:0;color:#6b7280;">Thanks,<br/>The Livera team</p>` +
+          `</td></tr></table></td></tr></table></body></html>`;
         const smsBody = releaseAuthFailed
           ? `Livera: order ${order.id} cancelled. No charge taken; any ` +
             `pending pre-auth will drop off within a few working days.`
@@ -1779,7 +1793,7 @@ export async function cancelOrder(
           preferred_channel: preferred,
           to_email:   toEmail,
           to_phone:   toPhone,
-          email: { subject, body: emailBody },
+          email: { subject, body: emailBody, html: emailHtml },
           sms:   { body: smsBody },
           payload: {
             order_id:            order.id,

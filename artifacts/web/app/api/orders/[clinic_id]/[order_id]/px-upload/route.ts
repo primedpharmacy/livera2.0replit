@@ -1,13 +1,16 @@
 /**
- * POST /api/intake/:clinic_id/orders/:order_id/px-upload
+ * POST /api/orders/:clinic_id/:order_id/px-upload
  *
- * Step 3 of the presigned-URL upload flow (Task-82). Called by the intake
- * success screen AFTER the browser has PUT the file directly to GCS. We:
- *   1. Confirm the object exists at the supplied path
- *   2. Set the ACL policy (clinic_id + order_id) on the object
- *   3. Attach the object_path to the order via attachPxUpload
+ * Task-85 — Staff-side finalize for the GLP-1 prescription presigned-URL flow.
+ * Mirrors the patient intake finalize at
+ *   /api/intake/:clinic_id/orders/:order_id/px-upload
+ * but tags the attach call with source='staff_upload' and CURRENT_USER as the
+ * actor so the audit trail records who uploaded on the patient's behalf.
  *
- * Accepts JSON: { object_path, filename, size, content_type }. No file bytes.
+ * The browser uploads the file bytes to GCS via the same presigned URL the
+ * patient flow uses (request-url route), so we only finalize here.
+ *
+ * Accepts JSON: { object_path, filename }. No file bytes.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import {
@@ -20,6 +23,7 @@ import {
   getObjectStoredMetadata,
   ObjectNotFoundError,
 } from '@/lib/storage/objectStorage';
+import { CURRENT_USER } from '@/lib/api/constants';
 import type { ClinicId } from '@/types';
 
 type Params = { params: Promise<{ clinic_id: string; order_id: string }> };
@@ -40,9 +44,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    // Source of truth for size + content_type is GCS itself, not the client.
-    // This stops a client from PUTting arbitrary bytes (e.g. a 50 MB .exe)
-    // and then forging acceptable metadata in this finalize call.
     const stored = await getObjectStoredMetadata(object_path);
 
     if (!PX_UPLOAD_ALLOWED_TYPES.includes(stored.contentType)) {
@@ -61,8 +62,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    // Stamp the ACL so /api/storage/objects/... can gate access by clinic
-    // AND by clinical role (Coach is excluded — non-clinical surface).
     await objectStorageService.setAclPolicy(object_path, {
       clinic_id,
       order_id,
@@ -79,7 +78,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         content_type: stored.contentType,
         object_path,
       },
-      { user_id: null, source: 'success_screen' },
+      { user_id: CURRENT_USER.id, source: 'staff_upload' },
     );
 
     return NextResponse.json(

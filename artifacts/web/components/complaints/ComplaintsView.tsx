@@ -9,6 +9,7 @@ import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLege
 import { formatRelativeTime } from "@/lib/format";
 import { NOW } from "@/lib/api/constants";
 import { cn } from "@/lib/utils";
+import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { Complaint, ComplaintSeverity, Patient, Clinic, ClinicId } from "@/types";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -213,13 +214,24 @@ export function ComplaintsView({ initialComplaints, patients, clinicId, clinic }
 
   function handleResolve(e: React.MouseEvent, id: string) {
     e.stopPropagation();
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? { ...c, status: "resolved", resolved_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-          : c
-      )
-    );
+    setComplaints((prev) => {
+      let didResolve = false;
+      const next = prev.map((c) => {
+        if (c.id !== id) return c;
+        if (["resolved", "closed"].includes(c.status)) return c;
+        didResolve = true;
+        return {
+          ...c,
+          status: "resolved" as const,
+          resolved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      });
+      if (didResolve) {
+        dispatchQueueCountChange({ queue: "complaints", delta: -1 });
+      }
+      return next;
+    });
   }
 
   const mondayBoardUrl = complaints[0]?.monday_board_id

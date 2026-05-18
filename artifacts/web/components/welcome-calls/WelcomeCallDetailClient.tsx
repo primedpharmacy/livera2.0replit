@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Phone, PhoneOff, Voicemail, UserRound, Package,
   ChevronRight, AlertTriangle, RotateCcw, MessageSquare, Printer, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { WelcomeCall, WelcomeCallStatus, WelcomeCallAttemptType, ClinicTeamMember } from "@/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,6 +58,11 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
   const router = useRouter();
   const memberMap = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const [toast, setToast] = useState<string | null>(null);
+  // Guards: one-shot per page-load so repeated stub clicks don't over-decrement
+  // the sidebar badge. Replace with real status-mutation diff once
+  // welcome-call mutations land in the API.
+  const dispatchedResolveRef = useRef(false);
+  const dispatchedReopenRef = useRef(false);
 
   const sc = STATUS_CONFIG[call.status];
   const owner = memberMap[call.owner_user_id];
@@ -64,6 +70,33 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
+  }
+
+  // The sidebar Welcome Calls badge tracks scheduled/awaiting/attempted calls.
+  // Resolving (complete or close-as-unreachable) removes one from that bucket;
+  // reopening adds one back. We dispatch optimistically from the stub UI so the
+  // badge stays consistent with what the user just did.
+  function resolveCallOptimistic(msg: string) {
+    showToast(msg);
+    const isOpenStatus = call.status === "awaiting" || call.status === "attempted";
+    if (isOpenStatus && !dispatchedResolveRef.current) {
+      dispatchedResolveRef.current = true;
+      dispatchedReopenRef.current = false;
+      dispatchQueueCountChange({ queue: "welcome_calls", delta: -1 });
+    }
+  }
+
+  function reopenCallOptimistic(msg: string) {
+    showToast(msg);
+    const wasResolved =
+      call.status === "completed" ||
+      call.status === "unreachable" ||
+      dispatchedResolveRef.current;
+    if (wasResolved && !dispatchedReopenRef.current) {
+      dispatchedReopenRef.current = true;
+      dispatchedResolveRef.current = false;
+      dispatchQueueCountChange({ queue: "welcome_calls", delta: 1 });
+    }
   }
 
   // Status-specific topbar actions
@@ -87,14 +120,14 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
     ) : call.status === "unreachable" ? (
       <>
         <button
-          onClick={() => showToast("Stub: reopens call. Status returns to Attempted.")}
+          onClick={() => reopenCallOptimistic("Stub: reopens call. Status returns to Attempted.")}
           className="flex items-center gap-1.5 text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90 transition-colors"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           Reopen
         </button>
         <button
-          onClick={() => showToast("Stub: closes call as unreachable. Prescriber notified.")}
+          onClick={() => resolveCallOptimistic("Stub: closes call as unreachable. Prescriber notified.")}
           className="text-[12px] font-medium text-err border border-err-bdr rounded-md px-3 py-1.5 hover:bg-err-bg transition-colors"
         >
           Close as unreachable
@@ -118,7 +151,7 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
         {[
           { icon: Phone, label: "Call now", onClick: () => showToast("Stub: places Intercom call to patient."), primary: true },
           { icon: Plus, label: "Log attempt", onClick: () => showToast("Stub: opens log attempt modal.") },
-          { icon: AlertTriangle, label: "Mark unreachable", onClick: () => showToast("Stub: marks unreachable. Requires reason."), danger: true },
+          { icon: AlertTriangle, label: "Mark unreachable", onClick: () => resolveCallOptimistic("Stub: marks unreachable. Requires reason."), danger: true },
         ].map(({ icon: Icon, label, onClick, primary, danger }) => (
           <button
             key={label}
@@ -138,7 +171,7 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
     ) : call.status === "unreachable" ? (
       <div className="flex flex-col gap-2">
         {[
-          { icon: RotateCcw,      label: "Reopen call",            onClick: () => showToast("Stub: reopens call.") },
+          { icon: RotateCcw,      label: "Reopen call",            onClick: () => reopenCallOptimistic("Stub: reopens call.") },
           { icon: MessageSquare,  label: "Escalate to prescriber",  onClick: () => showToast("Stub: opens prescriber escalation note.") },
           { icon: MessageSquare,  label: "Send GP letter",          onClick: () => showToast("Stub: opens GP letter compose — unreachable template.") },
         ].map(({ icon: Icon, label, onClick }) => (

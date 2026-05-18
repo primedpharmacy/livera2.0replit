@@ -16,6 +16,7 @@ import {
   updateDiscontinuationNotes,
   NOW,
 } from "@/lib/api/mock";
+import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { DiscontinuationProtocol, DiscontinuationReason, DiscontinuationStatus, Clinic, ClinicId, Patient } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -162,8 +163,12 @@ export function DiscontinuationDetailClient({ initialDisc, patient, clinic, clin
     if (!confirm("Close this protocol? This cannot be undone.")) return;
     setBusy("close");
     try {
+      const wasOpen = disc.status !== "closed";
       const updated = await closeDiscontinuation(clinicId, disc.id);
       setDisc(updated);
+      if (wasOpen && updated.status === "closed") {
+        dispatchQueueCountChange({ queue: "discontinuations", delta: -1 });
+      }
       flash("Protocol closed", "ok");
     } catch (e) {
       flash(e instanceof Error ? e.message : "Error", "err");

@@ -18,6 +18,7 @@ import {
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime, formatRelativeTime, formatAge } from "@/lib/format";
 import { decideAmendment, processRefundAmendment, CURRENT_USER } from "@/lib/api/mock";
+import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { Amendment, Order, Patient } from "@/types";
 
 const TYPE_LABELS: Record<Amendment["type"], string> = {
@@ -91,8 +92,13 @@ export function AmendmentDetailClient({
   async function handleDecide(decision: "approved" | "rejected", r: string) {
     setIsSubmitting(true);
     try {
+      const wasOpen = amendment.status === "requested" || amendment.status === "reviewing";
       const updated = await decideAmendment(clinicId as "vsc" | "feeltru", amendment.id, decision, r);
       setAmendment(updated);
+      const nowOpen = updated.status === "requested" || updated.status === "reviewing";
+      if (wasOpen && !nowOpen) {
+        dispatchQueueCountChange({ queue: "amendments", delta: -1 });
+      }
       setModal(null);
       setRationale("");
       setToast({

@@ -317,7 +317,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
       content_type: string;
       url: string;
     };
-  }, [clinicId]);
+  }, [clinicId, currentUser]);
 
   // Stage one or more files onto a slot ('reply:<id>' or 'new'). Each file
   // appears immediately as a chip with isUploading=true; the actual upload

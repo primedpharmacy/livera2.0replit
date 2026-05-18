@@ -418,6 +418,49 @@ function OutboundIntercomAuditPanel({ clinicId }: { clinicId: ClinicId }) {
   const user = useCurrentUser();
   const [rows, setRows]   = useState<OutboundAuditRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  // Task #221 — fetch the CSV through the same trusted-header contract the
+  // JSON read uses, then trigger a save via a synthetic <a download>. We
+  // can't just point window.location at the URL because the api-server's
+  // clinician-context guard reads custom headers a plain navigation can't
+  // set.
+  async function downloadCsv(): Promise<void> {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const res = await fetch(
+        `/api/intercom/${clinicId}/audit/outbound?format=csv`,
+        {
+          cache: "no-store",
+          headers: {
+            "X-Livera-Role": mapRoleToApi(user.roles),
+            "X-Livera-User-Id": user.id,
+            "X-Livera-User-Name": user.full_name,
+          },
+        },
+      );
+      if (!res.ok) throw new Error(`csv_export_failed_${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(cd);
+      const today = new Date().toISOString().slice(0, 10);
+      const fallback = `intercom-outbound-${clinicId}-${today}.csv`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = match?.[1] ?? fallback;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "csv_export_failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -454,10 +497,27 @@ function OutboundIntercomAuditPanel({ clinicId }: { clinicId: ClinicId }) {
             Outbound clinician messages (Intercom)
           </p>
         </div>
-        <span className="text-[10px] text-t3">
-          Durable audit · most recent 25 · survives server restarts
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-t3">
+            Durable audit · most recent 25 · survives server restarts
+          </span>
+          <button
+            type="button"
+            onClick={downloadCsv}
+            disabled={downloading}
+            title="Download the full set of outbound Intercom audit rows for this clinic"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-t2 bg-page-bg border border-bdr rounded-md hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Download className="w-3 h-3" />
+            {downloading ? "Exporting…" : "Export CSV"}
+          </button>
+        </div>
       </div>
+      {downloadError && (
+        <p className="px-4 py-2 text-[11px] text-err border-b border-bdr">
+          CSV export failed ({downloadError}). The rows are still in the database.
+        </p>
+      )}
       {error ? (
         <p className="p-4 text-[11px] text-err">
           Failed to load outbound audit ({error}). The audit row is still in the database.

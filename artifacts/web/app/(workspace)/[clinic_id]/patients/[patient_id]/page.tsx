@@ -24,6 +24,7 @@ import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
 import { VipFlagEditor, StatusFlagEditor, CoachFlagEditor } from "@/components/patients/PatientFlagsEditor";
 import { LogWeightForm } from "@/components/patients/LogWeightForm";
+import { WeightTrendChart } from "@/components/patients/WeightTrendChart";
 import { PreferredChannelHistory } from "@/components/patients/PreferredChannelHistory";
 import { NotificationRow, type ResendActionResult } from "@/components/patients/NotificationRow";
 import { resendFailedPatientNotification } from "@/lib/api/jobs/retryPatientNotifications";
@@ -35,9 +36,9 @@ import {
   listClinicalNotes, listGPLetters, listAdminNotesByPatient,
   listIncidents, listCourierEvents, CURRENT_USER, getUpcomingCalendlyBookings,
   listPatientNotifications, listPatientPreferredChannelChanges,
-  listPatientFlagChanges, listCoachOptions,
+  listPatientFlagChanges, listCoachOptions, listPatientWeightCheckIns,
 } from "@/lib/api/mock";
-import type { PatientNotification, PatientPreferredChannelChange, PatientFlagChange } from "@/lib/api/mock";
+import type { PatientNotification, PatientPreferredChannelChange, PatientFlagChange, PatientWeightCheckIn } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import type {
@@ -124,7 +125,7 @@ async function ProfileContent({
     const [
       patient, orders, clinicalNotes, gpLetters, adminNotes,
       coachingLogs, allIncidents, calendlyBookings, allCourierEvents,
-      notifications, channelChanges, flagChanges,
+      notifications, channelChanges, flagChanges, weightCheckIns,
     ] = await Promise.all([
       getPatient(clinicId, patientId),
       listOrders(clinicId, { patient_id: patientId }),
@@ -142,6 +143,7 @@ async function ProfileContent({
       listPatientNotifications(clinicId, { patient_id: patientId }),
       listPatientPreferredChannelChanges(clinicId, { patient_id: patientId }),
       listPatientFlagChanges(clinicId, { patient_id: patientId }),
+      listPatientWeightCheckIns(clinicId, { patient_id: patientId }),
     ]);
 
     const coachOptions = listCoachOptions(clinicId);
@@ -284,6 +286,7 @@ async function ProfileContent({
                   weightLost={weightLost}
                   totalSpend={totalSpend}
                   latestOrder={latestOrder}
+                  weightCheckIns={weightCheckIns}
                 />
               )}
               {activeTab === "orders" && (
@@ -627,6 +630,7 @@ function OverviewTab({
   weightLost,
   totalSpend,
   latestOrder,
+  weightCheckIns,
 }: {
   patient: Patient;
   orders: Order[];
@@ -637,6 +641,7 @@ function OverviewTab({
   weightLost: string;
   totalSpend: number;
   latestOrder: Order | null;
+  weightCheckIns: PatientWeightCheckIn[];
 }) {
   return (
     <div className="p-5 flex flex-col gap-4">
@@ -657,6 +662,16 @@ function OverviewTab({
           </div>
         </div>
       )}
+
+      {/* Weight trend — Task-243 */}
+      <WeightTrendChart
+        baseline={{
+          weight_kg: patient.baseline.baseline_weight_kg,
+          bmi: patient.baseline.baseline_bmi,
+          recorded_at: patient.created_at,
+        }}
+        checkIns={weightCheckIns}
+      />
 
       {/* 4-up KPI strip */}
       <div className="grid grid-cols-4 gap-3">

@@ -1,3 +1,7 @@
 # Next.js build output — never commit
 .next/
 out/
+test-results/
+
+# clerk configuration (can include secrets)
+/.clerk/

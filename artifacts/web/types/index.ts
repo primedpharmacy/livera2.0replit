@@ -4,6 +4,7 @@ export type {
   OrderStatus,
   Consultation,
   CoachingLog,
+  CalendlyBooking,
   Clinic,
   ClinicConfig,
   ClinicTeamMember,
@@ -14,6 +15,7 @@ export type {
   Role,
   ClinicId,
   Incident,
+  IncidentComment,
   IncidentType,
   IncidentSeverity,
   IncidentStatus,
@@ -41,4 +43,30 @@ export type {
   AdminNote,
   AdminNoteTag,
   GpLetterTemplateCategory,
+  // Wave 9 additions (BLD-13.4)
+  QuestionItem,
+  QuestionType,
+  // Wave 8 additions (BLD-13.2 + BLD-13.3)
+  WelcomeCall,
+  WelcomeCallStatus,
+  WelcomeCallAttemptType,
+  WelcomeCallAttempt,
+  WelcomeCallOutcome,
+  WelcomeCallFlag,
+  Task,
+  TaskStatus,
+  TaskPriority,
+  TaskLinkedType,
+  TaskLinkedRecord,
+  TaskSubtask,
+  TaskActivityKind,
+  TaskActivity,
+  // Wave 9 additions (BLD-14.7, config-driven questionnaire)
+  QuestionItem,
+  QuestionType,
+  // Task-168 — clinical theme for grouping flagged answers
+  SafetyCategory,
+  // Task-307 — weight-warning threshold audit history
+  WeightWarningThresholdAuditEvent,
+  WeightWarningThresholdFieldName,
 } from "@/lib/api/mock";

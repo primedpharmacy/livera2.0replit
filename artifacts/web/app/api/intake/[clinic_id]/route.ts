@@ -10,6 +10,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createIntakeOrder } from '@/lib/api/fixtures/orders';
+import { sanitiseDeliveryInstructions } from '@/lib/api/fixtures/deliveryInstructions';
+import { APIError } from '@/lib/api/constants';
 import { getClinic } from '@/lib/api/fixtures/clinics';
 import {
   isValidUkMobile,
@@ -57,7 +59,26 @@ export async function POST(req: NextRequest, { params }: Params) {
         weight_kg?: number | null;
         bmi?: number | null;
       };
+      delivery_instructions?: string | null;
     };
+
+    // Task-318 — re-sanitise the patient-supplied courier note server-side
+    // so a malicious / broken client can't bypass the length cap or sneak in
+    // control characters. The helper returns `null` when the input is empty
+    // / whitespace-only and throws APIError('VALIDATION') if the value is
+    // longer than the configured cap.
+    let sanitisedDeliveryInstructions: string | null = null;
+    try {
+      sanitisedDeliveryInstructions = sanitiseDeliveryInstructions(
+        body.delivery_instructions ?? null,
+      );
+    } catch (err) {
+      const msg =
+        err instanceof APIError ? err.message
+        : err instanceof Error  ? err.message
+        : 'Invalid delivery instructions';
+      return NextResponse.json({ message: msg }, { status: 400 });
+    }
 
     const HEIGHT_MIN_CM = 120;
     const HEIGHT_MAX_CM = 220;
@@ -182,6 +203,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
       body.responses,
       { height_cm: heightCm, weight_kg: weightKg, bmi },
+      { delivery_instructions: sanitisedDeliveryInstructions },
     );
 
     return NextResponse.json(

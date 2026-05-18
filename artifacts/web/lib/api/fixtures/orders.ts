@@ -23,6 +23,11 @@ import { renderPatientEmail } from '@/lib/integrations/emailTemplates'; // Task-
 import { randomBytes } from 'crypto';
 import { evaluateSelfReportedBmi, filterSelfReportedBmiFlag, SELF_REPORTED_BMI_FLAG, AWAITING_BMI_EVIDENCE_FLAG } from '@/lib/clinical/selfReportedBmi'; // Task-163 / Task-247
 import { recordAudit } from '../audit'; // Task-167 — durable spine
+import {
+  initialDeliveryInstructions,
+  normalizeDeliveryInstructionsFlag,
+  DELIVERY_INSTRUCTIONS_REVIEW_FLAG,
+} from './deliveryInstructions'; // Task-318
 
 // Re-export pure data so existing server-side callers keep working unchanged.
 export {
@@ -80,14 +85,16 @@ export async function listOrders(
   let results = scopedToClinic(MOCK_ORDERS, clinic_id);
   if (opts?.status) results = results.filter((o) => o.status === opts.status);
   if (opts?.patient_id) results = results.filter((o) => o.patient_id === opts.patient_id);
-  return results.map(normalizeSelfReportedBmiFlag);
+  return results
+    .map(normalizeSelfReportedBmiFlag)
+    .map(normalizeDeliveryInstructionsFlag);
 }
 
 export async function getOrder(clinic_id: ClinicId, id: string): Promise<Order> {
   await delay();
   const o = MOCK_ORDERS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!o) throw new APIError('NOT_FOUND', 'Order not found');
-  return normalizeSelfReportedBmiFlag(o);
+  return normalizeDeliveryInstructionsFlag(normalizeSelfReportedBmiFlag(o));
 }
 
 export async function getClinicalCheckQueue(clinic_id: ClinicId): Promise<Order[]> {
@@ -218,6 +225,23 @@ export async function decideOrder(
   }
 
   o.updated_at = NOW;
+
+  // Task-318 — If the prescriber approves before staff has reviewed the
+  // patient-supplied delivery instruction, the order moves to approved as
+  // normal but the contextual flag stays on so the queue surfaces it. The
+  // Primed payload omits the instruction until staff approves it (see
+  // buildPrimedOrderPayload). The flag is cleared by
+  // normalizeDeliveryInstructionsFlag once review_status flips.
+  if (
+    decision === 'approved' &&
+    o.delivery_instructions &&
+    o.delivery_instructions.review_status === 'unreviewed'
+  ) {
+    const flags = o.contextual_flags ?? [];
+    if (!flags.includes(DELIVERY_INSTRUCTIONS_REVIEW_FLAG)) {
+      o.contextual_flags = [...flags, DELIVERY_INSTRUCTIONS_REVIEW_FLAG];
+    }
+  }
 
   console.log('[AUDIT]', {
     event_type: 'clinical_decision_result',
@@ -726,6 +750,7 @@ export async function createIntakeOrder(
   address: { formatted?: string; line1: string; line2?: string; city: string; postcode: string },
   responses: Record<string, unknown>,
   biometrics: { height_cm: number; weight_kg: number; bmi: number },
+  opts?: { delivery_instructions?: string | null },
 ): Promise<Order> {
   await delay(300);
   const suffix = String(Date.now()).slice(-6);
@@ -819,6 +844,8 @@ export async function createIntakeOrder(
     px_upload: null,
     px_upload_link: null,
     expired_at: null,
+    // Task-318 — patient-supplied courier delivery instruction (optional).
+    delivery_instructions: initialDeliveryInstructions(opts?.delivery_instructions),
     created_at: NOW,
     updated_at: NOW,
   };

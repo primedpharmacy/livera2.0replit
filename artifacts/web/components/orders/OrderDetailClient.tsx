@@ -37,6 +37,7 @@ import type { PatientNotification } from "@/lib/api/mock";
 import { NotificationRow } from "@/components/patients/NotificationRow";
 import { PatientEmailEditor } from "@/components/patients/PatientContactFieldEditor";
 import { CourierTrackingCard } from "@/components/orders/CourierTrackingCard";
+import { DeliveryInstructionsCard } from "./DeliveryInstructionsCard";
 import { DCard, Row, Metric, EmptyPane } from "./orderPrimitives";
 import { OrderDecisionDialogs, type Modal, type ToastState } from "./OrderDecisionDialogs";
 import { OrderQuestionnaireCard } from "./OrderQuestionnaireCard";
@@ -1341,6 +1342,13 @@ export function OrderDetailClient({
                 variant="full"
               />
             )}
+
+            {/* Task-318 — Patient-supplied courier delivery instructions */}
+            <DeliveryInstructionsCard
+              order={order}
+              clinicId={clinic.id}
+              onOrderUpdated={setOrder}
+            />
 
             {/* BLD-4.6.3 — Four-scenario dispatch date calculator */}
             <DispatchDateCard

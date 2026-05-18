@@ -451,6 +451,47 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
     });
   });
 
+  // Task-318 — Delivery-instruction review entries. We render one entry per
+  // recorded edit plus a final approved/rejected entry once staff has acted.
+  // The patient-submitted text itself isn't echoed in the timeline — it lives
+  // on DeliveryInstructionsCard — so this surface is purely "who did what
+  // and when" for audit reviewers.
+  if (order.delivery_instructions) {
+    const di = order.delivery_instructions;
+    (di.edits ?? []).forEach((edit, idx) => {
+      const editor =
+        USERS_REGISTRY[edit.edited_by_user_id]?.full_name
+        ?? edit.edited_by_user_id;
+      const toText = edit.to == null || edit.to === "" ? "(cleared)" : `“${edit.to}”`;
+      const fromText = edit.from == null || edit.from === "" ? "(empty)" : `“${edit.from}”`;
+      entries.push({
+        key: `delivery_instructions_edit_${idx}`,
+        dot: "info",
+        title: "Delivery instructions edited",
+        meta: `by ${editor} · ${formatDateTime(edit.edited_at)}`,
+        ts: new Date(edit.edited_at).getTime(),
+        rationale: edit.reason
+          ? `${edit.reason}\n\nUpdated to: ${toText}\nPreviously: ${fromText}`
+          : `Updated to: ${toText}\nPreviously: ${fromText}`,
+      });
+    });
+    if (di.review_status !== "unreviewed" && di.reviewed_at && di.reviewed_by_user_id) {
+      const reviewer =
+        USERS_REGISTRY[di.reviewed_by_user_id]?.full_name
+        ?? di.reviewed_by_user_id;
+      entries.push({
+        key: `delivery_instructions_${di.review_status}`,
+        dot: di.review_status === "approved" ? "ok" : "err",
+        title:
+          di.review_status === "approved"
+            ? "Delivery instructions approved"
+            : "Delivery instructions rejected",
+        meta: `by ${reviewer} · ${formatDateTime(di.reviewed_at)}`,
+        ts: new Date(di.reviewed_at).getTime(),
+      });
+    }
+  }
+
   if (order.status !== "clinical_check") {
     const ts = order.clinical_decision?.decided_at ?? order.updated_at;
     entries.push({

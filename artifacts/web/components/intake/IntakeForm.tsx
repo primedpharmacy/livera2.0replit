@@ -1186,6 +1186,10 @@ export function IntakeForm({
 
   const [personal, setPersonal] = useState<PersonalData>(buildInitialPersonalData());
   const [address, setAddress] = useState<AddressData>(buildInitialAddressData());
+  // Task-318 — optional patient-supplied courier delivery instruction.
+  // Capped client-side to 250 chars; server re-sanitises so a tampered
+  // payload can't bypass the limit.
+  const [deliveryInstructions, setDeliveryInstructions] = useState<string>("");
 
   const initResponses = (): Responses => {
     const init: Responses = buildInitialResponses();
@@ -1220,6 +1224,7 @@ export function IntakeForm({
   const purgeApplicantState = useCallback(() => {
     setPersonal(buildInitialPersonalData());
     setAddress(buildInitialAddressData());
+    setDeliveryInstructions("");
     setResponses({});
     setGender("");
     setStep(0);
@@ -1341,6 +1346,7 @@ export function IntakeForm({
           address,
           responses,
           biometrics: { height_cm: heightCm, weight_kg: weightKg, bmi },
+          delivery_instructions: deliveryInstructions.trim() ? deliveryInstructions : null,
         }),
       });
       if (res.ok) {
@@ -1762,6 +1768,39 @@ export function IntakeForm({
                       onChange={handleAddressChange}
                       showError={showErrors}
                     />
+                    {/* Task-318 — optional courier delivery instruction.
+                        Patient may add a short note (e.g. "leave with concierge").
+                        Reviewed by staff before it ships to the courier. */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#64748b] uppercase tracking-wide mb-1.5">
+                        Delivery instructions <span className="text-[#94a3b8] normal-case font-normal">(optional)</span>
+                      </label>
+                      <textarea
+                        className={`${inputCls} min-h-[72px] resize-y`}
+                        placeholder="e.g. Leave with concierge in the lobby"
+                        value={deliveryInstructions}
+                        onChange={(e) => {
+                          // Mirror the server-side sanitiser: squash CRLF →
+                          // \n, cap to 5 lines, cap to 250 chars. Keeps the
+                          // visible counter honest and prevents the user from
+                          // being surprised by a 400 on submit.
+                          const normalised = e.target.value
+                            .replace(/\r\n?/g, "\n")
+                            .split("\n")
+                            .slice(0, 5)
+                            .join("\n")
+                            .slice(0, 250);
+                          setDeliveryInstructions(normalised);
+                        }}
+                        maxLength={250}
+                      />
+                      <p className="text-[11px] text-[#94a3b8] mt-1">
+                        {deliveryInstructions.length}/250 characters. Reviewed by our team before being shared with the courier.
+                      </p>
+                      <p className="text-[11px] text-[#b45309] mt-1">
+                        Please don&rsquo;t include door codes, alarm codes, or other security details &mdash; courier notes are visible to anyone handling your parcel.
+                      </p>
+                    </div>
                   </div>
                 )}
 

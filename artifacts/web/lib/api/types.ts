@@ -415,6 +415,26 @@ export type Order = {
     reversal_reason?: string | null;
   }> | null;
 
+  // Task-318 — Patient-typed courier delivery instruction captured at intake,
+  // reviewed/edited/approved by staff, then shipped to Primed on approval.
+  // `patient_submitted` is the raw text (never overwritten); `staff_value` is
+  // what ships to Primed (defaults to patient_submitted, cleared on reject).
+  // `null` for orders created before Task-318 — keeps existing fixtures valid.
+  delivery_instructions?: {
+    patient_submitted: string | null;
+    staff_value: string | null;
+    review_status: 'unreviewed' | 'approved' | 'rejected';
+    reviewed_by_user_id: string | null;
+    reviewed_at: string | null;
+    edits: Array<{
+      from: string | null;
+      to: string | null;
+      edited_by_user_id: string;
+      edited_at: string;
+      reason?: string;
+    }>;
+  } | null;
+
   royal_mail_tracking_id?: string | null;   // BLD-11.1 — RM1234567890GB format
   dispatched_at?: string | null;            // BLD-11.2 — ISO timestamp; set when status → dispatched
 

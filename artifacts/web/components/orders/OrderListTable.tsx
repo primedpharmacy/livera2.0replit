@@ -59,6 +59,8 @@ const FLAG_COLORS: Record<string, string> = {
   "Duplicate address":         "bg-[#f9fafb] text-[#374151] border-[#d1d5db]",
   // Task-163 — self-reported BMI sanity-check flag raised at intake.
   "Self-reported BMI out of range": "bg-[#fff7ed] text-[#c2410c] border-[#fed7aa]",
+  // Task-318 — patient delivery instruction awaiting staff review.
+  "Delivery instructions need review": "bg-[#fffbeb] text-[#b45309] border-[#fde68a]",
 };
 const URGENT_FLAGS = new Set(["Safeguarding", "Eating disorder disclosed", "Self-reported BMI out of range"]);
 const defaultFlagCls = "bg-[#f9fafb] text-[#374151] border-[#d1d5db]";

@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Mail, MailX, MailCheck, Undo2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Mail, MailX, MailCheck, RefreshCw, Undo2 } from "lucide-react";
 import { NOW, USERS_REGISTRY } from "@/lib/api/constants";
 import {
   groupFlaggedAnswersByCategory,
@@ -103,6 +103,16 @@ export interface OrderListTableProps {
    */
   onJumpToFlagged?: (orderId: string) => void;
   /**
+   * Task-271 — When provided in clinical_check context, the "Reminder
+   * bounced" pill on the row gets an inline "Resend now" affordance that
+   * calls this handler. The parent owns the actual retry call (POST to
+   * the reminder-retry route) and reflects the resulting order back into
+   * its local state.
+   */
+  onResendBouncedReminder?: (orderId: string) => void | Promise<void>;
+  /** Order ids whose bounced-reminder retry is currently in flight. */
+  resendingReminderOrderIds?: ReadonlySet<string>;
+  /**
    * Task-136 — Per-order weight-warning summary keyed by order id. Used to
    * render a subtle "reviewed" indicator when all concerning weight warnings
    * on an order have been acknowledged, and to surface remaining unack'd
@@ -130,6 +140,8 @@ export function OrderListTable({
   reviewNeededByOrderId,
   flaggedAnswersByOrderId,
   onJumpToFlagged,
+  onResendBouncedReminder,
+  resendingReminderOrderIds,
   weightWarningStateByOrderId,
   unresolvedIssuesByOrderId,
 }: OrderListTableProps) {
@@ -241,6 +253,8 @@ export function OrderListTable({
                     reviewNeededCount={reviewNeededByOrderId?.[order.id] ?? 0}
                     flaggedAnswers={flaggedAnswersByOrderId?.[order.id]}
                     onJumpToFlagged={onJumpToFlagged}
+                    onResendBouncedReminder={onResendBouncedReminder}
+                    isResendingReminder={resendingReminderOrderIds?.has(order.id) ?? false}
                     weightWarningState={weightWarningStateByOrderId?.[order.id]}
                   />
                 ) : (
@@ -358,6 +372,8 @@ function ClinicalCheckRow({
   reviewNeededCount,
   flaggedAnswers,
   onJumpToFlagged,
+  onResendBouncedReminder,
+  isResendingReminder,
   weightWarningState,
 }: {
   order: Order;
@@ -373,6 +389,8 @@ function ClinicalCheckRow({
   reviewNeededCount?: number;
   flaggedAnswers?: FlaggedAnswer[];
   onJumpToFlagged?: (orderId: string) => void;
+  onResendBouncedReminder?: (orderId: string) => void | Promise<void>;
+  isResendingReminder?: boolean;
   weightWarningState?: OrderWeightWarningState;
 }) {
   const router = useRouter();
@@ -401,9 +419,18 @@ function ClinicalCheckRow({
               ) : null}
               {(() => {
                 const reminderStatus = computeReminderStatus(order);
-                return reminderStatus ? (
-                  <PxUploadReminderPill status={reminderStatus} />
-                ) : null;
+                if (!reminderStatus) return null;
+                return (
+                  <>
+                    <PxUploadReminderPill status={reminderStatus} />
+                    {reminderStatus.state === "bounced" && onResendBouncedReminder ? (
+                      <ResendBouncedReminderButton
+                        isBusy={Boolean(isResendingReminder)}
+                        onClick={() => { void onResendBouncedReminder(order.id); }}
+                      />
+                    ) : null}
+                  </>
+                );
               })()}
               {(() => {
                 const log = order.reversal_log ?? [];
@@ -969,6 +996,46 @@ export function PxUploadReminderPill({ status }: { status: PxUploadReminderStatu
         </div>
       )}
     </span>
+  );
+}
+
+// ── Resend bounced reminder button (Task-271) ─────────────────────────────────
+/**
+ * Compact inline button rendered immediately after the "Reminder bounced"
+ * pill on the Clinical Check queue. Lets clinicians fire a manual retry of
+ * the failed reminder without leaving the queue — the parent owns the
+ * actual POST so it can patch the row in place once the retry returns.
+ */
+function ResendBouncedReminderButton({
+  isBusy,
+  onClick,
+}: {
+  isBusy: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (isBusy) return;
+        onClick();
+      }}
+      onKeyDown={(e) => {
+        // Don't bubble Space/Enter to the row's onClick handler.
+        if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+      }}
+      disabled={isBusy}
+      title="Resend this reminder to the patient now"
+      className={cn(
+        "inline-flex items-center gap-1 text-[10px] font-bold border rounded-full px-1.5 py-px leading-none transition-colors",
+        "text-err bg-surface border-err-bdr hover:bg-err-bg",
+        "disabled:opacity-60 disabled:cursor-not-allowed",
+      )}
+    >
+      <RefreshCw className={cn("w-2.5 h-2.5", isBusy && "animate-spin")} />
+      {isBusy ? "Resending…" : "Resend now"}
+    </button>
   );
 }
 

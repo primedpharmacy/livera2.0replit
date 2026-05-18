@@ -141,6 +141,10 @@ export function ClinicalCheckClient({
   const [undoRemainingMs,  setUndoRemainingMs]  = useState(0);
   const [isUndoing,        setIsUndoing]        = useState(false);
   const [errorToast,       setErrorToast]       = useState<string | null>(null);
+  const [okToast,          setOkToast]          = useState<string | null>(null);
+  // Task-271 — Order ids whose bounced-reminder retry is currently in
+  // flight, so the queue row can render a spinner and disable the button.
+  const [resendingReminderIds, setResendingReminderIds] = useState<Set<string>>(() => new Set());
   // Bumped each time the clinician clicks a row's "N review needed" badge.
   // The slide-over watches this nonce to switch to the Questionnaire tab and
   // scroll/highlight the first safety-flagged answer.
@@ -225,6 +229,103 @@ export function ClinicalCheckClient({
     const t = setTimeout(() => setErrorToast(null), 4000);
     return () => clearTimeout(t);
   }, [errorToast]);
+
+  // Task-271 — auto-dismiss the success toast after 4s as well.
+  useEffect(() => {
+    if (!okToast) return;
+    const t = setTimeout(() => setOkToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [okToast]);
+
+  // Task-271 — Resend a bounced px-upload reminder straight from the queue.
+  // Reuses the same server route as the Activity-timeline "Retry reminder"
+  // affordance (which calls retryFailedPxUploadReminder under the hood) —
+  // that flow records an actor/order/kind audit event, flips the cron's
+  // idempotency flag on delivery, and pushes a fresh reminder_failures row
+  // on a repeat bounce so the queue's pill picks up the new failure count.
+  const handleResendBouncedReminder = useCallback(async (orderId: string) => {
+    const target = orders.find((o) => o.id === orderId);
+    const link = target?.px_upload_link;
+    if (!target || !link) {
+      setErrorToast("This order no longer has a reminder to retry.");
+      return;
+    }
+    if (resendingReminderIds.has(orderId)) return;
+
+    // Pick the kind to retry — the most-recent unresolved failure. We
+    // mirror computeReminderStatus's notion of "unresolved": a failure is
+    // unresolved when no successful send of that kind followed.
+    const failures = [...(link.reminder_failures ?? [])].sort(
+      (a, b) => new Date(b.attempted_at).getTime() - new Date(a.attempted_at).getTime(),
+    );
+    const firstSent = Boolean(link.reminder_sent_at);
+    const finalSent = Boolean(link.final_reminder_sent_at);
+    const latestUnresolved = failures.find((f) =>
+      f.kind === "first" ? !firstSent : !finalSent,
+    );
+    if (!latestUnresolved) {
+      setErrorToast("No bounced reminder to retry on this order.");
+      return;
+    }
+
+    const toEmail = latestUnresolved.to_email || link.to_email;
+    if (!toEmail) {
+      setErrorToast("No recipient email recorded — open the order to set one.");
+      return;
+    }
+
+    setResendingReminderIds((prev) => {
+      const next = new Set(prev);
+      next.add(orderId);
+      return next;
+    });
+    try {
+      const res = await fetch(
+        `/api/orders/${clinicId}/${orderId}/px-upload/reminder-retry`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: latestUnresolved.kind, to_email: toEmail }),
+        },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        status?: "Delivered" | "Bounced" | "Failed";
+        px_upload_link?: Order["px_upload_link"];
+      };
+      if (!res.ok && res.status !== 502) {
+        throw new Error(body.message || `Retry failed (${res.status}).`);
+      }
+      // Patch the order in-place so the row's reminder pill (and any
+      // "Resend now" affordance) immediately reflects the new failure
+      // count / latest error — or disappears entirely once the kind is
+      // marked sent on a successful delivery.
+      if (body.px_upload_link) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId ? { ...o, px_upload_link: body.px_upload_link! } : o,
+          ),
+        );
+      }
+      if (body.status === "Delivered") {
+        setOkToast(`Reminder re-sent to ${toEmail}.`);
+      } else {
+        setErrorToast(
+          body.message
+            ? `Reminder still failing: ${body.message}`
+            : "Reminder bounced again — open the order to update the recipient address.",
+        );
+      }
+    } catch (err) {
+      setErrorToast(err instanceof Error ? err.message : "Could not resend reminder.");
+    } finally {
+      setResendingReminderIds((prev) => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      });
+    }
+  }, [orders, clinicId, resendingReminderIds]);
 
   const handleUndo = useCallback(async () => {
     if (!undoToast || isUndoing) return;
@@ -759,6 +860,8 @@ export function ClinicalCheckClient({
                 reviewNeededByOrderId={reviewNeededByOrderId}
                 flaggedAnswersByOrderId={flaggedAnswersByOrderId}
                 onJumpToFlagged={handleJumpToFlagged}
+                onResendBouncedReminder={handleResendBouncedReminder}
+                resendingReminderOrderIds={resendingReminderIds}
                 weightWarningStateByOrderId={weightWarningStateByOrderId}
               />
             )}
@@ -805,6 +908,18 @@ export function ClinicalCheckClient({
             <Undo2 className="w-3.5 h-3.5" />
             {isUndoing ? "Undoing…" : `Undo (${Math.max(1, Math.ceil(undoRemainingMs / 1000))}s)`}
           </button>
+        </div>
+      )}
+
+      {/* ── Success toast (Task-271 reminder retry) ──────────────────────── */}
+      {okToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-[60] flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border bg-ok-bg border-ok-bdr text-ok text-[13px] font-medium"
+        >
+          <CheckCircle className="w-4 h-4 shrink-0" />
+          {okToast}
         </div>
       )}
 

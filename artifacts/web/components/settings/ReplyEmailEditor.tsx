@@ -14,8 +14,25 @@
 
 import { useState } from "react";
 import { Mail, Save, RotateCcw } from "lucide-react";
-import { updateClinicReplyEmail } from "@/lib/api/mock";
+import {
+  updateClinicReplyEmail,
+  getLastClinicFieldUpdate,
+  USERS_REGISTRY,
+} from "@/lib/api/mock";
 import type { ClinicConfig, ClinicId } from "@/types";
+
+// Task-236 — format an ISO timestamp as "12 May 2026, 14:05".
+function formatAuditDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("en-GB", {
+    day:    "numeric",
+    month:  "short",
+    year:   "numeric",
+    hour:   "2-digit",
+    minute: "2-digit",
+  });
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -31,6 +48,9 @@ export function ReplyEmailEditor({ config, clinicId, actorId }: Props) {
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState(() =>
+    getLastClinicFieldUpdate(clinicId, "reply_email"),
+  );
 
   const trimmed    = value.trim();
   const dirty      = trimmed !== baseline;
@@ -49,6 +69,7 @@ export function ReplyEmailEditor({ config, clinicId, actorId }: Props) {
       setValue(trimmed);
       setBaseline(trimmed);
       setSaved(true);
+      setLastUpdate(getLastClinicFieldUpdate(clinicId, "reply_email"));
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       setValue(baseline);
@@ -99,6 +120,16 @@ export function ReplyEmailEditor({ config, clinicId, actorId }: Props) {
 
         {error && (
           <p className="text-[12px] text-err">{error}</p>
+        )}
+
+        {lastUpdate && (
+          <p className="text-[11px] text-t3" data-testid="reply-email-last-updated">
+            Last updated by{" "}
+            <span className="font-medium text-t2">
+              {USERS_REGISTRY[lastUpdate.actor_id]?.full_name ?? lastUpdate.actor_id}
+            </span>{" "}
+            on {formatAuditDate(lastUpdate.occurred_at)}
+          </p>
         )}
 
         <div className="flex items-center justify-end gap-3 pt-1">

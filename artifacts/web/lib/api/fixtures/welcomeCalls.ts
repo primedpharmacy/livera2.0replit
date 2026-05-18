@@ -195,6 +195,10 @@ export type LogWelcomeCallAttemptInput = {
   duration_display?: string;
   notes?: string;
   channel?: string;
+  flag?: {
+    severity: 'LOW' | 'MEDIUM' | 'HIGH';
+    reason: string;
+  };
 };
 
 export async function logWelcomeCallAttempt(
@@ -224,11 +228,25 @@ export async function logWelcomeCallAttempt(
   wc.attempts = [...wc.attempts, attempt];
   if (input.type === 'success') {
     wc.status = 'completed';
+    const flagReason = input.flag?.reason.trim();
+    const flag = input.flag && flagReason
+      ? {
+          flag_id: 'FLAG-004',
+          flag_name: 'Welcome call — clinical concern raised',
+          severity: input.flag.severity,
+          reason: flagReason,
+          raised_by_user_id: CURRENT_USER.id,
+        }
+      : undefined;
     wc.outcome = {
-      outcome_summary: 'Completed',
-      follow_up_needed: false,
+      outcome_summary: flag ? 'Completed — clinical concern noted' : 'Completed',
+      follow_up_needed: Boolean(flag),
       ...(input.notes?.trim() ? { follow_up_note: input.notes.trim() } : {}),
+      ...(flag ? { flag_raised_text: `Yes (FLAG-004 v1 · ${flag.severity.toLowerCase()} severity)` } : {}),
     };
+    if (flag) {
+      wc.flag_raised = flag;
+    }
   } else {
     wc.status = 'attempted';
   }
@@ -243,6 +261,19 @@ export async function logWelcomeCallAttempt(
     new_status: wc.status,
     timestamp: NOW,
   });
+  if (input.type === 'success' && wc.flag_raised && input.flag) {
+    console.log('[AUDIT]', {
+      event_type: 'welcome_call_flag_raised',
+      outcome: 'success',
+      actor_id: CURRENT_USER.id,
+      clinic_id,
+      welcome_call_id: callId,
+      flag_id: wc.flag_raised.flag_id,
+      severity: wc.flag_raised.severity,
+      reason: wc.flag_raised.reason,
+      timestamp: NOW,
+    });
+  }
   return wc;
 }
 

@@ -567,6 +567,41 @@ export async function updateClinicSlaThresholds(
 }
 
 // ---------------------------------------------------------------------------
+// Clinic-field audit mirror — Task-236
+// Small in-memory log of "who last changed which clinic field, and when",
+// used by the Settings editors to surface a "Last updated by X on Y" line
+// next to inputs. Mirrors the existing console-only `[AUDIT]` events so the
+// UI can render them without querying Postgres. Add new field names below as
+// they become editable.
+// ---------------------------------------------------------------------------
+
+export type ClinicFieldName = 'clinical_check_inbox' | 'reply_email';
+
+export type ClinicFieldAuditEvent = {
+  clinic_id:  ClinicId;
+  field_name: ClinicFieldName;
+  actor_id:   string;
+  occurred_at: string; // ISO
+};
+
+const MOCK_CLINIC_FIELD_AUDITS: ClinicFieldAuditEvent[] = [];
+
+function recordClinicFieldAudit(evt: ClinicFieldAuditEvent): void {
+  MOCK_CLINIC_FIELD_AUDITS.push(evt);
+}
+
+export function getLastClinicFieldUpdate(
+  clinic_id:  ClinicId,
+  field_name: ClinicFieldName,
+): ClinicFieldAuditEvent | null {
+  for (let i = MOCK_CLINIC_FIELD_AUDITS.length - 1; i >= 0; i--) {
+    const e = MOCK_CLINIC_FIELD_AUDITS[i];
+    if (e.clinic_id === clinic_id && e.field_name === field_name) return e;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // updateClinicCheckInbox — Task-113
 // Updates the recipient email for new-intake clinical-check alerts.
 // Admin/Owner only. Validates the address before persisting.
@@ -626,6 +661,12 @@ export async function updateClinicCheckInbox(
     old_value:  oldValue,
     new_value:  trimmed,
     timestamp:  NOW,
+  });
+  recordClinicFieldAudit({
+    clinic_id,
+    field_name: 'clinical_check_inbox',
+    actor_id,
+    occurred_at: NOW,
   });
 
   return clinic.config;
@@ -688,6 +729,12 @@ export async function updateClinicReplyEmail(
     old_value:  oldValue,
     new_value:  trimmed,
     timestamp:  NOW,
+  });
+  recordClinicFieldAudit({
+    clinic_id,
+    field_name: 'reply_email',
+    actor_id,
+    occurred_at: NOW,
   });
 
   return clinic.config;

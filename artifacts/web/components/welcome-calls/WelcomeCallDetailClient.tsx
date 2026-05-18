@@ -579,6 +579,9 @@ function LogAttemptModal({
   const [type, setType] = useState<WelcomeCallAttemptType>("success");
   const [duration, setDuration] = useState("");
   const [notes, setNotes] = useState("");
+  const [flagOn, setFlagOn] = useState(false);
+  const [flagSeverity, setFlagSeverity] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
+  const [flagReason, setFlagReason] = useState("");
 
   const options: { value: WelcomeCallAttemptType; label: string; desc: string }[] = [
     { value: "success",   label: "Connected",  desc: "Spoke with patient — marks call completed." },
@@ -586,12 +589,21 @@ function LogAttemptModal({
     { value: "voicemail", label: "Voicemail",  desc: "Left a message — call stays open as attempted." },
   ];
 
+  const flagAvailable = type === "success";
+  const flagReasonTrimmed = flagReason.trim();
+  const flagInvalid = flagAvailable && flagOn && flagReasonTrimmed.length === 0;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (flagInvalid) return;
     onSubmit({
       type,
       duration_display: duration.trim() || undefined,
       notes: notes.trim() || undefined,
+      flag:
+        flagAvailable && flagOn && flagReasonTrimmed
+          ? { severity: flagSeverity, reason: flagReasonTrimmed }
+          : undefined,
     });
   }
 
@@ -665,6 +677,72 @@ function LogAttemptModal({
             />
           </div>
 
+          {flagAvailable && (
+            <div className="border border-violet-200 bg-violet-50 rounded-lg p-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={flagOn}
+                  onChange={(e) => setFlagOn(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="flex-1">
+                  <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-t1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-violet-600" />
+                    Raise flag from this call
+                  </span>
+                  <span className="block text-[11.5px] text-t2 mt-0.5">
+                    Writes a manual FLAG-004 alongside the outcome so the prescriber sees it on completion.
+                  </span>
+                </span>
+              </label>
+
+              {flagOn && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <p className="text-[11px] font-bold text-t3 uppercase tracking-wide mb-1.5">Severity</p>
+                    <div className="flex gap-2">
+                      {(["LOW", "MEDIUM", "HIGH"] as const).map((sev) => (
+                        <button
+                          key={sev}
+                          type="button"
+                          onClick={() => setFlagSeverity(sev)}
+                          className={cn(
+                            "flex-1 text-[11.5px] font-semibold px-3 py-1.5 rounded-md border transition-colors",
+                            flagSeverity === sev
+                              ? sev === "HIGH"
+                                ? "bg-err-bg border-err-bdr text-err"
+                                : sev === "MEDIUM"
+                                ? "bg-warn-bg border-warn-bdr text-warn"
+                                : "bg-ok-bg border-ok-bdr text-ok"
+                              : "border-border text-t2 hover:bg-surface-2 bg-surface",
+                          )}
+                        >
+                          {sev}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-t3 uppercase tracking-wide mb-1.5">
+                      Reason <span className="text-err">*</span>
+                    </label>
+                    <textarea
+                      value={flagReason}
+                      onChange={(e) => setFlagReason(e.target.value)}
+                      rows={3}
+                      placeholder="What the prescriber needs to know — e.g. existing medication query, side-effect concern."
+                      className="w-full text-[12.5px] px-3 py-2 border border-border rounded-md bg-surface text-t1 focus:outline-none focus:border-brand resize-none"
+                    />
+                    {flagInvalid && (
+                      <p className="text-[11px] text-err mt-1">A reason is required to raise a flag.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 pt-1">
             <button
               type="button"
@@ -675,7 +753,8 @@ function LogAttemptModal({
             </button>
             <button
               type="submit"
-              className="text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90"
+              disabled={flagInvalid}
+              className="text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Save attempt
             </button>

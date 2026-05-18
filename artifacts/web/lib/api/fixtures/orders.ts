@@ -1088,6 +1088,38 @@ export async function resendPxUploadLink(
     : false;
   const previousResends = order.px_upload_link?.resends ?? [];
 
+  // Task-126 — Cool-down to stop accidental double-clicks (or two staff acting
+  // in parallel) from rotating the token and emailing the patient again.
+  // The most recent send is either the latest resend or the initial email.
+  const lastSendIso =
+    previousResends.length > 0
+      ? previousResends[previousResends.length - 1].sent_at
+      : order.px_upload_link?.sent_at ?? null;
+  const COOLDOWN_SECONDS = 60;
+  if (lastSendIso) {
+    const elapsedMs = Date.now() - new Date(lastSendIso).getTime();
+    if (elapsedMs >= 0 && elapsedMs < COOLDOWN_SECONDS * 1000) {
+      const remainingSeconds = Math.ceil(
+        (COOLDOWN_SECONDS * 1000 - elapsedMs) / 1000,
+      );
+      console.log('[AUDIT]', {
+        event_type: 'px_upload_link_resend_suppressed',
+        reason: 'cooldown',
+        clinic_id,
+        order_id,
+        by_user_id: CURRENT_USER.id,
+        last_sent_at: lastSendIso,
+        cooldown_seconds: COOLDOWN_SECONDS,
+        remaining_seconds: remainingSeconds,
+        timestamp: NOW,
+      });
+      throw new APIError(
+        'COOLDOWN',
+        `A link was just emailed. Please wait ${remainingSeconds}s before resending so the patient isn't spammed.`,
+      );
+    }
+  }
+
   console.log('[AUDIT]', {
     event_type: 'px_upload_link_resend_requested',
     clinic_id,

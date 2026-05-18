@@ -54,7 +54,6 @@ import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPan
 import { DispatchDateCard } from "./DispatchDateCard";
 import { addWorkingHours } from "@/lib/utils/workingHours";
 import { useQueueNavigation } from "@/lib/queueNavigation";
-import { QueuePositionIndicator } from "@/components/shared/QueuePositionIndicator";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -246,7 +245,10 @@ export function OrderDetailClient({
   const [refundAmendment, setRefundAmendment] = useState<Amendment | null>(null);
 
   // Task-91 — Resend Px upload link
+  // Task-126 — Cool-down + confirm step to stop accidental spam.
   const [isResendingPxLink, setIsResendingPxLink] = useState(false);
+  const [resendConfirmOpen, setResendConfirmOpen] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   // Task-110 — Undo last decision affordance.
   // Mirrors the ~5s window from the Clinical Check queue's slide-over toast,
@@ -311,7 +313,49 @@ export function OrderDetailClient({
     }
   }
 
-  async function handleResendPxUploadLink() {
+  // Task-126 — Cool-down + confirm step that stop staff from accidentally
+  // spamming the patient with duplicate upload-link emails.
+  const PX_RESEND_COOLDOWN_SECONDS = 60;
+  const PX_RESEND_RECENT_MINUTES = 10;
+
+  // Tick once a second so the cool-down countdown re-renders while it's active.
+  useEffect(() => {
+    const pxLink = order.px_upload_link;
+    if (!pxLink) return;
+    const resends = pxLink.resends ?? [];
+    const lastSendIso =
+      resends.length > 0 ? resends[resends.length - 1].sent_at : pxLink.sent_at;
+    if (!lastSendIso) return;
+    const elapsed = Date.now() - new Date(lastSendIso).getTime();
+    if (elapsed >= PX_RESEND_COOLDOWN_SECONDS * 1000) return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [order.px_upload_link]);
+
+  const pxLastSendIso: string | null = (() => {
+    const pxLink = order.px_upload_link;
+    if (!pxLink) return null;
+    const resends = pxLink.resends ?? [];
+    if (resends.length > 0) return resends[resends.length - 1].sent_at;
+    return pxLink.sent_at ?? null;
+  })();
+  const pxSecondsSinceLastSend =
+    pxLastSendIso != null
+      ? Math.floor((nowMs - new Date(pxLastSendIso).getTime()) / 1000)
+      : null;
+  const pxCooldownRemaining =
+    pxSecondsSinceLastSend != null && pxSecondsSinceLastSend < PX_RESEND_COOLDOWN_SECONDS
+      ? PX_RESEND_COOLDOWN_SECONDS - pxSecondsSinceLastSend
+      : 0;
+  const pxLinkExpired =
+    order.px_upload_link != null &&
+    new Date(order.px_upload_link.expires_at).getTime() < nowMs;
+  const pxSentRecently =
+    pxSecondsSinceLastSend != null &&
+    pxSecondsSinceLastSend < PX_RESEND_RECENT_MINUTES * 60 &&
+    !pxLinkExpired;
+
+  async function performResendPxUploadLink() {
     setIsResendingPxLink(true);
     try {
       const updated = await resendPxUploadLink(clinicId, order.id);
@@ -329,6 +373,22 @@ export function OrderDetailClient({
     } finally {
       setIsResendingPxLink(false);
     }
+  }
+
+  function handleResendPxUploadLink() {
+    if (pxCooldownRemaining > 0 || isResendingPxLink) return;
+    // If the last link was sent very recently (and still works), ask staff
+    // to confirm rather than silently rotating the token and re-emailing.
+    if (pxSentRecently) {
+      setResendConfirmOpen(true);
+      return;
+    }
+    void performResendPxUploadLink();
+  }
+
+  async function confirmResendPxUploadLink() {
+    setResendConfirmOpen(false);
+    await performResendPxUploadLink();
   }
 
   // Load linked refund amendment so OrderPaymentSummary can surface refunded amount.
@@ -667,12 +727,6 @@ export function OrderDetailClient({
           <Link href={`/${clinicId}/orders`} className="flex items-center gap-1 hover:text-brand transition-colors">
             <ArrowLeft className="w-3 h-3" /> Orders
           </Link>
-          <QueuePositionIndicator
-            kind="orders"
-            currentId={order.id}
-            clinicId={clinicId}
-            className="ml-1"
-          />
           <ChevronRight className="w-3 h-3" />
           <span className="font-mono text-t1 font-medium">{order.id}</span>
         </nav>
@@ -1201,11 +1255,19 @@ export function OrderDetailClient({
                           new Date(link.expires_at).getTime() < Date.now();
                         const resendCount = link?.resends?.length ?? 0;
                         const lastResend = resendCount > 0 ? link!.resends![resendCount - 1] : null;
-                        const buttonLabel = linkExpired
+                        const cooldownActive = pxCooldownRemaining > 0;
+                        const buttonLabel = cooldownActive
+                          ? `Resend available in ${pxCooldownRemaining}s`
+                          : linkExpired
                           ? "Send new upload link"
                           : resendCount > 0
                           ? "Resend upload link again"
                           : "Resend upload link";
+                        const buttonTitle = cooldownActive
+                          ? `A link was just emailed. To avoid spamming the patient, resend is disabled for ${pxCooldownRemaining}s.`
+                          : pxSentRecently
+                          ? "The last link was sent within the last 10 minutes and is still valid. You'll be asked to confirm before another email is sent."
+                          : undefined;
 
                         return (
                           <div className="space-y-3">
@@ -1247,7 +1309,8 @@ export function OrderDetailClient({
                                   variant="outline"
                                   size="sm"
                                   onClick={handleResendPxUploadLink}
-                                  disabled={isResendingPxLink}
+                                  disabled={isResendingPxLink || cooldownActive}
+                                  title={buttonTitle}
                                   className="gap-1.5"
                                 >
                                   <Mail className="w-3.5 h-3.5" />
@@ -1823,6 +1886,65 @@ export function OrderDetailClient({
             >
               <Upload className="w-3.5 h-3.5 mr-1" />
               Choose replacement file
+            </Button>
+          </ConfirmDialogFooter>
+        </ConfirmDialogContent>
+      </ConfirmDialog>
+
+      {/* Task-126 — Confirm step when the previous link was sent very recently
+          (< 10 minutes ago) and is still valid. Rotating the token now means
+          the patient will get a second email and the link they may have just
+          opened will stop working. */}
+      <ConfirmDialog
+        open={resendConfirmOpen}
+        onOpenChange={(o) => !o && !isResendingPxLink && setResendConfirmOpen(false)}
+      >
+        <ConfirmDialogContent className="max-w-md">
+          <ConfirmDialogHeader>
+            <ConfirmDialogTitle className="text-base flex items-center gap-2">
+              <Mail className="w-4 h-4 text-warn" />
+              Resend upload link?
+            </ConfirmDialogTitle>
+          </ConfirmDialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 text-[12px] rounded-md px-3 py-2 border border-warn-bdr bg-warn-bg text-warn">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                A link was emailed to{" "}
+                <strong>
+                  {order.px_upload_link?.to_email ?? patient.contact.email}
+                </strong>{" "}
+                {pxSecondsSinceLastSend != null && pxSecondsSinceLastSend < 60
+                  ? `${pxSecondsSinceLastSend} seconds ago`
+                  : pxSecondsSinceLastSend != null
+                  ? `${Math.floor(pxSecondsSinceLastSend / 60)} minutes ago`
+                  : "very recently"}{" "}
+                and is still valid. Sending another email will{" "}
+                <strong>invalidate the previous link</strong> — if the patient
+                clicks the older email after this, it will no longer work.
+              </div>
+            </div>
+            <p className="text-[12px] text-t2">
+              Only resend if the patient confirmed they can&apos;t find the
+              previous email or asked for a new link.
+            </p>
+          </div>
+          <ConfirmDialogFooter className="gap-2 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setResendConfirmOpen(false)}
+              disabled={isResendingPxLink}
+            >
+              Keep the existing link
+            </Button>
+            <Button
+              size="sm"
+              onClick={confirmResendPxUploadLink}
+              disabled={isResendingPxLink}
+            >
+              <Mail className="w-3.5 h-3.5 mr-1" />
+              {isResendingPxLink ? "Sending…" : "Send a new link anyway"}
             </Button>
           </ConfirmDialogFooter>
         </ConfirmDialogContent>

@@ -1230,6 +1230,135 @@ export async function sendPxUploadReminderEmail(
   return { status: result.status, message_id: result.message_id };
 }
 
+// ---------------------------------------------------------------------------
+// Task-130 — Manual px-upload reminder from Order Detail.
+//
+// Lets staff nudge a specific patient on demand (e.g. after a phone call)
+// without waiting for the daily sendPxUploadReminders sweep. Reuses the same
+// email helper and idempotency flags as the cron, so the next scheduled sweep
+// won't double-send.
+//
+// Picks the kind in the same order the cron would:
+//   - 'first' if the first-reminder flag is still unset
+//   - 'final' if only the final-reminder flag remains unset
+//   - throws INVALID_STATE if both reminders have already gone out
+//
+// Refuses to send if there's no link, the link is consumed/expired, the
+// upload has already arrived, or no patient email is on file.
+// Audits the staff actor_id (not 'system') on every attempt and outcome.
+// ---------------------------------------------------------------------------
+
+export async function sendPxUploadReminderNow(
+  clinic_id: ClinicId,
+  order_id: string,
+  actor?: { user_id: string },
+): Promise<{
+  order:      Order;
+  kind:       'first' | 'final';
+  status:     'Delivered' | 'Bounced' | 'Failed';
+  message_id: string | null;
+}> {
+  // Audit records the real caller from the route's session, falling back to
+  // CURRENT_USER only for in-process callers (unit tests / scripts).
+  const actorUserId = actor?.user_id ?? CURRENT_USER.id;
+
+  console.log('[AUDIT]', {
+    event_type: 'px_upload_link_manual_reminder_attempt',
+    clinic_id,
+    order_id,
+    by_user_id: actorUserId,
+    timestamp:  NOW,
+  });
+
+  await delay(200);
+
+  const order = MOCK_ORDERS.find(
+    (o) => o.clinic_id === clinic_id && o.id === order_id,
+  );
+  if (!order) throw new APIError('NOT_FOUND', `Order ${order_id} not found`);
+
+  const link = order.px_upload_link;
+  if (!link) {
+    throw new APIError(
+      'INVALID_STATE',
+      'This order does not have a prescription upload link to remind about.',
+    );
+  }
+  if (order.px_upload != null || link.consumed_at) {
+    throw new APIError(
+      'INVALID_STATE',
+      'Prescription has already been uploaded — no reminder needed.',
+    );
+  }
+  if (new Date(link.expires_at).getTime() <= new Date(NOW).getTime()) {
+    throw new APIError(
+      'INVALID_STATE',
+      'Upload link has expired — send a fresh link instead.',
+    );
+  }
+
+  let kind: 'first' | 'final';
+  if (!link.reminder_sent_at)            kind = 'first';
+  else if (!link.final_reminder_sent_at) kind = 'final';
+  else {
+    throw new APIError(
+      'INVALID_STATE',
+      'Both reminders have already been sent for this link.',
+    );
+  }
+
+  const patient = MOCK_PATIENTS.find(
+    (p) => p.clinic_id === clinic_id && p.id === order.patient_id,
+  );
+  const toEmail = patient?.contact.email ?? link.to_email ?? '';
+  if (!toEmail) {
+    throw new APIError(
+      'INVALID_STATE',
+      'No patient email on file to send the reminder to.',
+    );
+  }
+
+  const fullName = patient?.demographic.full_name ?? '';
+  const [firstName = 'there', ...rest] = fullName.split(/\s+/).filter(Boolean);
+  const lastName = rest.join(' ');
+
+  const sendResult = await sendPxUploadReminderEmail(
+    order,
+    { firstName, lastName, email: toEmail },
+    kind,
+  );
+
+  console.log('[AUDIT]', {
+    event_type:
+      sendResult.status === 'Delivered'
+        ? 'px_upload_link_manual_reminder_sent'
+        : 'px_upload_link_manual_reminder_failed',
+    outcome:    sendResult.status,
+    kind,
+    clinic_id,
+    order_id,
+    patient_id: order.patient_id,
+    to_email:   toEmail,
+    by_user_id: actorUserId,
+    message_id: sendResult.message_id,
+    timestamp:  NOW,
+  });
+
+  if (sendResult.status === 'Delivered') {
+    // Same idempotency flag the cron flips, so the next sweep skips this order.
+    if (kind === 'first') link.reminder_sent_at = NOW;
+    else                  link.final_reminder_sent_at = NOW;
+    order.updated_at = NOW;
+  }
+
+  return {
+    order,
+    kind,
+    status:     sendResult.status,
+    message_id: sendResult.message_id,
+  };
+}
+
 /**
  * Resolve an order from a px-upload link token without consuming it.
  * Used by the patient-facing page to check validity before showing the

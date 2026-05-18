@@ -251,6 +251,9 @@ export function OrderDetailClient({
   const [resendConfirmOpen, setResendConfirmOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
+  // Task-130 — Manual Px upload reminder (server-side; hits POST route).
+  const [isSendingPxReminder, setIsSendingPxReminder] = useState(false);
+
   // Task-110 — Undo last decision affordance.
   // Mirrors the ~5s window from the Clinical Check queue's slide-over toast,
   // but is anchored to the order detail page so a clinician who navigates
@@ -355,6 +358,45 @@ export function OrderDetailClient({
     pxSecondsSinceLastSend != null &&
     pxSecondsSinceLastSend < PX_RESEND_RECENT_MINUTES * 60 &&
     !pxLinkExpired;
+
+  // Task-130 — Manual Px upload reminder. Posts to a server route that
+  // validates session + permissions and flips the same idempotency flag
+  // the daily cron uses, so the next sweep won't double-send.
+  async function handleSendPxReminderNow() {
+    setIsSendingPxReminder(true);
+    try {
+      const res = await fetch(
+        `/api/orders/${clinicId}/${order.id}/px-upload-reminder`,
+        { method: "POST" },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        kind?: "first" | "final";
+        status?: "Delivered" | "Bounced" | "Failed";
+        px_upload_link?: Order["px_upload_link"];
+      };
+      if (!res.ok || body.status !== "Delivered") {
+        throw new Error(body.message || `Reminder failed (${res.status}).`);
+      }
+      // Re-fetch the order so the UI reflects the new reminder_sent_at /
+      // final_reminder_sent_at flag set server-side.
+      const updated = await getOrder(clinicId, order.id);
+      setOrder(updated);
+      const sentTo = updated.px_upload_link?.to_email ?? patient.contact.email;
+      const label = body.kind === "final" ? "Final reminder" : "Reminder";
+      setToast({
+        message: `${label} sent to ${sentTo}.`,
+        type: "ok",
+      });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Could not send reminder. Please retry.",
+        type: "err",
+      });
+    } finally {
+      setIsSendingPxReminder(false);
+    }
+  }
 
   async function performResendPxUploadLink() {
     setIsResendingPxLink(true);
@@ -1276,6 +1318,31 @@ export function OrderDetailClient({
                           ? "The last link was sent within the last 10 minutes and is still valid. You'll be asked to confirm before another email is sent."
                           : undefined;
 
+                        // Task-130 — Manual reminder eligibility. Mirrors the
+                        // server-side gate in sendPxUploadReminderNow so the
+                        // button only appears when the cron would have
+                        // something to send.
+                        const linkConsumed = link?.consumed_at != null;
+                        const firstReminderSent  = link?.reminder_sent_at != null;
+                        const finalReminderSent  = link?.final_reminder_sent_at != null;
+                        const canSendManualReminder =
+                          link != null &&
+                          !linkExpired &&
+                          !linkConsumed &&
+                          !(firstReminderSent && finalReminderSent);
+                        const reminderKindNext: "first" | "final" | null =
+                          link == null || linkExpired || linkConsumed
+                            ? null
+                            : !firstReminderSent
+                            ? "first"
+                            : !finalReminderSent
+                            ? "final"
+                            : null;
+                        const reminderButtonLabel =
+                          reminderKindNext === "final"
+                            ? "Send final reminder now"
+                            : "Send reminder now";
+
                         return (
                           <div className="space-y-3">
                             <div className="flex items-start gap-2 p-3 rounded-lg bg-warn-bg border border-warn-bdr">
@@ -1310,13 +1377,36 @@ export function OrderDetailClient({
                               </div>
                             </div>
                             {link && (
-                              <div className="flex justify-end">
+                              <div className="flex flex-wrap justify-end gap-2">
+                                {/* Task-130 — Manual reminder, shown alongside
+                                    the Task-91 resend. Only renders while the
+                                    cron still has something to send (link
+                                    active, not consumed, not both reminders
+                                    fired). */}
+                                {canSendManualReminder && can(CURRENT_USER, "write", "orders") && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleSendPxReminderNow}
+                                    disabled={isSendingPxReminder || isResendingPxLink}
+                                    className="gap-1.5"
+                                    title={
+                                      reminderKindNext === "final"
+                                        ? "Send the final reminder email now instead of waiting for the scheduled sweep."
+                                        : "Send the first reminder email now instead of waiting for the scheduled sweep."
+                                    }
+                                  >
+                                    <Send className="w-3.5 h-3.5" />
+                                    {isSendingPxReminder ? "Sending…" : reminderButtonLabel}
+                                  </Button>
+                                )}
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
                                   onClick={handleResendPxUploadLink}
-                                  disabled={isResendingPxLink || cooldownActive}
+                                  disabled={isResendingPxLink || cooldownActive || isSendingPxReminder}
                                   title={buttonTitle}
                                   className="gap-1.5"
                                 >
@@ -1324,6 +1414,17 @@ export function OrderDetailClient({
                                   {isResendingPxLink ? "Sending…" : buttonLabel}
                                 </Button>
                               </div>
+                            )}
+                            {link && (firstReminderSent || finalReminderSent) && (
+                              <p className="text-[11px] text-t3">
+                                {firstReminderSent && (
+                                  <>First reminder sent {formatDateTime(link.reminder_sent_at!)}</>
+                                )}
+                                {firstReminderSent && finalReminderSent && " · "}
+                                {finalReminderSent && (
+                                  <>Final reminder sent {formatDateTime(link.final_reminder_sent_at!)}</>
+                                )}
+                              </p>
                             )}
                             {/* Task-85 — Staff-side upload on patient's behalf.
                                 Coexists with the Task-91 resend button: staff can either

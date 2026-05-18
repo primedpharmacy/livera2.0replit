@@ -567,6 +567,71 @@ export async function updateClinicSlaThresholds(
 }
 
 // ---------------------------------------------------------------------------
+// updateClinicCheckInbox — Task-113
+// Updates the recipient email for new-intake clinical-check alerts.
+// Admin/Owner only. Validates the address before persisting.
+// ---------------------------------------------------------------------------
+
+// Pragmatic RFC-5322-ish check — local@domain.tld with no whitespace.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function updateClinicCheckInbox(
+  clinic_id: ClinicId,
+  new_email: string,
+  actor_id: string,
+): Promise<ClinicConfig> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2a — permission gate: Admin/Owner only.
+  const isAdminOrOwner = CURRENT_USER.roles.some((r) => r === 'Admin' || r === 'Owner');
+  if (!isAdminOrOwner) {
+    console.log('[AUDIT]', {
+      event_type: 'clinical_check_inbox_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Only Admins and Owners may update the clinical-check inbox',
+    );
+  }
+
+  // Layer 2b — validation: non-empty + well-formed email.
+  const trimmed = new_email.trim();
+  if (!trimmed) {
+    throw new APIError('SAFETY_VIOLATION', 'Clinical-check inbox cannot be empty');
+  }
+  if (!EMAIL_RE.test(trimmed)) {
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      `Invalid email address: '${trimmed}'`,
+    );
+  }
+
+  const oldValue = clinic.config.clinical_check_inbox;
+  if (oldValue === trimmed) return clinic.config;
+
+  clinic.config.clinical_check_inbox = trimmed;
+
+  console.log('[AUDIT]', {
+    event_type: 'clinical_check_inbox_updated',
+    outcome:    'success',
+    actor_id,
+    clinic_id,
+    field_name: 'clinical_check_inbox',
+    old_value:  oldValue,
+    new_value:  trimmed,
+    timestamp:  NOW,
+  });
+
+  return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
 // updateClinicWeightWarningThresholds — Task-100
 // Persists per-clinic overrides for the weight-trend analyser thresholds.
 // Owner/Admin only; values must be positive numbers (plateau_min_readings >= 2).

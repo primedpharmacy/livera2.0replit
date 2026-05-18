@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { SlaThresholdEditor } from "@/components/settings/SlaThresholdEditor";
 import { WeightWarningThresholdsEditor } from "@/components/settings/WeightWarningThresholdsEditor";
+import { ClinicalCheckInboxEditor } from "@/components/settings/ClinicalCheckInboxEditor";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/format";
 import { getClinic, listSlaBreaches } from "@/lib/api/mock";
@@ -45,6 +46,9 @@ async function SlaContent({ clinicId }: { clinicId: ClinicId }) {
 
     return (
       <div className="px-6 py-5 max-w-3xl space-y-6">
+        {/* Clinical-check inbox (Task-113) */}
+        <ClinicalCheckInboxEditor config={clinic.config} clinicId={clinicId} actorId={CURRENT_USER.id} />
+
         {/* Threshold editor */}
         <SlaThresholdEditor config={clinic.config} clinicId={clinicId} actorId={CURRENT_USER.id} />
 

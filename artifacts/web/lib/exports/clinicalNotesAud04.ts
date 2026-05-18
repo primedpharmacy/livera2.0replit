@@ -21,7 +21,7 @@ function escapeCsv(value: string | number | boolean | null): string {
     : s;
 }
 
-const HEADER = 'note_id,patient_id,author,role,created_at,order_id,body_length,ai_drafted,has_edits';
+const HEADER = 'note_id,patient_id,author,role,created_at,order_id,body_length,ai_drafted,has_edits,reversed_at,reversed_by_user_id';
 
 export function exportClinicalNotesAud04(
   notes: ClinicalNote[],
@@ -74,6 +74,10 @@ export function exportClinicalNotesAud04(
       n.body.length,
       n.ai_drafted,
       n.edit_history.length > 0,
+      // Task-154 — surface reversal so auditors can see which notes are no
+      // longer authoritative (set by reverseDecision when an approval is undone).
+      n.reversed_at ?? '',
+      n.reversed_by_user_id ?? '',
     ]
       .map(escapeCsv)
       .join(',')

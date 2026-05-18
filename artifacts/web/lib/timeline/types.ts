@@ -28,6 +28,11 @@ export type TimelineEntry = {
   summary: string;              // 1-line display text (truncated in UI to 100 chars)
   badge_color: 'green' | 'purple' | 'blue' | 'neutral';
   link_url: string | null;      // deep-link, null for order_event compact lines
+  // Task-154 — surface clinical-note reversal on the timeline so a "Reversed"
+  // badge can render and the body can be de-emphasised. Only set on
+  // clinical_note entries whose source note was reversed via Undo (Task-109).
+  reversed_at?: string | null;
+  reversed_by_label?: string | null;
 };
 
 export type TimelineFilter = {

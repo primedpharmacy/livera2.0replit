@@ -45,7 +45,12 @@ export function aggregateTimeline(
   // Wave 6.5 cascade fix: all roles read clinical notes. Write is gated at
   // component level (ClinicalNoteEditor checks can(actor,'write','clinical_notes')).
   for (const n of clinicalNotes) {
-    entries.push(adaptClinicalNote(n, clinicId, userNames[n.author_user_id]));
+    entries.push(adaptClinicalNote(
+      n,
+      clinicId,
+      userNames[n.author_user_id],
+      n.reversed_by_user_id ? userNames[n.reversed_by_user_id] : undefined,
+    ));
   }
 
   // ── Coaching logs ─────────────────────────────────────────────────────────

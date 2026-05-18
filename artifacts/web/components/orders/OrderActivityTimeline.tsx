@@ -4,6 +4,7 @@ import { Activity } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { DCard } from "./orderPrimitives";
 import { USERS_REGISTRY } from "@/lib/api/mock";
+import { MOCK_CLINICAL_NOTES } from "@/lib/api/fixtures/clinicalNotes";
 import type { Order } from "@/types";
 
 const WEIGHT_WARNING_LABEL: Record<string, string> = {
@@ -166,6 +167,31 @@ export function OrderActivityTimeline({ order }: Props) {
       ts: new Date(order.px_upload.uploaded_at).getTime(),
     });
   }
+
+  // Task-154 — Surface clinical-note reversals on the order timeline. When a
+  // prescriber undoes an approval (Task-109), the approval-gate note for this
+  // order is stamped with `reversed_at`/`reversed_by_user_id`. Show that event
+  // so the wider team can see the note is no longer authoritative.
+  MOCK_CLINICAL_NOTES
+    .filter(
+      (n) =>
+        n.clinic_id === order.clinic_id &&
+        n.approval_gate_for_order_id === order.id &&
+        n.reversed_at,
+    )
+    .forEach((n) => {
+      const reverser = n.reversed_by_user_id
+        ? (USERS_REGISTRY[n.reversed_by_user_id]?.full_name ?? n.reversed_by_user_id)
+        : "unknown";
+      entries.push({
+        key: `clinical_note_reversed_${n.id}`,
+        dot: "neutral",
+        title: "Clinical note marked as reversed",
+        meta: `${n.id} · by ${reverser} · ${formatDateTime(n.reversed_at!)}`,
+        ts: new Date(n.reversed_at!).getTime(),
+        rationale: "Approval was undone — note preserved for audit but no longer authoritative.",
+      });
+    });
 
   if (order.clinical_decision) {
     entries.push({

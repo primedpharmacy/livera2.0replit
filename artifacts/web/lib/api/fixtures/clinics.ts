@@ -632,6 +632,68 @@ export async function updateClinicCheckInbox(
 }
 
 // ---------------------------------------------------------------------------
+// updateClinicReplyEmail — Task-161
+// Updates the outbound reply-to email address used on patient comms.
+// Admin/Owner only. Validates the address before persisting.
+// ---------------------------------------------------------------------------
+
+export async function updateClinicReplyEmail(
+  clinic_id: ClinicId,
+  new_email: string,
+  actor_id: string,
+): Promise<ClinicConfig> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2a — permission gate: Admin/Owner only.
+  const isAdminOrOwner = CURRENT_USER.roles.some((r) => r === 'Admin' || r === 'Owner');
+  if (!isAdminOrOwner) {
+    console.log('[AUDIT]', {
+      event_type: 'reply_email_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Only Admins and Owners may update the reply-to email',
+    );
+  }
+
+  // Layer 2b — validation: non-empty + well-formed email.
+  const trimmed = new_email.trim();
+  if (!trimmed) {
+    throw new APIError('SAFETY_VIOLATION', 'Reply-to email cannot be empty');
+  }
+  if (!EMAIL_RE.test(trimmed)) {
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      `Invalid email address: '${trimmed}'`,
+    );
+  }
+
+  const oldValue = clinic.config.reply_email;
+  if (oldValue === trimmed) return clinic.config;
+
+  clinic.config.reply_email = trimmed;
+
+  console.log('[AUDIT]', {
+    event_type: 'reply_email_updated',
+    outcome:    'success',
+    actor_id,
+    clinic_id,
+    field_name: 'reply_email',
+    old_value:  oldValue,
+    new_value:  trimmed,
+    timestamp:  NOW,
+  });
+
+  return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
 // updateClinicWeightWarningThresholds — Task-100
 // Persists per-clinic overrides for the weight-trend analyser thresholds.
 // Owner/Admin only; values must be positive numbers (plateau_min_readings >= 2).

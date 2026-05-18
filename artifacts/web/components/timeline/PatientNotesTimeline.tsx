@@ -205,13 +205,32 @@ export function PatientNotesTimeline({
                       <span className={`inline-flex items-center px-2 py-px text-[9px] font-bold rounded border ${BADGE_CLASSES[entry.badge_color] ?? BADGE_CLASSES["neutral"]}`}>
                         {TYPE_LABELS[entry.type] ?? entry.type}
                       </span>
+                      {entry.reversed_at && (
+                        <span
+                          className="inline-flex items-center px-2 py-px text-[9px] font-bold rounded border bg-err-bg border-err-bdr text-err"
+                          title={`Reversed by ${entry.reversed_by_label ?? "unknown"} · ${formatDateTime(entry.reversed_at)}`}
+                        >
+                          Reversed
+                        </span>
+                      )}
                       <span className="text-[11px] text-t3 ml-auto tabular-nums">
                         {formatDateTime(entry.occurred_at)}
                       </span>
                     </div>
-                    <p className="text-[12px] text-t1 mt-1 leading-relaxed">{entry.summary}</p>
+                    <p
+                      className={`text-[12px] mt-1 leading-relaxed ${
+                        entry.reversed_at ? "text-t3 line-through" : "text-t1"
+                      }`}
+                    >
+                      {entry.summary}
+                    </p>
                     <div className="flex items-center gap-3 mt-0.5">
                       <p className="text-[11px] text-t3">{entry.author_label}</p>
+                      {entry.reversed_at && (
+                        <p className="text-[11px] text-err">
+                          Reversed by {entry.reversed_by_label ?? "unknown"} · {formatDateTime(entry.reversed_at)}
+                        </p>
+                      )}
                       {isClinicalNote && sourceNote && (
                         <button
                           onClick={() => handleNoteClick(entry.id)}

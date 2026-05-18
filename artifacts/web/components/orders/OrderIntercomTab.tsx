@@ -23,6 +23,8 @@ import {
   Send,
   Plus,
   X,
+  Paperclip,
+  FileText,
 } from "lucide-react";
 import type { Patient, Clinic, ClinicId } from "@/types";
 import { useCurrentUser } from "@/lib/context";
@@ -88,6 +90,20 @@ type IntercomConversation = {
   parts: IntercomMessagePart[];
 };
 
+type StagedAttachment = {
+  // Stable client id used to key the chip and target the rollback if the
+  // upload fails. Replaced server-side: once isUploading flips to false, the
+  // `serverId` field holds the value we forward to the reply/create endpoint.
+  clientId: string;
+  name: string;
+  size: number;
+  content_type: string;
+  isUploading: boolean;
+  error?: string;
+  serverId?: string;
+  url?: string;
+};
+
 type ListResponse = {
   patient_id: string;
   clinic_id: string;
@@ -110,6 +126,25 @@ function formatRelative(unixSeconds: number): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Read a File into a base64 string (no data: prefix). Used by uploadFile to
+// pack the bytes into JSON without needing a multipart parser server-side.
+async function fileToBase64(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }
 
 function formatAbsolute(unixSeconds: number): string {
@@ -138,12 +173,22 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
   const [composeBody, setComposeBody] = useState<Record<string, string>>({});
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [composeError, setComposeError] = useState<string | null>(null);
+  // Attachments staged for the inline reply, keyed by conversation id. Each
+  // entry has already been uploaded to the api-server and carries the id we
+  // forward in the reply payload. Pending uploads use isUploading=true so the
+  // chip can render a spinner while the bytes are in flight.
+  const [composeAttachments, setComposeAttachments] = useState<
+    Record<string, StagedAttachment[]>
+  >({});
+  const [composeDragOver, setComposeDragOver] = useState(false);
   // New-conversation modal state.
   const [newOpen, setNewOpen] = useState(false);
   const [newSubject, setNewSubject] = useState("");
   const [newBody, setNewBody] = useState("");
   const [creating, setCreating] = useState(false);
   const [newError, setNewError] = useState<string | null>(null);
+  const [newAttachments, setNewAttachments] = useState<StagedAttachment[]>([]);
+  const [newDragOver, setNewDragOver] = useState(false);
 
   const integrationConfigured = useMemo(
     () => Boolean(clinic.config.integrations?.intercom?.workspace_id),
@@ -242,10 +287,141 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
     };
   }, [clinicId, loadConversations]);
 
+  // ── Upload a single file via the staging endpoint ──────────────────────────
+  // Encodes the file as base64 so the api-server can stash it without us
+  // needing to add a multipart parser. The returned attachment_id is what we
+  // hand back to the reply/create payload. Rejects render as a chip error so
+  // the clinician knows which file didn't make it.
+  const uploadFile = useCallback(async (file: File): Promise<{
+    id: string;
+    name: string;
+    byte_size: number;
+    content_type: string;
+    url: string;
+  }> => {
+    const data = await fileToBase64(file);
+    const res = await fetch(`/api/intercom/${clinicId}/uploads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...clinicianHeaders() },
+      body: JSON.stringify({
+        name: file.name,
+        content_type: file.type || "application/octet-stream",
+        data,
+      }),
+    });
+    if (!res.ok) {
+      const detail = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
+      throw new Error(detail.error ?? `upload_failed_${res.status}`);
+    }
+    return (await res.json()) as {
+      id: string;
+      name: string;
+      byte_size: number;
+      content_type: string;
+      url: string;
+    };
+  }, [clinicId]);
+
+  // Stage one or more files onto a slot ('reply:<id>' or 'new'). Each file
+  // appears immediately as a chip with isUploading=true; the actual upload
+  // happens in parallel and the chip flips to its final state when done.
+  const stageFiles = useCallback(
+    (slot: { kind: "reply"; conversationId: string } | { kind: "new" }, files: File[]) => {
+      const accepted = files.filter((f) => f.size > 0 && f.size <= 10 * 1024 * 1024);
+      const staged: StagedAttachment[] = accepted.map((f) => ({
+        clientId: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: f.name,
+        size: f.size,
+        content_type: f.type || "application/octet-stream",
+        isUploading: true,
+      }));
+      if (staged.length === 0) return;
+
+      const append = (prev: StagedAttachment[]) => [...prev, ...staged];
+      if (slot.kind === "reply") {
+        setComposeAttachments((prev) => ({
+          ...prev,
+          [slot.conversationId]: append(prev[slot.conversationId] ?? []),
+        }));
+      } else {
+        setNewAttachments((prev) => append(prev));
+      }
+
+      staged.forEach((entry, idx) => {
+        const file = accepted[idx]!;
+        void uploadFile(file).then(
+          (uploaded) => {
+            const patch = (list: StagedAttachment[]): StagedAttachment[] =>
+              list.map((a) =>
+                a.clientId === entry.clientId
+                  ? {
+                      ...a,
+                      isUploading: false,
+                      serverId: uploaded.id,
+                      url: uploaded.url,
+                    }
+                  : a,
+              );
+            if (slot.kind === "reply") {
+              setComposeAttachments((prev) => ({
+                ...prev,
+                [slot.conversationId]: patch(prev[slot.conversationId] ?? []),
+              }));
+            } else {
+              setNewAttachments((prev) => patch(prev));
+            }
+          },
+          (err: unknown) => {
+            const message = err instanceof Error ? err.message : "upload_failed";
+            const patch = (list: StagedAttachment[]): StagedAttachment[] =>
+              list.map((a) =>
+                a.clientId === entry.clientId ? { ...a, isUploading: false, error: message } : a,
+              );
+            if (slot.kind === "reply") {
+              setComposeAttachments((prev) => ({
+                ...prev,
+                [slot.conversationId]: patch(prev[slot.conversationId] ?? []),
+              }));
+            } else {
+              setNewAttachments((prev) => patch(prev));
+            }
+          },
+        );
+      });
+    },
+    [uploadFile],
+  );
+
+  const removeAttachment = useCallback(
+    (slot: { kind: "reply"; conversationId: string } | { kind: "new" }, clientId: string) => {
+      if (slot.kind === "reply") {
+        setComposeAttachments((prev) => ({
+          ...prev,
+          [slot.conversationId]: (prev[slot.conversationId] ?? []).filter(
+            (a) => a.clientId !== clientId,
+          ),
+        }));
+      } else {
+        setNewAttachments((prev) => prev.filter((a) => a.clientId !== clientId));
+      }
+    },
+    [],
+  );
+
   // ── Send an admin reply with optimistic UI + rollback ──────────────────────
   async function handleSendReply(conv: IntercomConversation) {
     const draft = (composeBody[conv.id] ?? "").trim();
+    const staged = composeAttachments[conv.id] ?? [];
     if (!draft || sendingId) return;
+    // Block sending while any attachment is still uploading or has errored —
+    // we don't want to silently drop files the user thought they were sending.
+    if (staged.some((a) => a.isUploading || a.error)) {
+      setComposeError("attachments_not_ready");
+      return;
+    }
+    const attachmentIds = staged
+      .map((a) => a.serverId)
+      .filter((id): id is string => typeof id === "string");
     setSendingId(conv.id);
     setComposeError(null);
 
@@ -253,6 +429,9 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
     // the request fails. The server's response replaces it on success.
     const tempId = `ipart_optimistic_${Date.now()}`;
     const nowSec = Math.floor(Date.now() / 1000);
+    const optimisticAttachments = staged
+      .filter((a) => a.serverId && a.url)
+      .map((a) => ({ name: a.name, url: a.url!, content_type: a.content_type }));
     const optimistic: IntercomMessagePart = {
       id: tempId,
       part_type: "comment",
@@ -263,7 +442,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         id: currentUser.id,
         name: currentUser.full_name,
       },
-      attachments: [],
+      attachments: optimisticAttachments,
     };
     const baseDetail = detailById[conv.id] ?? conv;
     setDetailById((prev) => ({
@@ -271,6 +450,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
       [conv.id]: { ...baseDetail, parts: [...baseDetail.parts, optimistic] },
     }));
     setComposeBody((prev) => ({ ...prev, [conv.id]: "" }));
+    setComposeAttachments((prev) => ({ ...prev, [conv.id]: [] }));
 
     try {
       const res = await fetch(
@@ -278,7 +458,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         {
           method: "POST",
           headers: { "Content-Type": "application/json", ...clinicianHeaders(currentUser) },
-          body: JSON.stringify({ body: draft }),
+          body: JSON.stringify({ body: draft, attachment_ids: attachmentIds }),
         },
       );
       if (!res.ok) {
@@ -314,6 +494,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         };
       });
       setComposeBody((prev) => ({ ...prev, [conv.id]: draft }));
+      setComposeAttachments((prev) => ({ ...prev, [conv.id]: staged }));
       setComposeError(err instanceof Error ? err.message : "reply_failed");
     } finally {
       setSendingId((current) => (current === conv.id ? null : current));
@@ -324,6 +505,16 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
     const body = newBody.trim();
     const subject = newSubject.trim();
     if (!body || creating) return;
+    if (newAttachments.some((a) => a.isUploading || a.error)) {
+      setNewError("attachments_not_ready");
+      return;
+    }
+    const attachmentIds = newAttachments
+      .map((a) => a.serverId)
+      .filter((id): id is string => typeof id === "string");
+    const optimisticOpeningAttachments = newAttachments
+      .filter((a) => a.serverId && a.url)
+      .map((a) => ({ name: a.name, url: a.url!, content_type: a.content_type }));
     setCreating(true);
     setNewError(null);
 
@@ -356,10 +547,11 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
           body,
           created_at: nowSec,
           author: optimisticAuthor,
-          attachments: [],
+          attachments: optimisticOpeningAttachments,
         },
       ],
     };
+    const previousAttachments = newAttachments;
     const previousExpanded = expandedId;
     setData((prev) =>
       prev ? { ...prev, conversations: [optimisticConv, ...prev.conversations] } : prev,
@@ -367,6 +559,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
     setDetailById((prev) => ({ ...prev, [tempConvId]: optimisticConv }));
     setExpandedId(tempConvId);
     setNewOpen(false);
+    setNewAttachments([]);
 
     try {
       const res = await fetch(
@@ -374,7 +567,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         {
           method: "POST",
           headers: { "Content-Type": "application/json", ...clinicianHeaders(currentUser) },
-          body: JSON.stringify({ subject, body }),
+          body: JSON.stringify({ subject, body, attachment_ids: attachmentIds }),
         },
       );
       if (!res.ok) {
@@ -427,6 +620,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         return rest;
       });
       setExpandedId(previousExpanded);
+      setNewAttachments(previousAttachments);
       setNewOpen(true);
       setNewError(err instanceof Error ? err.message : "create_failed");
     } finally {
@@ -691,8 +885,36 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         if (!conv) return null;
         const draft = composeBody[conv.id] ?? "";
         const sending = sendingId === conv.id;
+        const attachments = composeAttachments[conv.id] ?? [];
+        const attachmentsBusy = attachments.some((a) => a.isUploading);
+        const slot = { kind: "reply" as const, conversationId: conv.id };
         return (
-          <div className="mt-3 border border-bdr rounded-lg bg-surface p-3">
+          <div
+            className={`mt-3 border rounded-lg bg-surface p-3 transition-colors ${
+              composeDragOver ? "border-brand bg-brand/5" : "border-bdr"
+            }`}
+            onDragEnter={(e) => {
+              if (e.dataTransfer.types.includes("Files")) {
+                e.preventDefault();
+                setComposeDragOver(true);
+              }
+            }}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes("Files")) {
+                e.preventDefault();
+              }
+            }}
+            onDragLeave={(e) => {
+              if (e.currentTarget === e.target) setComposeDragOver(false);
+            }}
+            onDrop={(e) => {
+              if (e.dataTransfer.files.length > 0) {
+                e.preventDefault();
+                setComposeDragOver(false);
+                stageFiles(slot, Array.from(e.dataTransfer.files));
+              }
+            }}
+          >
             <label className="block text-[11px] font-semibold text-t2 mb-1.5">
               Reply to {conv.subject || "this conversation"}
             </label>
@@ -701,7 +923,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
               onChange={(e) =>
                 setComposeBody((prev) => ({ ...prev, [conv.id]: e.target.value }))
               }
-              placeholder="Type a reply to the patient…"
+              placeholder="Type a reply to the patient… (drop files anywhere to attach)"
               rows={3}
               maxLength={10_000}
               disabled={sending}
@@ -713,19 +935,30 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
                 }
               }}
             />
+            <AttachmentChips
+              items={attachments}
+              onRemove={(cid) => removeAttachment(slot, cid)}
+              disabled={sending}
+            />
             {composeError && (
               <p className="mt-1.5 text-[11px] text-err flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" /> Couldn&apos;t send: {composeError}
               </p>
             )}
-            <div className="mt-2 flex items-center justify-between">
-              <p className="text-[10.5px] text-t3">
-                Sends as {currentUser.full_name} ({primaryRoleLabel(currentUser.roles)}) · ⌘/Ctrl + Enter to send
-              </p>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[10.5px] text-t3">
+                <AttachmentPickerButton
+                  onPick={(files) => stageFiles(slot, files)}
+                  disabled={sending}
+                />
+                <span>
+                  Sends as {currentUser.full_name} ({primaryRoleLabel(currentUser.roles)}) · ⌘/Ctrl + Enter
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => void handleSendReply(conv)}
-                disabled={sending || !draft.trim()}
+                disabled={sending || !draft.trim() || attachmentsBusy}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {sending ? (
@@ -765,7 +998,32 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
       {/* New-conversation modal */}
       {newOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-surface border border-bdr rounded-lg shadow-lg w-full max-w-md p-4">
+          <div
+            className={`bg-surface border rounded-lg shadow-lg w-full max-w-md p-4 transition-colors ${
+              newDragOver ? "border-brand bg-brand/5" : "border-bdr"
+            }`}
+            onDragEnter={(e) => {
+              if (e.dataTransfer.types.includes("Files")) {
+                e.preventDefault();
+                setNewDragOver(true);
+              }
+            }}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes("Files")) {
+                e.preventDefault();
+              }
+            }}
+            onDragLeave={(e) => {
+              if (e.currentTarget === e.target) setNewDragOver(false);
+            }}
+            onDrop={(e) => {
+              if (e.dataTransfer.files.length > 0) {
+                e.preventDefault();
+                setNewDragOver(false);
+                stageFiles({ kind: "new" }, Array.from(e.dataTransfer.files));
+              }
+            }}
+          >
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[13.5px] font-semibold text-t1">
                 New conversation with {patient.demographic.full_name}
@@ -799,44 +1057,149 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
               onChange={(e) => setNewBody(e.target.value)}
               rows={5}
               maxLength={10_000}
-              placeholder="Write your message…"
+              placeholder="Write your message… (drop files anywhere to attach)"
               disabled={creating}
               className="w-full text-[12.5px] border border-bdr rounded-md px-3 py-2 bg-page-bg text-t1 placeholder:text-t3 focus:outline-none focus:border-brand resize-y disabled:opacity-50"
+            />
+            <AttachmentChips
+              items={newAttachments}
+              onRemove={(cid) => removeAttachment({ kind: "new" }, cid)}
+              disabled={creating}
             />
             {newError && (
               <p className="mt-2 text-[11px] text-err flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" /> {newError}
               </p>
             )}
-            <div className="mt-3 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setNewOpen(false)}
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <AttachmentPickerButton
+                onPick={(files) => stageFiles({ kind: "new" }, files)}
                 disabled={creating}
-                className="px-3 py-1.5 text-[12px] text-t2 hover:text-t1"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleCreateConversation()}
-                disabled={creating || !newBody.trim()}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {creating ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-3.5 h-3.5" /> Send message
-                  </>
-                )}
-              </button>
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewOpen(false)}
+                  disabled={creating}
+                  className="px-3 py-1.5 text-[12px] text-t2 hover:text-t1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCreateConversation()}
+                  disabled={
+                    creating ||
+                    !newBody.trim() ||
+                    newAttachments.some((a) => a.isUploading)
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {creating ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" /> Send message
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// ── Attachment sub-components ────────────────────────────────────────────────
+// Kept inside this file (not extracted to its own module) because they're only
+// useful in the context of the Intercom compose flow and depend on the
+// StagedAttachment shape defined above.
+
+function AttachmentPickerButton({
+  onPick,
+  disabled,
+}: {
+  onPick: (files: File[]) => void;
+  disabled?: boolean;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={ref}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            onPick(Array.from(e.target.files));
+            // Reset so picking the same file again still fires onChange.
+            e.target.value = "";
+          }
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        disabled={disabled}
+        className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-t2 hover:text-brand border border-bdr hover:border-brand/40 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Paperclip className="w-3 h-3" /> Attach
+      </button>
+    </>
+  );
+}
+
+function AttachmentChips({
+  items,
+  onRemove,
+  disabled,
+}: {
+  items: StagedAttachment[];
+  onRemove: (clientId: string) => void;
+  disabled?: boolean;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <ul className="mt-2 flex flex-wrap gap-1.5">
+      {items.map((a) => (
+        <li
+          key={a.clientId}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] ${
+            a.error
+              ? "bg-err-bg border-err-bdr text-err"
+              : a.isUploading
+              ? "bg-page-bg border-bdr text-t3"
+              : "bg-brand/10 border-brand/30 text-t1"
+          }`}
+        >
+          {a.isUploading ? (
+            <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+          ) : a.error ? (
+            <AlertTriangle className="w-3 h-3 shrink-0" />
+          ) : (
+            <FileText className="w-3 h-3 shrink-0" />
+          )}
+          <span className="truncate max-w-[180px]" title={a.name}>{a.name}</span>
+          <span className="text-t3">{formatBytes(a.size)}</span>
+          {a.error && (
+            <span className="text-err/90" title={a.error}>· failed</span>
+          )}
+          <button
+            type="button"
+            onClick={() => onRemove(a.clientId)}
+            disabled={disabled}
+            aria-label={`Remove ${a.name}`}
+            className="ml-0.5 text-t3 hover:text-err disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

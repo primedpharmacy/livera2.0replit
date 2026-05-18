@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
+    "@workspace/db": "workspace:*",
     "@radix-ui/react-dialog": "catalog:",
     "@radix-ui/react-dropdown-menu": "catalog:",
     "@radix-ui/react-label": "catalog:",

@@ -18,6 +18,7 @@ import { notifyPatient } from '@/lib/integrations/patientNotify'; // Task-49 + T
 import { sendPatientEmail, sendStaffEmail } from '@/lib/integrations/postmark'; // Task-80 / Task-78
 import { randomBytes } from 'crypto';
 import { evaluateSelfReportedBmi, filterSelfReportedBmiFlag, SELF_REPORTED_BMI_FLAG } from '@/lib/clinical/selfReportedBmi'; // Task-163
+import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 // ---------------------------------------------------------------------------
 // Seeds
@@ -568,6 +569,23 @@ export async function decideOrder(
     timestamp: NOW,
   });
 
+  // Task-167 — durable spine: double-write the success line above into
+  // the audit_events table so the order's Activity tab and global Activity
+  // page can render the decision without scraping the rotating pino log.
+  void recordAudit({
+    clinic_id,
+    actor: CURRENT_USER,
+    entity: { type: 'order', id },
+    event_type: `order_${decision}`,
+    summary: `Order ${id} ${decision} by ${CURRENT_USER.full_name}.`,
+    after: {
+      decision,
+      new_status: o.status,
+      rationale,
+      intervention_raised_at: o.intervention_raised_at,
+    },
+  });
+
   // CLARIFY-1 (Wave 5) — Auto-trigger GP letter on order approval (DEC-22 §8).
   // "Letter enters Owed queue when AND ONLY WHEN: patient consented + first treatment approved."
   // createGPLetter is the single source of truth for DEC-22 lifecycle classification.
@@ -588,6 +606,14 @@ export async function decideOrder(
         lifecycle_status: letter.lifecycle_status,
         actor_id: CURRENT_USER.id,
         timestamp: NOW,
+      });
+      void recordAudit({
+        clinic_id,
+        actor: 'system',
+        entity: { type: 'gp_letter', id: letter.id },
+        event_type: 'gp_letter_auto_triggered',
+        summary: `GP letter ${letter.id} auto-triggered by approval of ${id}.`,
+        after: { lifecycle_status: letter.lifecycle_status, anchor_order_id: id },
       });
     } catch (err) {
       console.log('[AUDIT]', {
@@ -676,6 +702,15 @@ export async function reverseDecision(
     reason,
     timestamp: NOW,
   });
+  void recordAudit({
+    clinic_id,
+    actor: CURRENT_USER,
+    entity: { type: 'order', id },
+    event_type: 'clinical_decision_reversed',
+    summary: `Decision (${priorDecision}) reversed on ${id} by ${CURRENT_USER.full_name}.`,
+    before: { decision: priorDecision, rationale: priorRationale ?? null },
+    after: { status: 'clinical_check' },
+  });
 
   const sideEffects: ReverseDecisionResult['side_effects'] = {
     gp_letter_cancelled_id: null,
@@ -717,6 +752,15 @@ export async function reverseDecision(
         new_lifecycle_status: 'cancelled',
         actor_id: CURRENT_USER.id,
         timestamp: NOW,
+      });
+      void recordAudit({
+        clinic_id,
+        actor: CURRENT_USER,
+        entity: { type: 'gp_letter', id: autoLetter.id },
+        event_type: 'gp_letter_cancelled',
+        summary: `GP letter ${autoLetter.id} auto-cancelled (approval of ${id} reversed).`,
+        before: { lifecycle_status: oldLifecycle },
+        after: { lifecycle_status: 'cancelled', reason: 'approval_reversed' },
       });
     }
 
@@ -1841,6 +1885,25 @@ export async function attachPxUpload(
   order.contextual_flags = Array.from(flags);
   order.updated_at = NOW;
 
+  void recordAudit({
+    clinic_id,
+    actor: actorUserId
+      ? { id: actorUserId, role: actorSource === 'staff_upload' ? 'Admin' : 'patient' }
+      : 'system',
+    entity: { type: 'order', id: order_id },
+    event_type: 'px_upload_attached',
+    summary: `Prescription upload ${isReplacement ? 'replaced' : 'attached'} to ${order_id} (${upload.filename}).`,
+    before: isReplacement && priorUpload
+      ? { filename: priorUpload.filename, size: priorUpload.size }
+      : null,
+    after: {
+      filename: upload.filename,
+      size: upload.size,
+      content_type: upload.content_type,
+      source: actorSource,
+    },
+  });
+
   console.log('[AUDIT]', {
     event_type: 'px_upload_result',
     outcome: 'success',
@@ -2109,6 +2172,19 @@ export async function cancelOrder(
       order_id,
       user_id: CURRENT_USER.id,
       timestamp: NOW,
+    });
+    void recordAudit({
+      clinic_id,
+      actor: CURRENT_USER,
+      entity: { type: 'order', id: order_id },
+      event_type: 'order_cancelled',
+      summary: `Order ${order_id} cancelled by ${CURRENT_USER.full_name} (no charge taken).`,
+      before: { status: 'approved', amount_charged: null },
+      after: {
+        status: 'cancelled',
+        reason: reason.trim(),
+        release_auth_failed: releaseAuthFailed?.message ?? null,
+      },
     });
 
     // Task-49 / Task-65 — auth-release branch: notify the patient that the

@@ -10,6 +10,7 @@ import { MOCK_ORDERS } from './orders';
 import { MOCK_PATIENTS } from './patients';
 import { refundPayment } from '@/lib/integrations/ryft';
 import { notifyPatient } from '@/lib/integrations/patientNotify';
+import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 export const MOCK_AMENDMENTS: Amendment[] = [
   {
@@ -150,6 +151,14 @@ export async function decideAmendment(
     user_id: CURRENT_USER.id,
     timestamp: new Date().toISOString(),
   });
+  void recordAudit({
+    clinic_id,
+    actor: CURRENT_USER,
+    entity: { type: 'amendment', id },
+    event_type: `amendment_${decision}`,
+    summary: `Amendment ${id} ${decision} by ${CURRENT_USER.full_name}.`,
+    after: { decision, type: a.type, order_id: a.order_id, rationale },
+  });
 
   return a;
 }
@@ -238,6 +247,14 @@ export async function processRefundAmendment(
       user_id: CURRENT_USER.id,
       timestamp: NOW,
     });
+    void recordAudit({
+      clinic_id,
+      actor: CURRENT_USER,
+      entity: { type: 'amendment', id: amendment_id },
+      event_type: 'refund_rejected',
+      summary: `Refund ${amendment_id} rejected by ${CURRENT_USER.full_name}.`,
+      after: { decision: 'rejected', order_id: a.order_id, rationale: input.rationale.trim() },
+    });
     return a;
   }
 
@@ -282,6 +299,20 @@ export async function processRefundAmendment(
     refunded_amount_gbp: input.amount_gbp,
     ryft_refund_ref: result.ryft_refund_ref,
     timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor: CURRENT_USER,
+    entity: { type: 'amendment', id: amendment_id },
+    event_type: 'refund_issued',
+    summary: `Refund of £${input.amount_gbp.toFixed(2)} issued on ${a.order_id} by ${CURRENT_USER.full_name}.`,
+    after: {
+      order_id: a.order_id,
+      refund_type: input.refund_type,
+      refund_reason_code: input.reason,
+      refunded_amount_gbp: input.amount_gbp,
+      ryft_refund_ref: result.ryft_refund_ref,
+    },
   });
 
   // Task-49 / Task-65 — notify the patient that a refund has been processed.

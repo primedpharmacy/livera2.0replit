@@ -18,7 +18,6 @@ import { CoachingLogTab } from "@/components/patients/CoachingLogTab";
 import { PatientNotesTimeline } from "@/components/timeline/PatientNotesTimeline";
 import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
 import { PatientFABSpeedDial } from "@/components/patients/PatientFABSpeedDial";
-import { PatientQueueNav } from "@/components/patients/PatientQueueNav";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
 import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
@@ -178,7 +177,6 @@ async function ProfileContent({
           <Link href={`/${clinicId}/patients`} className="flex items-center gap-1 hover:text-brand transition-colors">
             <ArrowLeft className="w-3 h-3" /> Patients
           </Link>
-          <PatientQueueNav clinicId={clinicId} patientId={patientId} />
           <ChevronRight className="w-3 h-3" />
           <span className="text-t1 font-medium">{patient.demographic.full_name}</span>
         </div>

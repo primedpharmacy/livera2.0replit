@@ -21,6 +21,7 @@
 import type { ClinicId, GPLetter } from '../types';
 import { NOW, delay, APIError, CURRENT_USER } from '../constants';
 import { MOCK_PATIENTS } from './patients';
+import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 // Consent lookup constant — matches clinic_config.consents seed (consent_id: 'consent_gp').
 // TODO V1.2: Replace with slug-based lookup. Current logic checks patient.consents_given
@@ -506,6 +507,15 @@ export async function cancelGPLetter(
     new_lifecycle_status: 'cancelled',
     cancel_reason,
     timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor: CURRENT_USER,
+    entity: { type: 'gp_letter', id },
+    event_type: 'gp_letter_cancelled',
+    summary: `GP letter ${id} cancelled by ${CURRENT_USER.full_name}.`,
+    before: { lifecycle_status: oldLifecycle },
+    after: { lifecycle_status: 'cancelled', cancel_reason },
   });
 
   return g;

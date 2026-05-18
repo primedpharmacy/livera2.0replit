@@ -12,6 +12,7 @@
 import type { ClinicId, Patient } from '../types';
 import { delay, APIError, CURRENT_USER, NOW, USERS_REGISTRY } from '../constants';
 import { can } from '@/lib/permissions';
+import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 // ── Task-103 — preferred-channel change log ──────────────────────────────────
 // In-memory projection of the [AUDIT] stream already emitted by
@@ -661,6 +662,15 @@ export async function updatePatientPreferredChannel(
     phone_on_file: !!patient.contact.phone,
     timestamp: NOW,
   });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_preferred_channel_updated',
+    summary: `Preferred channel for ${patient_id} changed from ${previous_channel} to ${preferred_channel}.`,
+    before: { preferred_channel: previous_channel },
+    after: { preferred_channel },
+  });
 
   // Task-103 — project the same success record into the in-memory change log
   // so the per-patient Notification log can show an inline breadcrumb. This
@@ -845,5 +855,20 @@ export async function purgePatientData(
     legal_gateway: 'UK Equality Act 2010 Sch 3 Para 27',
     primed_api_purge: 'PENDING — V1.2 concern (requires Yohan backend wiring)',
     timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_data_purged',
+    summary: `Patient ${patient_id} data purged from Livera mirror by ${actor.full_name} (GDPR Art 5(1)(c)).`,
+    // Deliberately no PII payload — just the audit-safe metadata that
+    // already lives in the pino line above.
+    after: {
+      patient_name_hash: patient.demographic.full_name.length,
+      legal_basis: 'UK GDPR Art 5(1)(c)',
+      legal_gateway: 'UK Equality Act 2010 Sch 3 Para 27',
+      primed_api_purge: 'PENDING',
+    },
   });
 }

@@ -15,6 +15,7 @@ import type { ClinicId, ClinicalNote } from '../types';
 import { delay, APIError, scopedToClinic, CURRENT_USER, NOW } from '../constants';
 import { getClinicSync } from './clinics';
 import { can } from '@/lib/permissions';
+import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 // ---------------------------------------------------------------------------
 // Seeds — 13 notes across both clinics
@@ -436,6 +437,20 @@ export async function createClinicalNote(
     prompt_version: note.ai_prompt_version_id,
     timestamp:      NOW,
   });
+  void recordAudit({
+    clinic_id: clinicId,
+    actor: CURRENT_USER,
+    entity: { type: 'clinical_note', id: note.id },
+    event_type: 'clinical_note_created',
+    summary: `Clinical note ${note.id} created for ${note.patient_id} by ${CURRENT_USER.full_name}.`,
+    after: {
+      patient_id: note.patient_id,
+      order_id: note.order_id,
+      approval_gate_for_order_id: note.approval_gate_for_order_id,
+      body_length: note.body.length,
+      ai_drafted: note.ai_drafted,
+    },
+  });
 
   return note;
 }
@@ -514,6 +529,19 @@ export async function updateClinicalNote(
     prompt_version: updated.ai_prompt_version_id,
     edits_count:    updated.ai_draft_edits.length,
     timestamp:      NOW,
+  });
+  void recordAudit({
+    clinic_id: clinicId,
+    actor: CURRENT_USER,
+    entity: { type: 'clinical_note', id: noteId },
+    event_type: eventType,
+    summary: `Clinical note ${noteId} updated by ${CURRENT_USER.full_name}.`,
+    before: { body_length: existing.body.length, edit_count: existing.edit_history.length },
+    after: {
+      body_length: updated.body.length,
+      edit_count: updated.edit_history.length,
+      ai_drafted: updated.ai_drafted,
+    },
   });
 
   return updated;

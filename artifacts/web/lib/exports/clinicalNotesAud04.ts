@@ -13,6 +13,7 @@
 
 import type { ClinicalNote, ClinicId, User } from '@/lib/api/types';
 import { APIError, NOW } from '@/lib/api/constants';
+import { clinicalNoteExportStatus } from './clinicalNoteSerializer';
 
 function escapeCsv(value: string | number | boolean | null): string {
   const s = String(value ?? '');
@@ -21,7 +22,10 @@ function escapeCsv(value: string | number | boolean | null): string {
     : s;
 }
 
-const HEADER = 'note_id,patient_id,author,role,created_at,order_id,body_length,ai_drafted,has_edits,reversed_at,reversed_by_user_id';
+// Task-230 — added `status` column ('active' | 'reversed') so the AUD-04
+// CSV carries the reversed marker as a first-class, filterable field
+// alongside the existing reversed_at / reversed_by_user_id columns.
+const HEADER = 'note_id,patient_id,author,role,created_at,order_id,body_length,ai_drafted,has_edits,status,reversed_at,reversed_by_user_id';
 
 export function exportClinicalNotesAud04(
   notes: ClinicalNote[],
@@ -76,6 +80,9 @@ export function exportClinicalNotesAud04(
       n.edit_history.length > 0,
       // Task-154 — surface reversal so auditors can see which notes are no
       // longer authoritative (set by reverseDecision when an approval is undone).
+      // Task-230 — added `status` column for first-class filtering; the raw
+      // timestamp + reviewer id columns are retained for traceability.
+      clinicalNoteExportStatus(n),
       n.reversed_at ?? '',
       n.reversed_by_user_id ?? '',
     ]

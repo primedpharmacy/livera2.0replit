@@ -30,8 +30,11 @@ import {
   createGPLetter,
   sendGPLetter,
   cancelGPLetter,
+  listClinicalNotes,
+  listTeamMembers,
 } from '@/lib/api/mock';
-import type { ClinicId, GPLetter } from '@/lib/api/types';
+import { userNameLookupFromUsers } from '@/lib/exports/clinicalNoteSerializer';
+import type { ClinicalNote, ClinicId, GPLetter } from '@/lib/api/types';
 
 type CreateGPLetterPayload = Parameters<typeof createGPLetter>[1];
 
@@ -69,6 +72,28 @@ export async function sendGPLetterAction(
     throw new Error('No GP email address on record for this patient');
   }
 
+  // Task-230 — Quote only the clinical rationale that explicitly anchored
+  // this letter. For auto-triggered letters that means the approval-gate
+  // note for `anchor_order_id`; for manually composed letters (no anchor)
+  // nothing is auto-attached, so we never leak unrelated internal notes
+  // into outbound GP correspondence. Whatever IS quoted flows through
+  // `serializeClinicalNoteForExport`, so reversed notes carry the
+  // "[REVERSED on …]" marker and a GP cannot act on undone rationale.
+  // Templates opt in by referencing `{{clinical_notes}}`; passing notes
+  // is a no-op for templates that don't.
+  let quotedNotes: ClinicalNote[] = [];
+  if (letter.anchor_order_id) {
+    const allNotes = await listClinicalNotes(clinicId, {
+      patient_id: letter.patient_id,
+      order_id:   letter.anchor_order_id,
+    });
+    quotedNotes = allNotes.filter(
+      (n) => n.approval_gate_for_order_id === letter.anchor_order_id,
+    );
+  }
+  const teamMembers = await listTeamMembers(clinicId);
+  const userNameLookup = userNameLookupFromUsers(teamMembers);
+
   // Step 1 — Generate PDF
   const pdfResult = await generateGpLetterPdf({
     template:        letter.body,
@@ -76,6 +101,8 @@ export async function sendGPLetterAction(
     order:           null,
     clinic,
     prescriber_name: actor.full_name,
+    quoted_clinical_notes: quotedNotes,
+    user_name_lookup:      userNameLookup,
   });
 
   // Step 2 — Send via Postmark (or mock)

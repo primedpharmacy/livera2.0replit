@@ -126,7 +126,7 @@ export default function ExportsPage() {
 
           <div className="text-[11px] text-t3 border-t border-bdr pt-3">
             <p className="font-semibold mb-1">CSV columns:</p>
-            <p className="font-mono">note_id, patient_id, author, role, created_at, order_id, body_length, ai_drafted, has_edits</p>
+            <p className="font-mono">note_id, patient_id, author, role, created_at, order_id, body_length, ai_drafted, has_edits, status, reversed_at, reversed_by_user_id</p>
           </div>
         </div>
       </div>

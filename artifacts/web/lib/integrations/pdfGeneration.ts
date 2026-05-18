@@ -21,8 +21,12 @@
  */
 
 import PDFDocument from 'pdfkit';
-import type { Patient, Order, Clinic } from '@/lib/api/types';
+import type { Patient, Order, Clinic, ClinicalNote } from '@/lib/api/types';
 import { APIError, NOW } from '@/lib/api/constants';
+import {
+  serializeClinicalNoteForExport,
+  type UserNameLookup,
+} from '@/lib/exports/clinicalNoteSerializer';
 
 export type GpLetterPdfInput = {
   /** The pdf_letter_template string with {{variable}} placeholders */
@@ -32,6 +36,24 @@ export type GpLetterPdfInput = {
   clinic: Clinic;
   /** Display name of the prescriber who is signing the letter */
   prescriber_name: string;
+  /**
+   * Task-230 — Clinical notes quoted in the letter as supporting
+   * rationale. Each note is serialised via `serializeClinicalNoteForExport`
+   * so reversed notes carry a "[REVERSED on <date> by <clinician>] …"
+   * marker — preventing recipients from acting on rationale that has
+   * since been undone. Defaults to `[]` (no quoted notes).
+   *
+   * Substituted into the `{{clinical_notes}}` template variable. Templates
+   * that don't reference the variable produce no quoted-notes section
+   * (current behaviour); templates that do will render a bulleted block
+   * with the reversed marker applied per note.
+   */
+  quoted_clinical_notes?: ClinicalNote[];
+  /**
+   * Optional id → display-name lookup so the reversal annotation can
+   * name the clinician. Falls back to the raw user id when missing.
+   */
+  user_name_lookup?: UserNameLookup;
 };
 
 export type GpLetterPdfResult = {
@@ -79,6 +101,23 @@ function todayFormatted(): string {
 // requires inline formatting, migrate to HTML-to-PDF (puppeteer
 // + @sparticuz/chromium) with the bundle-size and NixOS-deploy
 // trade-off accepted.
+/**
+ * Render the supplied clinical notes as a bulleted block. Reversed notes
+ * carry a "[REVERSED on <date> by <clinician>] …" marker so a GP reading
+ * the letter cannot mistake undone rationale for current clinical
+ * reasoning (Task-230).
+ *
+ * Returns an empty string when no notes are quoted, so callers can safely
+ * substitute the {{clinical_notes}} variable in any template.
+ */
+export function renderQuotedClinicalNotes(input: GpLetterPdfInput): string {
+  const notes = input.quoted_clinical_notes ?? [];
+  if (notes.length === 0) return '';
+  return notes
+    .map((n) => `• ${serializeClinicalNoteForExport(n, input.user_name_lookup)}`)
+    .join('\n');
+}
+
 function substituteVariables(
   template: string,
   input: GpLetterPdfInput,
@@ -94,7 +133,10 @@ function substituteVariables(
     ? `Order ${order.id}: ${order.product.medication} ${order.product.dose} — status: ${order.status}`
     : 'Treatment record on file';
 
+  const clinicalNotesBlock = renderQuotedClinicalNotes(input);
+
   return template
+    .replace(/\{\{clinical_notes\}\}/g, clinicalNotesBlock)
     .replace(/\{\{patient_name\}\}/g, patient.demographic.full_name)
     .replace(/\{\{patient_dob\}\}/g, formatDob(patient.demographic.dob))
     .replace(/\{\{patient_address\}\}/g, addressLine)

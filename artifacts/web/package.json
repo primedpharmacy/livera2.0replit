@@ -15,14 +15,15 @@
     "test:visual:update": "playwright test cancelRefundFlow.visual --update-snapshots"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.3.5",
     "@google-cloud/storage": "^7.19.0",
-    "@workspace/db": "workspace:*",
     "@radix-ui/react-dialog": "catalog:",
     "@radix-ui/react-dropdown-menu": "catalog:",
     "@radix-ui/react-label": "catalog:",
     "@radix-ui/react-select": "catalog:",
     "@radix-ui/react-slot": "catalog:",
     "@radix-ui/react-tabs": "catalog:",
+    "@workspace/db": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "date-fns": "catalog:",

@@ -88,7 +88,16 @@ export function NotificationRow({
           full error is preserved in the `title` tooltip when truncated.
           The retry pill is shown independently of `last_error` so a Failed
           row with a future `next_retry_at` still surfaces the countdown
-          even when no error string was captured. */}
+          even when no error string was captured.
+
+          Task-208 — for SMS rows specifically, the raw Twilio reason
+          ("Unreachable destination handset (Twilio 30003)") is too verbose
+          for an at-a-glance scan. Show a short friendly summary inline
+          ("Unreachable handset") and keep the raw Twilio string in the
+          `title` tooltip so the carrier code is still recoverable on hover.
+          Email rows continue to render the raw `last_error` inline — their
+          retry/error UI (Postmark codes, retry budget pill) is already
+          dialled in and doesn't need a synonym layer. */}
       {(() => {
         const showError = (n.status === "Failed" || n.status === "Bounced") && !!n.last_error;
         const autoRetryIn =
@@ -96,6 +105,10 @@ export function NotificationRow({
             ? formatAutoRetryIn(n.next_retry_at, NOW)
             : null;
         if (!showError && !autoRetryIn) return null;
+        const inlineErrorText =
+          n.channel === "SMS" && n.last_error
+            ? formatSmsCarrierReason(n.last_error)
+            : n.last_error;
         return (
           <div className="mt-1.5 flex items-start gap-2 text-[11px] text-err leading-relaxed">
             {showError ? (
@@ -105,7 +118,7 @@ export function NotificationRow({
                   className="truncate min-w-0 flex-1"
                   title={n.last_error ?? undefined}
                 >
-                  <span className="font-semibold">Error:</span> {n.last_error}
+                  <span className="font-semibold">Error:</span> {inlineErrorText}
                 </span>
               </>
             ) : (
@@ -200,6 +213,43 @@ function formatAutoRetryIn(iso: string, nowIso: string): string | null {
   if (hr < 24) return `in ${hr} h`;
   const d = Math.floor(hr / 24);
   return `in ${d} d`;
+}
+
+// Task-208 — short, scannable summaries for Twilio carrier failure reasons.
+// The raw `last_error` recorded by the Twilio status callback is verbose
+// (e.g. "Unreachable destination handset (Twilio 30003)") and carries the
+// numeric code suffix that clinicians don't need at-a-glance. This mapper
+// extracts the Twilio code and returns a 1–3 word friendly summary plus
+// (where useful) the staff action implied by the failure mode. The raw
+// string stays in the row's tooltip so the carrier code is recoverable
+// on hover — we only swap what's *visible inline*.
+//
+// Falls back to the raw error string when no mapping matches, so an
+// unfamiliar carrier code still surfaces something useful instead of
+// silently disappearing.
+const TWILIO_REASON_SUMMARIES: Record<string, string> = {
+  '30001': 'Carrier queue overflow',
+  '30002': 'Twilio account suspended',
+  '30003': 'Unreachable handset',
+  '30004': 'Message blocked by handset',
+  '30005': 'Unknown handset',
+  '30006': 'Landline or unreachable carrier',
+  '30007': 'Blocked by carrier (spam filter)',
+  '30008': 'Unknown carrier error',
+  '21610': 'Recipient opted out',
+  '21614': 'Invalid mobile number',
+  '21408': 'SMS not enabled for this region',
+  '21612': 'Number cannot receive SMS',
+};
+
+export function formatSmsCarrierReason(rawError: string): string {
+  // Match "(Twilio 30003)" or trailing "30003" / "Twilio 30003".
+  const match = rawError.match(/\b(?:Twilio\s+)?(\d{4,5})\b/i);
+  if (match) {
+    const summary = TWILIO_REASON_SUMMARIES[match[1]];
+    if (summary) return summary;
+  }
+  return rawError;
 }
 
 // Task-132 — staff-facing copy for the `email_envelope_unavailable_reason`

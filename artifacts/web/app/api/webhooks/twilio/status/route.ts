@@ -44,6 +44,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   verifyTwilioSignature,
   mapTwilioCallbackStatus,
+  hasRecentlyProcessedTwilioCallback,
+  markTwilioCallbackProcessed,
 } from '@/lib/integrations/sms';
 import { applyTwilioStatusCallback } from '@/lib/api/fixtures/patientNotifications';
 import { NOW } from '@/lib/api/constants';
@@ -100,6 +102,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, reason: 'missing_message_sid' }, { status: 200 });
   }
 
+  // Task-207: short-circuit duplicate retries before we touch the fixture
+  // store or emit a notification_updated audit line. We've already verified
+  // the signature for this exact (SID, status) within the TTL window, so a
+  // replay is just Twilio nagging us — answer 200 quietly and move on.
+  if (messageStatus && hasRecentlyProcessedTwilioCallback(messageSid, messageStatus)) {
+    console.log('[TWILIO_STATUS]', {
+      action: 'duplicate_callback_short_circuited',
+      message_sid: messageSid,
+      message_status: messageStatus,
+    });
+    return NextResponse.json(
+      { ok: true, ignored: 'duplicate_callback' },
+      { status: 200 },
+    );
+  }
+
   const mapped = mapTwilioCallbackStatus(messageStatus, errorCode);
   if (mapped === null) {
     // Intermediate state (queued / sending / sent / accepted). Acknowledge
@@ -109,6 +127,10 @@ export async function POST(request: NextRequest) {
       message_sid: messageSid,
       message_status: messageStatus,
     });
+    // Cache intermediates too so Twilio retrying e.g. 'sent' five times in
+    // a row doesn't re-emit five 'intermediate_ignored' lines. Safe because
+    // the dedupe key includes status, so a later 'delivered' still passes.
+    markTwilioCallbackProcessed(messageSid, messageStatus);
     return NextResponse.json(
       { ok: true, ignored: 'intermediate_status', message_status: messageStatus },
       { status: 200 },
@@ -137,6 +159,9 @@ export async function POST(request: NextRequest) {
       message_status: messageStatus,
       timestamp: NOW,
     });
+    // Cache the orphan too — Twilio will retry the same unknown SID otherwise
+    // and we'd re-emit the orphan audit line on every attempt.
+    markTwilioCallbackProcessed(messageSid, messageStatus);
     return NextResponse.json(
       { ok: true, ignored: 'no_matching_notification' },
       { status: 200 },
@@ -149,6 +174,8 @@ export async function POST(request: NextRequest) {
     message_sid: messageSid,
     new_status: updated.status,
   });
+
+  markTwilioCallbackProcessed(messageSid, messageStatus);
 
   return NextResponse.json(
     { ok: true, notification_id: updated.id, status: updated.status },

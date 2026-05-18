@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Keep server-only packages out of client/edge bundles. `pg` (and
+  // its transitive deps) require Node built-ins like `fs`/`net`/`dns`
+  // which webpack cannot resolve when bundling for the browser. This
+  // happens because `lib/api/audit.ts` (used by shell components)
+  // imports `@workspace/db` which imports `pg`.
+  serverExternalPackages: ['pg', 'pg-connection-string', '@workspace/db'],
   experimental: {
     serverMinification: false,
   },

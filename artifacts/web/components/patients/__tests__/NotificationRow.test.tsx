@@ -1,11 +1,17 @@
 /**
- * NotificationRow — Task-199.
+ * NotificationRow — Task-199 / Task-208.
  *
  * Pins the contract that Bounced/Failed SMS rows surface the Twilio carrier
  * reason BOTH inline AND as a tooltip on the status chip — the behaviour
  * originally added in Task-137 and now reused on any consumer of the shared
  * renderer (per-patient log + order-level panel). A future refactor must
  * not silently drop either surface.
+ *
+ * Task-208 evolved the inline text to a short friendly summary
+ * (e.g. "Unreachable handset") so clinicians can scan the log without
+ * parsing carrier codes; the raw Twilio string stays in the wrapping span's
+ * `title` tooltip AND on the status-chip tooltip so the code is recoverable
+ * on hover. Email rows continue to render their raw `last_error` inline.
  */
 
 import React from 'react';
@@ -67,9 +73,9 @@ describe('NotificationRow — carrier reason surfacing', () => {
       'Unreachable destination handset (Twilio 30003)',
     );
 
-    // Inline "Error: …" block surfaces the same reason as readable text,
-    // with the full error preserved in a title attribute on the wrapping span
-    // (so the reason is recoverable even when truncated).
+    // Task-208 — inline shows a short friendly summary ("Unreachable handset")
+    // mapped from Twilio code 30003, while the raw carrier string remains in
+    // the wrapping span's `title` tooltip so the code is recoverable on hover.
     const errorLabel = screen.getByText(/Error:/);
     expect(errorLabel).toBeInTheDocument();
     const inlineSpan = errorLabel.parentElement as HTMLElement | null;
@@ -78,9 +84,10 @@ describe('NotificationRow — carrier reason surfacing', () => {
       'title',
       'Unreachable destination handset (Twilio 30003)',
     );
-    expect(inlineSpan).toHaveTextContent(
-      /Unreachable destination handset \(Twilio 30003\)/,
-    );
+    expect(inlineSpan).toHaveTextContent(/Unreachable handset/);
+    // The raw Twilio suffix must NOT clutter the visible inline text — it's
+    // hover-only now.
+    expect(inlineSpan?.textContent ?? '').not.toMatch(/Twilio 30003/);
   });
 
   it('also surfaces the carrier reason for a Failed SMS', () => {
@@ -102,8 +109,50 @@ describe('NotificationRow — carrier reason surfacing', () => {
       'title',
       'Landline or unreachable carrier (Twilio 30006)',
     );
+    // Friendly summary inline (Twilio 30006 → "Landline or unreachable carrier")
+    // — happens to match the raw prefix, but the visible text drops the
+    // "(Twilio 30006)" suffix.
+    const errorLabel = screen.getByText(/Error:/);
+    const inlineSpan = errorLabel.parentElement as HTMLElement | null;
+    expect(inlineSpan).toHaveTextContent(/Landline or unreachable carrier/);
+    expect(inlineSpan?.textContent ?? '').not.toMatch(/Twilio 30006/);
+  });
+
+  it('falls back to the raw error string when no Twilio code is recognised', () => {
+    const row = makeRow({
+      status: 'Failed',
+      last_error: 'Carrier returned an unexpected response',
+    });
+    render(
+      <NotificationRow
+        notification={row}
+        clinicId="feeltru"
+        canResend={false}
+        onResend={noopResend}
+      />,
+    );
     expect(
-      screen.getByText(/Landline or unreachable carrier \(Twilio 30006\)/),
+      screen.getByText(/Carrier returned an unexpected response/),
+    ).toBeInTheDocument();
+  });
+
+  it('renders the raw last_error inline for Email rows (no friendly mapping)', () => {
+    const row = makeRow({
+      channel: 'Email',
+      status: 'Failed',
+      last_error: 'Postmark 504: upstream timeout while accepting message',
+      payload: {},
+    });
+    render(
+      <NotificationRow
+        notification={row}
+        clinicId="feeltru"
+        canResend={false}
+        onResend={noopResend}
+      />,
+    );
+    expect(
+      screen.getByText(/Postmark 504: upstream timeout while accepting message/),
     ).toBeInTheDocument();
   });
 

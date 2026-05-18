@@ -25,16 +25,26 @@ import { test, expect } from '@playwright/test';
 const CLINIC = 'feeltru';
 const PATIENT_ID = 'PT-00198';
 
+// Task-208 — `rawReason` is the raw Twilio string stored on the row's
+// `last_error` / `payload.sms_error_message`; it stays on the status-chip
+// tooltip and the inline span's `title`. `inlineSummary` is the short
+// friendly label clinicians see at-a-glance (mapped from the Twilio code
+// suffix). The visible inline text must contain `inlineSummary` and must
+// NOT contain the verbose "Twilio NNNNN" suffix.
 const SMS_ROWS = [
   {
     id: 'NOTIF-004',
     status: 'Bounced',
-    reason: 'Unreachable destination handset (Twilio 30003)',
+    rawReason: 'Unreachable destination handset (Twilio 30003)',
+    inlineSummary: 'Unreachable handset',
+    twilioCodeSuffix: 'Twilio 30003',
   },
   {
     id: 'NOTIF-005',
     status: 'Failed',
-    reason: 'Landline or unreachable carrier (Twilio 30006)',
+    rawReason: 'Landline or unreachable carrier (Twilio 30006)',
+    inlineSummary: 'Landline or unreachable carrier',
+    twilioCodeSuffix: 'Twilio 30006',
   },
 ] as const;
 
@@ -51,7 +61,7 @@ test.describe('SMS carrier-failure surface — per-patient Notification log', ()
     // care about, so subsequent per-row assertions don't race against SSR.
     await expect(page.getByTestId(`notification-row-${SMS_ROWS[0].id}`)).toBeVisible();
 
-    for (const { id, status, reason } of SMS_ROWS) {
+    for (const { id, status, rawReason, inlineSummary, twilioCodeSuffix } of SMS_ROWS) {
       // Strict row scoping: only elements inside THIS row are considered.
       const row = page.getByTestId(`notification-row-${id}`);
       await expect(row).toHaveCount(1);
@@ -61,29 +71,33 @@ test.describe('SMS carrier-failure surface — per-patient Notification log', ()
       await expect(row.locator('span', { hasText: id }).first()).toBeVisible();
 
       // 1) The status chip is the only span in the row with both the status
-      //    label as its visible text AND the carrier reason as `title`.
-      const statusChip = row.locator(`span[title="${reason}"]`).filter({ hasText: status });
+      //    label as its visible text AND the raw carrier reason as `title`.
+      const statusChip = row.locator(`span[title="${rawReason}"]`).filter({ hasText: status });
       await expect(statusChip).toHaveCount(1);
       await expect(statusChip).toBeVisible();
-      await expect(statusChip).toHaveAttribute('title', reason);
+      await expect(statusChip).toHaveAttribute('title', rawReason);
 
-      // 2) The carrier reason also renders inline on the row — locate the
-      //    "Error:" label inside the row and assert the carrier text sits
-      //    next to it in the same span.
+      // 2) Task-208 — the inline error block now shows a short friendly
+      //    summary (e.g. "Unreachable handset" for Twilio 30003), with the
+      //    raw Twilio string preserved as the wrapping span's `title` so
+      //    the carrier code is still recoverable on hover.
       const inlineError = row.locator('span', {
         has: page.locator('span.font-semibold', { hasText: /^Error:$/ }),
       });
       await expect(inlineError).toHaveCount(1);
-      await expect(inlineError).toContainText(reason);
+      await expect(inlineError).toContainText(inlineSummary);
+      await expect(inlineError).toHaveAttribute('title', rawReason);
+      // Visible text must NOT include the verbose "Twilio NNNNN" suffix —
+      // that's hover-only now.
+      await expect(inlineError).not.toContainText(twilioCodeSuffix);
     }
 
-    // Negative control: the carrier-reason text for NOTIF-004 must NOT
-    // appear inside the NOTIF-005 row (and vice-versa). This proves the
-    // per-row scoping is real rather than a happy accident of page-wide
-    // matching.
+    // Negative control: the friendly summary for NOTIF-004 must NOT appear
+    // inside the NOTIF-005 row (and vice-versa). This proves the per-row
+    // scoping is real rather than a happy accident of page-wide matching.
     const row004 = page.getByTestId(`notification-row-${SMS_ROWS[0].id}`);
     const row005 = page.getByTestId(`notification-row-${SMS_ROWS[1].id}`);
-    await expect(row004).not.toContainText(SMS_ROWS[1].reason);
-    await expect(row005).not.toContainText(SMS_ROWS[0].reason);
+    await expect(row004).not.toContainText(SMS_ROWS[1].inlineSummary);
+    await expect(row005).not.toContainText(SMS_ROWS[0].inlineSummary);
   });
 });

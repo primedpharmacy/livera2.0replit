@@ -1,41 +1,38 @@
 /**
- * Session middleware.
+ * Session middleware — Clerk-backed (Task-202).
  *
- * Unauthenticated workspace traffic is redirected to `/sign-in` (see
- * `app/sign-in/page.tsx` + `lib/auth/actions.ts`). Patient-facing routes
- * (e.g. `/<clinic>/intake`) and the sign-in page itself stay anonymous.
+ * Every request is wrapped in `clerkMiddleware` so Clerk's session JWT
+ * is verified centrally. After Clerk auth resolves, this middleware
+ * does the email → registry → uid lookup once per request and mints
+ * an HMAC-signed app-session cookie (`livera_session_uid`). Downstream
+ * route handlers stay fast and synchronous: they call `getSessionUser`,
+ * which only verifies the cookie — no Clerk Backend API call on every
+ * request and no dependency on `getAuth(req)` being initialised.
  *
- * Production stays as a pass-through — real auth will replace this hook
- * before going live, and we never want to accidentally redirect-loop a
- * real deployment. Today's behaviour matches what was here before for
- * `process.env.NODE_ENV === 'production'`.
+ * Workspace pages without a Clerk session redirect to `/sign-in`.
+ * Patient-facing routes and the Clerk auth pages stay reachable
+ * anonymously. API routes never redirect to HTML — they just pass
+ * through, so unauthenticated callers get a 401 from the route handler
+ * (whose `getSessionUser` returns null) instead of an HTML page.
  *
- * Critical: the matcher excludes `/api/**` so anonymous API traffic stays
- * anonymous (and 401s from the route handler) instead of being bounced to
- * an HTML sign-in page.
- *
- * Task-120 — demo persona override. Any page request carrying `?as=<uid>`
- * with `<uid>` in `DEMO_PERSONA_IDS` re-mints both the signed session
- * cookie and a non-httpOnly `livera_demo_uid` mirror cookie (so client
- * modules in `constants.ts` resolve the same persona) and 307-redirects
- * back to the original URL with the query stripped. This makes role /
- * permission negative paths reachable in Playwright via a one-step
- * `page.goto('/.../...?as=user_olwyn')`.
+ * Dev behaviour: same as prod, plus the `?as=<uid>` demo persona
+ * override (Task-120) for Playwright specs. The override mints the
+ * same HMAC-signed cookie directly. The override is gated to
+ * `NODE_ENV !== 'production'` so it never ships.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE_NAME, mintSessionCookieValue } from '@/lib/auth/session';
+import { clerkMiddleware } from '@clerk/nextjs/server';
+import { SESSION_COOKIE_NAME, mintSessionCookieValue, verifySessionCookie } from '@/lib/auth/session';
 import { DEMO_OVERRIDE_COOKIE_NAME, DEMO_PERSONA_IDS } from '@/lib/api/constants';
+import { findUserForClerkIdentity } from '@/lib/users/registry';
 
 const AS_QUERY_PARAM = 'as';
 const SIGN_IN_PATH = '/sign-in';
+const SIGN_UP_PATH = '/sign-up';
+const SIGN_OUT_PATH = '/sign-out';
 
-// Routes that must stay reachable without a session cookie. Patient-facing
-// pages live under the `(patient)` route group — today that's
-// `/<clinic>/intake` and `/<clinic>/px-upload/<token>` — and have no staff
-// identity, so they must not be bounced to the sign-in page. When a new
-// patient-facing route is added, list its URL pattern here.
-const PUBLIC_PATH_PREFIXES = [SIGN_IN_PATH];
+const PUBLIC_PATH_PREFIXES = [SIGN_IN_PATH, SIGN_UP_PATH, SIGN_OUT_PATH];
 const PUBLIC_PATH_PATTERNS = [
   /^\/[^/]+\/intake(?:\/|$)/,
   /^\/[^/]+\/px-upload(?:\/|$)/,
@@ -49,13 +46,16 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATH_PATTERNS.some((re) => re.test(pathname));
 }
 
+function isApiPath(pathname: string): boolean {
+  return pathname.startsWith('/api/');
+}
+
 function isDemoPersonaId(uid: string): boolean {
   return (DEMO_PERSONA_IDS as readonly string[]).includes(uid);
 }
 
-function setSessionCookies(response: NextResponse, uid: string) {
-  const signedCookie = mintSessionCookieValue(uid);
-  response.cookies.set(SESSION_COOKIE_NAME, signedCookie, {
+function setDemoSessionCookies(response: NextResponse, uid: string) {
+  response.cookies.set(SESSION_COOKIE_NAME, mintSessionCookieValue(uid), {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
@@ -67,53 +67,222 @@ function setSessionCookies(response: NextResponse, uid: string) {
   });
 }
 
-export function middleware(request: NextRequest) {
-  // Real auth replaces this hook before going live — until then, production
-  // is a pure pass-through so we never accidentally redirect-loop a real
-  // deployment.
-  if (process.env.NODE_ENV === 'production') {
-    return NextResponse.next();
-  }
+function setAppSessionCookie(response: NextResponse, uid: string) {
+  response.cookies.set(SESSION_COOKIE_NAME, mintSessionCookieValue(uid), {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    secure: process.env.NODE_ENV === 'production',
+  });
+}
 
+function clearAppSessionCookies(response: NextResponse) {
+  response.cookies.set(SESSION_COOKIE_NAME, '', { path: '/', maxAge: 0 });
+  response.cookies.set(DEMO_OVERRIDE_COOKIE_NAME, '', { path: '/', maxAge: 0 });
+}
+
+/**
+ * Build a `Cookie` request header with our app-session cookies removed.
+ * Critical: in Next.js middleware, mutating response cookies does NOT
+ * change the cookies the downstream route handler sees in the SAME
+ * request. To make `getSessionUser(request)` return null on the very
+ * first request after the cookie becomes stale, we have to strip the
+ * cookie from the forwarded request headers via
+ * `NextResponse.next({ request: { headers } })`.
+ */
+function buildHeadersWithoutSessionCookies(request: NextRequest): Headers {
+  const headers = new Headers(request.headers);
+  const original = headers.get('cookie');
+  if (!original) return headers;
+  const filtered = original
+    .split(';')
+    .map((p) => p.trim())
+    .filter((p) => {
+      if (!p) return false;
+      const eq = p.indexOf('=');
+      const name = (eq === -1 ? p : p.slice(0, eq)).trim();
+      return name !== SESSION_COOKIE_NAME && name !== DEMO_OVERRIDE_COOKIE_NAME;
+    })
+    .join('; ');
+  if (filtered) {
+    headers.set('cookie', filtered);
+  } else {
+    headers.delete('cookie');
+  }
+  return headers;
+}
+
+/**
+ * Pass-through response that BOTH strips the app-session cookies from
+ * the forwarded request (so the route handler's `getSessionUser`
+ * returns null on this request) AND clears them on the response (so
+ * the browser drops them for future requests).
+ */
+function nextWithoutSession(request: NextRequest): NextResponse {
+  const response = NextResponse.next({
+    request: { headers: buildHeadersWithoutSessionCookies(request) },
+  });
+  clearAppSessionCookies(response);
+  return response;
+}
+
+/**
+ * Redirect response that ALSO strips the app-session cookies from the
+ * forwarded request and clears them on the response.
+ */
+function redirectWithoutSession(request: NextRequest, target: URL): NextResponse {
+  // NextResponse.redirect doesn't take a `request` option, so we can't
+  // rewrite the forwarded request headers here. That's fine: a redirect
+  // doesn't invoke a downstream route handler — the browser issues a
+  // new request, and the cleared cookies on this response will be gone
+  // by then. We still strip from the request as a no-op for symmetry.
+  void request;
+  const response = NextResponse.redirect(target);
+  clearAppSessionCookies(response);
+  return response;
+}
+
+export default clerkMiddleware(async (auth, request: NextRequest) => {
   const url = request.nextUrl;
   const asParam = url.searchParams.get(AS_QUERY_PARAM);
 
-  // Task-120 — explicit persona override. Strip the query so the URL bar
-  // and Playwright assertions stay clean, then redirect so the browser
-  // does a fresh load with the new cookies in place.
-  if (asParam && isDemoPersonaId(asParam)) {
+  // /sign-out — always clear the local app-session cookies and pass
+  // through to the client page (which then calls Clerk.signOut() to
+  // terminate the IdP session). Critical: must run BEFORE the remint
+  // branch below, otherwise we'd resurrect the cookie on the very
+  // request that's trying to log the user out.
+  if (url.pathname === SIGN_OUT_PATH || url.pathname.startsWith(`${SIGN_OUT_PATH}/`)) {
+    return nextWithoutSession(request);
+  }
+
+  // Task-120 — dev-only explicit persona override. Strip the query so
+  // the URL bar and Playwright assertions stay clean.
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    asParam &&
+    isDemoPersonaId(asParam)
+  ) {
     const cleaned = new URL(url);
     cleaned.searchParams.delete(AS_QUERY_PARAM);
     const response = NextResponse.redirect(cleaned);
-    setSessionCookies(response, asParam);
+    setDemoSessionCookies(response, asParam);
     return response;
   }
 
-  if (request.cookies.get(SESSION_COOKIE_NAME)) {
-    return NextResponse.next();
+  const { userId } = await auth();
+
+  // Clerk-authenticated → resolve the registry user and (re)mint the
+  // app-session cookie if needed, so getSessionUser stays sync.
+  if (userId) {
+    const existingCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    // Verify the cookie with the same HMAC verifier `getSessionUser` uses,
+    // so we re-mint when the cookie is malformed/tampered (correct uid
+    // prefix but bad signature) as well as when the uid simply differs.
+    const existingValidUid = existingCookie ? verifySessionCookie(existingCookie) : null;
+    let resolvedUid: string | null = null;
+
+    try {
+      const { clerkClient } = await import('@clerk/nextjs/server');
+      const client = await clerkClient();
+      const clerkUser = await client.users.getUser(userId);
+      const email =
+        clerkUser.primaryEmailAddress?.emailAddress ??
+        clerkUser.emailAddresses?.[0]?.emailAddress ??
+        null;
+      const user = findUserForClerkIdentity({ clerkId: userId, email });
+      resolvedUid = user?.id ?? null;
+    } catch (err) {
+      // Clerk Backend API call failed (network / IdP outage / etc.).
+      // Log loudly and fall through to "no app session" — the request
+      // will be treated as anonymous (401 on /api, redirect on pages).
+      console.error('[auth] Clerk user lookup failed for userId=%s', userId, err);
+      resolvedUid = null;
+    }
+
+    if (resolvedUid) {
+      const response = NextResponse.next();
+      // Re-mint unless the existing cookie passes signature verification
+      // AND already encodes the resolved uid. This covers tampered cookies
+      // and uid mismatches in a single check.
+      if (existingValidUid !== resolvedUid) {
+        setAppSessionCookie(response, resolvedUid);
+      }
+      return response;
+    }
+
+    // Clerk session exists but the email is not in the invited-users
+    // registry — treat as anonymous AND clear any stale local session
+    // cookie. Without this clear, a cookie minted for a previously
+    // invited identity could keep authenticating API calls under a
+    // now-uninvited Clerk session (account-switch session confusion).
+    if (isApiPath(url.pathname) || isPublicPath(url.pathname)) {
+      return existingCookie ? nextWithoutSession(request) : NextResponse.next();
+    }
+    const signInUrl = new URL(SIGN_IN_PATH, url);
+    return existingCookie
+      ? redirectWithoutSession(request, signInUrl)
+      : NextResponse.redirect(signInUrl);
   }
+
+  // ----- No Clerk session below this line -----
+  //
+  // The app-session cookie must never outlive the Clerk session in
+  // production: cookie-only auth (via `getSessionUser`) would otherwise
+  // keep `/api/**` callers authenticated after the IdP says they're
+  // logged out. We therefore actively clear any stale cookie here.
+  // The only exception is the dev-only `?as=` demo-persona path: in dev
+  // the cookie can legitimately exist without a Clerk session (Playwright
+  // specs use it), so we keep it iff its uid is a registered persona.
+  const existingCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const isDevDemoCookie =
+    process.env.NODE_ENV !== 'production' &&
+    !!existingCookie &&
+    (DEMO_PERSONA_IDS as readonly string[]).some(
+      (uid) => existingCookie.startsWith(`${uid}.`),
+    );
 
   if (isPublicPath(url.pathname)) {
+    return existingCookie && !isDevDemoCookie
+      ? nextWithoutSession(request)
+      : NextResponse.next();
+  }
+
+  // API routes never redirect to HTML — let the handler 401. Strip any
+  // stale (non-demo) cookie from the forwarded request so the handler
+  // can't be fooled into thinking the caller is still logged in on this
+  // very request (NextResponse.next() response cookies don't affect the
+  // request the handler sees).
+  if (isApiPath(url.pathname)) {
+    return existingCookie && !isDevDemoCookie
+      ? nextWithoutSession(request)
+      : NextResponse.next();
+  }
+
+  // Dev-only — demo-persona cookie counts as authenticated so Playwright
+  // specs that drive the demo personas keep working without going through
+  // Clerk's UI.
+  if (isDevDemoCookie) {
     return NextResponse.next();
   }
 
-  // Send the user to /sign-in with a `next` pointer so we can return them
-  // to where they were trying to go after they pick an account.
+  // No session — send to /sign-in with a `next` pointer and clear any
+  // stale cookie on the way out.
   const signInUrl = new URL(SIGN_IN_PATH, url);
   const nextTarget = url.pathname + (url.search || '');
   if (nextTarget && nextTarget !== '/') {
     signInUrl.searchParams.set('next', nextTarget);
   }
-  return NextResponse.redirect(signInUrl);
-}
+  return existingCookie
+    ? redirectWithoutSession(request, signInUrl)
+    : NextResponse.redirect(signInUrl);
+});
 
 // Use the Node.js runtime so `lib/auth/session.ts` can use Node's `crypto`
 // for HMAC signing without an Edge Runtime warning. Supported in Next 15.2+.
 export const runtime = 'nodejs';
 
 export const config = {
-  // Exclude /api/** so anonymous API traffic stays anonymous (and 401s
-  // from the route handler) instead of being bounced to an HTML sign-in
-  // page. Also exclude Next.js internals.
-  matcher: ['/((?!api/|_next/static|_next/image|favicon.ico).*)'],
+  // Run on everything except Next.js internals and static assets so
+  // Clerk auth context is available for both pages and /api/** routes.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

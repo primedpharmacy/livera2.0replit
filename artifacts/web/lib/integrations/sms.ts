@@ -249,6 +249,94 @@ export function verifyTwilioSignature(
   return timingSafeEqual(a, b);
 }
 
+/**
+ * Bounded in-process dedupe cache for Twilio status callbacks — Task-207.
+ *
+ * Twilio retries status callbacks aggressively (every few seconds, then with
+ * exponential back-off) until it sees a 2xx. Task-138 made the notification
+ * row itself idempotent, so duplicates were harmless — but the webhook route
+ * was still parsing the body, running HMAC-SHA1 over the params, hitting the
+ * fixture store, and emitting a 'notification_updated' audit line on every
+ * retry. For a single message that bounces and gets retried 10 times that's
+ * 10 identical audit entries to wade through.
+ *
+ * The cache keys on `${MessageSid}:${MessageStatus}` because Twilio guarantees
+ * the SID is stable for a given outbound message and the status transitions
+ * monotonically (queued → sending → sent → delivered/undelivered/failed).
+ * A retry for the *same* terminal state is a true duplicate and can be
+ * short-circuited; a transition to a *new* state is a distinct event and
+ * must still be processed.
+ *
+ * Bounding:
+ *   - TTL: entries older than TWILIO_DEDUPE_TTL_MS are treated as expired.
+ *     Twilio's retry window for status callbacks tops out around ~4 hours,
+ *     so 1 hour is plenty for catching the common case (back-to-back retries
+ *     within minutes) without holding state forever.
+ *   - Max size: when the Map exceeds TWILIO_DEDUPE_MAX_ENTRIES we evict the
+ *     oldest insertion-order entries. Map preserves insertion order, so the
+ *     first key from .keys() is the stalest. This caps memory regardless of
+ *     traffic volume.
+ *
+ * In-process only — a horizontally scaled deployment would dedupe per
+ * instance, not globally. That's fine: the underlying row update is already
+ * idempotent (Task-138); this cache is a CPU + log-noise optimisation, not
+ * a correctness gate.
+ */
+const TWILIO_DEDUPE_TTL_MS = 60 * 60 * 1000;
+const TWILIO_DEDUPE_MAX_ENTRIES = 1000;
+const twilioDedupeCache = new Map<string, number>();
+
+function twilioDedupeKey(messageSid: string, messageStatus: string): string {
+  return `${messageSid}:${messageStatus.toLowerCase()}`;
+}
+
+/**
+ * Returns true if (MessageSid, MessageStatus) was successfully processed
+ * within the TTL window. Expired entries are dropped as a side-effect.
+ */
+export function hasRecentlyProcessedTwilioCallback(
+  messageSid: string,
+  messageStatus: string,
+  now: number = Date.now(),
+): boolean {
+  if (!messageSid || !messageStatus) return false;
+  const key = twilioDedupeKey(messageSid, messageStatus);
+  const seenAt = twilioDedupeCache.get(key);
+  if (seenAt === undefined) return false;
+  if (now - seenAt > TWILIO_DEDUPE_TTL_MS) {
+    twilioDedupeCache.delete(key);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Record that (MessageSid, MessageStatus) has been processed. Evicts the
+ * oldest entries when the cache exceeds TWILIO_DEDUPE_MAX_ENTRIES.
+ */
+export function markTwilioCallbackProcessed(
+  messageSid: string,
+  messageStatus: string,
+  now: number = Date.now(),
+): void {
+  if (!messageSid || !messageStatus) return;
+  const key = twilioDedupeKey(messageSid, messageStatus);
+  // Re-insert to refresh insertion order (LRU on write).
+  twilioDedupeCache.delete(key);
+  twilioDedupeCache.set(key, now);
+
+  while (twilioDedupeCache.size > TWILIO_DEDUPE_MAX_ENTRIES) {
+    const oldest = twilioDedupeCache.keys().next().value;
+    if (oldest === undefined) break;
+    twilioDedupeCache.delete(oldest);
+  }
+}
+
+/** Test-only: wipe the dedupe cache between cases. */
+export function __resetTwilioDedupeCacheForTests(): void {
+  twilioDedupeCache.clear();
+}
+
 export async function sendPatientSMS(
   input: PatientSmsInput,
 ): Promise<PatientSmsResult> {

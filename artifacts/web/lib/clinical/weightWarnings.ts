@@ -1,4 +1,4 @@
-import type { ClinicConfig, Order } from "@/lib/api/types";
+import type { Order } from "@/lib/api/types";
 
 export type WeightWarningSeverity = "warn" | "err";
 
@@ -14,32 +14,17 @@ export interface WeightWarning {
   label: string;
 }
 
-// Platform defaults — used when a clinic config has not been provided.
-// Clinics override these via ClinicConfig.weight_warning_thresholds (Task-100).
-export const DEFAULT_WEIGHT_WARNING_THRESHOLDS: ClinicConfig["weight_warning_thresholds"] = {
-  bmi_continuation_floor: 27.5,
-  rapid_loss_kg_per_week: 2,
-  plateau_tolerance_kg: 0.3,
-  plateau_min_readings: 3,
-};
+const BMI_CONTINUATION_THRESHOLD = 27.5;
+const PLATEAU_TOLERANCE_KG = 0.3;
+const PLATEAU_MIN_READINGS = 3;
+const RAPID_LOSS_KG_PER_WEEK = 2;
 
 type Reading = NonNullable<Order["weight_history"]>[number];
 
 export function analyseWeightHistory(
   history: Order["weight_history"] | undefined | null,
-  opts?: {
-    isContinuation?: boolean;
-    thresholds?: ClinicConfig["weight_warning_thresholds"];
-  },
+  opts?: { isContinuation?: boolean },
 ): WeightWarning[] {
-  const thresholds = opts?.thresholds ?? DEFAULT_WEIGHT_WARNING_THRESHOLDS;
-  const {
-    bmi_continuation_floor: BMI_CONTINUATION_THRESHOLD,
-    rapid_loss_kg_per_week: RAPID_LOSS_KG_PER_WEEK,
-    plateau_tolerance_kg: PLATEAU_TOLERANCE_KG,
-    plateau_min_readings: PLATEAU_MIN_READINGS,
-  } = thresholds;
-
   const readings: Reading[] = [...(history ?? [])].sort((a, b) =>
     a.recorded_at.localeCompare(b.recorded_at),
   );
@@ -73,7 +58,7 @@ export function analyseWeightHistory(
     }
   }
 
-  // 3. Rapid loss — >threshold kg/week between the last two readings.
+  // 3. Rapid loss — >2kg/week between the last two readings.
   const days =
     (new Date(last.recorded_at).getTime() -
       new Date(prev.recorded_at).getTime()) /

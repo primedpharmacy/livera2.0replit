@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { saveQueue } from "@/lib/queueNavigation";
 import {
   Table,
   TableBody,
@@ -52,6 +53,12 @@ export function PatientListTable({ patients, clinicId, genderEligibility }: Pati
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [patients, sortKey, sortDir]);
+
+  // Persist the current displayed order so the patient detail page can
+  // ↑/↓ through the filtered+sorted queue (mirrors orders/complaints/incidents).
+  useEffect(() => {
+    saveQueue("patients", sorted.map((p) => p.id));
+  }, [sorted]);
 
   function SortHeader({ label, sortable }: { label: string; sortable?: SortKey }) {
     const active = sortable && sortKey === sortable;

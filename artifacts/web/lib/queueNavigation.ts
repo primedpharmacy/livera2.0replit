@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export type QueueKind = "orders" | "complaints" | "incidents";
+export type QueueKind = "orders" | "complaints" | "incidents" | "patients";
 
 function storageKey(kind: QueueKind): string {
   return `queue:${kind}`;

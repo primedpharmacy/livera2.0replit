@@ -9,16 +9,19 @@ export function DCard({
   icon: Icon,
   title,
   children,
+  headerExtra,
 }: {
   icon: LucideIcon;
   title: string;
   children: React.ReactNode;
+  headerExtra?: React.ReactNode;
 }) {
   return (
     <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-bdr bg-page-bg">
         <Icon className="w-3.5 h-3.5 text-brand" />
         <h3 className="text-[11px] font-bold text-t2 uppercase tracking-wider">{title}</h3>
+        {headerExtra && <div className="ml-auto flex items-center">{headerExtra}</div>}
       </div>
       <div className="px-4 py-3 space-y-2">{children}</div>
     </div>

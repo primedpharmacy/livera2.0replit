@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ClipboardList, Check, AlertTriangle, Minus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ClipboardList, Check, AlertTriangle, Minus, ChevronUp, ChevronDown } from "lucide-react";
 import { DCard } from "./orderPrimitives";
 import { qFlag } from "@/lib/questionnaire";
 import { cn } from "@/lib/utils";
@@ -44,36 +44,119 @@ export function OrderQuestionnaireCard({
   const configProvided = questionConfig !== undefined;
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [highlightedQid, setHighlightedQid] = useState<string | null>(null);
+  const [currentFlagIdx, setCurrentFlagIdx] = useState(0);
 
-  useEffect(() => {
-    if (!scrollToFlaggedNonce || scrollToFlaggedNonce <= 0) return;
-    if (!questionConfig) return;
-    const firstFlagged = questionConfig
+  // Ordered list of flagged question IDs (warn only — those needing review).
+  const flaggedIds = useMemo(() => {
+    if (!questionConfig) return [];
+    return questionConfig
       .slice()
       .sort((a, b) => a.order - b.order)
-      .find((q) => {
+      .filter((q) => {
         const val = questionnaire_responses[q.id];
         const answered = val !== undefined && val !== null && val !== "";
         return answered && qFlag(q, val) === "warn";
-      });
-    if (!firstFlagged) return;
-    // Defer to next frame so the tab body is laid out before we scroll.
-    const raf = requestAnimationFrame(() => {
-      const el = itemRefs.current[firstFlagged.id];
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        setHighlightedQid(firstFlagged.id);
-      }
-    });
+      })
+      .map((q) => q.id);
+  }, [questionConfig, questionnaire_responses]);
+
+  const flagCount = flaggedIds.length;
+
+  // Reset to the first flag whenever the dataset or jump nonce changes.
+  useEffect(() => {
+    setCurrentFlagIdx(0);
+  }, [flagCount, scrollToFlaggedNonce]);
+
+  // Scroll + highlight whichever flag is currently selected. Runs on initial
+  // jump (nonce change) and on every next/prev navigation.
+  function focusFlag(idx: number) {
+    if (flaggedIds.length === 0) return;
+    const qid = flaggedIds[idx];
+    const el = itemRefs.current[qid];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedQid(qid);
+  }
+
+  useEffect(() => {
+    if (highlightedQid == null) return;
     const t = setTimeout(() => setHighlightedQid(null), 2200);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t);
-    };
-  }, [scrollToFlaggedNonce, questionConfig, questionnaire_responses]);
+    return () => clearTimeout(t);
+  }, [highlightedQid]);
+
+  // Jump to first flag when the slide-over nonce changes.
+  useEffect(() => {
+    if (!scrollToFlaggedNonce || scrollToFlaggedNonce <= 0) return;
+    if (flaggedIds.length === 0) return;
+    const raf = requestAnimationFrame(() => focusFlag(0));
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollToFlaggedNonce, flaggedIds]);
+
+  function goToFlag(delta: 1 | -1) {
+    if (flaggedIds.length === 0) return;
+    setCurrentFlagIdx((prev) => {
+      const next = (prev + delta + flaggedIds.length) % flaggedIds.length;
+      requestAnimationFrame(() => focusFlag(next));
+      return next;
+    });
+  }
+
+  // Keyboard shortcut: `f` advances to the next flag (wraps).
+  useEffect(() => {
+    if (flaggedIds.length === 0) return;
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        goToFlag(1);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flaggedIds]);
+
+  const headerExtra =
+    flagCount > 0 ? (
+      <div className="flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-warn-bg text-warn border border-warn-bdr rounded-full px-2 py-0.5">
+          <AlertTriangle className="w-3 h-3" />
+          Flag {currentFlagIdx + 1} of {flagCount}
+        </span>
+        <button
+          type="button"
+          onClick={() => goToFlag(-1)}
+          className="rounded border border-bdr bg-surface hover:bg-page-bg text-t2 hover:text-t1 transition-colors p-1"
+          aria-label="Previous flagged answer"
+          title="Previous flag"
+        >
+          <ChevronUp className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => goToFlag(1)}
+          className="rounded border border-bdr bg-surface hover:bg-page-bg text-t2 hover:text-t1 transition-colors p-1"
+          aria-label="Next flagged answer"
+          title="Next flag (F)"
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    ) : null;
 
   return (
-    <DCard icon={ClipboardList} title="Questionnaire Responses">
+    <DCard icon={ClipboardList} title="Questionnaire Responses" headerExtra={headerExtra}>
       {configProvided ? (
         questionConfig.length === 0 ? (
           <p className="text-[12px] text-t3">No questions configured for this clinic.</p>

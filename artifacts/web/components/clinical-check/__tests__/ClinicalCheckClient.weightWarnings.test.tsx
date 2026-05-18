@@ -142,20 +142,18 @@ describe('ClinicalCheckClient — weight-warning queue indicators (Task-192)', (
     renderQueue();
 
     const pendingRow = getRowFor('Pending Patient');
-    const pendingPill = within(pendingRow).getByText(/^\s*1 weight\s*$/);
-    expect(pendingPill).toBeInTheDocument();
-    expect(pendingPill).toHaveAttribute(
-      'title',
+    const pendingPill = within(pendingRow).getByLabelText(
       '1 concerning weight warning pending review',
     );
+    expect(pendingPill).toBeInTheDocument();
+    expect(pendingPill).toHaveTextContent(/1\s*weight/);
 
     const reviewedRow = getRowFor('Reviewed Patient');
-    const reviewedPill = within(reviewedRow).getByText('Weight reviewed');
-    expect(reviewedPill).toBeInTheDocument();
-    expect(reviewedPill).toHaveAttribute(
-      'title',
+    const reviewedPill = within(reviewedRow).getByLabelText(
       'All 1 weight warning acknowledged',
     );
+    expect(reviewedPill).toBeInTheDocument();
+    expect(reviewedPill).toHaveTextContent('Weight reviewed');
 
     // Cross-check: the muted pill must NOT appear on the pending row,
     // and the amber pill must NOT appear on the reviewed row.

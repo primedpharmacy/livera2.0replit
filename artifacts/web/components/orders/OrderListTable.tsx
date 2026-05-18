@@ -16,7 +16,10 @@ import {
   SAFETY_CATEGORY_META,
   type FlaggedAnswer,
 } from "@/lib/questionnaire";
-import type { OrderWeightWarningState } from "@/lib/clinical/weightWarnings";
+import type {
+  OrderWeightWarningState,
+  WeightWarningKind,
+} from "@/lib/clinical/weightWarnings";
 import {
   computeReminderStatus,
   REMINDER_PILL_LABEL,
@@ -442,22 +445,8 @@ function ClinicalCheckRow({
                 if (new Date(latest.reversed_at).getTime() <= submittedAt) return null;
                 return <ReversalPill entry={latest} />;
               })()}
-              {weightWarningState && weightWarningState.hasUnacknowledged ? (
-                <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none"
-                  title={`${weightWarningState.unacknowledged} concerning weight warning${weightWarningState.unacknowledged === 1 ? "" : "s"} pending review`}
-                >
-                  <AlertTriangle className="w-2.5 h-2.5" />
-                  {weightWarningState.unacknowledged} weight
-                </span>
-              ) : weightWarningState && weightWarningState.allAcknowledged ? (
-                <span
-                  className="inline-flex items-center gap-1 text-[10px] font-medium text-t3 bg-page-bg border border-bdr rounded-full px-1.5 py-px leading-none"
-                  title={`All ${weightWarningState.total} weight warning${weightWarningState.total === 1 ? "" : "s"} acknowledged`}
-                >
-                  <CheckCircle2 className="w-2.5 h-2.5" />
-                  Weight reviewed
-                </span>
+              {weightWarningState && (weightWarningState.hasUnacknowledged || weightWarningState.allAcknowledged) ? (
+                <WeightWarningSummaryPill state={weightWarningState} />
               ) : null}
             </div>
             <div className="text-[11px] text-t3 font-mono">{order.patient_id} · {order.id}</div>
@@ -598,6 +587,156 @@ export function UnresolvedIssuesBadge({
     >
       <AlertTriangle className="w-2.5 h-2.5" />
       {counts.total}
+    </span>
+  );
+}
+
+// ── Weight-warning summary pill with hover/focus popover ─────────────────────
+/**
+ * Task-283 — The queue row shows either an amber "N weight" pill (when
+ * concerning weight warnings still need review) or a muted "Weight reviewed"
+ * pill (when every warning has been acknowledged). Hovering or keyboard-
+ * focusing the pill opens a small popover that lists each warning — for the
+ * acknowledged pill it surfaces who signed off, when, and the rationale
+ * snippet, so a clinician can make a same-day handover call (or spot a
+ * teammate's recent sign-off worth double-checking) without opening the
+ * slide-over. Mirrors ReviewNeededBadge's a11y contract: Esc dismisses (and
+ * restores focus to the trigger), click-outside dismisses, focus opens.
+ */
+const WEIGHT_WARNING_KIND_LABEL: Record<WeightWarningKind, string> = {
+  weight_regain:       "Weight regain",
+  plateau:             "Plateau",
+  rapid_loss:          "Rapid loss",
+  bmi_below_threshold: "BMI below continuation threshold",
+};
+
+export function WeightWarningSummaryPill({
+  state,
+}: {
+  state: OrderWeightWarningState;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+
+  const isUnack = state.hasUnacknowledged;
+  const acknowledgedDetails = state.details.filter((d) => d.acknowledgement);
+  const unacknowledgedDetails = state.details.filter((d) => !d.acknowledgement);
+  const hasList = isUnack
+    ? unacknowledgedDetails.length > 0
+    : acknowledgedDetails.length > 0;
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
+
+  const fallbackTitle = isUnack
+    ? `${state.unacknowledged} concerning weight warning${state.unacknowledged === 1 ? "" : "s"} pending review`
+    : `All ${state.total} weight warning${state.total === 1 ? "" : "s"} acknowledged`;
+
+  const pillCls = isUnack
+    ? "inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none"
+    : "inline-flex items-center gap-1 text-[10px] font-medium text-t3 bg-page-bg border border-bdr rounded-full px-1.5 py-px leading-none";
+
+  return (
+    <span
+      ref={wrapRef}
+      className="relative inline-flex"
+      onMouseEnter={() => hasList && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <span
+        ref={triggerRef}
+        tabIndex={hasList ? 0 : -1}
+        onFocus={() => hasList && setOpen(true)}
+        onBlur={(e) => {
+          if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+        }}
+        aria-label={fallbackTitle}
+        aria-expanded={hasList ? open : undefined}
+        title={hasList ? undefined : fallbackTitle}
+        className={pillCls}
+      >
+        {isUnack ? (
+          <>
+            <AlertTriangle className="w-2.5 h-2.5" />
+            {state.unacknowledged} weight
+          </>
+        ) : (
+          <>
+            <CheckCircle2 className="w-2.5 h-2.5" />
+            Weight reviewed
+          </>
+        )}
+      </span>
+      {hasList && open && (
+        <div
+          role="tooltip"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full mt-1 z-50 w-80 max-w-[20rem] rounded-md border border-bdr bg-surface shadow-lg p-2.5 text-left"
+        >
+          <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1.5">
+            {isUnack
+              ? `Pending weight review (${unacknowledgedDetails.length})`
+              : `Weight warnings acknowledged (${acknowledgedDetails.length})`}
+          </div>
+          <ul className="space-y-2">
+            {(isUnack ? unacknowledgedDetails : acknowledgedDetails).map((d) => {
+              const kindLabel =
+                WEIGHT_WARNING_KIND_LABEL[d.warning.kind] ?? d.warning.kind;
+              const ack = d.acknowledgement;
+              const who = ack
+                ? USERS_REGISTRY[ack.acknowledged_by_user_id]?.full_name
+                  ?? ack.acknowledged_by_user_id
+                : null;
+              return (
+                <li key={d.warning.kind} className="text-[11px] leading-snug">
+                  <div className="flex items-center gap-1 font-semibold text-t1">
+                    {isUnack ? (
+                      <AlertTriangle className="w-2.5 h-2.5 text-warn" />
+                    ) : (
+                      <CheckCircle2 className="w-2.5 h-2.5 text-t3" />
+                    )}
+                    {kindLabel}
+                  </div>
+                  <div className="text-t2 mt-0.5">{d.warning.label}</div>
+                  {ack && who && (
+                    <div className="text-[10.5px] text-t3 mt-0.5">
+                      {who} · {formatRelativeTime(ack.acknowledged_at)}
+                      {ack.edits?.length ? (
+                        <span className="ml-1 italic">(edited)</span>
+                      ) : null}
+                    </div>
+                  )}
+                  {ack?.rationale && (
+                    <div className="text-[10.5px] text-t2 italic mt-0.5">
+                      &ldquo;{ack.rationale}&rdquo;
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </span>
   );
 }

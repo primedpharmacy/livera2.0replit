@@ -137,6 +137,12 @@ export function ClinicalCheckClient({
   // Task-136 — Toggle to hide orders where every concerning weight warning has
   // already been acknowledged, so reviewers can focus on truly fresh cases.
   const [hideAckedWeightWarnings, setHideAckedWeightWarnings] = useState(false);
+  // Task-282 — Sort key for the weight-warning bucket. Default keeps the
+  // historical behaviour ("Unack'd first"), but a clinician supervising a
+  // junior's recent sign-offs can flip it to surface already-reviewed rows.
+  const [weightWarningSort, setWeightWarningSort] = useState<"unacked_first" | "reviewed_first">(
+    "unacked_first",
+  );
   const [undoToast,        setUndoToast]        = useState<UndoToast | null>(null);
   const [undoRemainingMs,  setUndoRemainingMs]  = useState(0);
   const [isUndoing,        setIsUndoing]        = useState(false);
@@ -527,13 +533,18 @@ export function ClinicalCheckClient({
       // questionnaire review-needed count, then oldest first.
       const wa = weightWarningStateByOrderId[a.id]?.unacknowledged ?? 0;
       const wb = weightWarningStateByOrderId[b.id]?.unacknowledged ?? 0;
-      if (wa !== wb) return wb - wa;
+      if (wa !== wb) {
+        // Task-282 — Default surfaces unacknowledged warnings first; the
+        // "Reviewed first" sort flips this so supervisors can audit the
+        // freshly acknowledged batch without losing the toggle.
+        return weightWarningSort === "reviewed_first" ? wa - wb : wb - wa;
+      }
       const ra = reviewNeededByOrderId[a.id] ?? 0;
       const rb = reviewNeededByOrderId[b.id] ?? 0;
       if (ra !== rb) return rb - ra;
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
-  }, [categoryFiltered, activeChip, reviewNeededByOrderId, weightWarningStateByOrderId]);
+  }, [categoryFiltered, activeChip, reviewNeededByOrderId, weightWarningStateByOrderId, weightWarningSort]);
 
   // Keep ref in sync with filtered order ids for keyboard navigation
   useEffect(() => {
@@ -805,8 +816,44 @@ export function ClinicalCheckClient({
               )}
             </label>
           )}
-          <span className="text-[11px] text-t3 whitespace-nowrap">
-            {filtered.length} order{filtered.length !== 1 ? "s" : ""} · Sort: Unack&apos;d warnings, review needed, oldest first
+          <span className="text-[11px] text-t3 whitespace-nowrap inline-flex items-center gap-1.5">
+            {filtered.length} order{filtered.length !== 1 ? "s" : ""} · Sort:
+            {/* Task-282 — Toggle between unack'd-first (default) and
+                reviewed-first so supervisors can audit a junior's recent
+                sign-offs without losing the "Hide reviewed" toggle. */}
+            <span
+              role="group"
+              aria-label="Weight-warning sort order"
+              className="inline-flex items-center rounded-full border border-bdr overflow-hidden"
+            >
+              <button
+                type="button"
+                onClick={() => setWeightWarningSort("unacked_first")}
+                aria-pressed={weightWarningSort === "unacked_first"}
+                className={cn(
+                  "px-2 py-0.5 text-[11px] font-semibold transition-colors",
+                  weightWarningSort === "unacked_first"
+                    ? "bg-brand text-white"
+                    : "bg-surface text-t2 hover:text-t1",
+                )}
+              >
+                Unack&apos;d first
+              </button>
+              <button
+                type="button"
+                onClick={() => setWeightWarningSort("reviewed_first")}
+                aria-pressed={weightWarningSort === "reviewed_first"}
+                className={cn(
+                  "px-2 py-0.5 text-[11px] font-semibold border-l border-bdr transition-colors",
+                  weightWarningSort === "reviewed_first"
+                    ? "bg-brand text-white"
+                    : "bg-surface text-t2 hover:text-t1",
+                )}
+              >
+                Reviewed first
+              </button>
+            </span>
+            · review needed, oldest first
           </span>
         </div>
       </div>

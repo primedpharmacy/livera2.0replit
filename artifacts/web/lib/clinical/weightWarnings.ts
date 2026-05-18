@@ -268,12 +268,21 @@ export function findAcknowledgement(
 // Task-136 — Aggregate per-order weight-warning state so the clinical check
 // queue can show a "reviewed" indicator, filter out fully-acknowledged orders,
 // and bump still-unacknowledged ones up the urgency sort.
+export interface OrderWeightWarningDetail {
+  warning: WeightWarning;
+  acknowledgement?: WeightWarningAcknowledgement;
+}
+
 export interface OrderWeightWarningState {
   total: number;
   unacknowledged: number;
   acknowledged: number;
   allAcknowledged: boolean;
   hasUnacknowledged: boolean;
+  // Task-283 — per-warning detail so queue-row pills can surface who
+  // acknowledged each warning (and the rationale) in a hover popover without
+  // requiring the slide-over to be open.
+  details: OrderWeightWarningDetail[];
 }
 
 export function summariseOrderWeightWarnings(
@@ -287,9 +296,12 @@ export function summariseOrderWeightWarnings(
     isContinuation: order.type === "reorder",
     thresholds,
   });
+  const details: OrderWeightWarningDetail[] = [];
   let acknowledged = 0;
   for (const w of warnings) {
-    if (findAcknowledgement(order, w.kind)) acknowledged++;
+    const ack = findAcknowledgement(order, w.kind);
+    if (ack) acknowledged++;
+    details.push({ warning: w, acknowledgement: ack });
   }
   const total = warnings.length;
   const unacknowledged = total - acknowledged;
@@ -299,5 +311,6 @@ export function summariseOrderWeightWarnings(
     acknowledged,
     allAcknowledged: total > 0 && unacknowledged === 0,
     hasUnacknowledged: unacknowledged > 0,
+    details,
   };
 }

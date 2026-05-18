@@ -142,7 +142,8 @@ function buildSections(
   incidentsCount: number,
   gpLettersCount: number,
   discontinuationsCount: number,
-  failedSweepCount: number
+  failedSweepCount: number,
+  contactCleanupCount: number
 ): NavSection[] {
   return [
     {
@@ -315,6 +316,16 @@ function buildSections(
             ? { badge: { value: failedSweepCount, variant: "err" as BadgeVariant } }
             : {}),
         },
+        {
+          key: "patient-contact-cleanup",
+          label: "Patient Contact Cleanup",
+          icon: Phone,
+          href: `/${clinicId}/ops/patient-contact-cleanup`,
+          permission: { action: "read", resource: "settings" },
+          ...(contactCleanupCount > 0
+            ? { badge: { value: contactCleanupCount, variant: "warn" as BadgeVariant } }
+            : {}),
+        },
       ],
     },
   ];
@@ -359,6 +370,7 @@ export function Sidebar({ clinicId }: SidebarProps) {
   const [discontinuationsCount, setDiscontinuationsCount]   = useState<number>(0);
   const [failedSweepCount, setFailedSweepCount]             = useState<number>(0);
   const [sweepToast, setSweepToast]                         = useState<string | null>(null);
+  const [contactCleanupCount, setContactCleanupCount]       = useState<number>(0);
 
   useEffect(() => {
     const cid = clinicId as ClinicId;
@@ -414,6 +426,15 @@ export function Sidebar({ clinicId }: SidebarProps) {
 
     listDiscontinuations(cid)
       .then((d) => setDiscontinuationsCount(d.filter((x) => x.status !== "closed").length))
+      .catch(() => {});
+
+    fetch(`/api/ops/patient-contact-cleanup?clinic_id=${cid}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { followup_count?: number } | null) => {
+        if (data && typeof data.followup_count === "number") {
+          setContactCleanupCount(data.followup_count);
+        }
+      })
       .catch(() => {});
   }, [clinicId, isCoach]);
 
@@ -526,6 +547,7 @@ export function Sidebar({ clinicId }: SidebarProps) {
         gpLettersCount,
         discontinuationsCount,
         failedSweepCount,
+        contactCleanupCount,
       );
 
   function isActive(href: string) {

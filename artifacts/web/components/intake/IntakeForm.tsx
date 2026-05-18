@@ -38,6 +38,8 @@ interface AddressData {
 }
 
 type SexAtBirth = "female" | "male" | "other";
+type HeightUnit = "cm" | "ftin";
+type WeightUnit = "kg" | "stlb";
 
 interface PersonalData {
   firstName: string;
@@ -46,6 +48,68 @@ interface PersonalData {
   email: string;
   phone: string;
   sexAtBirth: SexAtBirth | "";
+  heightUnit: HeightUnit;
+  heightCm: string;
+  heightFt: string;
+  heightIn: string;
+  weightUnit: WeightUnit;
+  weightKg: string;
+  weightSt: string;
+  weightLb: string;
+}
+
+// ── Baseline biometrics helpers ───────────────────────────────────────────────
+
+const HEIGHT_MIN_CM = 120;
+const HEIGHT_MAX_CM = 220;
+const WEIGHT_MIN_KG = 30;
+const WEIGHT_MAX_KG = 300;
+
+function parseNum(v: string): number | null {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function deriveHeightCm(p: PersonalData): number | null {
+  if (p.heightUnit === "cm") {
+    const cm = parseNum(p.heightCm);
+    return cm;
+  }
+  const ft = parseNum(p.heightFt);
+  const inches = parseNum(p.heightIn) ?? 0;
+  if (ft === null) return null;
+  return +(ft * 30.48 + inches * 2.54).toFixed(1);
+}
+
+function deriveWeightKg(p: PersonalData): number | null {
+  if (p.weightUnit === "kg") {
+    return parseNum(p.weightKg);
+  }
+  const st = parseNum(p.weightSt);
+  const lb = parseNum(p.weightLb) ?? 0;
+  if (st === null) return null;
+  return +(st * 6.35029 + lb * 0.453592).toFixed(2);
+}
+
+function deriveBmi(heightCm: number | null, weightKg: number | null): number | null {
+  if (!heightCm || !weightKg || heightCm <= 0) return null;
+  const h = heightCm / 100;
+  return +(weightKg / (h * h)).toFixed(1);
+}
+
+function biometricsErrors(p: PersonalData): { height?: string; weight?: string } {
+  const errs: { height?: string; weight?: string } = {};
+  const cm = deriveHeightCm(p);
+  if (cm === null) errs.height = "Please enter your height";
+  else if (cm < HEIGHT_MIN_CM || cm > HEIGHT_MAX_CM)
+    errs.height = `Height must be between ${HEIGHT_MIN_CM} and ${HEIGHT_MAX_CM} cm`;
+
+  const kg = deriveWeightKg(p);
+  if (kg === null) errs.weight = "Please enter your weight";
+  else if (kg < WEIGHT_MIN_KG || kg > WEIGHT_MAX_KG)
+    errs.weight = `Weight must be between ${WEIGHT_MIN_KG} and ${WEIGHT_MAX_KG} kg`;
+  return errs;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -971,6 +1035,18 @@ function ReviewStep({
           { label: "Name", value: `${personal.firstName} ${personal.lastName}` },
           { label: "Date of birth", value: personal.dob },
           { label: "Sex at birth", value: personal.sexAtBirth ? personal.sexAtBirth.charAt(0).toUpperCase() + personal.sexAtBirth.slice(1) : "—" },
+          { label: "Height", value: (() => {
+            const cm = deriveHeightCm(personal);
+            return cm !== null ? `${cm} cm` : "—";
+          })() },
+          { label: "Weight", value: (() => {
+            const kg = deriveWeightKg(personal);
+            return kg !== null ? `${kg} kg` : "—";
+          })() },
+          { label: "Baseline BMI", value: (() => {
+            const bmi = deriveBmi(deriveHeightCm(personal), deriveWeightKg(personal));
+            return bmi !== null ? `${bmi} kg/m²` : "—";
+          })() },
           { label: "Email", value: personal.email },
           { label: "Phone", value: personal.phone || "—" },
           { label: "Address", value: displayAddress || "—" },
@@ -1031,6 +1107,14 @@ export function IntakeForm({
     email: "",
     phone: "",
     sexAtBirth: "",
+    heightUnit: "cm",
+    heightCm: "",
+    heightFt: "",
+    heightIn: "",
+    weightUnit: "kg",
+    weightKg: "",
+    weightSt: "",
+    weightLb: "",
   });
   const [address, setAddress] = useState<AddressData>({
     formatted: "",
@@ -1074,13 +1158,16 @@ export function IntakeForm({
 
   function isCurrentStepValid(): boolean {
     if (step === STEP_PERSONAL) {
+      const bioErrs = biometricsErrors(personal);
       return !!(
         personal.firstName.trim() &&
         personal.lastName.trim() &&
         personal.dob &&
         personal.email.trim() &&
         personal.phone.trim() &&
-        personal.sexAtBirth
+        personal.sexAtBirth &&
+        !bioErrs.height &&
+        !bioErrs.weight
       );
     }
     if (step === STEP_ADDRESS) {
@@ -1119,10 +1206,18 @@ export function IntakeForm({
     }
     setSubmitting(true);
     try {
+      const heightCm = deriveHeightCm(personal);
+      const weightKg = deriveWeightKg(personal);
+      const bmi = deriveBmi(heightCm, weightKg);
       const res = await fetch(`/api/intake/${clinicId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personal, address, responses }),
+        body: JSON.stringify({
+          personal,
+          address,
+          responses,
+          biometrics: { height_cm: heightCm, weight_kg: weightKg, bmi },
+        }),
       });
       if (res.ok) {
         const body = (await res.json()) as { order_id?: string };
@@ -1281,6 +1376,130 @@ export function IntakeForm({
                       </p>
                       {showErrors && !personal.sexAtBirth && (
                         <p className="text-[11px] text-[#ef4444] mt-1">Required</p>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-semibold text-[#64748b] uppercase tracking-wide">
+                          Current height <span className="text-[#ef4444]">*</span>
+                        </label>
+                        <div className="inline-flex rounded-lg border border-[#e2e8f0] overflow-hidden">
+                          {(["cm", "ftin"] as const).map((u) => (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() => setPersonal({ ...personal, heightUnit: u })}
+                              className={`px-2.5 py-1 text-[11px] font-medium ${
+                                personal.heightUnit === u
+                                  ? "bg-[#eef2ff] text-[#4338ca]"
+                                  : "bg-white text-[#64748b]"
+                              }`}
+                            >
+                              {u === "cm" ? "cm" : "ft / in"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {personal.heightUnit === "cm" ? (
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          className={inputCls}
+                          placeholder="170"
+                          value={personal.heightCm}
+                          onChange={(e) => setPersonal({ ...personal, heightCm: e.target.value })}
+                        />
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            className={inputCls}
+                            placeholder="Feet"
+                            value={personal.heightFt}
+                            onChange={(e) => setPersonal({ ...personal, heightFt: e.target.value })}
+                          />
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            className={inputCls}
+                            placeholder="Inches"
+                            value={personal.heightIn}
+                            onChange={(e) => setPersonal({ ...personal, heightIn: e.target.value })}
+                          />
+                        </div>
+                      )}
+                      {showErrors && biometricsErrors(personal).height && (
+                        <p className="text-[11px] text-[#ef4444] mt-1">
+                          {biometricsErrors(personal).height}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-semibold text-[#64748b] uppercase tracking-wide">
+                          Current weight <span className="text-[#ef4444]">*</span>
+                        </label>
+                        <div className="inline-flex rounded-lg border border-[#e2e8f0] overflow-hidden">
+                          {(["kg", "stlb"] as const).map((u) => (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() => setPersonal({ ...personal, weightUnit: u })}
+                              className={`px-2.5 py-1 text-[11px] font-medium ${
+                                personal.weightUnit === u
+                                  ? "bg-[#eef2ff] text-[#4338ca]"
+                                  : "bg-white text-[#64748b]"
+                              }`}
+                            >
+                              {u === "kg" ? "kg" : "st / lb"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {personal.weightUnit === "kg" ? (
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          className={inputCls}
+                          placeholder="85"
+                          value={personal.weightKg}
+                          onChange={(e) => setPersonal({ ...personal, weightKg: e.target.value })}
+                        />
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            className={inputCls}
+                            placeholder="Stone"
+                            value={personal.weightSt}
+                            onChange={(e) => setPersonal({ ...personal, weightSt: e.target.value })}
+                          />
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            className={inputCls}
+                            placeholder="Pounds"
+                            value={personal.weightLb}
+                            onChange={(e) => setPersonal({ ...personal, weightLb: e.target.value })}
+                          />
+                        </div>
+                      )}
+                      {(() => {
+                        const cm = deriveHeightCm(personal);
+                        const kg = deriveWeightKg(personal);
+                        const bmi = deriveBmi(cm, kg);
+                        return bmi !== null && !biometricsErrors(personal).height && !biometricsErrors(personal).weight ? (
+                          <p className="text-[11px] text-[#64748b] mt-1">
+                            Baseline BMI: <span className="font-semibold text-[#1e293b]">{bmi}</span> kg/m²
+                          </p>
+                        ) : null;
+                      })()}
+                      {showErrors && biometricsErrors(personal).weight && (
+                        <p className="text-[11px] text-[#ef4444] mt-1">
+                          {biometricsErrors(personal).weight}
+                        </p>
                       )}
                     </div>
                     <div>

@@ -762,6 +762,7 @@ export async function createIntakeOrder(
   },
   address: { formatted?: string; line1: string; line2?: string; city: string; postcode: string },
   responses: Record<string, unknown>,
+  biometrics: { height_cm: number; weight_kg: number; bmi: number },
 ): Promise<Order> {
   await delay(300);
   const suffix = String(Date.now()).slice(-6);
@@ -806,8 +807,12 @@ export async function createIntakeOrder(
     },
     contact: { email: patient.email, phone: patient.phone, preferred_channel: 'email' as const },
     gp: null,
-    baseline: { height_cm: 0, baseline_weight_kg: 0, baseline_bmi: 0 },
-    latest:   { weight_kg: 0, bmi: 0, recorded_at: NOW },
+    baseline: {
+      height_cm: biometrics.height_cm,
+      baseline_weight_kg: biometrics.weight_kg,
+      baseline_bmi: biometrics.bmi,
+    },
+    latest: { weight_kg: biometrics.weight_kg, bmi: biometrics.bmi, recorded_at: NOW },
     verification: { sumsub_id: '', identity_verified_at: null, bmi_verified_at: null },
     consents_given: [],
     flags: [],

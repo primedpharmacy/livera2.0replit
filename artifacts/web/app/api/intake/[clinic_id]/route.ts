@@ -34,7 +34,46 @@ export async function POST(req: NextRequest, { params }: Params) {
       };
       address: IntakeAddress;
       responses: Record<string, unknown>;
+      biometrics?: {
+        height_cm?: number | null;
+        weight_kg?: number | null;
+        bmi?: number | null;
+      };
     };
+
+    const HEIGHT_MIN_CM = 120;
+    const HEIGHT_MAX_CM = 220;
+    const WEIGHT_MIN_KG = 30;
+    const WEIGHT_MAX_KG = 300;
+
+    const rawHeight = body.biometrics?.height_cm;
+    const rawWeight = body.biometrics?.weight_kg;
+    if (
+      typeof rawHeight !== 'number' ||
+      !Number.isFinite(rawHeight) ||
+      rawHeight < HEIGHT_MIN_CM ||
+      rawHeight > HEIGHT_MAX_CM
+    ) {
+      return NextResponse.json(
+        { message: `Baseline height must be between ${HEIGHT_MIN_CM} and ${HEIGHT_MAX_CM} cm` },
+        { status: 400 },
+      );
+    }
+    if (
+      typeof rawWeight !== 'number' ||
+      !Number.isFinite(rawWeight) ||
+      rawWeight < WEIGHT_MIN_KG ||
+      rawWeight > WEIGHT_MAX_KG
+    ) {
+      return NextResponse.json(
+        { message: `Baseline weight must be between ${WEIGHT_MIN_KG} and ${WEIGHT_MAX_KG} kg` },
+        { status: 400 },
+      );
+    }
+    const heightCm = +rawHeight.toFixed(1);
+    const weightKg = +rawWeight.toFixed(2);
+    const heightM = heightCm / 100;
+    const bmi = +(weightKg / (heightM * heightM)).toFixed(1);
 
     const sex: SexAtBirth =
       body.personal.sexAtBirth === 'male' ||
@@ -61,6 +100,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         postcode: (body.address.postcode ?? '').trim(),
       },
       body.responses,
+      { height_cm: heightCm, weight_kg: weightKg, bmi },
     );
 
     return NextResponse.json(

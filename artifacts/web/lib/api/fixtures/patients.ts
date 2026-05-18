@@ -56,6 +56,121 @@ export async function listPatientPreferredChannelChanges(
   return results;
 }
 
+// ── Task-150 — patient flag change log (VIP / status / coach assignment) ────
+// Read-only projection of the existing [AUDIT] stream for the patient-level
+// toggles that today mutate `patient.updated_at` silently. Surfaced in the
+// per-patient Notification log so admins see "who changed what, when" inline
+// alongside real notifications. No new audit event types are introduced — the
+// editor UI that will write these records is out of scope for task-150 and
+// tracked as a follow-up; this seed data represents the historical events
+// admins are reviewing today.
+export type PatientFlagChangeKind = 'vip' | 'status' | 'coach';
+
+export type PatientFlagChange = {
+  id: string;
+  clinic_id: ClinicId;
+  patient_id: string;
+  kind: PatientFlagChangeKind;
+  // String form so all three kinds share one row renderer. status keeps the
+  // raw enum value ('active'|'monitoring'|'suspended'|'new'); vip is the
+  // string "true"/"false"; coach is either the user_id, the coach full name,
+  // or the literal 'unassigned' when nulled.
+  previous_value: string;
+  new_value: string;
+  // Optional resolved display names so the UI doesn't have to look up the
+  // coach in USERS_REGISTRY itself (some coaches may have left the team).
+  previous_display: string | null;
+  new_display: string | null;
+  actor_id: string;
+  actor_name: string;
+  changed_at: string;
+};
+
+export const PATIENT_FLAG_CHANGES: PatientFlagChange[] = [
+  // Seed: Emma Whitfield was promoted to VIP after her £4k spend tipped over
+  // the high-value threshold — admins reviewing her profile should see who
+  // approved that promotion.
+  {
+    id: 'PFC-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00412',
+    kind: 'vip',
+    previous_value: 'false',
+    new_value: 'true',
+    previous_display: 'No',
+    new_display: 'Yes',
+    actor_id: 'user_qadir',
+    actor_name: 'Qadir Hussain',
+    changed_at: '2026-04-15T11:30:00Z',
+  },
+  // Seed: Priya Shah moved from active → suspended after a card chargeback.
+  {
+    id: 'PFC-002',
+    clinic_id: 'vsc',
+    patient_id: 'PT-00301',
+    kind: 'status',
+    previous_value: 'active',
+    new_value: 'suspended',
+    previous_display: 'active',
+    new_display: 'suspended',
+    actor_id: 'user_yohan',
+    actor_name: 'Yohan Perera',
+    changed_at: '2026-03-12T15:45:00Z',
+  },
+  // Seed: Miriam Osei moved to monitoring after a missed check-in.
+  {
+    id: 'PFC-003',
+    clinic_id: 'vsc',
+    patient_id: 'PT-00156',
+    kind: 'status',
+    previous_value: 'active',
+    new_value: 'monitoring',
+    previous_display: 'active',
+    new_display: 'monitoring',
+    actor_id: 'user_yohan',
+    actor_name: 'Yohan Perera',
+    changed_at: '2026-04-18T09:20:00Z',
+  },
+  // Seed: Sarah Cookland assigned to Olwyn when coaching feature went live.
+  {
+    id: 'PFC-004',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    kind: 'coach',
+    previous_value: 'unassigned',
+    new_value: 'user_olwyn',
+    previous_display: 'Unassigned',
+    new_display: 'Olwyn Sutcliffe',
+    actor_id: 'user_qadir',
+    actor_name: 'Qadir Hussain',
+    changed_at: '2026-02-02T10:00:00Z',
+  },
+  // Seed: Zara Ahmed coach assigned shortly after onboarding.
+  {
+    id: 'PFC-005',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00378',
+    kind: 'coach',
+    previous_value: 'unassigned',
+    new_value: 'user_olwyn',
+    previous_display: 'Unassigned',
+    new_display: 'Olwyn Sutcliffe',
+    actor_id: 'user_mobeen',
+    actor_name: 'Mobeen Alam',
+    changed_at: '2026-05-07T10:15:00Z',
+  },
+];
+
+export async function listPatientFlagChanges(
+  clinic_id: ClinicId,
+  opts?: { patient_id?: string },
+): Promise<PatientFlagChange[]> {
+  await delay();
+  let results = PATIENT_FLAG_CHANGES.filter((c) => c.clinic_id === clinic_id);
+  if (opts?.patient_id) results = results.filter((c) => c.patient_id === opts.patient_id);
+  return results;
+}
+
 // ── Sarah Cookland — persona spine ──────────────────────────────────────────
 const SARAH_FEELTRU: Patient = {
   id: 'PT-00198',

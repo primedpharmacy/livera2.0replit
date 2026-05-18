@@ -6,6 +6,7 @@ import {
   Camera, ClipboardList, Calendar, Pill, MessageCircle, Map,
   TrendingDown, CreditCard, Clock, HeartPulse, Link2, Truck,
   Mail, CheckCircle2, XCircle, AlertCircle, ArrowRightLeft,
+  Star, Activity, UserCog,
 } from "lucide-react";
 import { differenceInWeeks, parseISO } from "date-fns";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -31,8 +32,9 @@ import {
   listClinicalNotes, listGPLetters, listAdminNotesByPatient,
   listIncidents, listCourierEvents, CURRENT_USER, getUpcomingCalendlyBookings,
   listPatientNotifications, listPatientPreferredChannelChanges,
+  listPatientFlagChanges,
 } from "@/lib/api/mock";
-import type { PatientNotification, PatientPreferredChannelChange } from "@/lib/api/mock";
+import type { PatientNotification, PatientPreferredChannelChange, PatientFlagChange } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import type {
@@ -97,7 +99,7 @@ async function ProfileContent({
     const [
       patient, orders, clinicalNotes, gpLetters, adminNotes,
       coachingLogs, allIncidents, calendlyBookings, allCourierEvents,
-      notifications, channelChanges,
+      notifications, channelChanges, flagChanges,
     ] = await Promise.all([
       getPatient(clinicId, patientId),
       listOrders(clinicId, { patient_id: patientId }),
@@ -114,6 +116,7 @@ async function ProfileContent({
       listCourierEvents(clinicId),
       listPatientNotifications(clinicId, { patient_id: patientId }),
       listPatientPreferredChannelChanges(clinicId, { patient_id: patientId }),
+      listPatientFlagChanges(clinicId, { patient_id: patientId }),
     ]);
 
     const patientOrderIds = new Set(orders.map((o) => o.id));
@@ -205,7 +208,13 @@ async function ProfileContent({
                 if (key === "incidents" && incidents.length > 0) badge = String(incidents.length);
                 if (key === "notes" && clinicalNotes.length > 0) badge = String(clinicalNotes.length);
                 if (key === "orders" && orders.length > 0) badge = String(orders.length);
-                if (key === "notifications" && notifications.length > 0) badge = String(notifications.length);
+                if (key === "notifications") {
+                  // Count notifications + the patient-scoped system changes
+                  // (channel + flag) so the tab badge signals activity even
+                  // when a patient has no real notifications yet.
+                  const total = notifications.length + channelChanges.length + flagChanges.length;
+                  if (total > 0) badge = String(total);
+                }
                 return (
                   <Link
                     key={key}
@@ -282,6 +291,7 @@ async function ProfileContent({
                 <NotificationsTab
                   notifications={notifications}
                   channelChanges={channelChanges}
+                  flagChanges={flagChanges}
                   clinicId={clinicId}
                   patientId={patientId}
                   orderIdFilter={orderIdFilter}
@@ -932,11 +942,13 @@ type ResendActionResult = { ok: true } | { ok: false; reason: string };
 
 type NotificationLogItem =
   | { kind: "notification"; at: string; id: string; notification: PatientNotification }
-  | { kind: "channel_change"; at: string; id: string; change: PatientPreferredChannelChange };
+  | { kind: "channel_change"; at: string; id: string; change: PatientPreferredChannelChange }
+  | { kind: "flag_change"; at: string; id: string; change: PatientFlagChange };
 
 function NotificationsTab({
   notifications,
   channelChanges,
+  flagChanges,
   clinicId,
   patientId,
   orderIdFilter,
@@ -945,6 +957,7 @@ function NotificationsTab({
 }: {
   notifications: PatientNotification[];
   channelChanges: PatientPreferredChannelChange[];
+  flagChanges: PatientFlagChange[];
   clinicId: ClinicId;
   patientId: string;
   orderIdFilter: string | null;
@@ -954,21 +967,27 @@ function NotificationsTab({
   const filteredNotifs = orderIdFilter
     ? notifications.filter((n) => n.order_id === orderIdFilter)
     : notifications;
-  // Channel-change breadcrumbs are patient-scoped, not order-scoped — only
-  // surface them when the user is viewing the unfiltered log.
+  // Channel-change & flag-change breadcrumbs are patient-scoped, not
+  // order-scoped — only surface them when the user is viewing the
+  // unfiltered log.
   const items: NotificationLogItem[] = [
     ...filteredNotifs.map<NotificationLogItem>((n) => ({
       kind: "notification", at: n.sent_at, id: n.id, notification: n,
     })),
     ...(orderIdFilter
       ? []
-      : channelChanges.map<NotificationLogItem>((c) => ({
-          kind: "channel_change", at: c.changed_at, id: c.id, change: c,
-        }))),
+      : [
+          ...channelChanges.map<NotificationLogItem>((c) => ({
+            kind: "channel_change" as const, at: c.changed_at, id: c.id, change: c,
+          })),
+          ...flagChanges.map<NotificationLogItem>((c) => ({
+            kind: "flag_change" as const, at: c.changed_at, id: c.id, change: c,
+          })),
+        ]),
   ];
   const sorted = items.sort((a, b) => b.at.localeCompare(a.at));
   const notifCount = filteredNotifs.length;
-  const changeCount = orderIdFilter ? 0 : channelChanges.length;
+  const changeCount = orderIdFilter ? 0 : channelChanges.length + flagChanges.length;
 
   return (
     <div className="p-5 flex flex-col gap-3">
@@ -1004,7 +1023,7 @@ function NotificationsTab({
             icon={Mail}
             title={
               changeCount > 0
-                ? `${notifCount} notification${notifCount !== 1 ? "s" : ""} · ${changeCount} channel change${changeCount !== 1 ? "s" : ""}`
+                ? `${notifCount} notification${notifCount !== 1 ? "s" : ""} · ${changeCount} system change${changeCount !== 1 ? "s" : ""}`
                 : `${notifCount} notification${notifCount !== 1 ? "s" : ""}`
             }
           />
@@ -1018,13 +1037,44 @@ function NotificationsTab({
                   canResend={canResend}
                   onResend={onResend}
                 />
-              ) : (
+              ) : item.kind === "channel_change" ? (
                 <ChannelChangeRow key={item.id} change={item.change} />
+              ) : (
+                <FlagChangeRow key={item.id} change={item.change} />
               )
             )}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function FlagChangeRow({ change }: { change: PatientFlagChange }) {
+  const meta =
+    change.kind === 'vip'
+      ? { Icon: Star,     label: 'VIP flag'      }
+      : change.kind === 'status'
+      ? { Icon: Activity, label: 'Patient status' }
+      : { Icon: UserCog,  label: 'Coach'         };
+  const Icon = meta.Icon;
+  const prev = change.previous_display ?? change.previous_value;
+  const next = change.new_display ?? change.new_value;
+  return (
+    <div className="px-4 py-3 bg-page-bg/60">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="font-mono text-[11px] font-semibold text-t2 shrink-0">{change.id}</span>
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-px rounded-full border shrink-0 bg-info-bg text-info border-info-bdr">
+          <Icon className="w-3 h-3" /> System
+        </span>
+        <span className="text-[12px] text-t1 font-medium">
+          {meta.label} changed from{" "}
+          <span className="font-semibold">{prev}</span> to{" "}
+          <span className="font-semibold">{next}</span>{" "}
+          <span className="text-t3 font-normal">by {change.actor_name}</span>
+        </span>
+        <span className="text-[11px] text-t3 ml-auto shrink-0">{formatDateTime(change.changed_at)}</span>
+      </div>
     </div>
   );
 }

@@ -333,6 +333,16 @@ export type Order = {
     bmi: number;
   }> | null;
 
+  // Task-99 — Clinician acknowledgements of concerning weight warnings
+  // surfaced from analyseWeightHistory(). Each entry pins who reviewed which
+  // warning kind, when, and why a clinical decision was still made.
+  weight_warning_acknowledgements?: Array<{
+    kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold';
+    acknowledged_by_user_id: string;
+    acknowledged_at: string;  // ISO
+    rationale: string;
+  }> | null;
+
   royal_mail_tracking_id?: string | null;   // BLD-11.1 — RM1234567890GB format
   dispatched_at?: string | null;            // BLD-11.2 — ISO timestamp; set when status → dispatched
 
@@ -379,13 +389,6 @@ export type Order = {
       previous_expired: boolean; // true if the previous token was past its TTL
       by_user_id: string;     // staff member who triggered the resend
     }>;
-    // Task-92 — scheduled reminder bookkeeping. Each field is set the first
-    // (and only) time its corresponding reminder is sent, so the daily sweep
-    // is idempotent: a reminder is never dispatched twice for the same order.
-    //   reminder_sent_at        — first nudge, ~48h after sent_at
-    //   final_reminder_sent_at  — last-chance nudge, ~24h before expires_at
-    reminder_sent_at?: string | null;
-    final_reminder_sent_at?: string | null;
   } | null;
 
   created_at: string;

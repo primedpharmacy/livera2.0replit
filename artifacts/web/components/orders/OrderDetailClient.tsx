@@ -1146,7 +1146,12 @@ export function OrderDetailClient({
 
                 {/* BLD-14.5 — Weight trajectory */}
                 {order.weight_history && order.weight_history.length > 0 && (
-                  <OrderWeightTrajectoryCard history={order.weight_history} orderType={order.type} />
+                  <OrderWeightTrajectoryCard
+                    order={order}
+                    clinicId={clinicId}
+                    canAcknowledgeWarnings={can(CURRENT_USER, "decide", "orders")}
+                    onWarningAcknowledged={setOrder}
+                  />
                 )}
 
                 <DCard icon={Scale} title="Weight Journey">

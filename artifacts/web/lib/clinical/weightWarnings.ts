@@ -92,3 +92,20 @@ export const WEIGHT_WARNING_CHIP_CLS: Record<WeightWarningSeverity, string> = {
   warn: "bg-warn-bg text-warn border-warn-bdr",
   err: "bg-err-bg text-err border-err-bdr",
 };
+
+// Task-99 — muted styling for warnings the clinician has already acknowledged.
+// Both the colour cue and the AlertTriangle icon are dropped on subsequent
+// visits so the chip reads as "reviewed", not "new".
+export const WEIGHT_WARNING_ACK_CHIP_CLS =
+  "bg-page-bg text-t3 border-bdr";
+
+export type WeightWarningAcknowledgement = NonNullable<
+  Order["weight_warning_acknowledgements"]
+>[number];
+
+export function findAcknowledgement(
+  order: Pick<Order, "weight_warning_acknowledgements"> | undefined | null,
+  kind: WeightWarningKind,
+): WeightWarningAcknowledgement | undefined {
+  return order?.weight_warning_acknowledgements?.find((a) => a.kind === kind);
+}

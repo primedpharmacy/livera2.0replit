@@ -29,6 +29,7 @@
  * Server-side only — must not be imported from a client component.
  */
 
+import { createHmac, timingSafeEqual } from 'crypto';
 import { NOW } from '@/lib/api/constants';
 
 let smsMockCounter = 0;
@@ -102,6 +103,15 @@ async function liveSend(input: PatientSmsInput): Promise<PatientSmsResult> {
   } else {
     params.set('From', fromOrMsg);
   }
+  // Task-101 — when TWILIO_STATUS_CALLBACK_URL is configured, ask Twilio to
+  // POST asynchronous delivery updates (sent / delivered / undelivered /
+  // failed) to our /api/webhooks/twilio/status endpoint so the per-patient
+  // notification log reflects the true final carrier status, not just the
+  // "accepted by carrier" snapshot returned synchronously here.
+  const statusCallbackUrl = process.env.TWILIO_STATUS_CALLBACK_URL;
+  if (statusCallbackUrl) {
+    params.set('StatusCallback', statusCallbackUrl);
+  }
 
   const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
   const url  = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`;
@@ -166,6 +176,77 @@ async function liveSend(input: PatientSmsInput): Promise<PatientSmsResult> {
     status:        'Failed',
     error_message: `Twilio returned unexpected status="${status || 'unknown'}"`,
   };
+}
+
+// ── Task-101: Twilio status callback helpers ─────────────────────────────────
+/**
+ * Map a Twilio asynchronous status callback (MessageStatus + ErrorCode) onto
+ * our PatientNotification status vocabulary.
+ *
+ *   MessageStatus 'delivered'                  → 'Delivered'
+ *   MessageStatus 'undelivered'                → 'Bounced'   (carrier rejected)
+ *   MessageStatus 'failed'                     → 'Failed'    ('Bounced' if the
+ *                                                 ErrorCode is in
+ *                                                 TWILIO_BOUNCE_CODES)
+ *   Any intermediate status (queued/sending/
+ *   sent/accepted/receiving/received/read)     → null  — ignore, not final
+ *
+ * Returns null when the callback represents a non-final state and the
+ * notification row should be left unchanged.
+ */
+export function mapTwilioCallbackStatus(
+  messageStatus: string | null | undefined,
+  errorCode: number | null | undefined,
+): 'Delivered' | 'Bounced' | 'Failed' | null {
+  const status = (messageStatus ?? '').toLowerCase();
+  const code   = typeof errorCode === 'number' ? errorCode : null;
+
+  if (status === 'delivered') return 'Delivered';
+  if (status === 'undelivered') return 'Bounced';
+  if (status === 'failed') {
+    return code !== null && TWILIO_BOUNCE_CODES.has(code) ? 'Bounced' : 'Failed';
+  }
+  // queued / sending / sent / accepted / receiving / received / read / unknown
+  return null;
+}
+
+/**
+ * Verify the `X-Twilio-Signature` header on an incoming status callback.
+ *
+ * Twilio signs the full request URL concatenated with the POST parameters
+ * sorted alphabetically by key (key + value, no separator), HMAC-SHA1'd
+ * against the account auth token and base64-encoded.
+ * Reference: https://www.twilio.com/docs/usage/webhooks/webhooks-security
+ *
+ *   mock mode (LIVERA_SMS_LIVE !== 'true') → always returns true (skipped)
+ *   live mode → requires TWILIO_AUTH_TOKEN; returns false on mismatch or
+ *               when the header is absent
+ *
+ * @param url       Full public URL Twilio POSTed to (scheme + host + path +
+ *                  query). When TWILIO_STATUS_CALLBACK_URL is set, callers
+ *                  should pass that value to guarantee an exact match.
+ * @param params    Form-encoded POST params Twilio sent
+ * @param signature Value of the X-Twilio-Signature header
+ */
+export function verifyTwilioSignature(
+  url: string,
+  params: Record<string, string>,
+  signature: string | null,
+): boolean {
+  const isLive = process.env.LIVERA_SMS_LIVE === 'true';
+  if (!isLive) return true;
+
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!authToken || !signature) return false;
+
+  const sortedKeys = Object.keys(params).sort();
+  const data = url + sortedKeys.map((k) => k + params[k]).join('');
+  const expected = createHmac('sha1', authToken).update(data).digest('base64');
+
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signature);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 export async function sendPatientSMS(

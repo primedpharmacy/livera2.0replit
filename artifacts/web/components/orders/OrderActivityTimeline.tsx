@@ -3,7 +3,15 @@
 import { Activity } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { DCard } from "./orderPrimitives";
+import { USERS_REGISTRY } from "@/lib/api/mock";
 import type { Order } from "@/types";
+
+const WEIGHT_WARNING_LABEL: Record<string, string> = {
+  weight_regain:        "weight regain",
+  plateau:              "plateau",
+  rapid_loss:           "rapid loss",
+  bmi_below_threshold:  "BMI below continuation threshold",
+};
 
 type TimelineEntry = {
   key: string;
@@ -88,29 +96,6 @@ export function OrderActivityTimeline({ order }: Props) {
     });
   }
 
-  // Task-92 — Scheduled Px upload reminders (first nudge ~48h after sent_at,
-  // final nudge within 24h of expires_at). Each fires at most once.
-  if (order.px_upload_link?.reminder_sent_at) {
-    entries.push({
-      key: "px_link_reminder",
-      dot: "info",
-      title: "Px upload reminder emailed to patient",
-      meta: `to ${order.px_upload_link.to_email} · ${formatDateTime(order.px_upload_link.reminder_sent_at)}`,
-      ts: new Date(order.px_upload_link.reminder_sent_at).getTime(),
-      subtext: `Reuses the original link · expires ${order.px_upload_link.expires_at.slice(0, 10)}`,
-    });
-  }
-  if (order.px_upload_link?.final_reminder_sent_at) {
-    entries.push({
-      key: "px_link_final_reminder",
-      dot: "info",
-      title: "Final Px upload reminder emailed to patient",
-      meta: `to ${order.px_upload_link.to_email} · ${formatDateTime(order.px_upload_link.final_reminder_sent_at)}`,
-      ts: new Date(order.px_upload_link.final_reminder_sent_at).getTime(),
-      subtext: `Last chance · link expires ${order.px_upload_link.expires_at.slice(0, 10)}`,
-    });
-  }
-
   // Px upload received (success-screen or email link)
   if (order.px_upload?.uploaded_at) {
     const viaLink = order.px_upload.source === "email_link" || !!order.px_upload_link?.consumed_at;
@@ -133,6 +118,22 @@ export function OrderActivityTimeline({ order }: Props) {
       meta: `by ${order.clinical_decision.prescriber_user_id} · ${formatDateTime(order.clinical_decision.decided_at)}`,
       ts: new Date(order.clinical_decision.decided_at).getTime(),
       rationale: order.clinical_decision.rationale,
+    });
+  }
+
+  // Task-99 — weight warning acknowledgements appear in the audit timeline so
+  // the wider team can see who reviewed which warning, when, and why.
+  for (const ack of order.weight_warning_acknowledgements ?? []) {
+    const actor = USERS_REGISTRY[ack.acknowledged_by_user_id]?.full_name
+      ?? ack.acknowledged_by_user_id;
+    const label = WEIGHT_WARNING_LABEL[ack.kind] ?? ack.kind;
+    entries.push({
+      key: `weight_warning_ack_${ack.kind}`,
+      dot: "info",
+      title: `Weight warning acknowledged — ${label}`,
+      meta: `by ${actor} · ${formatDateTime(ack.acknowledged_at)}`,
+      ts: new Date(ack.acknowledged_at).getTime(),
+      rationale: ack.rationale,
     });
   }
 

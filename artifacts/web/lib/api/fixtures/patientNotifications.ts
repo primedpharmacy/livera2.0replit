@@ -185,6 +185,39 @@ export function applyRetryOutcome(
   return notif;
 }
 
+// Task-101 — apply an asynchronous Twilio status callback to the matching SMS
+// notification row. We look the row up by `payload.sms_message_id` (Twilio
+// MessageSid stored when the synchronous send returned). Returns the mutated
+// notification, or null when no matching row exists (e.g. callback arrives
+// for an SMS sent outside Livera, or against a wiped dev fixture set).
+//
+// Carrier-final statuses are terminal: no retry is ever scheduled from a
+// status callback — the SMS already left our system. Bounced/Failed rows
+// produced this way will not be picked up by retryFailedPatientNotifications
+// because `next_retry_at` stays null.
+export function applyTwilioStatusCallback(
+  smsMessageId: string,
+  outcome: { status: PatientNotificationStatus; error_message?: string | null },
+  occurredAt: string = NOW,
+): PatientNotification | null {
+  const notif = MOCK_PATIENT_NOTIFICATIONS.find(
+    (n) =>
+      n.channel === 'SMS' &&
+      (n.payload as { sms_message_id?: unknown }).sms_message_id === smsMessageId,
+  );
+  if (!notif) return null;
+
+  notif.status          = outcome.status;
+  notif.last_attempt_at = occurredAt;
+  notif.last_error      =
+    outcome.status === 'Delivered' ? null : (outcome.error_message ?? notif.last_error);
+  notif.next_retry_at   = null;
+  if (outcome.error_message) {
+    notif.payload = { ...notif.payload, sms_error_message: outcome.error_message };
+  }
+  return notif;
+}
+
 export async function listPatientNotifications(
   clinic_id: ClinicId,
   opts?: { patient_id?: string; order_id?: string },

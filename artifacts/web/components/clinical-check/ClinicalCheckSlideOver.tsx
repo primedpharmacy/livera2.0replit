@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 import { decideOrder, createClinicalNote, CURRENT_USER, NOW } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/format";
-import { analyseWeightHistory, WEIGHT_WARNING_CHIP_CLS } from "@/lib/clinical/weightWarnings";
+import { analyseWeightHistory } from "@/lib/clinical/weightWarnings";
+import { WeightWarningChips } from "@/components/clinical/WeightWarningChips";
 import { OrderQuestionnaireCard } from "@/components/orders/OrderQuestionnaireCard";
 import { OrderNICEChecklistCard } from "@/components/orders/OrderNICEChecklistCard";
 import { ApproveConfirmModal } from "@/components/orders/ApproveConfirmModal";
@@ -71,7 +72,7 @@ interface ClinicalCheckSlideOverProps {
 }
 
 export function ClinicalCheckSlideOver({
-  order,
+  order: orderProp,
   patientName,
   clinic,
   clinicId,
@@ -80,6 +81,13 @@ export function ClinicalCheckSlideOver({
   onNavigate,
   jumpToFlaggedNonce,
 }: ClinicalCheckSlideOverProps) {
+  // Task-99 — mirror the order locally so optimistic updates (e.g. weight
+  // warning acknowledgements) survive until the parent refetches the queue.
+  const [order, setOrder] = useState<Order>(orderProp);
+  useEffect(() => {
+    setOrder(orderProp);
+  }, [orderProp]);
+
   const [activeTab, setActiveTab] = useState<SlideOverTab>("summary");
   const [approveOpen, setApproveOpen] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
@@ -389,22 +397,16 @@ export function ClinicalCheckSlideOver({
                     </div>
                   </div>
 
-                  {/* Concerning trend warnings (Task-69) */}
+                  {/* Concerning trend warnings (Task-69) + acknowledgements (Task-99) */}
                   {weightWarnings.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {weightWarnings.map((w) => (
-                        <span
-                          key={w.kind}
-                          className={cn(
-                            "inline-flex items-center gap-1 text-[10.5px] font-semibold border rounded-full px-2 py-0.5",
-                            WEIGHT_WARNING_CHIP_CLS[w.severity],
-                          )}
-                        >
-                          <AlertTriangle className="w-3 h-3" />
-                          {w.label}
-                        </span>
-                      ))}
-                    </div>
+                    <WeightWarningChips
+                      order={order}
+                      clinicId={clinicId}
+                      warnings={weightWarnings}
+                      size="sm"
+                      canAcknowledge={canDecide}
+                      onAcknowledged={setOrder}
+                    />
                   )}
 
                   {/* BMI tile */}

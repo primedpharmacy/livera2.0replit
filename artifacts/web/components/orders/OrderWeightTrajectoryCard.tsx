@@ -1,18 +1,29 @@
-import { AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
+import { TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
-import { analyseWeightHistory, WEIGHT_WARNING_CHIP_CLS } from "@/lib/clinical/weightWarnings";
-import type { Order } from "@/types";
+import { analyseWeightHistory } from "@/lib/clinical/weightWarnings";
+import { WeightWarningChips } from "@/components/clinical/WeightWarningChips";
+import type { Order, ClinicId } from "@/types";
 
 interface Props {
-  history: NonNullable<Order["weight_history"]>;
-  orderType?: Order["type"];
+  order: Order;
+  clinicId: ClinicId;
+  /** Whether the current viewer is allowed to acknowledge warnings. */
+  canAcknowledgeWarnings?: boolean;
+  /** Notify parent of the updated order after an acknowledgement is saved. */
+  onWarningAcknowledged?: (updated: Order) => void;
 }
 
-export function OrderWeightTrajectoryCard({ history, orderType }: Props) {
+export function OrderWeightTrajectoryCard({
+  order,
+  clinicId,
+  canAcknowledgeWarnings = true,
+  onWarningAcknowledged,
+}: Props) {
+  const history = order.weight_history ?? [];
   if (history.length === 0) return null;
   const warnings = analyseWeightHistory(history, {
-    isContinuation: orderType === "reorder",
+    isContinuation: order.type === "reorder",
   });
 
   const sorted    = [...history].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
@@ -55,21 +66,16 @@ export function OrderWeightTrajectoryCard({ history, orderType }: Props) {
       </div>
 
       <div className="p-4">
-        {/* Concerning trend warnings (Task-69) */}
+        {/* Concerning trend warnings (Task-69) + acknowledgements (Task-99) */}
         {warnings.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {warnings.map((w) => (
-              <span
-                key={w.kind}
-                className={cn(
-                  "inline-flex items-center gap-1 text-[11px] font-semibold border rounded-full px-2 py-0.5",
-                  WEIGHT_WARNING_CHIP_CLS[w.severity],
-                )}
-              >
-                <AlertTriangle className="w-3 h-3" />
-                {w.label}
-              </span>
-            ))}
+          <div className="mb-3">
+            <WeightWarningChips
+              order={order}
+              clinicId={clinicId}
+              warnings={warnings}
+              canAcknowledge={canAcknowledgeWarnings}
+              onAcknowledged={onWarningAcknowledged}
+            />
           </div>
         )}
 

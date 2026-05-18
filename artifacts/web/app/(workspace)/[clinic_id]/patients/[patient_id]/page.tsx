@@ -5,7 +5,7 @@ import {
   AlertTriangle, Scale, Package, FileText, MessageSquare,
   Camera, ClipboardList, Calendar, Pill, MessageCircle, Map,
   TrendingDown, CreditCard, Clock, HeartPulse, Link2, Truck,
-  Mail, ArrowRightLeft,
+  Mail, ArrowRightLeft, AlertCircle,
   Star, Activity, UserCog,
 } from "lucide-react";
 import { differenceInWeeks, parseISO } from "date-fns";
@@ -89,20 +89,22 @@ const SUMSUB_DOC_LABEL: Record<NonNullable<NonNullable<Patient["verification"]["
 
 type PageProps = {
   params: Promise<{ clinic_id: string; patient_id: string }>;
-  searchParams: Promise<{ tab?: string; order_id?: string }>;
+  searchParams: Promise<{ tab?: string; order_id?: string; notif_filter?: string }>;
 };
 
 export default async function PatientProfilePage({ params, searchParams }: PageProps) {
   const { clinic_id, patient_id } = await params;
-  const { tab, order_id } = await searchParams;
+  const { tab, order_id, notif_filter } = await searchParams;
   const activeTab = (tab ?? "overview") as TabKey;
+  const notifFilter: NotifStatusFilter = notif_filter === "failures" ? "failures" : "all";
   return (
-    <Suspense key={`${clinic_id}-${patient_id}-${activeTab}-${order_id ?? ""}`} fallback={<LoadingState.Detail />}>
+    <Suspense key={`${clinic_id}-${patient_id}-${activeTab}-${order_id ?? ""}-${notifFilter}`} fallback={<LoadingState.Detail />}>
       <ProfileContent
         clinicId={clinic_id as ClinicId}
         patientId={patient_id}
         activeTab={activeTab}
         orderIdFilter={order_id ?? null}
+        notifFilter={notifFilter}
       />
     </Suspense>
   );
@@ -114,11 +116,13 @@ async function ProfileContent({
   patientId,
   activeTab,
   orderIdFilter,
+  notifFilter,
 }: {
   clinicId: ClinicId;
   patientId: string;
   activeTab: TabKey;
   orderIdFilter: string | null;
+  notifFilter: NotifStatusFilter;
 }) {
   try {
     const clinic = await getClinic(clinicId);
@@ -333,6 +337,7 @@ async function ProfileContent({
                   clinicId={clinicId}
                   patientId={patientId}
                   orderIdFilter={orderIdFilter}
+                  statusFilter={notifFilter}
                   canResend={canResendNotification}
                   onResend={handleResendNotification}
                   currentChannel={patient.contact.preferred_channel}
@@ -1098,6 +1103,8 @@ type NotificationLogItem =
   | { kind: "channel_change"; at: string; id: string; change: PatientPreferredChannelChange }
   | { kind: "flag_change"; at: string; id: string; change: PatientFlagChange };
 
+type NotifStatusFilter = "all" | "failures";
+
 function NotificationsTab({
   notifications,
   channelChanges,
@@ -1105,6 +1112,7 @@ function NotificationsTab({
   clinicId,
   patientId,
   orderIdFilter,
+  statusFilter,
   canResend,
   onResend,
   currentChannel,
@@ -1116,35 +1124,53 @@ function NotificationsTab({
   clinicId: ClinicId;
   patientId: string;
   orderIdFilter: string | null;
+  statusFilter: NotifStatusFilter;
   canResend: boolean;
   onResend: (notificationId: string) => Promise<ResendActionResult>;
   currentChannel: 'email' | 'sms' | 'phone';
   canSwitchChannel: boolean;
 }) {
-  const filteredNotifs = orderIdFilter
+  const orderScoped = orderIdFilter
     ? notifications.filter((n) => n.order_id === orderIdFilter)
     : notifications;
+  // Task-258 — "Show failures only" quick-filter so reviewers triaging delivery
+  // problems can jump straight to Failed + Bounced rows without scrolling past
+  // Delivered/Queued noise. When the failures-only chip is active we also
+  // suppress the patient-scoped system breadcrumbs (channel/flag changes),
+  // which are never "failures" themselves.
+  const failuresOnly = statusFilter === "failures";
+  const totalFailureCount = orderScoped.filter(
+    (n) => n.status === "Failed" || n.status === "Bounced",
+  ).length;
+  const filteredNotifs = failuresOnly
+    ? orderScoped.filter((n) => n.status === "Failed" || n.status === "Bounced")
+    : orderScoped;
   // Channel-change & flag-change breadcrumbs are patient-scoped, not
   // order-scoped — only surface them when the user is viewing the
   // unfiltered log.
+  const showSystemChanges = !orderIdFilter && !failuresOnly;
   const items: NotificationLogItem[] = [
     ...filteredNotifs.map<NotificationLogItem>((n) => ({
       kind: "notification", at: n.sent_at, id: n.id, notification: n,
     })),
-    ...(orderIdFilter
-      ? []
-      : [
+    ...(showSystemChanges
+      ? [
           ...channelChanges.map<NotificationLogItem>((c) => ({
             kind: "channel_change" as const, at: c.changed_at, id: c.id, change: c,
           })),
           ...flagChanges.map<NotificationLogItem>((c) => ({
             kind: "flag_change" as const, at: c.changed_at, id: c.id, change: c,
           })),
-        ]),
+        ]
+      : []),
   ];
   const sorted = items.sort((a, b) => b.at.localeCompare(a.at));
   const notifCount = filteredNotifs.length;
-  const changeCount = orderIdFilter ? 0 : channelChanges.length + flagChanges.length;
+  const changeCount = showSystemChanges ? channelChanges.length + flagChanges.length : 0;
+
+  const baseQuery = orderIdFilter ? `&order_id=${orderIdFilter}` : "";
+  const allHref = `/${clinicId}/patients/${patientId}?tab=notifications${baseQuery}`;
+  const failuresHref = `/${clinicId}/patients/${patientId}?tab=notifications${baseQuery}&notif_filter=failures`;
 
   return (
     <div className="p-5 flex flex-col gap-3">
@@ -1157,7 +1183,7 @@ function NotificationsTab({
             </Link>
           </span>
           <Link
-            href={`/${clinicId}/patients/${patientId}?tab=notifications`}
+            href={`/${clinicId}/patients/${patientId}?tab=notifications${failuresOnly ? "&notif_filter=failures" : ""}`}
             className="text-[11px] font-semibold hover:underline shrink-0"
           >
             Clear filter
@@ -1165,14 +1191,63 @@ function NotificationsTab({
         </div>
       )}
 
+      {/* Task-258 — quick-filter chips (state lives in ?notif_filter=) */}
+      <div className="flex items-center gap-1.5">
+        <Link
+          href={allHref}
+          aria-pressed={!failuresOnly}
+          className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+            !failuresOnly
+              ? "bg-t1 text-surface border-t1"
+              : "bg-surface text-t2 border-bdr hover:border-t3"
+          }`}
+        >
+          All
+          <span className={`text-[10px] font-bold px-1.5 py-px rounded-full ${
+            !failuresOnly ? "bg-surface/20 text-surface" : "bg-page-bg text-t3"
+          }`}>
+            {orderScoped.length}
+          </span>
+        </Link>
+        <Link
+          href={failuresHref}
+          aria-pressed={failuresOnly}
+          className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+            failuresOnly
+              ? "bg-err text-white border-err"
+              : "bg-surface text-t2 border-bdr hover:border-err-bdr hover:text-err"
+          }`}
+        >
+          <AlertCircle className="w-3 h-3" />
+          Failures only
+          <span className={`text-[10px] font-bold px-1.5 py-px rounded-full ${
+            failuresOnly ? "bg-white/20 text-white" : "bg-page-bg text-t3"
+          }`}>
+            {totalFailureCount}
+          </span>
+        </Link>
+      </div>
+
       {sorted.length === 0 ? (
         <div className="p-10 flex flex-col items-center gap-3 text-center">
           <Mail className="w-10 h-10 text-t3 opacity-40" />
           <p className="text-[13px] text-t3">
-            {orderIdFilter
+            {failuresOnly
+              ? orderIdFilter
+                ? "No failed deliveries for this order."
+                : "No failed deliveries — every notification has landed."
+              : orderIdFilter
               ? "No notifications sent for this order."
               : "No notifications sent to this patient yet."}
           </p>
+          {failuresOnly && (
+            <Link
+              href={allHref}
+              className="text-[11px] font-semibold text-brand hover:underline"
+            >
+              Show all notifications
+            </Link>
+          )}
         </div>
       ) : (
         <div className="bg-surface border border-bdr rounded-lg overflow-hidden">

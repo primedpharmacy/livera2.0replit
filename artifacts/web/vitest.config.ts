@@ -19,7 +19,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
-      '@workspace/db': path.resolve(__dirname, '../../lib/db/src/index.ts'),
     },
   },
 });

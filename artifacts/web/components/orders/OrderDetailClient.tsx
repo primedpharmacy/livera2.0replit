@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, reverseDecision, NOW, USERS_REGISTRY, getOrderAuditEvents } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, reverseDecision, NOW, USERS_REGISTRY } from "@/lib/api/mock";
 import { useCurrentUser } from "@/lib/context";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { openOrderUndoWindow, readOrderUndoDeadline, clearOrderUndoWindow } from "@/lib/orderUndo";
@@ -275,8 +275,6 @@ export function OrderDetailClient({
   // Task-91 — Resend Px upload link
   // Task-126 — Cool-down + confirm step to stop accidental spam.
   const [isResendingPxLink, setIsResendingPxLink] = useState(false);
-  // Task-178 — Collapsible "Email history" section on the Px-upload card.
-  const [showPxEmailHistory, setShowPxEmailHistory] = useState(false);
   const [resendConfirmOpen, setResendConfirmOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -454,11 +452,8 @@ export function OrderDetailClient({
     const pxLink = order.px_upload_link;
     if (!pxLink) return;
     const resends = pxLink.resends ?? [];
-    // Task-178 — Bounced/Failed resends have sent_at = null. Fall back to
-    // attempted_at so the cool-down timer still throttles the next click.
-    const lastResend = resends.length > 0 ? resends[resends.length - 1] : null;
     const lastSendIso =
-      lastResend?.sent_at ?? lastResend?.attempted_at ?? pxLink.sent_at;
+      resends.length > 0 ? resends[resends.length - 1].sent_at : pxLink.sent_at;
     if (!lastSendIso) return;
     const elapsed = Date.now() - new Date(lastSendIso).getTime();
     if (elapsed >= PX_RESEND_COOLDOWN_SECONDS * 1000) return;
@@ -470,10 +465,7 @@ export function OrderDetailClient({
     const pxLink = order.px_upload_link;
     if (!pxLink) return null;
     const resends = pxLink.resends ?? [];
-    if (resends.length > 0) {
-      const last = resends[resends.length - 1];
-      return last.sent_at ?? last.attempted_at ?? null;
-    }
+    if (resends.length > 0) return resends[resends.length - 1].sent_at;
     return pxLink.sent_at ?? null;
   })();
   const pxSecondsSinceLastSend =
@@ -1519,26 +1511,13 @@ export function OrderDetailClient({
                           link != null &&
                           new Date(link.expires_at).getTime() < Date.now();
                         const resendCount = link?.resends?.length ?? 0;
-                        // Task-178 — "Most recent resend" line only shows
-                        // successful sends so we don't claim a bounced
-                        // attempt landed in the patient's inbox. Failed
-                        // attempts are visible in the Email history below.
-                        const lastDeliveredResend = (() => {
-                          const arr = link?.resends ?? [];
-                          for (let i = arr.length - 1; i >= 0; i--) {
-                            if ((arr[i].status ?? 'Delivered') === 'Delivered') return arr[i];
-                          }
-                          return null;
-                        })();
-                        const deliveredResendCount = (link?.resends ?? []).filter(
-                          (r) => (r.status ?? 'Delivered') === 'Delivered',
-                        ).length;
+                        const lastResend = resendCount > 0 ? link!.resends![resendCount - 1] : null;
                         const cooldownActive = pxCooldownRemaining > 0;
                         const buttonLabel = cooldownActive
                           ? `Resend available in ${pxCooldownRemaining}s`
                           : linkExpired
                           ? "Send new upload link"
-                          : deliveredResendCount > 0
+                          : resendCount > 0
                           ? "Resend upload link again"
                           : "Resend upload link";
                         const buttonTitle = cooldownActive
@@ -1593,186 +1572,18 @@ export function OrderDetailClient({
                                     ) : (
                                       <>expires {link.expires_at.slice(0, 10)}</>
                                     )}
-                                    {deliveredResendCount > 0 && (
-                                      <> · resent {deliveredResendCount} {deliveredResendCount === 1 ? "time" : "times"}</>
+                                    {resendCount > 0 && (
+                                      <> · resent {resendCount} {resendCount === 1 ? "time" : "times"}</>
                                     )}
                                   </p>
                                 )}
-                                {lastDeliveredResend && lastDeliveredResend.sent_at && (
+                                {lastResend && (
                                   <p className="text-[11px] text-t3">
-                                    Most recent resend by{" "}
-                                    {USERS_REGISTRY[lastDeliveredResend.by_user_id]?.full_name ?? lastDeliveredResend.by_user_id}
-                                    {" "}on {formatDateTime(lastDeliveredResend.sent_at)}
+                                    Most recent resend by {lastResend.by_user_id} on {formatDateTime(lastResend.sent_at)}
                                   </p>
                                 )}
                               </div>
                             </div>
-                            {/* Task-178 — Collapsible "Email history" so staff
-                                can quickly answer "I never got the email"
-                                with the full timeline of attempts — initial
-                                send, every resend, and any cool-down
-                                suppressions — without scraping the audit log. */}
-                            {link && (() => {
-                              type HistoryRow = {
-                                key: string;
-                                ts: number;
-                                when: string;
-                                kind: "Initial" | "Resend" | "Suppressed";
-                                actor: string;
-                                to_email: string;
-                                outcome: "Delivered" | "Bounced" | "Failed" | "Rate-limited";
-                                error_message: string | null;
-                              };
-                              const rows: HistoryRow[] = [];
-                              const userName = (id: string | null | undefined) =>
-                                id ? USERS_REGISTRY[id]?.full_name ?? id : "System (intake)";
-
-                              if (link.initial_attempted_at) {
-                                rows.push({
-                                  key: "initial",
-                                  ts: new Date(link.initial_attempted_at).getTime(),
-                                  when: link.initial_attempted_at,
-                                  kind: "Initial",
-                                  actor: userName(link.initial_send_by_user_id ?? null),
-                                  to_email: link.initial_to_email ?? link.to_email,
-                                  outcome: link.initial_send_status ?? "Delivered",
-                                  error_message: link.initial_send_error_message ?? null,
-                                });
-                              } else if (link.sent_at) {
-                                // Older fixture / pre-Task-178 record — fall back
-                                // to the link.sent_at as a Delivered initial send
-                                // so the history is still complete.
-                                rows.push({
-                                  key: "initial",
-                                  ts: new Date(link.sent_at).getTime(),
-                                  when: link.sent_at,
-                                  kind: "Initial",
-                                  actor: userName(null),
-                                  to_email: link.to_email,
-                                  outcome: "Delivered",
-                                  error_message: null,
-                                });
-                              }
-
-                              (link.resends ?? []).forEach((r, idx) => {
-                                // Task-178 — Successful resends carry sent_at;
-                                // bounced/failed ones leave it null but always
-                                // record attempted_at. Skip the row entirely if
-                                // neither is present (corrupted legacy data) so
-                                // we never feed `new Date(null)` to the renderer.
-                                const when = r.sent_at ?? r.attempted_at;
-                                if (!when) return;
-                                rows.push({
-                                  key: `resend-${idx}`,
-                                  ts: new Date(when).getTime(),
-                                  when,
-                                  kind: "Resend",
-                                  actor: userName(r.by_user_id),
-                                  to_email: r.to_email,
-                                  outcome: r.status ?? "Delivered",
-                                  error_message: r.error_message ?? null,
-                                });
-                              });
-
-                              // Task-178 — Cool-down-suppressed attempts are
-                              // sourced from the audit log (per task brief —
-                              // no new persistence layer) via the in-memory
-                              // adapter exposed by the fixtures module.
-                              getOrderAuditEvents(order.id, [
-                                'px_upload_link_resend_suppressed',
-                              ]).forEach((evt, idx) => {
-                                if (!evt.occurred_at) return;
-                                const payload = evt.payload ?? {};
-                                const cooldownSeconds =
-                                  typeof payload.cooldown_seconds === 'number'
-                                    ? payload.cooldown_seconds
-                                    : 60;
-                                const toEmail =
-                                  typeof payload.to_email === 'string'
-                                    ? payload.to_email
-                                    : link.to_email;
-                                rows.push({
-                                  key: `suppressed-${idx}`,
-                                  ts: new Date(evt.occurred_at).getTime(),
-                                  when: evt.occurred_at,
-                                  kind: "Suppressed",
-                                  actor: userName(evt.actor_user_id),
-                                  to_email: toEmail,
-                                  outcome: "Rate-limited",
-                                  error_message: `Cool-down active (${cooldownSeconds}s window) — patient was not emailed.`,
-                                });
-                              });
-
-                              rows.sort((a, b) => a.ts - b.ts);
-                              if (rows.length === 0) return null;
-
-                              const outcomeClass = (o: HistoryRow["outcome"]) => {
-                                switch (o) {
-                                  case "Delivered":
-                                    return "bg-ok-bg text-ok border-ok-bdr";
-                                  case "Bounced":
-                                  case "Failed":
-                                    return "bg-err-bg text-err border-err-bdr";
-                                  case "Rate-limited":
-                                    return "bg-warn-bg text-warn border-warn-bdr";
-                                }
-                              };
-
-                              return (
-                                <div className="rounded-lg border border-bdr bg-surface">
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowPxEmailHistory((s) => !s)}
-                                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[12px] font-semibold text-t1 hover:bg-bg2 rounded-lg transition-colors"
-                                    aria-expanded={showPxEmailHistory}
-                                  >
-                                    <span className="flex items-center gap-1.5">
-                                      <Mail className="w-3.5 h-3.5 text-t2" />
-                                      Email history ({rows.length})
-                                    </span>
-                                    {showPxEmailHistory ? (
-                                      <ChevronDown className="w-3.5 h-3.5 text-t2" />
-                                    ) : (
-                                      <ChevronRightIcon className="w-3.5 h-3.5 text-t2" />
-                                    )}
-                                  </button>
-                                  {showPxEmailHistory && (
-                                    <ul className="px-3 pb-3 space-y-2">
-                                      {rows.map((row) => (
-                                        <li
-                                          key={row.key}
-                                          className="text-[11px] p-2 rounded-md bg-bg2 border border-bdr"
-                                        >
-                                          <div className="flex items-start justify-between gap-2 flex-wrap">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                              <span className="font-semibold text-t1">{row.kind}</span>
-                                              <span className="text-t3">·</span>
-                                              <span className="text-t2">{formatDateTime(row.when)}</span>
-                                            </div>
-                                            <span
-                                              className={`px-1.5 py-0.5 rounded border text-[10px] font-semibold ${outcomeClass(row.outcome)}`}
-                                            >
-                                              {row.outcome}
-                                            </span>
-                                          </div>
-                                          <p className="mt-1 text-t2">
-                                            {row.kind === "Suppressed" ? "Attempted by" : "Triggered by"}{" "}
-                                            <span className="text-t1 font-semibold">{row.actor}</span>
-                                            {" · to "}
-                                            <span className="font-mono text-t1">{row.to_email}</span>
-                                          </p>
-                                          {row.error_message && (
-                                            <p className="mt-1 text-t3 italic">
-                                              {row.error_message}
-                                            </p>
-                                          )}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                </div>
-                              );
-                            })()}
                             {link && (
                               <div className="flex flex-wrap justify-end gap-2">
                                 {/* Task-130 — Manual reminder, shown alongside

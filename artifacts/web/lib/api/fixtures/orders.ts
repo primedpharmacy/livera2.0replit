@@ -16,6 +16,7 @@ import { createGPLetter, MOCK_GP_LETTERS } from './gpLetters'; // CLARIFY-1 (Wav
 import { releaseAuth } from '@/lib/integrations/ryft'; // Task-38 — auth-release branch
 import { notifyPatient } from '@/lib/integrations/patientNotify'; // Task-49 + Task-65
 import { sendPatientEmail, sendStaffEmail } from '@/lib/integrations/postmark'; // Task-80 / Task-78
+import { renderPatientEmail } from '@/lib/integrations/emailTemplates'; // Task-186
 import { randomBytes } from 'crypto';
 import { evaluateSelfReportedBmi, filterSelfReportedBmiFlag, SELF_REPORTED_BMI_FLAG } from '@/lib/clinical/selfReportedBmi'; // Task-163
 import { recordAudit } from '../audit'; // Task-167 — durable spine
@@ -374,53 +375,23 @@ const ZARA_ORDER_FEELTRU_PX_PENDING: Order = {
   contextual_flags: ['New intake', 'Px upload pending'],
   intervention_raised_at: null,
   px_upload: null,
-  // Task-178 + Task-180 — Rich history seed combining the email-history
-  // demo (initial bounce, two delivered resends, a cool-down-suppressed
-  // attempt sourced from the audit log) with the prescriber-queue
-  // reminder-health pill (the first reminder hard-bounced and has not yet
-  // been re-sent, so the queue should show a "Reminder bounced" pill).
+  // Task-180 — Demo seed for the prescriber-queue reminder-health pill.
+  // The 48h nudge bounced (hard bounce) and has not yet been re-sent
+  // successfully, so the queue should show a "Reminder bounced" pill.
   px_upload_link: {
-    token: 'pxlnk_zara_v3',
-    expires_at: '2026-05-21T14:05:00Z',
-    sent_at: '2026-05-09T14:05:00Z',
-    first_sent_at: '2026-05-09T08:32:00Z',
+    token: 'demo-zara-px-token',
+    expires_at: '2026-05-25T08:00:00Z',
+    sent_at: '2026-05-15T08:00:00Z',
+    first_sent_at: '2026-05-15T08:00:00Z',
     consumed_at: null,
-    email_message_id: 'pm-msg-zara-3',
+    email_message_id: 'pm-zara-init-001',
     to_email: 'zara.k@example.com',
-    initial_attempted_at: '2026-05-08T16:14:00Z',
-    initial_to_email: 'zara.k@exmple.com',
-    initial_send_status: 'Bounced',
-    initial_send_error_message:
-      'Postmark hard-bounce: mailbox does not exist (exmple.com).',
-    initial_send_by_user_id: null,
-    resends: [
-      {
-        sent_at: '2026-05-09T08:32:00Z',
-        attempted_at: '2026-05-09T08:32:00Z',
-        to_email: 'zara.k@example.com',
-        expires_at: '2026-05-16T08:32:00Z',
-        previous_expired: false,
-        by_user_id: 'user_claire',
-        status: 'Delivered',
-        error_message: null,
-      },
-      {
-        sent_at: '2026-05-09T14:05:00Z',
-        attempted_at: '2026-05-09T14:05:00Z',
-        to_email: 'zara.k@example.com',
-        expires_at: '2026-05-21T14:05:00Z',
-        previous_expired: false,
-        by_user_id: 'user_mobeen',
-        status: 'Delivered',
-        error_message: null,
-      },
-    ],
     reminder_sent_at: null,
     final_reminder_sent_at: null,
     reminder_failures: [
       {
         kind: 'first',
-        attempted_at: '2026-05-11T08:32:00Z',
+        attempted_at: '2026-05-17T08:00:00Z',
         to_email: 'zara.k@example.com',
         status: 'Bounced',
         error_message: 'Hard bounce — mailbox does not exist (550)',
@@ -428,62 +399,9 @@ const ZARA_ORDER_FEELTRU_PX_PENDING: Order = {
     ],
   },
   expired_at: null,
-  created_at: '2026-05-08T16:00:00Z',
-  updated_at: '2026-05-09T14:05:30Z',
+  created_at: '2026-05-18T08:00:00Z',
+  updated_at: '2026-05-18T08:00:00Z',
 };
-
-// ---------------------------------------------------------------------------
-// Task-178 — In-memory adapter over the audit log.
-//
-// The task brief is explicit: "No new persistence layer — reuse
-// `px_upload_link` record + audit log". Cool-down-suppressed resend
-// attempts are emitted as `px_upload_link_resend_suppressed` events via
-// the existing audit pipeline (and persisted to Postgres by recordAudit).
-// The fixture layer keeps a parallel in-memory mirror of those events so
-// the client UI can render them in the Email-history view without having
-// to query Postgres. This is a *read adapter*, not a new persistence layer.
-// ---------------------------------------------------------------------------
-export type OrderAuditEvent = {
-  order_id: string;
-  clinic_id: ClinicId;
-  event_type: string;
-  actor_user_id: string | null;
-  occurred_at: string; // ISO
-  payload: Record<string, unknown>;
-};
-
-const MOCK_ORDER_AUDIT_EVENTS: OrderAuditEvent[] = [];
-
-export function recordOrderAuditEvent(evt: OrderAuditEvent): void {
-  MOCK_ORDER_AUDIT_EVENTS.push(evt);
-}
-
-export function getOrderAuditEvents(
-  order_id: string,
-  event_types?: readonly string[],
-): OrderAuditEvent[] {
-  const filtered = MOCK_ORDER_AUDIT_EVENTS.filter((e) => e.order_id === order_id);
-  if (!event_types || event_types.length === 0) return filtered;
-  const set = new Set(event_types);
-  return filtered.filter((e) => set.has(e.event_type));
-}
-
-// Seed a single suppressed-resend event for the ZARA Px-pending demo order
-// so reviewers can see the cool-down row in the Email history without
-// having to interact with the page first.
-MOCK_ORDER_AUDIT_EVENTS.push({
-  order_id: 'order_zara_glp_px_pending',
-  clinic_id: 'feeltru',
-  event_type: 'px_upload_link_resend_suppressed',
-  actor_user_id: 'user_claire',
-  occurred_at: '2026-05-09T14:05:30Z',
-  payload: {
-    reason: 'cooldown',
-    to_email: 'zara.k@example.com',
-    cooldown_seconds: 60,
-    remaining_seconds: 30,
-  },
-});
 
 export const MOCK_ORDERS: Order[] = [
   SARAH_ORDER_FEELTRU, SARAH_ORDER_VSC,
@@ -1353,8 +1271,7 @@ async function sendNewIntakeStaffEmail(
 async function sendPxUploadLinkEmail(
   order: Order,
   patient: { firstName: string; lastName: string; email: string },
-  options: { by_user_id?: string | null } = {},
-): Promise<{ status: 'Delivered' | 'Bounced' | 'Failed'; message_id: string | null; error_message: string | null }> {
+): Promise<void> {
   const token = newPxUploadToken();
   const expiresAt = new Date(Date.now() + PX_UPLOAD_LINK_TTL_DAYS * 24 * 3600 * 1000).toISOString();
   const link = `${appBaseUrl()}/${order.clinic_id}/px-upload/${token}`;
@@ -1362,36 +1279,6 @@ async function sendPxUploadLinkEmail(
   // Task-125 — preserve the *original* first-send timestamp across token
   // rotation so dashboards can show "days since first sent" accurately.
   const previousFirstSentAt = order.px_upload_link?.first_sent_at ?? null;
-  // Task-178 — preserve every "initial send" + cool-down field across token
-  // rotation so the Email-history view still shows the very first attempt
-  // (and any prior suppressed attempts) after a resend rotates the link.
-  //
-  // Legacy backfill: pre-Task-178 link records only carry `sent_at` /
-  // `first_sent_at` for the original send. If we just rolled `initial_*`
-  // forward as undefined, the post-send stamping below would treat *this*
-  // (resend) call as the initial attempt and overwrite the true original
-  // timestamp. Backfill from existing link state so the original send
-  // metadata survives the first post-Task-178 resend on a legacy record.
-  const legacyInitialIso =
-    order.px_upload_link?.first_sent_at ?? order.px_upload_link?.sent_at ?? null;
-  const previousInitialAttemptedAt =
-    order.px_upload_link?.initial_attempted_at
-    ?? (legacyInitialIso ?? undefined);
-  const previousInitialToEmail =
-    order.px_upload_link?.initial_to_email
-    ?? (legacyInitialIso ? order.px_upload_link?.to_email : undefined);
-  const previousInitialSendStatus =
-    order.px_upload_link?.initial_send_status
-    // A legacy record only stamps `sent_at` on Delivered (see Task-80), so
-    // an existing first_sent_at / sent_at implies the original send landed.
-    ?? (legacyInitialIso ? 'Delivered' as const : undefined);
-  const previousInitialSendErrorMessage =
-    order.px_upload_link?.initial_send_error_message
-    ?? (legacyInitialIso ? null : undefined);
-  const previousInitialSendByUserId =
-    order.px_upload_link?.initial_send_by_user_id
-    ?? (legacyInitialIso ? null : undefined);
-  const previousResends = order.px_upload_link?.resends ?? [];
 
   order.px_upload_link = {
     token,
@@ -1401,12 +1288,6 @@ async function sendPxUploadLinkEmail(
     consumed_at: null,
     email_message_id: null,
     to_email: patient.email,
-    initial_attempted_at: previousInitialAttemptedAt,
-    initial_to_email: previousInitialToEmail,
-    initial_send_status: previousInitialSendStatus,
-    initial_send_error_message: previousInitialSendErrorMessage,
-    initial_send_by_user_id: previousInitialSendByUserId,
-    resends: previousResends,
   };
 
   const subject = 'Action needed: upload your current GLP-1 prescription';
@@ -1442,18 +1323,6 @@ async function sendPxUploadLinkEmail(
     }
   }
 
-  // Task-178 — Stamp the *first ever* send attempt for this order's px-upload
-  // link exactly once. Preserved across token rotation (see preservation
-  // block above), so a Bounced first send is still visible in the Email
-  // history after staff successfully resend later.
-  if (!order.px_upload_link.initial_attempted_at) {
-    order.px_upload_link.initial_attempted_at = NOW;
-    order.px_upload_link.initial_to_email = patient.email;
-    order.px_upload_link.initial_send_status = result.status;
-    order.px_upload_link.initial_send_error_message = result.error_message ?? null;
-    order.px_upload_link.initial_send_by_user_id = options.by_user_id ?? null;
-  }
-
   console.log('[AUDIT]', {
     event_type:
       result.status === 'Delivered'
@@ -1468,12 +1337,6 @@ async function sendPxUploadLinkEmail(
     expires_at: expiresAt,
     timestamp: NOW,
   });
-
-  return {
-    status: result.status,
-    message_id: result.message_id,
-    error_message: result.error_message ?? null,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1531,15 +1394,10 @@ export async function resendPxUploadLink(
   // Task-126 — Cool-down to stop accidental double-clicks (or two staff acting
   // in parallel) from rotating the token and emailing the patient again.
   // The most recent send is either the latest resend or the initial email.
-  // Task-178 — Failed resends carry sent_at = null; fall back to attempted_at
-  // so a bounced resend still trips the cool-down on the next click.
-  const lastResendEntry =
-    previousResends.length > 0 ? previousResends[previousResends.length - 1] : null;
   const lastSendIso =
-    lastResendEntry?.sent_at
-    ?? lastResendEntry?.attempted_at
-    ?? order.px_upload_link?.sent_at
-    ?? null;
+    previousResends.length > 0
+      ? previousResends[previousResends.length - 1].sent_at
+      : order.px_upload_link?.sent_at ?? null;
   const COOLDOWN_SECONDS = 60;
   if (lastSendIso) {
     const elapsedMs = Date.now() - new Date(lastSendIso).getTime();
@@ -1557,23 +1415,6 @@ export async function resendPxUploadLink(
         cooldown_seconds: COOLDOWN_SECONDS,
         remaining_seconds: remainingSeconds,
         timestamp: NOW,
-      });
-      // Task-178 — Reuse the audit log (per task brief — "no new persistence
-      // layer"). We push a `px_upload_link_resend_suppressed` event into the
-      // in-memory audit feed so the Email-history view can render the
-      // suppressed attempt without inventing a new field on `px_upload_link`.
-      recordOrderAuditEvent({
-        order_id,
-        clinic_id,
-        event_type: 'px_upload_link_resend_suppressed',
-        actor_user_id: CURRENT_USER.id,
-        occurred_at: NOW,
-        payload: {
-          reason: 'cooldown',
-          to_email: order.px_upload_link?.to_email ?? null,
-          cooldown_seconds: COOLDOWN_SECONDS,
-          remaining_seconds: remainingSeconds,
-        },
       });
       throw new APIError(
         'COOLDOWN',
@@ -1596,36 +1437,21 @@ export async function resendPxUploadLink(
   // so the old token can no longer be used to upload.
   const fullName = patient.demographic.full_name.trim();
   const [firstName, ...rest] = fullName.split(/\s+/);
-  const sendResult = await sendPxUploadLinkEmail(
-    order,
-    {
-      firstName: firstName || fullName,
-      lastName: rest.join(' '),
-      email: patient.contact.email,
-    },
-    { by_user_id: CURRENT_USER.id },
-  );
+  await sendPxUploadLinkEmail(order, {
+    firstName: firstName || fullName,
+    lastName: rest.join(' '),
+    email: patient.contact.email,
+  });
 
   if (order.px_upload_link) {
     order.px_upload_link.resends = [
       ...previousResends,
       {
-        // Task-178 — `sent_at` mirrors top-level Task-80 semantics: only
-        // populated for Delivered sends. Bounced/Failed attempts keep
-        // sent_at = null and rely on `attempted_at` + `status` so the
-        // Activity timeline and "Most recent resend" copy don't surface
-        // them as successful sends.
-        sent_at:
-          sendResult.status === 'Delivered'
-            ? order.px_upload_link.sent_at ?? NOW
-            : null,
-        attempted_at: NOW,
+        sent_at: order.px_upload_link.sent_at ?? NOW,
         to_email: order.px_upload_link.to_email,
         expires_at: order.px_upload_link.expires_at,
         previous_expired: previousExpired,
         by_user_id: CURRENT_USER.id,
-        status: sendResult.status,
-        error_message: sendResult.error_message ?? null,
       },
     ];
   }
@@ -2588,26 +2414,16 @@ export async function cancelOrder(
           : `No charge has been taken — the pre-authorisation on your card ` +
             `has been released and you'll see it disappear from your ` +
             `statement within a few working days.`;
-        const emailBody =
-          `Hi ${firstName},\n\n` +
-          `We've cancelled order ${order.id}. ${authCopy}\n\n` +
-          `Reason recorded: ${reason.trim()}\n\n` +
-          `If you have any questions, just reply to this email.\n\n` +
-          `Thanks,\nThe Livera team`;
-        // Task-131 — branded HTML version snapshotted on the envelope and
-        // sent to the patient. Plain-text body is kept as the text fallback.
-        const emailHtml =
-          `<!doctype html><html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;">` +
-          `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">` +
-          `<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">` +
-          `<tr><td style="background:#0a7e57;padding:20px 28px;color:#ffffff;font-weight:600;font-size:18px;">Livera</td></tr>` +
-          `<tr><td style="padding:28px;font-size:15px;line-height:1.55;">` +
-          `<p style="margin:0 0 14px;">Hi ${firstName},</p>` +
-          `<p style="margin:0 0 14px;">We've cancelled order <strong>${order.id}</strong>. ${authCopy}</p>` +
-          `<p style="margin:0 0 14px;"><span style="color:#6b7280;">Reason recorded:</span> ${reason.trim()}</p>` +
-          `<p style="margin:0 0 20px;">If you have any questions, just reply to this email.</p>` +
-          `<p style="margin:0;color:#6b7280;">Thanks,<br/>The Livera team</p>` +
-          `</td></tr></table></td></tr></table></body></html>`;
+        // Task-186 — shared renderer owns the HTML shell + text fallback so
+        // branding tweaks stay in one place across every patient template.
+        const { text: emailBody, html: emailHtml } = renderPatientEmail({
+          heading: `Hi ${firstName},`,
+          paragraphs: [
+            `We've cancelled order <strong>${order.id}</strong>. ${authCopy}`,
+            `<span style="color:#6b7280;">Reason recorded:</span> ${reason.trim()}`,
+            `If you have any questions, just reply to this email.`,
+          ],
+        });
         const smsBody = releaseAuthFailed
           ? `Livera: order ${order.id} cancelled. No charge taken; any ` +
             `pending pre-auth will drop off within a few working days.`

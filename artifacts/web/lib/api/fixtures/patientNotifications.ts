@@ -397,6 +397,24 @@ export function applyRetryOutcome(
 // status callback — the SMS already left our system. Bounced/Failed rows
 // produced this way will not be picked up by retryFailedPatientNotifications
 // because `next_retry_at` stays null.
+//
+// Task-138 — idempotency for Twilio retries / out-of-order delivery.
+// Twilio re-POSTs status callbacks on any non-2xx and can also resend a
+// callback if its own first POST is dropped, so the same MessageSid can hit
+// this endpoint multiple times — sometimes with stale or out-of-order
+// statuses (e.g. a late `sent` arriving after `delivered`). Rules:
+//   1. Once the row is in a terminal state (Delivered/Bounced/Failed), any
+//      subsequent callback is ignored — the carrier-final outcome wins, and
+//      we never demote it back to an intermediate state or replace it with
+//      another terminal state from a stale retry.
+//   2. If the incoming status equals the row's current status it is a
+//      true duplicate — no-op, do NOT restamp `last_attempt_at`.
+const TERMINAL_SMS_STATUSES: ReadonlySet<PatientNotificationStatus> = new Set([
+  'Delivered',
+  'Bounced',
+  'Failed',
+]);
+
 export function applyTwilioStatusCallback(
   smsMessageId: string,
   outcome: { status: PatientNotificationStatus; error_message?: string | null },
@@ -408,6 +426,16 @@ export function applyTwilioStatusCallback(
       (n.payload as { sms_message_id?: unknown }).sms_message_id === smsMessageId,
   );
   if (!notif) return null;
+
+  // Task-138 — already terminal: leave the row untouched.
+  if (TERMINAL_SMS_STATUSES.has(notif.status)) {
+    return notif;
+  }
+
+  // Task-138 — duplicate of current (non-terminal) state: no-op, no restamp.
+  if (notif.status === outcome.status) {
+    return notif;
+  }
 
   notif.status          = outcome.status;
   notif.last_attempt_at = occurredAt;

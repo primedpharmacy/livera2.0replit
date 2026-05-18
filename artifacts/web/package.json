@@ -10,9 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "test:visual": "playwright test cancelRefundFlow.visual",
-    "test:visual:update": "playwright test cancelRefundFlow.visual --update-snapshots"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",

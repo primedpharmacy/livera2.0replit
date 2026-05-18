@@ -100,7 +100,21 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     last_error:      null,
     last_attempt_at: '2026-05-10T14:32:00Z',
     next_retry_at:   null,
-    email_envelope:  null,
+    // Task-98 — snapshot of the email the patient received, surfaced by the
+    // "Preview email" action in the per-patient notification log.
+    email_envelope:  {
+      to_email: 'patient+pt00198@example.com',
+      subject:  'Your refund for order ORD-00450 has been processed',
+      template: 'order_cancelled_refund',
+      text_body:
+        'Hi Alex,\n\n' +
+        'We have processed a refund of £179.00 to the card ending 4242 for your cancelled order ORD-00450.\n\n' +
+        'Reason: Order cancellation — relocating overseas.\n\n' +
+        'Refunds typically appear on your statement within 5–10 working days, depending on your bank.\n\n' +
+        'If you have any questions, just reply to this email and our team will be in touch.\n\n' +
+        'Thanks,\n' +
+        'The FeelTru team',
+    },
   },
 ];
 

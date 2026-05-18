@@ -21,6 +21,7 @@ import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCa
 import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
 import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
+import { EmailPreviewButton } from "@/components/patients/EmailPreviewButton";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import {
   getPatient, listOrders, getClinic, listCoachingLogs,
@@ -1000,6 +1001,11 @@ function NotificationRow({
         <p className="mt-1.5 text-[11px] text-err leading-relaxed">
           <span className="font-semibold">Last error:</span> {n.last_error}
         </p>
+      )}
+      {n.email_envelope && (
+        <div className="mt-2">
+          <EmailPreviewButton envelope={n.email_envelope} notificationId={n.id} />
+        </div>
       )}
       {Object.keys(n.payload).length > 0 && (
         <details className="mt-2 group">

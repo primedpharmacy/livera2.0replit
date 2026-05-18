@@ -51,6 +51,7 @@ import { OrderBMIValidationCard } from "./OrderBMIValidationCard";
 import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
 import { DispatchDateCard } from "./DispatchDateCard";
 import { addWorkingHours } from "@/lib/utils/workingHours";
+import { useQueueNavigation } from "@/lib/queueNavigation";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -164,6 +165,7 @@ export function OrderDetailClient({
   clinicId,
   initialClinicalNotes,
 }: OrderDetailClientProps) {
+  useQueueNavigation({ kind: "orders", currentId: initialOrder.id, clinicId });
   const [order, setOrder]             = useState<Order>(initialOrder);
   const [modal, setModal]             = useState<Modal>(null);
   const [rationale, setRationale]     = useState("");
@@ -1007,16 +1009,27 @@ export function OrderDetailClient({
                                 Open
                               </a>
                             </div>
-                            {isImage && (
+                            {isImage ? (
                               <img
                                 src={streamUrl}
                                 alt={`Prescription upload from patient (${order.px_upload.filename})`}
                                 className="max-h-72 w-auto rounded-md border border-bdr"
                               />
-                            )}
-                            {!isImage && (
+                            ) : order.px_upload.content_type === "application/pdf" ? (
+                              <object
+                                data={streamUrl}
+                                type="application/pdf"
+                                aria-label={`Prescription PDF from patient (${order.px_upload.filename})`}
+                                className="w-full h-72 rounded-md border border-bdr bg-bg2"
+                              >
+                                <p className="text-[11px] text-t2 p-3">
+                                  Inline PDF preview isn’t supported in this browser — use “Open”
+                                  to view the full document in a new tab.
+                                </p>
+                              </object>
+                            ) : (
                               <p className="text-[11px] text-t2">
-                                PDF — use “Open” to view the full document in a new tab.
+                                Use “Open” to view the full document in a new tab.
                               </p>
                             )}
                           </div>

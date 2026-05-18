@@ -36,7 +36,7 @@ interface Props {
   onClose:    () => void;
 }
 
-function fillTemplate(template: string, patient: Patient, clinic: Clinic): string {
+function fillTemplate(template: string, patient: Patient, clinic: Clinic, prescriberName: string): string {
   const addr = patient.demographic.address;
   const addrLine = [addr.line1, addr.line2, addr.city, addr.postcode].filter(Boolean).join(", ");
   return template
@@ -48,7 +48,7 @@ function fillTemplate(template: string, patient: Patient, clinic: Clinic): strin
     .replace(/\{\{medication\}\}/g,      "GLP-1 medication")
     .replace(/\{\{dose\}\}/g,            "current prescribed dose")
     .replace(/\{\{order_summary\}\}/g,   "")
-    .replace(/\{\{prescriber_name\}\}/g, CURRENT_USER.full_name)
+    .replace(/\{\{prescriber_name\}\}/g, prescriberName)
     .replace(/\{\{clinic_name\}\}/g,     clinic.config.clinic_name)
     .replace(/\{\{clinic_email\}\}/g,    clinic.config.reply_email)
     .replace(/\{\{clinic_phone\}\}/g,    "")
@@ -89,8 +89,8 @@ export function GPLetterComposeModal({ clinicId, patients, templates, clinic, on
     const tpl = templates.find((t) => t.id === tid);
     const patient = patients.find((p) => p.id === selectedPatientId);
     if (tpl && patient) {
-      setBody(fillTemplate(tpl.email_body_template, patient, clinic));
-      setPdfPreview(fillTemplate(tpl.pdf_letter_template, patient, clinic));
+      setBody(fillTemplate(tpl.email_body_template, patient, clinic, CURRENT_USER.full_name));
+      setPdfPreview(fillTemplate(tpl.pdf_letter_template, patient, clinic, CURRENT_USER.full_name));
       setSubject(`${tpl.name} — ${patient.demographic.full_name}`);
     } else {
       setPdfPreview("");

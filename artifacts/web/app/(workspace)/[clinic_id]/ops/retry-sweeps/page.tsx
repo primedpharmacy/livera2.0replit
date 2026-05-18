@@ -13,6 +13,7 @@ import { RefreshCw, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Breadcrumb } from "@/components/shell/Breadcrumb";
 import { getRecentRetrySweeps, type SweepRecord } from "@/lib/api/jobs/scheduler";
+import { RunSweepButton } from "./RunSweepButton";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,7 @@ export default async function RetrySweepsPage({ params }: Props) {
           `In-process scheduler · failed patient-email retry job · runs every 5 minutes per clinic · ` +
           `last ${rows.length} rows from ${totalSweeps} sweep${totalSweeps === 1 ? "" : "s"}`
         }
+        actions={<RunSweepButton clinicId={clinic_id} />}
       />
 
       <div className="p-6 space-y-6">

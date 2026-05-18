@@ -335,6 +335,49 @@ const PRIYA_ORDER_FEELTRU_CANCELLED: Order = {
   updated_at: '2026-05-10T14:30:00Z',
 };
 
+// Task-81 / Task-86 — Px-upload approval gate seed.
+// GLP-1 higher-dose intake path (ft_oq_9 + ft_oq_10 = 'yes') that has not yet
+// supplied a current prescription. Mirrors the contextual flag added by
+// createIntakeOrder so the Approve button on Order Detail is disabled with the
+// "GLP-1 prescription upload required…" copy until attachPxUpload runs.
+const ZARA_ORDER_FEELTRU_PX_PENDING: Order = {
+  id: 'ORD-00451',
+  clinic_id: 'feeltru',
+  patient_id: 'PT-00378',
+  type: 'new',
+  status: 'clinical_check',
+  product: { medication: 'Mounjaro', dose: '7.5mg', strength: 'pre-filled pen', plan: '4 weeks' },
+  questionnaire_responses: {
+    ft_oq_1: 87.0,
+    ft_oq_2: 72.0,
+    ft_oq_3: 'no',
+    ft_oq_4: 'no',
+    ft_oq_5: 'None',
+    ft_oq_6: 'no',
+    ft_oq_7: 'yes',
+    ft_oq_8: 'Currently on Mounjaro 5mg from a previous provider; requesting 7.5mg.',
+    ft_oq_9: 'yes',   // currently on a GLP-1
+    ft_oq_10: 'yes',  // requesting a higher starting dose
+  },
+  amendment_window: 'pre_approval',
+  primed_order_id: null,
+  primed_clinical_check_completed: false,
+  ryft_authorisation_id: 'ryft_auth_za2',
+  amount_charged: null,
+  amount_authorised: 149.0,
+  clinical_decision: null,
+  sla_warn_at: '2026-05-18T11:00:00Z',
+  sla_breach_at: '2026-05-19T11:00:00Z',
+  g6_flags: [],
+  contextual_flags: ['New intake', 'Px upload pending'],
+  intervention_raised_at: null,
+  px_upload: null,
+  px_upload_link: null,
+  expired_at: null,
+  created_at: '2026-05-18T08:00:00Z',
+  updated_at: '2026-05-18T08:00:00Z',
+};
+
 export const MOCK_ORDERS: Order[] = [
   SARAH_ORDER_FEELTRU, SARAH_ORDER_VSC,
   JAMES_ORDER_VSC, MIRIAM_ORDER_VSC,
@@ -342,6 +385,7 @@ export const MOCK_ORDERS: Order[] = [
   HELEN_ORDER_FEELTRU_INTERVENTION,
   NINA_ORDER_VSC_EXPIRED,
   PRIYA_ORDER_FEELTRU_CANCELLED,
+  ZARA_ORDER_FEELTRU_PX_PENDING,
 ];
 
 // ---------------------------------------------------------------------------
@@ -851,10 +895,8 @@ export async function attachPxUploadByToken(
     throw new APIError('SAFETY_VIOLATION', msg);
   }
 
-  const order = await attachPxUpload(clinic_id, lookup.order.id, upload, {
-    user_id: null,
-    source: 'email_link',
-  });
+  const order = await attachPxUpload(clinic_id, lookup.order.id, upload);
+  if (order.px_upload) order.px_upload.source = 'email_link';
   if (order.px_upload_link) order.px_upload_link.consumed_at = NOW;
 
   console.log('[AUDIT]', {
@@ -909,13 +951,7 @@ export async function attachPxUpload(
   clinic_id: ClinicId,
   order_id: string,
   upload: { filename: string; size: number; content_type: string; object_path: string },
-  actor?: { user_id: string | null; source: 'success_screen' | 'email_link' | 'staff_upload' },
 ): Promise<Order> {
-  // Task-85 — default to the patient success-screen path (preserves prior behaviour
-  // for the patient intake route which doesn't pass actor info).
-  const actorSource = actor?.source ?? 'success_screen';
-  const actorUserId = actor?.user_id ?? null;
-
   console.log('[AUDIT]', {
     event_type: 'px_upload_attempt',
     clinic_id,
@@ -924,8 +960,6 @@ export async function attachPxUpload(
     size: upload.size,
     content_type: upload.content_type,
     object_path: upload.object_path,
-    source: actorSource,
-    actor_user_id: actorUserId,
     timestamp: NOW,
   });
 
@@ -982,8 +1016,6 @@ export async function attachPxUpload(
     content_type: upload.content_type,
     uploaded_at: NOW,
     object_path: upload.object_path,
-    source: actorSource,
-    uploaded_by_user_id: actorUserId,
   };
 
   // Surface a contextual flag for the clinical-check queue so prescribers can see

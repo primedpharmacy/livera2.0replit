@@ -13,7 +13,7 @@ import { useState, useId, useEffect } from "react";
 import {
   ChevronUp, ChevronDown, Trash2, Plus, GripVertical,
   ToggleLeft, Type, Hash, List, BarChart3, CheckCircle2, Loader2, AlertCircle,
-  ShieldAlert, X,
+  ShieldAlert, X, Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -63,6 +63,53 @@ export function matchesSafetyKeyword(label: string): string | null {
   return null;
 }
 
+// Curated keyword → answer type mapping used to suggest a better answer type
+// in AddQuestionForm. Order matters: the first matching keyword wins, so list
+// more specific phrases ("how many") before broader ones ("how").
+const TYPE_KEYWORD_MAP: ReadonlyArray<{ keyword: string; type: QuestionType }> = [
+  // Number
+  { keyword: "weight",       type: "number" },
+  { keyword: "height",       type: "number" },
+  { keyword: "dosage",       type: "number" },
+  { keyword: "dose",         type: "number" },
+  { keyword: "bmi",          type: "number" },
+  { keyword: "age",          type: "number" },
+  { keyword: "how many",     type: "number" },
+  { keyword: "how much",     type: "number" },
+  { keyword: "number of",    type: "number" },
+  // Scale
+  { keyword: "rate your",    type: "scale"  },
+  { keyword: "rating",       type: "scale"  },
+  { keyword: "1-10",         type: "scale"  },
+  { keyword: "1 to 10",      type: "scale"  },
+  { keyword: "scale of",     type: "scale"  },
+  { keyword: "satisfaction", type: "scale"  },
+  // Free text
+  { keyword: "describe",     type: "text"   },
+  { keyword: "explain",      type: "text"   },
+  { keyword: "comments",     type: "text"   },
+  { keyword: "comment",      type: "text"   },
+  { keyword: "notes",        type: "text"   },
+  { keyword: "tell us",      type: "text"   },
+  { keyword: "in your own words", type: "text" },
+  // Multi-choice
+  { keyword: "which of",     type: "choice" },
+  { keyword: "select one",   type: "choice" },
+  { keyword: "select all",   type: "choice" },
+  { keyword: "choose",       type: "choice" },
+];
+
+export function matchesTypeKeyword(label: string): { type: QuestionType; keyword: string } | null {
+  const lower = label.toLowerCase();
+  for (const { keyword, type } of TYPE_KEYWORD_MAP) {
+    // Use word-boundary matching to avoid false positives like
+    // "age" matching "manage" or "dose" matching "doses of patience".
+    const pattern = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+    if (pattern.test(lower)) return { type, keyword };
+  }
+  return null;
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function TypeBadge({ type }: { type: QuestionType }) {
@@ -76,7 +123,7 @@ function TypeBadge({ type }: { type: QuestionType }) {
   );
 }
 
-function QuestionRow({
+export function QuestionRow({
   q, idx, total, onMove, onToggleRequired, onToggleSafety, onDelete,
 }: {
   q: QuestionItem;
@@ -226,6 +273,10 @@ function AddQuestionForm({ onAdd }: { onAdd: (q: Omit<QuestionItem, "id" | "orde
   const [helpText, setHelpText] = useState("");
   const [options, setOptions]   = useState("");
   const [open, setOpen]         = useState(false);
+  const [dismissedTypeHint, setDismissedTypeHint] = useState(false);
+
+  const typeSuggestion = matchesTypeKeyword(label);
+  const showTypeHint = !!typeSuggestion && typeSuggestion.type !== type && !dismissedTypeHint;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -242,6 +293,17 @@ function AddQuestionForm({ onAdd }: { onAdd: (q: Omit<QuestionItem, "id" | "orde
       safety_flag: type === "yes_no" ? safety : undefined,
     });
     setLabel(""); setType("text"); setRequired(false); setSafety(false); setHelpText(""); setOptions(""); setOpen(false);
+    setDismissedTypeHint(false);
+  }
+
+  function handleLabelChange(next: string) {
+    setLabel(next);
+    if (dismissedTypeHint) setDismissedTypeHint(false);
+  }
+
+  function applyTypeSuggestion() {
+    if (typeSuggestion) setType(typeSuggestion.type);
+    setDismissedTypeHint(true);
   }
 
   if (!open) {
@@ -261,7 +323,7 @@ function AddQuestionForm({ onAdd }: { onAdd: (q: Omit<QuestionItem, "id" | "orde
           <input
             id={`${uid}-label`}
             value={label}
-            onChange={(e) => setLabel(e.target.value)}
+            onChange={(e) => handleLabelChange(e.target.value)}
             placeholder="e.g. What is your current weight?"
             className="w-full text-[12px] border border-bdr rounded-md px-2.5 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
           />
@@ -271,13 +333,41 @@ function AddQuestionForm({ onAdd }: { onAdd: (q: Omit<QuestionItem, "id" | "orde
           <select
             id={`${uid}-type`}
             value={type}
-            onChange={(e) => setType(e.target.value as QuestionType)}
+            onChange={(e) => { setType(e.target.value as QuestionType); setDismissedTypeHint(true); }}
             className="w-full text-[12px] border border-bdr rounded-md px-2.5 py-1.5 bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
           >
             {(Object.keys(TYPE_CONFIG) as QuestionType[]).map((t) => (
               <option key={t} value={t}>{TYPE_CONFIG[t].label}</option>
             ))}
           </select>
+          {showTypeHint && typeSuggestion && (
+            <div
+              className="mt-1.5 flex items-center gap-2 text-[11px] text-brand bg-brand/[0.06] border border-brand/30 rounded px-2 py-1"
+              role="status"
+            >
+              <Lightbulb className="w-3.5 h-3.5 shrink-0" />
+              <span className="flex-1">
+                Try <strong>{TYPE_CONFIG[typeSuggestion.type].label}</strong>?
+                <span className="text-t3 ml-1">(matched "{typeSuggestion.keyword}")</span>
+              </span>
+              <button
+                type="button"
+                onClick={applyTypeSuggestion}
+                className="text-[11px] font-semibold underline hover:no-underline"
+              >
+                Use {TYPE_CONFIG[typeSuggestion.type].label}
+              </button>
+              <button
+                type="button"
+                title="Dismiss"
+                aria-label="Dismiss answer type suggestion"
+                onClick={() => setDismissedTypeHint(true)}
+                className="p-0.5 rounded hover:bg-brand/10 text-t3 hover:text-t1"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <div>

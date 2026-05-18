@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * GP Letter server actions — BLD-7.3 / BLD-7.4 (Wave 5), Task-194.
+ * GP Letter server actions — BLD-7.3 / BLD-7.4 (Wave 5), Task-194 / Task-293.
  *
  * Server actions allow the GPLetterDetailClient (client component) to
  * orchestrate Node.js-only operations (pdfkit, Postmark) without bundling
@@ -18,9 +18,15 @@
  *   Layer 3 — audit log in sendGPLetter fixture ([AUDIT] entry)
  *
  * Task-194: actor is resolved server-side via requireServerActionUser().
+ * Task-293: per-action role gate runs before the fixture — GP letter
+ * authoring is restricted to Owner/Admin/Prescriber (Coach is read-only per
+ * BLD-2.1; Coach attempts produce a `gp_letter_*_blocked` audit line).
  */
 
-import { requireServerActionUser } from '@/lib/auth/session';
+import {
+  requireServerActionUser,
+  requireAnyRole,
+} from '@/lib/auth/session';
 import { generateGpLetterPdf } from '@/lib/integrations/pdfGeneration';
 import { sendViaPostmark } from '@/lib/integrations/postmark';
 import {
@@ -36,6 +42,8 @@ import {
 import { userNameLookupFromUsers } from '@/lib/exports/clinicalNoteSerializer';
 import type { ClinicalNote, ClinicId, GPLetter } from '@/lib/api/types';
 
+const GP_LETTER_WRITER_ROLES = ['Owner', 'RM', 'Admin', 'Prescriber'] as const;
+
 type CreateGPLetterPayload = Parameters<typeof createGPLetter>[1];
 
 // ---------------------------------------------------------------------------
@@ -47,6 +55,7 @@ export async function createGPLetterAction(
   payload: CreateGPLetterPayload,
 ): Promise<GPLetter> {
   const actor = await requireServerActionUser();
+  requireAnyRole(actor, GP_LETTER_WRITER_ROLES, 'gp_letter_create');
   return createGPLetter(clinicId, payload, actor);
 }
 
@@ -59,6 +68,7 @@ export async function sendGPLetterAction(
   letterId: string,
 ): Promise<GPLetter> {
   const actor = await requireServerActionUser();
+  requireAnyRole(actor, GP_LETTER_WRITER_ROLES, 'gp_letter_send');
 
   const [letter, clinic] = await Promise.all([
     getGPLetter(clinicId, letterId),
@@ -135,5 +145,6 @@ export async function cancelGPLetterAction(
   cancelReason: string,
 ): Promise<GPLetter> {
   const actor = await requireServerActionUser();
+  requireAnyRole(actor, GP_LETTER_WRITER_ROLES, 'gp_letter_cancel');
   return cancelGPLetter(clinicId, letterId, cancelReason, actor);
 }

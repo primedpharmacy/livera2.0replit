@@ -1,10 +1,19 @@
 'use server';
 
 /**
- * Amendment server actions — Task-194.
+ * Amendment server actions — Task-194 / Task-293.
+ *
+ * Task-293 — per-action permission gate runs *before* the fixture so callers
+ * without `decide:amendments` (or, for refunds, the `can_refund` capability)
+ * are rejected with a uniform PermissionDeniedError and a `*_blocked` audit
+ * line, with no fixture state changed.
  */
 
-import { requireServerActionUser } from '@/lib/auth/session';
+import {
+  requireServerActionUser,
+  requirePermission,
+  requireRefundAuthority,
+} from '@/lib/auth/session';
 import { decideAmendment, processRefundAmendment } from '@/lib/api/mock';
 import type { Amendment, ClinicId } from '@/lib/api/types';
 
@@ -20,6 +29,7 @@ export async function decideAmendmentAction(
   payload: DecidePayload,
 ): Promise<Amendment> {
   const actor = await requireServerActionUser();
+  requirePermission(actor, 'decide', 'amendments');
   return decideAmendment(clinicId, amendmentId, decision, payload, actor);
 }
 
@@ -29,5 +39,7 @@ export async function processRefundAmendmentAction(
   payload: RefundPayload,
 ): Promise<Amendment> {
   const actor = await requireServerActionUser();
+  requirePermission(actor, 'decide', 'amendments');
+  requireRefundAuthority(actor);
   return processRefundAmendment(clinicId, amendmentId, payload, actor);
 }

@@ -1,10 +1,13 @@
 'use server';
 
 /**
- * Pharmacy Comm server actions — Task-194.
+ * Pharmacy Comm server actions — Task-194 / Task-293.
  */
 
-import { requireServerActionUser } from '@/lib/auth/session';
+import {
+  requireServerActionUser,
+  requirePermission,
+} from '@/lib/auth/session';
 import { createPharmacyCommThread, replyToPharmacyCommThread } from '@/lib/api/mock';
 import type { ClinicId, PharmacyCommMessage, PharmacyCommThread } from '@/lib/api/types';
 
@@ -15,6 +18,7 @@ export async function createPharmacyCommThreadAction(
   payload: CreateThreadPayload,
 ): Promise<PharmacyCommThread> {
   const actor = await requireServerActionUser();
+  requirePermission(actor, 'write', 'pharmacy_comms');
   return createPharmacyCommThread(clinicId, payload, actor);
 }
 
@@ -25,5 +29,6 @@ export async function replyToPharmacyCommThreadAction(
   attachments: string[] = [],
 ): Promise<PharmacyCommMessage> {
   const actor = await requireServerActionUser();
+  requirePermission(actor, 'write', 'pharmacy_comms');
   return replyToPharmacyCommThread(clinicId, threadId, body, attachments, actor);
 }

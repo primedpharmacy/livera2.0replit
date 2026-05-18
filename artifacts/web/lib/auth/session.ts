@@ -16,7 +16,8 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { NextRequest } from 'next/server';
 import { findUserByUid } from '@/lib/users/registry';
-import type { User } from '@/lib/api/types';
+import { can, type Action, type Resource } from '@/lib/permissions';
+import type { Clinic, User } from '@/lib/api/types';
 
 // `next/headers` is dynamically imported below (only inside the
 // `requireServerActionUser` server-action helper) so this module stays usable
@@ -102,4 +103,88 @@ export async function requireServerActionUser(): Promise<User> {
   const user = findUserByUid(uid);
   if (!user || !user.active) throw new UnauthenticatedActionError();
   return user;
+}
+
+// ── Per-action permission gates ────────────────────────────────────────────
+// Task-293: each server-action wrapper in lib/actions/*.ts should consult one
+// of these helpers up-front so a caller without the right role/capability is
+// rejected with a uniform `PermissionDeniedError` *before* the fixture mutates
+// anything. A `*_blocked` audit line is emitted so security review can see who
+// tried what.
+
+export class PermissionDeniedError extends Error {
+  code = 'PERMISSION_DENIED' as const;
+  constructor(message = 'You do not have permission to perform this action') {
+    super(message);
+    this.name = 'PermissionDeniedError';
+  }
+}
+
+function logBlocked(
+  actor: User,
+  eventType: string,
+  details: Record<string, unknown>,
+): void {
+  console.log('[AUDIT]', {
+    event_type: eventType,
+    outcome: 'permission_denied',
+    user_id: actor.id,
+    user_roles: actor.roles,
+    ...details,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * Verify `actor` may perform `action` on `resource`. Logs a
+ * `<resource>_<action>_blocked` audit line and throws `PermissionDeniedError`
+ * on failure. `context` is forwarded to `can()` for resources that need clinic
+ * or ownership scoping (e.g. coaching).
+ */
+export function requirePermission(
+  actor: User,
+  action: Action | string,
+  resource: Resource | string,
+  context?: { clinic?: Clinic; ownerId?: string },
+): void {
+  if (can(actor, action, resource, context)) return;
+  logBlocked(actor, `${resource}_${action}_blocked`, { action, resource });
+  throw new PermissionDeniedError(
+    `User ${actor.id} cannot ${action} ${resource}`,
+  );
+}
+
+/**
+ * Verify `actor` carries at least one of the allowed roles. Use when a server
+ * action can't be expressed cleanly through `can()` (e.g. yellow-card
+ * decisions, which are Prescriber/Owner only and don't map to a fixture
+ * resource gate today).
+ */
+export function requireAnyRole(
+  actor: User,
+  allowed: ReadonlyArray<string>,
+  eventTag: string,
+): void {
+  if (actor.roles.some((r) => allowed.includes(r))) return;
+  logBlocked(actor, `${eventTag}_blocked`, {
+    required_any_role: allowed,
+  });
+  throw new PermissionDeniedError(
+    `User ${actor.id} is missing a required role for ${eventTag}`,
+  );
+}
+
+/**
+ * Refund-authority gate — Task-38 / Task-293. Refund decisions require the
+ * per-user `can_refund` capability in addition to the role gate.
+ */
+export function requireRefundAuthority(
+  actor: User,
+  eventTag = 'refund_amendment_decision',
+): void {
+  if (actor.can_refund) return;
+  logBlocked(actor, `${eventTag}_blocked`, { reason: 'no_refund_authority' });
+  throw new PermissionDeniedError(
+    'You do not have refund authority on this clinic.',
+  );
 }

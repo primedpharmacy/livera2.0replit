@@ -12,9 +12,19 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const insertValuesMock = vi.fn().mockResolvedValue(undefined);
-const insertMock = vi.fn(() => ({ values: insertValuesMock }));
-const fakeAuditTable = { __mock: "audit_events" };
+// `audit.server.ts` now statically imports `@workspace/db`, so the mock factory
+// is evaluated synchronously the moment vitest resolves the audit module
+// chain. Wrap the mock plumbing in `vi.hoisted` so the const bindings are
+// initialised before the hoisted `vi.mock(...)` factory dereferences them.
+const { insertMock, insertValuesMock, fakeAuditTable } = vi.hoisted(() => {
+  const insertValuesMock = vi.fn().mockResolvedValue(undefined);
+  const insertMock = vi.fn(() => ({ values: insertValuesMock }));
+  return {
+    insertValuesMock,
+    insertMock,
+    fakeAuditTable: { __mock: "audit_events" },
+  };
+});
 
 vi.mock("@workspace/db", () => ({
   db: { insert: insertMock },

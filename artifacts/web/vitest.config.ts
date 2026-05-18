@@ -20,6 +20,10 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, '.'),
       '@workspace/db': path.resolve(__dirname, '../../lib/db/src/index.ts'),
+      // `audit.server.ts` carries `import "server-only"`, which throws when
+      // resolved outside a React-server bundle. Tests run under jsdom, so
+      // alias the marker to a no-op shim to keep unit coverage intact.
+      'server-only': path.resolve(__dirname, 'lib/api/__test-shims__/server-only.ts'),
     },
   },
 });

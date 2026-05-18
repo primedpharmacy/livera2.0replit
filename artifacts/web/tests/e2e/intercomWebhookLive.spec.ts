@@ -81,7 +81,7 @@ test.describe('Intercom webhook → live Order Detail update', () => {
     expect(listedJson.intercom_contact_id).toBe(PATIENT_CONTACT_ID);
 
     // 1. Open Order Detail for Sarah Cookland's order.
-    await page.goto(`/${CLINIC}/orders/${ORDER_ID}`);
+    await page.goto(`/${CLINIC}/orders/${ORDER_ID}?as=user_qadir`);
     await expect(page.locator('h1', { hasText: ORDER_ID })).toBeVisible();
 
     // 2. Switch to the Intercom tab — this mounts <OrderIntercomTab/>
@@ -138,7 +138,7 @@ test.describe('Intercom webhook → live Order Detail update', () => {
     page,
     request,
   }) => {
-    await page.goto(`/${CLINIC}/orders/${ORDER_ID}`);
+    await page.goto(`/${CLINIC}/orders/${ORDER_ID}?as=user_qadir`);
     await page.getByRole('button', { name: /^Intercom/ }).first().click();
     await expect(
       page.getByText('Question about my next dose').first(),

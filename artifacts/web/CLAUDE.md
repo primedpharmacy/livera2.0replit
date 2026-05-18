@@ -23,6 +23,8 @@ Both tenants run from one codebase. Workspace isolation enforced via `clinic_id`
 
 **Stack:** Next.js 15 App Router · TypeScript · Tailwind CSS v4 · shadcn/ui · Lucide icons · Frontend-only, mocked API. No backend yet — Yohan Perera builds the backend when V1.2 frontend is complete.
 
+> **E2E / Playwright setup:** browser + system libs come from `replit.nix` and `playwright.config.ts` auto-picks the nix-provided Chromium via `REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE`. If `pnpm --filter @workspace/web test:e2e` ever fails with a missing `lib*.so`, see `tests/e2e/README.md` — add the new package to `replit.nix` rather than installing ad-hoc.
+
 ---
 
 ## 2. Current State

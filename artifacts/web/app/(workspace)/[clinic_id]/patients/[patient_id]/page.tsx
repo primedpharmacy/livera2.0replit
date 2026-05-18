@@ -21,6 +21,7 @@ import { PatientFABSpeedDial } from "@/components/patients/PatientFABSpeedDial";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
 import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
+import { LogWeightForm } from "@/components/patients/LogWeightForm";
 import { PreferredChannelHistory } from "@/components/patients/PreferredChannelHistory";
 import { ResendNotificationButton } from "@/components/patients/ResendNotificationButton";
 import { resendFailedPatientNotification } from "@/lib/api/jobs/retryPatientNotifications";
@@ -188,6 +189,7 @@ async function ProfileContent({
             clinicId={clinicId}
             age={age}
             canEditContact={canEditContact}
+            canEditWeight={canEditContact}
             channelChanges={channelChanges}
           />
 
@@ -328,6 +330,7 @@ function LeftColumn({
   clinicId,
   age,
   canEditContact,
+  canEditWeight,
   channelChanges,
 }: {
   patient: Patient;
@@ -335,6 +338,7 @@ function LeftColumn({
   clinicId: ClinicId;
   age: string;
   canEditContact: boolean;
+  canEditWeight: boolean;
   channelChanges: PatientPreferredChannelChange[];
 }) {
   const d       = patient.demographic;
@@ -450,6 +454,16 @@ function LeftColumn({
         <DR k="Latest weight"    v={formatWeight(patient.latest.weight_kg)} />
         <DR k="Latest BMI"       v={formatBMI(patient.latest.bmi)} />
         <DR k="Recorded"         v={formatDate(patient.latest.recorded_at)} />
+        <WeightDeltaRow
+          baselineKg={patient.baseline.baseline_weight_kg}
+          latestKg={patient.latest.weight_kg}
+        />
+        <LogWeightForm
+          clinicId={clinicId}
+          patientId={patient.id}
+          heightCm={patient.baseline.height_cm}
+          canEdit={canEditWeight}
+        />
       </PSec>
 
       {/* Verification */}
@@ -487,6 +501,34 @@ function PSec({
         <p className="text-[10px] font-bold text-t3 uppercase tracking-wider">{title}</p>
       </div>
       {children}
+    </div>
+  );
+}
+
+function WeightDeltaRow({
+  baselineKg,
+  latestKg,
+}: {
+  baselineKg: number;
+  latestKg: number;
+}) {
+  const delta = Math.round((latestKg - baselineKg) * 10) / 10;
+  // No delta yet — patient is still at intake baseline. Hide the row rather
+  // than display "0.0 kg" so it doesn't clutter freshly-onboarded profiles.
+  if (delta === 0) return null;
+  const isLoss = delta < 0;
+  const abs = Math.abs(delta).toFixed(1);
+  return (
+    <div className="flex justify-between items-baseline gap-2 py-[3px]">
+      <span className="text-[12px] text-t2 shrink-0">vs baseline</span>
+      <span
+        className={`text-[12px] text-right font-semibold ${
+          isLoss ? "text-ok" : "text-warn"
+        }`}
+      >
+        {isLoss ? "−" : "+"}
+        {abs} kg
+      </span>
     </div>
   );
 }

@@ -32,11 +32,16 @@ const VALID_ADDRESS = {
   postcode: 'OX4 2NE',
 };
 
-function buildReq(body: unknown): { req: Request; params: Promise<{ clinic_id: string }> } {
+const VALID_BIOMETRICS = { height_cm: 170, weight_kg: 75, bmi: 26 };
+
+function buildReq(
+  body: Record<string, unknown>,
+): { req: Request; params: Promise<{ clinic_id: string }> } {
+  const merged = { biometrics: VALID_BIOMETRICS, ...body };
   const req = new Request('http://localhost/api/intake/feeltru', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(merged),
   });
   return { req, params: Promise.resolve({ clinic_id: 'feeltru' }) };
 }
@@ -118,6 +123,105 @@ describe('POST /api/intake/:clinic_id — postcode validation', () => {
     expect(res.status).toBe(201);
     const addressArg = vi.mocked(createIntakeOrder).mock.calls[0][2];
     expect(addressArg.postcode).toBe('OX4 2NE');
+  });
+});
+
+describe('POST /api/intake/:clinic_id — email validation (Task-164)', () => {
+  it.each([
+    'jane@example',
+    'jane@@example.com',
+    'plainstring',
+    '',
+  ])('rejects malformed email "%s" with 400', async (email) => {
+    const { req, params } = buildReq({
+      personal: { ...VALID_PERSONAL, email },
+      address: VALID_ADDRESS,
+      responses: {},
+    });
+    const res = await POST(req as never, { params });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.message).toMatch(/email/i);
+    expect(createIntakeOrder).not.toHaveBeenCalled();
+  });
+
+  it('normalises a valid email to lower-case before persisting', async () => {
+    const { req, params } = buildReq({
+      personal: { ...VALID_PERSONAL, email: '  Jane@Example.COM ' },
+      address: VALID_ADDRESS,
+      responses: {},
+    });
+    const res = await POST(req as never, { params });
+    expect(res.status).toBe(201);
+    const personalArg = vi.mocked(createIntakeOrder).mock.calls[0][1];
+    expect(personalArg.email).toBe('jane@example.com');
+  });
+});
+
+describe('POST /api/intake/:clinic_id — DOB validation (Task-164)', () => {
+  it('rejects an empty DOB with 400', async () => {
+    const { req, params } = buildReq({
+      personal: { ...VALID_PERSONAL, dob: '' },
+      address: VALID_ADDRESS,
+      responses: {},
+    });
+    const res = await POST(req as never, { params });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.message).toMatch(/date of birth|dob/i);
+    expect(createIntakeOrder).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed DOB with 400', async () => {
+    const { req, params } = buildReq({
+      personal: { ...VALID_PERSONAL, dob: '01/01/1990' },
+      address: VALID_ADDRESS,
+      responses: {},
+    });
+    const res = await POST(req as never, { params });
+    expect(res.status).toBe(400);
+    expect(createIntakeOrder).not.toHaveBeenCalled();
+  });
+
+  it('rejects a future DOB with 400', async () => {
+    const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const { req, params } = buildReq({
+      personal: { ...VALID_PERSONAL, dob: future },
+      address: VALID_ADDRESS,
+      responses: {},
+    });
+    const res = await POST(req as never, { params });
+    expect(res.status).toBe(400);
+    expect(createIntakeOrder).not.toHaveBeenCalled();
+  });
+
+  it('rejects a DOB that makes the patient under 18 with 400', async () => {
+    const tenYearsAgo = new Date(Date.now() - 10 * 365 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const { req, params } = buildReq({
+      personal: { ...VALID_PERSONAL, dob: tenYearsAgo },
+      address: VALID_ADDRESS,
+      responses: {},
+    });
+    const res = await POST(req as never, { params });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.message).toMatch(/18|old/i);
+    expect(createIntakeOrder).not.toHaveBeenCalled();
+  });
+
+  it('rejects an impossible calendar date (2023-02-31) with 400', async () => {
+    const { req, params } = buildReq({
+      personal: { ...VALID_PERSONAL, dob: '2023-02-31' },
+      address: VALID_ADDRESS,
+      responses: {},
+    });
+    const res = await POST(req as never, { params });
+    expect(res.status).toBe(400);
+    expect(createIntakeOrder).not.toHaveBeenCalled();
   });
 });
 

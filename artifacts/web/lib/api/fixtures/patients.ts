@@ -621,6 +621,132 @@ export async function updatePatientPreferredChannel(
   return patient;
 }
 
+// ── Task-162 — recordPatientWeight — log a fresh weight check-in ─────────────
+// Now that intake captures a real baseline (task-114), staff (and eventually
+// patients themselves) need a way to record a new weight reading so trend
+// calculations against the baseline keep moving past day one. Today
+// patient.latest is only seeded once at intake — this fixture flips that into
+// a live, mutable check-in.
+//
+// 3-layer safety chain mirrors updatePatientPreferredChannel:
+//   Layer 1 (UI gate): caller derives canEdit from can(actor, 'write','patients').
+//   Layer 2 (server gate): can() check here; SAFETY_VIOLATION on denial.
+//   Layer 3 (audit log): [AUDIT] entry per mutation (success + denial).
+//
+// BMI is recomputed from the existing baseline height (intake-locked); we do
+// not allow callers to mutate height here. Valid range matches intake:
+// 30–300 kg. Out-of-range inputs throw VALIDATION so the UI can surface them.
+export const WEIGHT_MIN_KG = 30;
+export const WEIGHT_MAX_KG = 300;
+
+export type PatientWeightCheckIn = {
+  id: string;
+  clinic_id: ClinicId;
+  patient_id: string;
+  weight_kg: number;
+  bmi: number;
+  previous_weight_kg: number;
+  delta_vs_baseline_kg: number;
+  actor_id: string;
+  actor_name: string;
+  recorded_at: string;
+};
+
+export const PATIENT_WEIGHT_CHECKINS: PatientWeightCheckIn[] = [];
+
+export async function listPatientWeightCheckIns(
+  clinic_id: ClinicId,
+  opts?: { patient_id?: string },
+): Promise<PatientWeightCheckIn[]> {
+  await delay();
+  let results = PATIENT_WEIGHT_CHECKINS.filter((c) => c.clinic_id === clinic_id);
+  if (opts?.patient_id) results = results.filter((c) => c.patient_id === opts.patient_id);
+  return results;
+}
+
+export async function recordPatientWeight(
+  clinic_id: ClinicId,
+  patient_id: string,
+  weight_kg: number,
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'write', 'patients')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_weight_recorded',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      attempted_weight_kg: weight_kg,
+      timestamp: NOW,
+    });
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Insufficient permissions to record patient weight',
+    );
+  }
+
+  if (
+    typeof weight_kg !== 'number' ||
+    !Number.isFinite(weight_kg) ||
+    weight_kg < WEIGHT_MIN_KG ||
+    weight_kg > WEIGHT_MAX_KG
+  ) {
+    throw new APIError(
+      'VALIDATION',
+      `Weight must be between ${WEIGHT_MIN_KG} and ${WEIGHT_MAX_KG} kg`,
+    );
+  }
+
+  const patient = MOCK_PATIENTS.find(
+    (p) => p.clinic_id === clinic_id && p.id === patient_id,
+  );
+  if (!patient) {
+    throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+  }
+
+  const heightM = patient.baseline.height_cm / 100;
+  const roundedWeight = Math.round(weight_kg * 10) / 10;
+  const bmi = Math.round((roundedWeight / (heightM * heightM)) * 10) / 10;
+  const previousWeight = patient.latest.weight_kg;
+  const delta = Math.round((roundedWeight - patient.baseline.baseline_weight_kg) * 10) / 10;
+
+  patient.latest = { weight_kg: roundedWeight, bmi, recorded_at: NOW };
+  patient.updated_at = NOW;
+
+  const seq = String(PATIENT_WEIGHT_CHECKINS.length + 1).padStart(3, '0');
+  const registryActor = USERS_REGISTRY[actor.id];
+  PATIENT_WEIGHT_CHECKINS.push({
+    id: `PWC-${seq}`,
+    clinic_id,
+    patient_id,
+    weight_kg: roundedWeight,
+    bmi,
+    previous_weight_kg: previousWeight,
+    delta_vs_baseline_kg: delta,
+    actor_id: actor.id,
+    actor_name: registryActor?.full_name ?? actor.full_name ?? actor.id,
+    recorded_at: NOW,
+  });
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_weight_recorded',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_weight_kg: previousWeight,
+    new_weight_kg: roundedWeight,
+    new_bmi: bmi,
+    delta_vs_baseline_kg: delta,
+    timestamp: NOW,
+  });
+
+  return patient;
+}
+
 // ── BLD-10.4 — purgePatientData — UK GDPR Art 5(1)(c) data minimisation ──────
 // Called when a male/non-binary patient is identified at a female_only clinic.
 // Owner-only (task-104 explicitly re-gated this to Owner after Admin gained

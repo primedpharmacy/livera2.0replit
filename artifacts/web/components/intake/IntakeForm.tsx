@@ -17,7 +17,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronUp, CheckCircle2, Loader2, MapPin, AlertCircle, Upload, FileCheck2, X } from "lucide-react";
 import type { ClinicId, QuestionItem, QuestionType } from "@/types";
-import { isValidUkMobile, isValidUkPostcode } from "@/lib/validation/intake";
+import {
+  isValidUkMobile,
+  isValidUkPostcode,
+  isValidEmail,
+  validateDob,
+  dobErrorMessage,
+  MINIMUM_PATIENT_AGE_YEARS,
+} from "@/lib/validation/intake";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1168,7 +1175,9 @@ export function IntakeForm({
         personal.firstName.trim() &&
         personal.lastName.trim() &&
         personal.dob &&
+        validateDob(personal.dob).ok &&
         personal.email.trim() &&
+        isValidEmail(personal.email) &&
         personal.phone.trim() &&
         isValidUkMobile(personal.phone) &&
         personal.sexAtBirth &&
@@ -1358,9 +1367,16 @@ export function IntakeForm({
                         max={new Date().toISOString().split("T")[0]}
                         onChange={(e) => setPersonal({ ...personal, dob: e.target.value })}
                       />
-                      {showErrors && !personal.dob && (
-                        <p className="text-[11px] text-[#ef4444] mt-1">Required</p>
-                      )}
+                      {showErrors && (() => {
+                        const r = validateDob(personal.dob);
+                        if (r.ok) return null;
+                        return (
+                          <p className="text-[11px] text-[#ef4444] mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {dobErrorMessage(r.reason, MINIMUM_PATIENT_AGE_YEARS)}
+                          </p>
+                        );
+                      })()}
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-[#64748b] uppercase tracking-wide mb-1.5">
@@ -1529,6 +1545,12 @@ export function IntakeForm({
                       </p>
                       {showErrors && !personal.email.trim() && (
                         <p className="text-[11px] text-[#ef4444] mt-1">Required</p>
+                      )}
+                      {showErrors && personal.email.trim() && !isValidEmail(personal.email) && (
+                        <p className="text-[11px] text-[#ef4444] mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          Enter a valid email address (e.g. jane@example.com)
+                        </p>
                       )}
                     </div>
                     <div>

@@ -15,6 +15,11 @@ import {
   isValidUkPostcode,
   normalisePostcode,
   normaliseUkMobile,
+  isValidEmail,
+  normaliseEmail,
+  validateDob,
+  dobErrorMessage,
+  MINIMUM_PATIENT_AGE_YEARS,
 } from '@/lib/validation/intake';
 import type { ClinicId } from '@/types';
 
@@ -105,6 +110,24 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
     const normalisedPhone = normaliseUkMobile(rawPhone)!;
 
+    const rawEmail = (body.personal.email ?? '').trim();
+    if (!isValidEmail(rawEmail)) {
+      return NextResponse.json(
+        { message: 'Invalid email address.' },
+        { status: 400 },
+      );
+    }
+    const normalisedEmail = normaliseEmail(rawEmail);
+
+    const rawDob = (body.personal.dob ?? '').trim();
+    const dobResult = validateDob(rawDob);
+    if (!dobResult.ok) {
+      return NextResponse.json(
+        { message: dobErrorMessage(dobResult.reason, MINIMUM_PATIENT_AGE_YEARS) },
+        { status: 400 },
+      );
+    }
+
     const rawPostcode = (body.address.postcode ?? '').trim();
     if (!isValidUkPostcode(rawPostcode)) {
       return NextResponse.json(
@@ -119,8 +142,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       {
         firstName: body.personal.firstName,
         lastName: body.personal.lastName,
-        email: body.personal.email,
-        dob: body.personal.dob,
+        email: normalisedEmail,
+        dob: rawDob,
         phone: normalisedPhone,
         sex_at_birth: sex,
       },

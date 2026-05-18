@@ -44,38 +44,48 @@ export function OrderQuestionnaireCard({
   const configProvided = questionConfig !== undefined;
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [highlightedQid, setHighlightedQid] = useState<string | null>(null);
-  const [currentFlagIdx, setCurrentFlagIdx] = useState(0);
+  const [highlightKind, setHighlightKind] = useState<"warn" | "missing">("warn");
+  const [currentIssueIdx, setCurrentIssueIdx] = useState(0);
 
-  // Ordered list of flagged question IDs (warn only — those needing review).
-  const flaggedIds = useMemo(() => {
-    if (!questionConfig) return [];
+  // Ordered list of issues — flagged ("warn") answers plus missing required
+  // answers — in question order, so clinicians can sweep through both kinds
+  // in a single pass.
+  const issues = useMemo(() => {
+    if (!questionConfig) return [] as { id: string; kind: "warn" | "missing" }[];
     return questionConfig
       .slice()
       .sort((a, b) => a.order - b.order)
-      .filter((q) => {
+      .reduce<{ id: string; kind: "warn" | "missing" }[]>((acc, q) => {
         const val = questionnaire_responses[q.id];
         const answered = val !== undefined && val !== null && val !== "";
-        return answered && qFlag(q, val) === "warn";
-      })
-      .map((q) => q.id);
+        if (!answered) {
+          if (q.required) acc.push({ id: q.id, kind: "missing" });
+        } else if (qFlag(q, val) === "warn") {
+          acc.push({ id: q.id, kind: "warn" });
+        }
+        return acc;
+      }, []);
   }, [questionConfig, questionnaire_responses]);
 
-  const flagCount = flaggedIds.length;
+  const issueCount = issues.length;
+  const warnCount = useMemo(() => issues.filter((i) => i.kind === "warn").length, [issues]);
+  const missingCount = issueCount - warnCount;
 
-  // Reset to the first flag whenever the dataset or jump nonce changes.
+  // Reset to the first issue whenever the dataset or jump nonce changes.
   useEffect(() => {
-    setCurrentFlagIdx(0);
-  }, [flagCount, scrollToFlaggedNonce]);
+    setCurrentIssueIdx(0);
+  }, [issueCount, scrollToFlaggedNonce]);
 
-  // Scroll + highlight whichever flag is currently selected. Runs on initial
+  // Scroll + highlight whichever issue is currently selected. Runs on initial
   // jump (nonce change) and on every next/prev navigation.
-  function focusFlag(idx: number) {
-    if (flaggedIds.length === 0) return;
-    const qid = flaggedIds[idx];
-    const el = itemRefs.current[qid];
+  function focusIssue(idx: number) {
+    if (issues.length === 0) return;
+    const issue = issues[idx];
+    const el = itemRefs.current[issue.id];
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    setHighlightedQid(qid);
+    setHighlightKind(issue.kind);
+    setHighlightedQid(issue.id);
   }
 
   useEffect(() => {
@@ -84,27 +94,27 @@ export function OrderQuestionnaireCard({
     return () => clearTimeout(t);
   }, [highlightedQid]);
 
-  // Jump to first flag when the slide-over nonce changes.
+  // Jump to first issue when the slide-over nonce changes.
   useEffect(() => {
     if (!scrollToFlaggedNonce || scrollToFlaggedNonce <= 0) return;
-    if (flaggedIds.length === 0) return;
-    const raf = requestAnimationFrame(() => focusFlag(0));
+    if (issues.length === 0) return;
+    const raf = requestAnimationFrame(() => focusIssue(0));
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollToFlaggedNonce, flaggedIds]);
+  }, [scrollToFlaggedNonce, issues]);
 
-  function goToFlag(delta: 1 | -1) {
-    if (flaggedIds.length === 0) return;
-    setCurrentFlagIdx((prev) => {
-      const next = (prev + delta + flaggedIds.length) % flaggedIds.length;
-      requestAnimationFrame(() => focusFlag(next));
+  function goToIssue(delta: 1 | -1) {
+    if (issues.length === 0) return;
+    setCurrentIssueIdx((prev) => {
+      const next = (prev + delta + issues.length) % issues.length;
+      requestAnimationFrame(() => focusIssue(next));
       return next;
     });
   }
 
-  // Keyboard shortcut: `f` advances to the next flag (wraps).
+  // Keyboard shortcut: `f` advances to the next issue (wraps).
   useEffect(() => {
-    if (flaggedIds.length === 0) return;
+    if (issues.length === 0) return;
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
       if (
@@ -119,36 +129,55 @@ export function OrderQuestionnaireCard({
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key.toLowerCase() === "f") {
         e.preventDefault();
-        goToFlag(1);
+        goToIssue(1);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flaggedIds]);
+  }, [issues]);
+
+  const currentIssueKind = issues[currentIssueIdx]?.kind ?? "warn";
+  const counterClass =
+    currentIssueKind === "missing"
+      ? "bg-info-bg text-info border-info-bdr"
+      : "bg-warn-bg text-warn border-warn-bdr";
 
   const headerExtra =
-    flagCount > 0 ? (
+    issueCount > 0 ? (
       <div className="flex items-center gap-1.5">
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide bg-warn-bg text-warn border border-warn-bdr rounded-full px-2 py-0.5">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide border rounded-full px-2 py-0.5",
+            counterClass,
+          )}
+        >
           <AlertTriangle className="w-3 h-3" />
-          Flag {currentFlagIdx + 1} of {flagCount}
+          Issue {currentIssueIdx + 1} of {issueCount}
         </span>
+        {warnCount > 0 && missingCount > 0 && (
+          <span
+            className="hidden sm:inline-flex items-center text-[10px] font-bold uppercase tracking-wide text-t3"
+            title={`${warnCount} flagged · ${missingCount} missing required`}
+          >
+            {warnCount}F · {missingCount}M
+          </span>
+        )}
         <button
           type="button"
-          onClick={() => goToFlag(-1)}
+          onClick={() => goToIssue(-1)}
           className="rounded border border-bdr bg-surface hover:bg-page-bg text-t2 hover:text-t1 transition-colors p-1"
-          aria-label="Previous flagged answer"
-          title="Previous flag"
+          aria-label="Previous issue"
+          title="Previous issue"
         >
           <ChevronUp className="w-3.5 h-3.5" />
         </button>
         <button
           type="button"
-          onClick={() => goToFlag(1)}
+          onClick={() => goToIssue(1)}
           className="rounded border border-bdr bg-surface hover:bg-page-bg text-t2 hover:text-t1 transition-colors p-1"
-          aria-label="Next flagged answer"
-          title="Next flag (F)"
+          aria-label="Next issue"
+          title="Next issue (F)"
         >
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
@@ -172,13 +201,19 @@ export function OrderQuestionnaireCard({
                 const displayVal = answered ? formatValue(q.type, val, q) : "Not answered";
 
                 const isHighlighted = highlightedQid === q.id;
+                const highlightClass =
+                  isHighlighted && highlightKind === "missing"
+                    ? "bg-info-bg ring-2 ring-info ring-inset"
+                    : isHighlighted
+                    ? "bg-warn-bg ring-2 ring-warn ring-inset"
+                    : "";
                 return (
                   <div
                     key={q.id}
                     ref={(el) => { itemRefs.current[q.id] = el; }}
                     className={cn(
                       "grid grid-cols-[28px_1fr] gap-3 px-4 py-3.5 items-start transition-all duration-500 scroll-mt-4",
-                      isHighlighted && "bg-warn-bg ring-2 ring-warn ring-inset"
+                      highlightClass,
                     )}
                   >
                     <div className="text-[10px] font-bold text-t3 bg-page-bg border border-bdr rounded text-center py-1 tabular-nums shrink-0">

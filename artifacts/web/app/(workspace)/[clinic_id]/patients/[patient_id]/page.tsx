@@ -61,6 +61,28 @@ const TABS = [
 
 type TabKey = typeof TABS[number]["key"];
 
+// Task-326 (Wave 9a) — labels for the multi-step SumSub mirror surfaced on
+// the admin-facing Verification panel below. Patient-facing /feeltru/verify
+// owns its own copy.
+const SUMSUB_STEP_LABEL: Record<NonNullable<Patient["verification"]["sumsub_step"]>, string> = {
+  applicant: "Applicant created",
+  document_upload: "Awaiting document",
+  liveness: "Awaiting liveness check",
+  completed: "Completed",
+};
+const SUMSUB_STATUS_LABEL: Record<NonNullable<Patient["verification"]["sumsub_status"]>, string> = {
+  pending: "Pending",
+  submitted: "Submitted",
+  review: "Under review",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+const SUMSUB_DOC_LABEL: Record<NonNullable<NonNullable<Patient["verification"]["sumsub_document_type"]>>, string> = {
+  passport: "Passport",
+  driving_licence: "Driving licence",
+  national_id: "National ID",
+};
+
 type PageProps = {
   params: Promise<{ clinic_id: string; patient_id: string }>;
   searchParams: Promise<{ tab?: string; order_id?: string }>;
@@ -276,6 +298,7 @@ async function ProfileContent({
                   orders={orders}
                   gpLetters={gpLetters}
                   adminNotes={adminNotes}
+                  channelChanges={channelChanges}
                   canWriteNotes={canWriteNotes}
                   minChars={clinic.config.clinical_note_min_chars}
                 />
@@ -474,6 +497,18 @@ function LeftColumn({
         <DR k="Sumsub ID"  v={patient.verification.sumsub_id || "—"} mono />
         <DR k="Identity"   v={patient.verification.identity_verified_at ? formatDate(patient.verification.identity_verified_at) : "Not verified"} />
         <DR k="BMI"        v={patient.verification.bmi_verified_at ? formatDate(patient.verification.bmi_verified_at) : "Not verified"} />
+        {patient.verification.sumsub_step && (
+          <DR k="SDK step"  v={SUMSUB_STEP_LABEL[patient.verification.sumsub_step]} />
+        )}
+        {patient.verification.sumsub_status && (
+          <DR k="SDK status" v={SUMSUB_STATUS_LABEL[patient.verification.sumsub_status]} />
+        )}
+        {patient.verification.sumsub_document_type && (
+          <DR k="Document"  v={SUMSUB_DOC_LABEL[patient.verification.sumsub_document_type]} />
+        )}
+        {typeof patient.verification.sumsub_confidence === 'number' && (
+          <DR k="Confidence" v={`${Math.round(patient.verification.sumsub_confidence * 100)}%`} />
+        )}
       </PSec>
 
       {/* Consents */}
@@ -886,6 +921,7 @@ function NotesTab({
   orders,
   gpLetters,
   adminNotes,
+  channelChanges,
   canWriteNotes,
   minChars,
 }: {
@@ -896,6 +932,7 @@ function NotesTab({
   orders: Order[];
   gpLetters: GPLetter[];
   adminNotes: AdminNote[];
+  channelChanges: PatientPreferredChannelChange[];
   canWriteNotes: boolean;
   minChars: number;
 }) {
@@ -918,6 +955,7 @@ function NotesTab({
         orders={orders}
         gpLetters={gpLetters}
         adminNotes={adminNotes}
+        channelChanges={channelChanges}
         actor={CURRENT_USER}
         minChars={minChars}
       />

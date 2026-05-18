@@ -17,7 +17,8 @@ export type TimelineEntryType =
   | 'coaching_log'
   | 'order_event'
   | 'gp_letter'
-  | 'admin_note';  // BLD-4.5.3 — badge_color: blue (shared with order_event; type-discriminated in UI)
+  | 'admin_note'  // BLD-4.5.3 — badge_color: blue (shared with order_event; type-discriminated in UI)
+  | 'channel_change';  // Task-223 — badge_color: neutral (preferred-channel change breadcrumb)
 
 export type TimelineEntry = {
   id: string;

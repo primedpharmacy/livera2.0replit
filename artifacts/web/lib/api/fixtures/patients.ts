@@ -187,7 +187,16 @@ const SARAH_FEELTRU: Patient = {
   gp: { name: 'Dr. Patel', address: 'Oak Practice, Manchester M1 3CD', phone: '+44 161 555 0100', email: 'oak@nhs.net', nhs_ods_id: 'A12345' },
   baseline: { height_cm: 165, baseline_weight_kg: 92.5, baseline_bmi: 33.9 },
   latest: { weight_kg: 84.2, bmi: 30.9, recorded_at: '2026-05-01T10:00:00Z' },
-  verification: { sumsub_id: 'sumsub_abc123', identity_verified_at: '2026-01-15T14:30:00Z', bmi_verified_at: '2026-05-01T10:05:00Z' },
+  verification: {
+    sumsub_id: 'sumsub_abc123',
+    identity_verified_at: '2026-01-15T14:30:00Z',
+    bmi_verified_at: '2026-05-01T10:05:00Z',
+    // Task-326 — multi-step SumSub mirror (Sarah is the canonical fully-verified patient)
+    sumsub_status: 'approved',
+    sumsub_step: 'completed',
+    sumsub_document_type: 'passport',
+    sumsub_confidence: 0.97,
+  },
   consents_given: [
     { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-15T14:30:00Z' },
     { consent_id: 'consent_gp', version: 'v1', given_at: '2026-01-15T14:30:00Z' },
@@ -283,7 +292,16 @@ const TOM_VSC: Patient = {
   gp: { name: 'Dr. Clarke', address: 'Broomhill Medical, Sheffield S10 2SE', phone: '+44 114 555 0300', email: 'broomhill@nhs.net', nhs_ods_id: 'C83012' },
   baseline: { height_cm: 178, baseline_weight_kg: 115.5, baseline_bmi: 36.5 },
   latest: { weight_kg: 115.5, bmi: 36.5, recorded_at: '2026-05-08T14:00:00Z' },
-  verification: { sumsub_id: 'sumsub_tf089', identity_verified_at: '2026-05-08T13:50:00Z', bmi_verified_at: null },
+  verification: {
+    sumsub_id: 'sumsub_tf089',
+    identity_verified_at: '2026-05-08T13:50:00Z',
+    bmi_verified_at: null,
+    // Task-326 — submitted but still awaiting BMI capture; review state for the SDK
+    sumsub_status: 'review',
+    sumsub_step: 'liveness',
+    sumsub_document_type: 'driving_licence',
+    sumsub_confidence: 0.82,
+  },
   consents_given: [
     { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-05-08T13:50:00Z' },
   ],

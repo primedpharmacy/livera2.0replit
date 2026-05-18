@@ -253,6 +253,14 @@ export type Patient = {
     sumsub_id: string;
     identity_verified_at: string | null;
     bmi_verified_at: string | null;
+    // Task-326 (Wave 9a) — multi-step SumSub mirror. UI surfaces these on the
+    // patient profile Verification panel and the patient-facing /verify flow.
+    // Backend remains mocked; fields are optional so legacy fixtures still
+    // compile without an explicit step (treated as "applicant" by the UI).
+    sumsub_status?: 'pending' | 'submitted' | 'review' | 'approved' | 'rejected';
+    sumsub_step?: 'applicant' | 'document_upload' | 'liveness' | 'completed';
+    sumsub_document_type?: 'passport' | 'driving_licence' | 'national_id' | null;
+    sumsub_confidence?: number | null;  // 0-1 mock score from the SDK
   };
   consents_given: Array<{ consent_id: string; version: string; given_at: string }>;
   flags: Array<{ id: string; code: string; severity: 'low' | 'medium' | 'high'; raised_at: string }>;

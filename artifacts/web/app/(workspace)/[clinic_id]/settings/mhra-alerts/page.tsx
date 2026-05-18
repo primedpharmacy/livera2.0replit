@@ -95,8 +95,6 @@ const RECIPIENTS = [
   { role: "Superintendent Pharmacist", count: "1 person · Shahid Mahmood",     active: true  },
   { role: "Admin",                   count: "2 people · Punam, Shannon",        active: false },
   { role: "Coach",                   count: "0 people · FeelTru only",          active: false },
-  { role: "Technician",              count: "0 people",                         active: false },
-  { role: "Manager",                 count: "0 people",                         active: false },
 ];
 
 const ALERT_LOG = [

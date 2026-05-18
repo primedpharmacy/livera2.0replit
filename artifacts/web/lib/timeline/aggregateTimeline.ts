@@ -14,30 +14,33 @@
  */
 
 import type { ClinicId, ClinicalNote, CoachingLog, Order, GPLetter, AdminNote, User } from '@/lib/api/types';
-import { adaptClinicalNote } from './adapters/clinicalNote';
-import { adaptCoachingLog }  from './adapters/coachingLog';
-import { adaptOrderEvent }   from './adapters/orderEvent';
-import { adaptGpLetter }     from './adapters/gpLetter';
-import { adaptAdminNote }    from './adapters/adminNote';
+import type { PatientPreferredChannelChange } from '@/lib/api/fixtures/patients';
+import { adaptClinicalNote }  from './adapters/clinicalNote';
+import { adaptCoachingLog }   from './adapters/coachingLog';
+import { adaptOrderEvent }    from './adapters/orderEvent';
+import { adaptGpLetter }      from './adapters/gpLetter';
+import { adaptAdminNote }     from './adapters/adminNote';
+import { adaptChannelChange } from './adapters/channelChange';
 import type { TimelineEntry, TimelineFilter } from './types';
 
 type TimelineInput = {
-  clinicalNotes: ClinicalNote[];
-  coachingLogs:  CoachingLog[];
-  orders:        Order[];
-  gpLetters:     GPLetter[];
-  adminNotes:    AdminNote[];   // BLD-4.5.3 — hidden from Coach
-  clinicId:      ClinicId;
-  actor:         User;
+  clinicalNotes:  ClinicalNote[];
+  coachingLogs:   CoachingLog[];
+  orders:         Order[];
+  gpLetters:      GPLetter[];
+  adminNotes:     AdminNote[];   // BLD-4.5.3 — hidden from Coach
+  channelChanges?: PatientPreferredChannelChange[];  // Task-223 — preferred-channel breadcrumbs
+  clinicId:       ClinicId;
+  actor:          User;
   /** Optional display-name maps for author labels */
-  userNames?:    Record<string, string>;
+  userNames?:     Record<string, string>;
 };
 
 export function aggregateTimeline(
   input: TimelineInput,
   filter?: TimelineFilter,
 ): TimelineEntry[] {
-  const { clinicalNotes, coachingLogs, orders, gpLetters, adminNotes, clinicId, actor, userNames = {} } = input;
+  const { clinicalNotes, coachingLogs, orders, gpLetters, adminNotes, channelChanges = [], clinicId, actor, userNames = {} } = input;
 
   const entries: TimelineEntry[] = [];
 
@@ -77,6 +80,14 @@ export function aggregateTimeline(
   // component level (AdminNoteFABModal checks can(actor,'write','admin_notes')).
   for (const n of adminNotes) {
     entries.push(adaptAdminNote(n, clinicId, userNames[n.created_by_user_id]));
+  }
+
+  // ── Preferred-channel changes ─────────────────────────────────────────────
+  // Task-223 — same audit projection used by PreferredChannelHistory and the
+  // Notification log tab. Visible to anyone with read:patients (gated at the
+  // route level, same posture as PreferredChannelHistory).
+  for (const c of channelChanges) {
+    entries.push(adaptChannelChange(c, clinicId));
   }
 
   // ── Apply filter ───────────────────────────────────────────────────────────

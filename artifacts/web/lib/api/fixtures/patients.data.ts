@@ -1,0 +1,605 @@
+/**
+ * Pure patient fixture data — client-safe.
+ *
+ * This module is deliberately free of audit / database imports so it can be
+ * pulled into client components (e.g. shell FAB speed-dials) without dragging
+ * `@workspace/db` → `pg` → Node's `fs` into the browser bundle.
+ *
+ * Mutations of these arrays + async helpers that reach the audit / db spine
+ * live in `./patients.ts`. Client components that only need to read fixture
+ * data should import from this module so they never transitively pull in
+ * `lib/api/audit.ts` (where `@workspace/db` is loaded via a webpack-ignored
+ * dynamic import).
+ */
+
+import type { ClinicId, Patient } from '../types';
+
+export type PatientPreferredChannelChange = {
+  id: string;
+  clinic_id: ClinicId;
+  patient_id: string;
+  previous_channel: 'email' | 'sms' | 'phone';
+  new_channel: 'email' | 'sms' | 'phone';
+  actor_id: string;
+  actor_name: string;
+  changed_at: string;
+};
+
+export const PREFERRED_CHANNEL_CHANGES: PatientPreferredChannelChange[] = [
+  // Seed entry: Sarah Cookland's channel was switched from SMS → Email in
+  // late April so the refund email sent on 2026-05-10 (NOTIF-001) follows
+  // an earlier SMS in the same log. Without this breadcrumb the channel
+  // flip looked like a routing bug.
+  {
+    id: 'PCC-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    previous_channel: 'sms',
+    new_channel: 'email',
+    actor_id: 'user_qadir',
+    actor_name: 'Qadir Hussain',
+    changed_at: '2026-04-28T09:12:00Z',
+  },
+];
+
+export type PatientFlagChangeKind = 'vip' | 'status' | 'coach';
+
+export type PatientFlagChange = {
+  id: string;
+  clinic_id: ClinicId;
+  patient_id: string;
+  kind: PatientFlagChangeKind;
+  // String form so all three kinds share one row renderer. status keeps the
+  // raw enum value ('active'|'monitoring'|'suspended'|'new'); vip is the
+  // string "true"/"false"; coach is either the user_id, the coach full name,
+  // or the literal 'unassigned' when nulled.
+  previous_value: string;
+  new_value: string;
+  // Optional resolved display names so the UI doesn't have to look up the
+  // coach in USERS_REGISTRY itself (some coaches may have left the team).
+  previous_display: string | null;
+  new_display: string | null;
+  actor_id: string;
+  actor_name: string;
+  changed_at: string;
+};
+
+export const PATIENT_FLAG_CHANGES: PatientFlagChange[] = [
+  // Seed: Emma Whitfield was promoted to VIP after her £4k spend tipped over
+  // the high-value threshold — admins reviewing her profile should see who
+  // approved that promotion.
+  {
+    id: 'PFC-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00412',
+    kind: 'vip',
+    previous_value: 'false',
+    new_value: 'true',
+    previous_display: 'No',
+    new_display: 'Yes',
+    actor_id: 'user_qadir',
+    actor_name: 'Qadir Hussain',
+    changed_at: '2026-04-15T11:30:00Z',
+  },
+  // Seed: Priya Shah moved from active → suspended after a card chargeback.
+  {
+    id: 'PFC-002',
+    clinic_id: 'vsc',
+    patient_id: 'PT-00301',
+    kind: 'status',
+    previous_value: 'active',
+    new_value: 'suspended',
+    previous_display: 'active',
+    new_display: 'suspended',
+    actor_id: 'user_yohan',
+    actor_name: 'Yohan Perera',
+    changed_at: '2026-03-12T15:45:00Z',
+  },
+  // Seed: Miriam Osei moved to monitoring after a missed check-in.
+  {
+    id: 'PFC-003',
+    clinic_id: 'vsc',
+    patient_id: 'PT-00156',
+    kind: 'status',
+    previous_value: 'active',
+    new_value: 'monitoring',
+    previous_display: 'active',
+    new_display: 'monitoring',
+    actor_id: 'user_yohan',
+    actor_name: 'Yohan Perera',
+    changed_at: '2026-04-18T09:20:00Z',
+  },
+  // Seed: Sarah Cookland assigned to Olwyn when coaching feature went live.
+  {
+    id: 'PFC-004',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    kind: 'coach',
+    previous_value: 'unassigned',
+    new_value: 'user_olwyn',
+    previous_display: 'Unassigned',
+    new_display: 'Olwyn Sutcliffe',
+    actor_id: 'user_qadir',
+    actor_name: 'Qadir Hussain',
+    changed_at: '2026-02-02T10:00:00Z',
+  },
+  // Seed: Zara Ahmed coach assigned shortly after onboarding.
+  {
+    id: 'PFC-005',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00378',
+    kind: 'coach',
+    previous_value: 'unassigned',
+    new_value: 'user_olwyn',
+    previous_display: 'Unassigned',
+    new_display: 'Olwyn Sutcliffe',
+    actor_id: 'user_mobeen',
+    actor_name: 'Mobeen Alam',
+    changed_at: '2026-05-07T10:15:00Z',
+  },
+];
+
+// ── Sarah Cookland — persona spine ──────────────────────────────────────────
+const SARAH_FEELTRU: Patient = {
+  id: 'PT-00198',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Sarah Cookland',
+    dob: '1979-04-15',
+    sex_at_birth: 'female',
+    ethnicity: 'White British',
+    address: { line1: '12 Oak Lane', city: 'Manchester', postcode: 'M1 2AB' },
+  },
+  contact: { email: 'sarah.cookland@example.com', phone: '+44 7700 900123', preferred_channel: 'email' },
+  gp: { name: 'Dr. Patel', address: 'Oak Practice, Manchester M1 3CD', phone: '+44 161 555 0100', email: 'oak@nhs.net', nhs_ods_id: 'A12345' },
+  baseline: { height_cm: 165, baseline_weight_kg: 92.5, baseline_bmi: 33.9 },
+  latest: { weight_kg: 84.2, bmi: 30.9, recorded_at: '2026-05-01T10:00:00Z' },
+  verification: {
+    sumsub_id: 'sumsub_abc123',
+    identity_verified_at: '2026-01-15T14:30:00Z',
+    bmi_verified_at: '2026-05-01T10:05:00Z',
+    // Task-326 — multi-step SumSub mirror (Sarah is the canonical fully-verified patient)
+    sumsub_status: 'approved',
+    sumsub_step: 'completed',
+    sumsub_document_type: 'passport',
+    sumsub_confidence: 0.97,
+  },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-15T14:30:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-01-15T14:30:00Z' },
+  ],
+  flags: [{ id: 'flag_001', code: 'B4', severity: 'medium', raised_at: '2026-04-20T09:00:00Z' }],
+  status: 'active',
+  vip: false,
+  coach_id: 'user_olwyn',
+  // BLD-8.3 (Wave 6) — Intercom external_id set when patient account created in Intercom.
+  intercom_user_id: 'icom_pt00198_feeltru',
+  // Phase 1 read-only Intercom integration — Sarah is the canonical linked
+  // patient used for end-to-end verification (task-58).
+  intercom_contact_id: 'icontact_sarah_feeltru',
+  created_at: '2026-01-15T14:30:00Z',
+  updated_at: '2026-05-01T10:00:00Z',
+};
+
+const SARAH_VSC: Patient = {
+  ...SARAH_FEELTRU,
+  clinic_id: 'vsc',
+  id: 'PT-00012',
+  coach_id: null,
+  // Override — VSC Intercom account is separate from FeelTru account
+  intercom_user_id: null,
+};
+
+// ── Additional VSC patients ──────────────────────────────────────────────────
+
+const JAMES_VSC: Patient = {
+  id: 'PT-00234',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'James Hartley',
+    dob: '1985-08-22',
+    sex_at_birth: 'male',
+    ethnicity: 'White British',
+    address: { line1: '47 Birch Close', city: 'Birmingham', postcode: 'B15 3TQ' },
+  },
+  contact: { email: 'james.hartley@example.com', phone: '+44 7700 900456', preferred_channel: 'email' },
+  gp: { name: 'Dr. Singh', address: 'Parkside Surgery, Birmingham B15 4PQ', phone: '+44 121 555 0200', email: 'parkside@nhs.net', nhs_ods_id: 'B83014' },
+  baseline: { height_cm: 181, baseline_weight_kg: 108.0, baseline_bmi: 32.9 },
+  latest: { weight_kg: 101.4, bmi: 30.9, recorded_at: '2026-05-03T09:15:00Z' },
+  verification: { sumsub_id: 'sumsub_jh234', identity_verified_at: '2026-02-01T10:00:00Z', bmi_verified_at: '2026-05-03T09:20:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-02-01T10:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-02-01T10:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: null,
+  created_at: '2026-02-01T10:00:00Z',
+  updated_at: '2026-05-03T09:15:00Z',
+};
+
+const MIRIAM_VSC: Patient = {
+  id: 'PT-00156',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Miriam Osei',
+    dob: '1971-03-30',
+    sex_at_birth: 'female',
+    ethnicity: 'Black British',
+    address: { line1: '8 Maple Avenue', city: 'Leeds', postcode: 'LS6 2HR' },
+  },
+  contact: { email: 'miriam.osei@example.com', phone: '+44 7700 900789', preferred_channel: 'sms' },
+  gp: null,
+  baseline: { height_cm: 163, baseline_weight_kg: 98.0, baseline_bmi: 36.9 },
+  latest: { weight_kg: 95.1, bmi: 35.8, recorded_at: '2026-04-28T11:00:00Z' },
+  verification: { sumsub_id: 'sumsub_mo156', identity_verified_at: '2026-01-20T09:30:00Z', bmi_verified_at: '2026-04-28T11:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-20T09:30:00Z' },
+  ],
+  flags: [],
+  status: 'monitoring',
+  vip: false,
+  coach_id: null,
+  created_at: '2026-01-20T09:30:00Z',
+  updated_at: '2026-04-28T11:00:00Z',
+};
+
+const TOM_VSC: Patient = {
+  id: 'PT-00089',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Tom Fletcher',
+    dob: '1990-11-05',
+    sex_at_birth: 'male',
+    ethnicity: 'Mixed',
+    address: { line1: '19 Station Road', city: 'Sheffield', postcode: 'S1 2GH' },
+  },
+  contact: { email: 'tom.fletcher@example.com', phone: '+44 7700 900012', preferred_channel: 'phone' },
+  gp: { name: 'Dr. Clarke', address: 'Broomhill Medical, Sheffield S10 2SE', phone: '+44 114 555 0300', email: 'broomhill@nhs.net', nhs_ods_id: 'C83012' },
+  baseline: { height_cm: 178, baseline_weight_kg: 115.5, baseline_bmi: 36.5 },
+  latest: { weight_kg: 115.5, bmi: 36.5, recorded_at: '2026-05-08T14:00:00Z' },
+  verification: {
+    sumsub_id: 'sumsub_tf089',
+    identity_verified_at: '2026-05-08T13:50:00Z',
+    bmi_verified_at: null,
+    // Task-326 — submitted but still awaiting BMI capture; review state for the SDK
+    sumsub_status: 'review',
+    sumsub_step: 'liveness',
+    sumsub_document_type: 'driving_licence',
+    sumsub_confidence: 0.82,
+  },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-05-08T13:50:00Z' },
+  ],
+  flags: [],
+  status: 'new',
+  vip: false,
+  coach_id: null,
+  created_at: '2026-05-08T13:50:00Z',
+  updated_at: '2026-05-08T14:00:00Z',
+};
+
+const PRIYA_VSC: Patient = {
+  id: 'PT-00301',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Priya Shah',
+    dob: '1978-06-14',
+    sex_at_birth: 'female',
+    ethnicity: 'Asian British',
+    address: { line1: '3 Elm Street', city: 'London', postcode: 'E1 7PQ' },
+  },
+  contact: { email: 'priya.shah@example.com', phone: '+44 7700 900321', preferred_channel: 'email' },
+  gp: { name: 'Dr. Nguyen', address: 'Tower Hamlets GP, London E1 8AH', phone: '+44 20 555 0400', email: 'towerhamlets@nhs.net', nhs_ods_id: 'G85014' },
+  baseline: { height_cm: 158, baseline_weight_kg: 88.0, baseline_bmi: 35.2 },
+  latest: { weight_kg: 86.5, bmi: 34.6, recorded_at: '2026-03-15T10:30:00Z' },
+  verification: { sumsub_id: 'sumsub_ps301', identity_verified_at: '2026-01-10T11:00:00Z', bmi_verified_at: '2026-03-15T10:35:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-10T11:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-01-10T11:00:00Z' },
+  ],
+  flags: [{ id: 'flag_002', code: 'B1', severity: 'low', raised_at: '2026-03-01T09:00:00Z' }],
+  status: 'suspended',
+  vip: false,
+  coach_id: null,
+  created_at: '2026-01-10T11:00:00Z',
+  updated_at: '2026-03-15T10:30:00Z',
+};
+
+// ── Additional FeelTru patients ──────────────────────────────────────────────
+
+const EMMA_FEELTRU: Patient = {
+  id: 'PT-00412',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Emma Whitfield',
+    dob: '1983-02-28',
+    sex_at_birth: 'female',
+    ethnicity: 'White British',
+    address: { line1: '22 Willow Lane', city: 'Edinburgh', postcode: 'EH4 2NF' },
+  },
+  contact: { email: 'emma.whitfield@example.com', phone: '+44 7700 900654', preferred_channel: 'email' },
+  gp: { name: 'Dr. McAllister', address: 'Dean Surgery, Edinburgh EH4 3BR', phone: '+44 131 555 0500', email: 'dean@nhs.net', nhs_ods_id: 'S10003' },
+  baseline: { height_cm: 167, baseline_weight_kg: 95.0, baseline_bmi: 34.1 },
+  latest: { weight_kg: 87.3, bmi: 31.3, recorded_at: '2026-05-05T08:30:00Z' },
+  verification: { sumsub_id: 'sumsub_ew412', identity_verified_at: '2026-01-05T09:00:00Z', bmi_verified_at: '2026-05-05T08:35:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-05T09:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-01-05T09:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: true,
+  coach_id: 'user_olwyn',
+  created_at: '2026-01-05T09:00:00Z',
+  updated_at: '2026-05-05T08:30:00Z',
+};
+
+const ZARA_FEELTRU: Patient = {
+  id: 'PT-00378',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Zara Ahmed',
+    dob: '1994-09-17',
+    sex_at_birth: 'female',
+    ethnicity: 'Asian British',
+    address: { line1: '56 Orchard Road', city: 'Bristol', postcode: 'BS8 2HY' },
+  },
+  contact: { email: 'zara.ahmed@example.com', phone: '+44 7700 900987', preferred_channel: 'sms' },
+  gp: { name: 'Dr. Wilson', address: 'Clifton Practice, Bristol BS8 3LE', phone: '+44 117 555 0600', email: 'clifton@nhs.net', nhs_ods_id: 'L83011' },
+  baseline: { height_cm: 162, baseline_weight_kg: 87.0, baseline_bmi: 33.2 },
+  latest: { weight_kg: 87.0, bmi: 33.2, recorded_at: '2026-05-07T10:00:00Z' },
+  verification: { sumsub_id: 'sumsub_za378', identity_verified_at: '2026-05-07T09:50:00Z', bmi_verified_at: '2026-05-07T10:00:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-05-07T09:50:00Z' },
+  ],
+  flags: [],
+  status: 'new',
+  vip: false,
+  coach_id: 'user_olwyn',
+  created_at: '2026-05-07T09:50:00Z',
+  updated_at: '2026-05-07T10:00:00Z',
+};
+
+const FIONA_FEELTRU: Patient = {
+  id: 'PT-00445',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Fiona MacLeod',
+    dob: '1967-12-03',
+    sex_at_birth: 'female',
+    ethnicity: 'White Scottish',
+    address: { line1: '11 Harbour View', city: 'Glasgow', postcode: 'G1 3LF' },
+  },
+  contact: { email: 'fiona.macleod@example.com', phone: '+44 7700 900543', preferred_channel: 'phone' },
+  gp: { name: 'Dr. Robertson', address: 'City Centre Health, Glasgow G2 1PP', phone: '+44 141 555 0700', email: 'citycentre@nhs.net', nhs_ods_id: 'S10019' },
+  baseline: { height_cm: 161, baseline_weight_kg: 102.5, baseline_bmi: 39.5 },
+  latest: { weight_kg: 97.8, bmi: 37.7, recorded_at: '2026-04-20T14:00:00Z' },
+  verification: { sumsub_id: 'sumsub_fm445', identity_verified_at: '2026-01-25T10:00:00Z', bmi_verified_at: '2026-04-20T14:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-01-25T10:00:00Z' },
+  ],
+  flags: [],
+  status: 'monitoring',
+  vip: false,
+  coach_id: 'user_olwyn',
+  created_at: '2026-01-25T10:00:00Z',
+  updated_at: '2026-04-20T14:00:00Z',
+};
+
+// ── Welcome-call canonical patients (BLD-13.3) ───────────────────────────────
+
+const MICHELLE_FEELTRU: Patient = {
+  id: 'PT-00210',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Michelle Clarke',
+    dob: '1982-07-03',
+    sex_at_birth: 'female',
+    ethnicity: 'White British',
+    address: { line1: '8 Maple Drive', city: 'Bristol', postcode: 'BS1 4TN' },
+  },
+  contact: { email: 'michelle.clarke@example.com', phone: '+44 7700 900701', preferred_channel: 'email' },
+  gp: { name: 'Dr. Owens', address: 'Central Surgery, Bristol BS1 5RT', phone: '+44 117 555 0100', email: 'central@nhs.net', nhs_ods_id: 'L83042' },
+  baseline: { height_cm: 167, baseline_weight_kg: 97.0, baseline_bmi: 34.8 },
+  latest: { weight_kg: 97.0, bmi: 34.8, recorded_at: '2026-04-28T10:00:00Z' },
+  verification: { sumsub_id: 'sumsub_mc210', identity_verified_at: '2026-04-28T10:00:00Z', bmi_verified_at: '2026-04-28T10:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-04-28T10:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-04-28T10:00:00Z' },
+  ],
+  flags: [{ id: 'flag_wc053', code: 'FLAG-004', severity: 'medium', raised_at: '2026-05-06T11:25:00Z' }],
+  status: 'active',
+  vip: false,
+  coach_id: 'user_olwyn',
+  intercom_user_id: 'icom_pt00210_feeltru',
+  created_at: '2026-04-28T10:00:00Z',
+  updated_at: '2026-05-06T11:25:00Z',
+};
+
+const SARAH_CHEN_FEELTRU: Patient = {
+  id: 'PT-00214',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Sarah Chen',
+    dob: '1990-02-18',
+    sex_at_birth: 'female',
+    ethnicity: 'Chinese',
+    address: { line1: '22 Riverside Court', city: 'London', postcode: 'E1 7RG' },
+  },
+  contact: { email: 'sarah.chen@example.com', phone: '+44 7700 900714', preferred_channel: 'email' },
+  gp: { name: 'Dr. Kim', address: 'East End Practice, London E1 8PQ', phone: '+44 20 7555 0200', email: 'eastend@nhs.net', nhs_ods_id: 'G85011' },
+  baseline: { height_cm: 160, baseline_weight_kg: 82.0, baseline_bmi: 32.0 },
+  latest: { weight_kg: 82.0, bmi: 32.0, recorded_at: '2026-05-01T09:30:00Z' },
+  verification: { sumsub_id: 'sumsub_sc214', identity_verified_at: '2026-05-01T09:30:00Z', bmi_verified_at: '2026-05-01T09:35:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-05-01T09:30:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-05-01T09:30:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: 'user_olwyn',
+  intercom_user_id: 'icom_pt00214_feeltru',
+  created_at: '2026-05-01T09:30:00Z',
+  updated_at: '2026-05-08T07:00:00Z',
+};
+
+const BETH_FEELTRU: Patient = {
+  id: 'PT-00199',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Beth Newman',
+    dob: '1975-11-09',
+    sex_at_birth: 'female',
+    ethnicity: 'White British',
+    address: { line1: '3 Chestnut Avenue', city: 'Leeds', postcode: 'LS1 2WZ' },
+  },
+  contact: { email: 'beth.newman@example.com', phone: '+44 7700 900199', preferred_channel: 'phone' },
+  gp: { name: 'Dr. Hassan', address: 'Kirkgate Surgery, Leeds LS1 3PQ', phone: '+44 113 555 0300', email: 'kirkgate@nhs.net', nhs_ods_id: 'B82031' },
+  baseline: { height_cm: 169, baseline_weight_kg: 105.0, baseline_bmi: 36.8 },
+  latest: { weight_kg: 105.0, bmi: 36.8, recorded_at: '2026-04-25T11:00:00Z' },
+  verification: { sumsub_id: 'sumsub_bn199', identity_verified_at: '2026-04-25T11:00:00Z', bmi_verified_at: '2026-04-25T11:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-04-25T11:00:00Z' },
+    { consent_id: 'consent_gp', version: 'v1', given_at: '2026-04-25T11:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: 'user_olwyn',
+  intercom_user_id: 'icom_pt00199_feeltru',
+  created_at: '2026-04-25T11:00:00Z',
+  updated_at: '2026-05-07T08:00:00Z',
+};
+
+// ── BLD-10.1 — Ryan Mitchell — demo male patient registered at FeelTru ───────
+// Triggers the gender eligibility mismatch banner (DEC-16, UK Equality Act 2010 Sch 3 Para 27).
+// FeelTru is female_only; this patient should be redirected to VSC or data purged per BLD-10.4.
+const RYAN_FEELTRU: Patient = {
+  id: 'PT-00556',
+  clinic_id: 'feeltru',
+  demographic: {
+    full_name: 'Ryan Mitchell',
+    dob: '1989-07-14',
+    sex_at_birth: 'male',
+    ethnicity: 'White British',
+    address: { line1: '14 Grafton Street', city: 'Manchester', postcode: 'M1 5GF' },
+  },
+  contact: { email: 'ryan.mitchell@example.com', phone: '+44 7700 900556', preferred_channel: 'email' },
+  gp: { name: 'Dr. Patel', address: 'Northern Quarter Surgery, Manchester M1 2AB', phone: '+44 161 555 0100', email: 'nq@nhs.net', nhs_ods_id: 'P84721' },
+  baseline: { height_cm: 182, baseline_weight_kg: 105.0, baseline_bmi: 31.7 },
+  latest: { weight_kg: 105.0, bmi: 31.7, recorded_at: '2026-05-10T14:00:00Z' },
+  verification: { sumsub_id: 'sumsub_rm556', identity_verified_at: '2026-05-10T14:00:00Z', bmi_verified_at: null },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2026-05-10T14:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: null,
+  intercom_user_id: 'icom_pt00556_feeltru',
+  created_at: '2026-05-10T14:00:00Z',
+  updated_at: '2026-05-10T14:00:00Z',
+};
+
+// ── Task-165 — legacy records with malformed phone/postcode ─────────────────
+// Two seed patients that existed before Task-115 added intake validation, used
+// by the cleanupPatientContactData backfill job and its tests. They mirror
+// the two real-world classes of broken data ops have found in MOCK_PATIENTS:
+//   - LEGACY_FIXABLE_VSC: phone + postcode are auto-normalisable
+//     (no spaces / wrong case). Backfill rewrites them in place.
+//   - LEGACY_UNFIXABLE_VSC: phone is too short to interpret and postcode is
+//     not a UK postcode at all. Backfill flags both for ops follow-up.
+const LEGACY_FIXABLE_VSC: Patient = {
+  id: 'PT-00701',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Harold Bryant',
+    dob: '1962-05-09',
+    sex_at_birth: 'male',
+    ethnicity: 'White British',
+    address: { line1: '4 Pinewood Crescent', city: 'Manchester', postcode: 'm12ab' },
+  },
+  contact: { email: 'harold.bryant@example.com', phone: '07700900222', preferred_channel: 'sms' },
+  gp: null,
+  baseline: { height_cm: 175, baseline_weight_kg: 110.0, baseline_bmi: 35.9 },
+  latest: { weight_kg: 110.0, bmi: 35.9, recorded_at: '2025-12-01T09:00:00Z' },
+  verification: { sumsub_id: 'sumsub_hb701', identity_verified_at: '2025-12-01T09:00:00Z', bmi_verified_at: '2025-12-01T09:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2025-12-01T09:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: null,
+  created_at: '2025-12-01T09:00:00Z',
+  updated_at: '2025-12-01T09:00:00Z',
+};
+
+const LEGACY_UNFIXABLE_VSC: Patient = {
+  id: 'PT-00702',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Doris Whittaker',
+    dob: '1955-09-18',
+    sex_at_birth: 'female',
+    ethnicity: 'White British',
+    address: { line1: '21 Foxglove Way', city: 'Leeds', postcode: 'XX999' },
+  },
+  // "07700" is too short to be a UK mobile — only 5 digits — and cannot be
+  // safely auto-fixed; ops must phone the patient to get the real number.
+  contact: { email: 'doris.whittaker@example.com', phone: '07700', preferred_channel: 'phone' },
+  gp: null,
+  baseline: { height_cm: 160, baseline_weight_kg: 92.0, baseline_bmi: 35.9 },
+  latest: { weight_kg: 92.0, bmi: 35.9, recorded_at: '2025-11-20T11:00:00Z' },
+  verification: { sumsub_id: 'sumsub_dw702', identity_verified_at: '2025-11-20T11:00:00Z', bmi_verified_at: '2025-11-20T11:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2025-11-20T11:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: null,
+  created_at: '2025-11-20T11:00:00Z',
+  updated_at: '2025-11-20T11:00:00Z',
+};
+
+export const MOCK_PATIENTS: Patient[] = [
+  SARAH_FEELTRU, SARAH_VSC,
+  JAMES_VSC, MIRIAM_VSC, TOM_VSC, PRIYA_VSC,
+  EMMA_FEELTRU, ZARA_FEELTRU, FIONA_FEELTRU,
+  MICHELLE_FEELTRU, SARAH_CHEN_FEELTRU, BETH_FEELTRU,
+  RYAN_FEELTRU,
+  LEGACY_FIXABLE_VSC, LEGACY_UNFIXABLE_VSC,
+];
+
+export const WEIGHT_MIN_KG = 30;
+export const WEIGHT_MAX_KG = 300;
+
+// Task-244 — patients can now self-submit a weight reading via a magic-link
+// page. The same fixture handles both staff and patient submissions; `source`
+// makes the distinction explicit so the audit log, the per-patient history
+// surface, and the coach badge can tell them apart. Patient-submitted rows
+// also carry `coach_acknowledged_at` so the assigned coach gets a "new from
+// patient" badge until they tick it off.
+export type WeightCheckInSource = 'staff' | 'patient';
+
+export type PatientWeightCheckIn = {
+  id: string;
+  clinic_id: ClinicId;
+  patient_id: string;
+  weight_kg: number;
+  bmi: number;
+  previous_weight_kg: number;
+  delta_vs_baseline_kg: number;
+  actor_id: string;
+  actor_name: string;
+  recorded_at: string;
+  source: WeightCheckInSource;
+  coach_acknowledged_at: string | null;
+  coach_acknowledged_by: string | null;
+};
+
+export const PATIENT_WEIGHT_CHECKINS: PatientWeightCheckIn[] = [];

@@ -191,6 +191,15 @@ export type ClinicConfig = {
   primed_flag_rules: unknown[];            // Primed flag mirror rules (Chunk 17)
   questionnaire_order: QuestionItem[];     // New-patient questionnaire config (BLD-13.4)
   questionnaire_reorder: QuestionItem[];   // Reorder questionnaire config (BLD-13.4)
+
+  // Task-100 — clinic-tunable thresholds for the weight-trend analyser.
+  // Read by analyseWeightHistory in lib/clinical/weightWarnings.ts.
+  weight_warning_thresholds: {
+    bmi_continuation_floor: number;     // default 27.5 — min BMI on continuation/reorder before warn
+    rapid_loss_kg_per_week: number;     // default 2   — >this kg/week between last 2 readings = err
+    plateau_tolerance_kg: number;       // default 0.3 — max kg spread across tail to count as plateau
+    plateau_min_readings: number;       // default 3   — tail length used for plateau detection
+  };
 };
 
 // --- Clinic (outer entity) ---

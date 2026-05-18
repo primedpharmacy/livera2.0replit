@@ -14,7 +14,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
-  MessageSquare, ShieldAlert, Scale, ShieldCheck, AlertTriangle,
+  Check, X, MessageSquare, ShieldAlert, Scale, ShieldCheck, AlertTriangle,
   Stethoscope, Pencil, Activity, Clock, Send, Mail, CreditCard,
   FileText, Camera, Ban, Paperclip, FileCheck2, Upload, ChevronDown, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
@@ -1263,8 +1263,8 @@ export function OrderDetailClient({
                   const given  = !!record;
                   return (
                     <div key={cd.id} className={`flex items-start gap-3 px-4 py-2.5 ${given ? "" : "bg-err-bg/30"}`}>
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold ${given ? "bg-ok text-white" : "bg-err text-white"}`}>
-                        {given ? "✓" : "✕"}
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${given ? "bg-ok text-white" : "bg-err text-white"}`}>
+                        {given ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">

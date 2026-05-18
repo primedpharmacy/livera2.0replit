@@ -750,7 +750,13 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
             {incident.monday_item_id && (
               <p className="text-[11px] text-t3">Item: {incident.monday_item_id}</p>
             )}
-            {isSharedBoard && (
+            {isSharedBoard && incident.clinic_id === "vsc" && (
+              <p className="text-[10px] text-warn mt-1.5 font-medium leading-snug">
+                Note: VSC incidents currently sync to the FeelTru workspace board (18402056019).
+                Workspace consolidation deferred to platform Mini-wave 6.
+              </p>
+            )}
+            {isSharedBoard && incident.clinic_id !== "vsc" && (
               <p className="text-[10px] text-warn mt-1.5 font-medium">DEC-29: VSC and FeelTru share this board</p>
             )}
           </div>

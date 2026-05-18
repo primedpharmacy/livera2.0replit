@@ -12,6 +12,7 @@ import { OrderListFilters } from "./OrderListFilters";
 import { OrderListTable } from "./OrderListTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLegend";
+import { saveQueue } from "@/lib/queueNavigation";
 import { Package, Clock, ArrowRight } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
 import type { Order, Clinic } from "@/types";
@@ -52,6 +53,11 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
   useEffect(() => {
     setFocusedIdx((i) => (i >= visibleOrders.length ? -1 : i));
   }, [visibleOrders.length]);
+
+  // Persist the current queue order so detail pages can ↑/↓ through it.
+  useEffect(() => {
+    saveQueue("orders", visibleOrders.map((o) => o.id));
+  }, [visibleOrders]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {

@@ -12,6 +12,7 @@ import {
   CURRENT_USER,
   NOW,
 } from "@/lib/api/mock";
+import { useQueueNavigation } from "@/lib/queueNavigation";
 import type { Complaint, Clinic, ClinicId } from "@/types";
 
 // Decision E.1 (locked) — Pure read-only mirror per DEC-37.
@@ -74,6 +75,7 @@ function SLACard({ label, dueAt, done }: { label: string; dueAt: Date; done: boo
 }
 
 export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Props) {
+  useQueueNavigation({ kind: "complaints", currentId: initialComplaint.id, clinicId });
   const [complaint, setComplaint] = useState<Complaint>(initialComplaint);
   const [isSyncing, setIsSyncing] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);

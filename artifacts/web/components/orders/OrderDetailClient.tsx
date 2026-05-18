@@ -51,6 +51,7 @@ import { OrderBMIValidationCard } from "./OrderBMIValidationCard";
 import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
 import { DispatchDateCard } from "./DispatchDateCard";
 import { addWorkingHours } from "@/lib/utils/workingHours";
+import { useQueueNavigation } from "@/lib/queueNavigation";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -164,6 +165,7 @@ export function OrderDetailClient({
   clinicId,
   initialClinicalNotes,
 }: OrderDetailClientProps) {
+  useQueueNavigation({ kind: "orders", currentId: initialOrder.id, clinicId });
   const [order, setOrder]             = useState<Order>(initialOrder);
   const [modal, setModal]             = useState<Modal>(null);
   const [rationale, setRationale]     = useState("");

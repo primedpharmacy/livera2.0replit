@@ -7,6 +7,7 @@ import { LogIncidentModal } from "@/components/incidents/LogIncidentModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLegend";
+import { saveQueue } from "@/lib/queueNavigation";
 import { NOW } from "@/lib/api/constants";
 import { cn } from "@/lib/utils";
 import type { Incident, Order, Patient, Clinic, ClinicId, IncidentType, IncidentSeverity } from "@/types";
@@ -150,6 +151,11 @@ export function IncidentsView({ initialIncidents, initialOrders, patients, clini
   useEffect(() => {
     setFocusedIdx((i) => (i >= filtered.length ? -1 : i));
   }, [filtered.length]);
+
+  // Persist the current queue order so detail pages can ↑/↓ through it.
+  useEffect(() => {
+    saveQueue("incidents", filtered.map((i) => i.id));
+  }, [filtered]);
 
   // ── Keyboard navigation (↑/↓ focus row, Enter opens detail) ───────────────
   useEffect(() => {

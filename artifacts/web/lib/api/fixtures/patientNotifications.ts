@@ -22,6 +22,7 @@
 import type { ClinicId } from '../types';
 import { scopedToClinic, delay, NOW } from '../constants';
 import { renderPatientEmail } from '@/lib/integrations/emailTemplates'; // Task-278 — keep NOTIF-001's html_body in lock-step with the live renderer
+import { parseTwilioErrorCode } from '@/lib/notifications/smsCarrierReasons'; // Task-302 — fall back to parsing a numeric Twilio code out of error_message when the webhook caller didn't forward error_code separately
 
 export type PatientNotificationChannel = 'Email' | 'SMS' | 'Push' | 'InApp';
 export type PatientNotificationStatus = 'Delivered' | 'Queued' | 'Failed' | 'Bounced';
@@ -65,6 +66,14 @@ export type PatientNotification = {
   last_attempt_at: string | null;
   next_retry_at: string | null;
   email_envelope: PatientEmailEnvelope | null;
+  // Task-302 — structured Twilio error code captured by the SMS status
+  // callback, alongside the human-readable `last_error` string. Stored as a
+  // first-class field so the clinic-wide bounce breakdown can group by
+  // reason without re-parsing free-text errors on every render, and so a
+  // single source of truth ties the per-row friendly summary to the
+  // clinic-level aggregation. Null on non-SMS rows, on SMS rows recorded
+  // before Task-302, and on Delivered SMS rows (no error to record).
+  sms_error_code: number | null;
   // Task-132 — populated by backfillPatientNotificationEnvelopes when an
   // older row's envelope cannot be reconstructed (e.g. the originating order
   // was hard-deleted, the row was a non-email channel, or the template is
@@ -117,6 +126,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     // Task-98 — snapshot of the email the patient received, surfaced by the
     // "Preview email" action in the per-patient notification log.
     email_envelope_unavailable_reason: null,
+    sms_error_code: null,
     // Task-278 — render the seeded snapshot through the shared renderer so the
     // fixture stays structurally identical to anything the live refund path
     // produces today (no `<!doctype html>` literals outside emailTemplates.ts).
@@ -164,6 +174,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     last_attempt_at: '2026-05-18T09:12:00Z',
     next_retry_at:   '2026-05-18T09:17:00Z',
     email_envelope_unavailable_reason: null,
+    sms_error_code:  null,
     email_envelope:  {
       to_email: 'patient+pt00198@example.com',
       subject:  'Your order ORD-00451 has been approved',
@@ -199,6 +210,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     last_attempt_at: '2026-05-17T16:04:00Z',
     next_retry_at:   null,
     email_envelope_unavailable_reason: null,
+    sms_error_code:  null,
     email_envelope:  {
       to_email: 'patient+pt00198@example.com',
       subject:  'Your order ORD-00452 is on its way',
@@ -239,6 +251,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     next_retry_at:   null,
     email_envelope:                    null,
     email_envelope_unavailable_reason: null,
+    sms_error_code:                    30003,
   },
   // Task-137 — SMS marked Failed by the carrier (landline / unroutable). Same
   // shape as above; UI must surface the carrier reason so clinicians know to
@@ -266,6 +279,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     next_retry_at:   null,
     email_envelope:                    null,
     email_envelope_unavailable_reason: null,
+    sms_error_code:                    30006,
   },
   // Task-132 — "older" rows recorded before the email_envelope snapshot field
   // existed. The backfill job (backfillPatientNotificationEnvelopes) walks
@@ -291,6 +305,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     next_retry_at:   null,
     email_envelope:                    null,
     email_envelope_unavailable_reason: null,
+    sms_error_code:                    null,
   },
   {
     id: 'NOTIF-LEGACY-002',
@@ -310,6 +325,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     next_retry_at:   null,
     email_envelope:                    null,
     email_envelope_unavailable_reason: null,
+    sms_error_code:                    null,
   },
   // Task-185 — Legacy row captured AFTER Task-66 (envelope snapshotting) but
   // BEFORE Task-131 (HTML snapshotting): an envelope is present, but
@@ -336,6 +352,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     last_attempt_at: '2026-01-14T10:12:00Z',
     next_retry_at:   null,
     email_envelope_unavailable_reason: null,
+    sms_error_code:  null,
     email_envelope: {
       to_email: 'sarah.cookland@example.com',
       subject:  'Your order ORD-00450 has been cancelled',
@@ -373,6 +390,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     last_attempt_at: '2026-02-03T09:30:00Z',
     next_retry_at:   null,
     email_envelope_unavailable_reason: null,
+    sms_error_code:  null,
     email_envelope: {
       to_email: 'sarah.cookland@example.com',
       subject:  'Your order ORD-00441 is on its way',
@@ -427,6 +445,11 @@ export function recordPatientNotification(input: {
     next_retry_at:   input.status === 'Failed' ? nextRetryAtFor(attemptCount, sentAt) : null,
     email_envelope:  input.email_envelope ?? null,
     email_envelope_unavailable_reason: null,
+    // Task-302 — sms_error_code is populated later by the Twilio status
+    // callback (see applyTwilioStatusCallback). At first-send time we don't
+    // know it yet — the synchronous Messages API response only reports the
+    // "accepted" state for outbound sends.
+    sms_error_code:                    null,
   };
   MOCK_PATIENT_NOTIFICATIONS.push(record);
   return record;
@@ -484,7 +507,17 @@ const TERMINAL_SMS_STATUSES: ReadonlySet<PatientNotificationStatus> = new Set([
 
 export function applyTwilioStatusCallback(
   smsMessageId: string,
-  outcome: { status: PatientNotificationStatus; error_message?: string | null },
+  outcome: {
+    status: PatientNotificationStatus;
+    error_message?: string | null;
+    // Task-302 — the webhook now forwards the numeric Twilio ErrorCode as a
+    // first-class value alongside the human-readable error message, so the
+    // clinic-wide bounce breakdown can group on a structured field instead
+    // of re-parsing `last_error` strings. Optional so existing callers and
+    // tests that only pass `error_message` keep working — we'll attempt to
+    // parse a code out of the message in that case.
+    error_code?: number | null;
+  },
   occurredAt: string = NOW,
 ): PatientNotification | null {
   const notif = MOCK_PATIENT_NOTIFICATIONS.find(
@@ -511,6 +544,20 @@ export function applyTwilioStatusCallback(
   notif.next_retry_at   = null;
   if (outcome.error_message) {
     notif.payload = { ...notif.payload, sms_error_message: outcome.error_message };
+  }
+  // Task-302 — record the structured Twilio error code so the clinic-level
+  // breakdown can `GROUP BY sms_error_code` without re-parsing strings.
+  // A Delivered callback clears any prior code (the row recovered); any
+  // other terminal outcome stores the code from the callback if provided,
+  // otherwise parses one out of the error message for backwards
+  // compatibility with callers that only pass `error_message`.
+  if (outcome.status === 'Delivered') {
+    notif.sms_error_code = null;
+  } else if (outcome.error_code !== undefined && outcome.error_code !== null) {
+    notif.sms_error_code = outcome.error_code;
+  } else if (outcome.error_message) {
+    notif.sms_error_code =
+      parseTwilioErrorCode(outcome.error_message) ?? notif.sms_error_code;
   }
   return notif;
 }

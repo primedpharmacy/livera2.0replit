@@ -18,7 +18,11 @@ import {
   MOCK_PATIENT_NOTIFICATIONS,
   recordPatientNotification,
 } from '@/lib/api/fixtures/patientNotifications';
-import { __resetTwilioDedupeCacheForTests } from '@/lib/integrations/sms';
+import {
+  __resetTwilioDedupeCacheForTests,
+  __resetTwilioCallbackStatsForTests,
+  getTwilioCallbackStats,
+} from '@/lib/integrations/sms';
 
 const URL = 'https://example.test/api/webhooks/twilio/status';
 
@@ -50,6 +54,7 @@ beforeEach(() => {
   delete process.env.TWILIO_AUTH_TOKEN;
   delete process.env.TWILIO_STATUS_CALLBACK_URL;
   __resetTwilioDedupeCacheForTests();
+  __resetTwilioCallbackStatsForTests();
 });
 
 afterEach(() => {
@@ -199,6 +204,39 @@ describe('POST /api/webhooks/twilio/status — stub mode signature bypass', () =
     expect(body.ignored).toBeUndefined();
     expect(body.notification_id).toBe(created.id);
     expect(body.status).toBe('Delivered');
+  });
+
+  it('increments the observability counters for each callback outcome (Task-301)', async () => {
+    const sid = 'SMcounter_' + Math.random().toString(36).slice(2);
+    recordPatientNotification({
+      clinic_id:  'feeltru',
+      patient_id: 'PT-00198',
+      order_id:   'ORD-WEBHOOK-COUNTER-1',
+      type:       'order_approved',
+      template:   'order_approved',
+      status:     'Queued',
+      channel:    'SMS',
+      payload:    { sms_message_id: sid },
+    });
+
+    // 1× processed (final 'delivered')
+    await POST(buildRequest({ MessageSid: sid, MessageStatus: 'delivered' }));
+    // 2× duplicate (same SID + status, replayed)
+    await POST(buildRequest({ MessageSid: sid, MessageStatus: 'delivered' }));
+    await POST(buildRequest({ MessageSid: sid, MessageStatus: 'delivered' }));
+    // 1× intermediate
+    await POST(buildRequest({ MessageSid: sid, MessageStatus: 'sent' }));
+    // 1× orphan
+    await POST(buildRequest({ MessageSid: 'SMno_such_sid', MessageStatus: 'delivered' }));
+
+    const stats = getTwilioCallbackStats();
+    expect(stats.totals.processed).toBe(1);
+    expect(stats.totals.duplicate).toBe(2);
+    expect(stats.totals.intermediate).toBe(1);
+    expect(stats.totals.orphan).toBe(1);
+    expect(stats.last_hour.duplicate).toBe(2);
+    expect(stats.window_ms).toBe(60 * 60 * 1000);
+    expect(stats.dedupe_cache_size).toBeGreaterThan(0);
   });
 
   it('returns 200 with a missing_message_sid reason when MessageSid is absent', async () => {

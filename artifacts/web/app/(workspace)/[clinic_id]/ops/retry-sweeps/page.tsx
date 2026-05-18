@@ -9,10 +9,11 @@
  * threw (outcome='error') are highlighted in red so problems jump out.
  */
 
-import { RefreshCw, AlertTriangle, Clock, Globe, User as UserIcon } from "lucide-react";
+import { RefreshCw, AlertTriangle, Clock, Globe, User as UserIcon, MessageSquare } from "lucide-react";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Breadcrumb } from "@/components/shell/Breadcrumb";
 import { getRecentRetrySweeps, type SweepRecord } from "@/lib/api/jobs/scheduler";
+import { getTwilioCallbackStats } from "@/lib/integrations/sms";
 import { findUserByUid } from "@/lib/users/registry";
 import { RunSweepButton } from "./RunSweepButton";
 
@@ -44,6 +45,7 @@ function formatTime(ts: string): string {
 export default async function RetrySweepsPage({ params }: Props) {
   const { clinic_id } = await params;
   const rows = getRecentRetrySweeps(50);
+  const twilioStats = getTwilioCallbackStats();
   const nowMs = Date.now();
 
   const totalSweeps = new Set(rows.map((r) => r.sweep_id)).size;
@@ -82,6 +84,59 @@ export default async function RetrySweepsPage({ params }: Props) {
             tone={failedRows.length > 0 ? "err" : "ok"}
           />
         </div>
+
+        <section
+          aria-labelledby="twilio-stats-heading"
+          className="bg-surface border border-bdr rounded-lg p-4"
+          data-testid="twilio-callback-stats"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <MessageSquare className="w-4 h-4 text-t2" aria-hidden />
+            <h2 id="twilio-stats-heading" className="text-[13px] font-semibold text-t1">
+              Twilio status callbacks (last hour)
+            </h2>
+            <span className="text-[11px] text-t3">
+              · in-process counters · resets on server restart
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            <MiniStat
+              label="Duplicates suppressed"
+              value={twilioStats.last_hour.duplicate}
+              total={twilioStats.totals.duplicate}
+              tone={twilioStats.last_hour.duplicate > 0 ? "warn" : "muted"}
+              testid="twilio-duplicate"
+            />
+            <MiniStat
+              label="Processed"
+              value={twilioStats.last_hour.processed}
+              total={twilioStats.totals.processed}
+              tone="ok"
+              testid="twilio-processed"
+            />
+            <MiniStat
+              label="Orphans"
+              value={twilioStats.last_hour.orphan}
+              total={twilioStats.totals.orphan}
+              tone={twilioStats.last_hour.orphan > 0 ? "err" : "muted"}
+              testid="twilio-orphan"
+            />
+            <MiniStat
+              label="Intermediate"
+              value={twilioStats.last_hour.intermediate}
+              total={twilioStats.totals.intermediate}
+              tone="muted"
+              testid="twilio-intermediate"
+            />
+          </div>
+          <p className="text-[11px] text-t3 mt-3">
+            Duplicates are repeat Twilio retries our dedupe cache short-circuited before
+            touching the notification row. A persistently rising count is normal
+            (Twilio retries aggressively) — a sudden spike alongside zero processed
+            callbacks suggests Twilio is hammering us with replays of a stuck SID.
+            Live dedupe keys: <span className="font-mono text-t2">{twilioStats.dedupe_cache_size}</span>.
+          </p>
+        </section>
 
         <div className="bg-surface border border-bdr rounded-lg overflow-hidden" data-clinic-id={clinic_id}>
           <table className="w-full text-[13px]">
@@ -215,6 +270,42 @@ function Num({ n, tone = "muted" }: { n: number; tone?: "ok" | "warn" | "err" | 
             ? "text-err"
             : "text-t1";
   return <td className={`px-3 py-2 align-top text-right tabular-nums ${colour}`}>{n}</td>;
+}
+
+function MiniStat({
+  label,
+  value,
+  total,
+  tone = "muted",
+  testid,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone?: "ok" | "warn" | "err" | "muted";
+  testid?: string;
+}) {
+  const valueColour =
+    value === 0
+      ? "text-t3"
+      : tone === "ok"
+        ? "text-ok"
+        : tone === "warn"
+          ? "text-warn"
+          : tone === "err"
+            ? "text-err"
+            : "text-t1";
+  return (
+    <div className="bg-page-bg border border-bdr rounded-md p-3" data-testid={testid}>
+      <div className="text-[11px] uppercase tracking-wider text-t3 font-bold">{label}</div>
+      <div className={`text-2xl font-semibold mt-1 tabular-nums ${valueColour}`} data-testid={testid ? `${testid}-value` : undefined}>
+        {value}
+      </div>
+      <div className="text-[11px] text-t3 mt-1">
+        {total.toLocaleString()} since boot
+      </div>
+    </div>
+  );
 }
 
 function StatCard({

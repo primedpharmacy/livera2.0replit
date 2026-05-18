@@ -58,6 +58,7 @@ function makeSmsRow(
     next_retry_at: null,
     email_envelope: null,
     email_envelope_unavailable_reason: null,
+    sms_error_code: null,
   };
 }
 

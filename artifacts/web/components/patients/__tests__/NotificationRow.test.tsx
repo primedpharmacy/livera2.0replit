@@ -46,6 +46,7 @@ function makeRow(overrides: Partial<PatientNotification>): PatientNotification {
     next_retry_at: null,
     email_envelope: null,
     email_envelope_unavailable_reason: null,
+    sms_error_code: null,
     ...overrides,
   };
 }

@@ -25,6 +25,7 @@ import {
   XCircle,
   RotateCw,
   MailCheck,
+  MessageSquareWarning,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -336,6 +337,17 @@ function buildSections(
           ...(contactCleanupCount > 0
             ? { badge: { value: contactCleanupCount, variant: "warn" as BadgeVariant } }
             : {}),
+        },
+        // Task-302 — clinic-wide bounced-SMS breakdown by Twilio reason.
+        // Gated on the same read:settings permission as the other Ops
+        // tools; the page also re-checks server-side because it surfaces
+        // aggregate carrier-failure counts.
+        {
+          key: "sms-bounces",
+          label: "SMS Bounces",
+          icon: MessageSquareWarning,
+          href: `/${clinicId}/ops/sms-bounces`,
+          permission: { action: "read", resource: "settings" },
         },
       ],
     },

@@ -337,6 +337,109 @@ export function __resetTwilioDedupeCacheForTests(): void {
   twilioDedupeCache.clear();
 }
 
+// ── Task-301: Twilio status-callback observability counters ─────────────────
+/**
+ * Lightweight in-process counters for Twilio status-callback traffic so ops
+ * can confirm at a glance that the Task-207 dedupe is actually suppressing
+ * Twilio's retries (rather than us silently failing closed).
+ *
+ * Four event kinds are tracked:
+ *   - 'processed'    — a final callback we accepted and applied to a row
+ *   - 'duplicate'    — a (SID, status) replay short-circuited by the cache
+ *   - 'orphan'       — a SID we have no notification for (logged + 200'd)
+ *   - 'intermediate' — queued/sending/sent/accepted, acknowledged not stored
+ *
+ * Cumulative totals (since process boot) are kept as plain integers; the
+ * rolling-window stats use a bounded ring of `{ ts, kind }` events that is
+ * pruned to TWILIO_STATS_WINDOW_MS on every read. Events older than the
+ * window are dropped, and the ring is hard-capped at
+ * TWILIO_STATS_MAX_EVENTS to bound memory in pathological replay storms.
+ *
+ * Like the dedupe cache itself, this is in-process only — a horizontally
+ * scaled deployment would see per-instance counts, which is fine for the
+ * "is Twilio hammering us?" sanity check this is designed to answer.
+ */
+const TWILIO_STATS_WINDOW_MS = 60 * 60 * 1000;
+const TWILIO_STATS_MAX_EVENTS = 5_000;
+
+export type TwilioCallbackEventKind =
+  | 'processed'
+  | 'duplicate'
+  | 'orphan'
+  | 'intermediate';
+
+type TwilioCallbackEvent = { ts: number; kind: TwilioCallbackEventKind };
+
+const twilioCallbackEvents: TwilioCallbackEvent[] = [];
+const twilioCallbackTotals: Record<TwilioCallbackEventKind, number> = {
+  processed:    0,
+  duplicate:    0,
+  orphan:       0,
+  intermediate: 0,
+};
+let twilioCallbackStatsBootedAt: number | null = null;
+
+/** Record a single Twilio status-callback outcome. */
+export function recordTwilioCallbackEvent(
+  kind: TwilioCallbackEventKind,
+  now: number = Date.now(),
+): void {
+  if (twilioCallbackStatsBootedAt === null) twilioCallbackStatsBootedAt = now;
+  twilioCallbackTotals[kind] += 1;
+  twilioCallbackEvents.push({ ts: now, kind });
+  // Hard cap — evict oldest entries first so the most-recent activity wins
+  // when traffic suddenly spikes. We expect normal volumes to stay well
+  // under the cap and the window-based prune in the getter to handle most
+  // eviction during steady state.
+  while (twilioCallbackEvents.length > TWILIO_STATS_MAX_EVENTS) {
+    twilioCallbackEvents.shift();
+  }
+}
+
+export type TwilioCallbackStats = {
+  window_ms: number;
+  last_hour: Record<TwilioCallbackEventKind, number>;
+  totals:    Record<TwilioCallbackEventKind, number>;
+  dedupe_cache_size: number;
+  booted_at: string | null;
+};
+
+/**
+ * Snapshot of Twilio callback activity. Prunes events older than the
+ * rolling window as a side effect so the ring stays bounded over time.
+ */
+export function getTwilioCallbackStats(
+  now: number = Date.now(),
+): TwilioCallbackStats {
+  const cutoff = now - TWILIO_STATS_WINDOW_MS;
+  while (twilioCallbackEvents.length > 0 && twilioCallbackEvents[0].ts < cutoff) {
+    twilioCallbackEvents.shift();
+  }
+  const lastHour: Record<TwilioCallbackEventKind, number> = {
+    processed: 0, duplicate: 0, orphan: 0, intermediate: 0,
+  };
+  for (const e of twilioCallbackEvents) lastHour[e.kind] += 1;
+  return {
+    window_ms: TWILIO_STATS_WINDOW_MS,
+    last_hour: lastHour,
+    totals:    { ...twilioCallbackTotals },
+    dedupe_cache_size: twilioDedupeCache.size,
+    booted_at: twilioCallbackStatsBootedAt
+      ? new Date(twilioCallbackStatsBootedAt).toISOString()
+      : null,
+  };
+}
+
+/** Test-only: zero out the counters between cases. */
+export function __resetTwilioCallbackStatsForTests(): void {
+  twilioCallbackEvents.length = 0;
+  twilioCallbackTotals.processed = 0;
+  twilioCallbackTotals.duplicate = 0;
+  twilioCallbackTotals.orphan = 0;
+  twilioCallbackTotals.intermediate = 0;
+  twilioCallbackStatsBootedAt = null;
+}
+
 export async function sendPatientSMS(
   input: PatientSmsInput,
 ): Promise<PatientSmsResult> {

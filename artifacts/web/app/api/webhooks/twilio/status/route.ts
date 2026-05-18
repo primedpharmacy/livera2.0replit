@@ -46,6 +46,7 @@ import {
   mapTwilioCallbackStatus,
   hasRecentlyProcessedTwilioCallback,
   markTwilioCallbackProcessed,
+  recordTwilioCallbackEvent,
 } from '@/lib/integrations/sms';
 import { applyTwilioStatusCallback } from '@/lib/api/fixtures/patientNotifications';
 import { NOW } from '@/lib/api/constants';
@@ -107,6 +108,7 @@ export async function POST(request: NextRequest) {
   // the signature for this exact (SID, status) within the TTL window, so a
   // replay is just Twilio nagging us — answer 200 quietly and move on.
   if (messageStatus && hasRecentlyProcessedTwilioCallback(messageSid, messageStatus)) {
+    recordTwilioCallbackEvent('duplicate');
     console.log('[TWILIO_STATUS]', {
       action: 'duplicate_callback_short_circuited',
       message_sid: messageSid,
@@ -131,6 +133,7 @@ export async function POST(request: NextRequest) {
     // a row doesn't re-emit five 'intermediate_ignored' lines. Safe because
     // the dedupe key includes status, so a later 'delivered' still passes.
     markTwilioCallbackProcessed(messageSid, messageStatus);
+    recordTwilioCallbackEvent('intermediate');
     return NextResponse.json(
       { ok: true, ignored: 'intermediate_status', message_status: messageStatus },
       { status: 200 },
@@ -147,6 +150,12 @@ export async function POST(request: NextRequest) {
   const updated = applyTwilioStatusCallback(messageSid, {
     status: mapped,
     error_message: errorMessage,
+    // Task-302 — forward the parsed numeric Twilio ErrorCode so the row
+    // captures it as a first-class `sms_error_code` field. The clinic-wide
+    // bounce breakdown groups on this structured value rather than
+    // re-parsing the free-text `last_error` string. NaN guards against a
+    // garbage ErrorCode in the form payload.
+    error_code: errorCode !== null && Number.isFinite(errorCode) ? errorCode : null,
   });
 
   if (!updated) {
@@ -162,6 +171,7 @@ export async function POST(request: NextRequest) {
     // Cache the orphan too — Twilio will retry the same unknown SID otherwise
     // and we'd re-emit the orphan audit line on every attempt.
     markTwilioCallbackProcessed(messageSid, messageStatus);
+    recordTwilioCallbackEvent('orphan');
     return NextResponse.json(
       { ok: true, ignored: 'no_matching_notification' },
       { status: 200 },
@@ -176,6 +186,7 @@ export async function POST(request: NextRequest) {
   });
 
   markTwilioCallbackProcessed(messageSid, messageStatus);
+  recordTwilioCallbackEvent('processed');
 
   return NextResponse.json(
     { ok: true, notification_id: updated.id, status: updated.status },

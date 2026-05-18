@@ -88,6 +88,7 @@ function seed(overrides: Partial<PatientNotification> & { id: string }): Patient
       text_body: 'Hi — your order has been approved.',
     },
     email_envelope_unavailable_reason: null,
+    sms_error_code: null,
   };
   const row: PatientNotification = { ...base, ...overrides };
   MOCK_PATIENT_NOTIFICATIONS.push(row);

@@ -53,6 +53,8 @@ function seedRow(overrides: Partial<PatientNotification> = {}): PatientNotificat
     last_attempt_at: '2026-05-18T10:00:00Z',
     next_retry_at: null,
     email_envelope: null,
+    email_envelope_unavailable_reason: null,
+    sms_error_code: null,
     ...overrides,
   };
   MOCK_PATIENT_NOTIFICATIONS.push(row);

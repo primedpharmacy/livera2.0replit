@@ -10,8 +10,51 @@
  */
 
 import type { ClinicId, Patient } from '../types';
-import { delay, APIError, CURRENT_USER, NOW } from '../constants';
+import { delay, APIError, CURRENT_USER, NOW, USERS_REGISTRY } from '../constants';
 import { can } from '@/lib/permissions';
+
+// ── Task-103 — preferred-channel change log ──────────────────────────────────
+// In-memory projection of the [AUDIT] stream already emitted by
+// updatePatientPreferredChannel (no new audit event type — this is the same
+// success record, exposed so the per-patient Notification log can render an
+// inline "channel changed" breadcrumb alongside real Email/SMS sends.
+export type PatientPreferredChannelChange = {
+  id: string;
+  clinic_id: ClinicId;
+  patient_id: string;
+  previous_channel: 'email' | 'sms' | 'phone';
+  new_channel: 'email' | 'sms' | 'phone';
+  actor_id: string;
+  actor_name: string;
+  changed_at: string;
+};
+
+export const PREFERRED_CHANNEL_CHANGES: PatientPreferredChannelChange[] = [
+  // Seed entry: Sarah Cookland's channel was switched from SMS → Email in
+  // late April so the refund email sent on 2026-05-10 (NOTIF-001) follows
+  // an earlier SMS in the same log. Without this breadcrumb the channel
+  // flip looked like a routing bug.
+  {
+    id: 'PCC-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    previous_channel: 'sms',
+    new_channel: 'email',
+    actor_id: 'user_qadir',
+    actor_name: 'Qadir Hussain',
+    changed_at: '2026-04-28T09:12:00Z',
+  },
+];
+
+export async function listPatientPreferredChannelChanges(
+  clinic_id: ClinicId,
+  opts?: { patient_id?: string },
+): Promise<PatientPreferredChannelChange[]> {
+  await delay();
+  let results = PREFERRED_CHANNEL_CHANGES.filter((c) => c.clinic_id === clinic_id);
+  if (opts?.patient_id) results = results.filter((c) => c.patient_id === opts.patient_id);
+  return results;
+}
 
 // ── Sarah Cookland — persona spine ──────────────────────────────────────────
 const SARAH_FEELTRU: Patient = {
@@ -440,6 +483,25 @@ export async function updatePatientPreferredChannel(
     phone_on_file: !!patient.contact.phone,
     timestamp: NOW,
   });
+
+  // Task-103 — project the same success record into the in-memory change log
+  // so the per-patient Notification log can show an inline breadcrumb. This
+  // is NOT a new audit event — it is the same event already emitted above,
+  // captured in a form the UI can read.
+  if (previous_channel !== preferred_channel) {
+    const seq = String(PREFERRED_CHANNEL_CHANGES.length + 1).padStart(3, '0');
+    const registryActor = USERS_REGISTRY[actor.id];
+    PREFERRED_CHANNEL_CHANGES.push({
+      id: `PCC-${seq}`,
+      clinic_id,
+      patient_id,
+      previous_channel,
+      new_channel: preferred_channel,
+      actor_id: actor.id,
+      actor_name: registryActor?.full_name ?? actor.full_name ?? actor.id,
+      changed_at: NOW,
+    });
+  }
 
   return patient;
 }

@@ -140,7 +140,8 @@ function buildSections(
   complaintsCount: number,
   incidentsCount: number,
   gpLettersCount: number,
-  discontinuationsCount: number
+  discontinuationsCount: number,
+  failedSweepCount: number
 ): NavSection[] {
   return [
     {
@@ -309,6 +310,9 @@ function buildSections(
           icon: RotateCw,
           href: `/${clinicId}/ops/retry-sweeps`,
           permission: { action: "read", resource: "settings" },
+          ...(failedSweepCount > 0
+            ? { badge: { value: failedSweepCount, variant: "err" as BadgeVariant } }
+            : {}),
         },
       ],
     },
@@ -352,6 +356,8 @@ export function Sidebar({ clinicId }: SidebarProps) {
   const [incidentsCount, setIncidentsCount]                 = useState<number>(0);
   const [gpLettersCount, setGPLettersCount]                 = useState<number>(0);
   const [discontinuationsCount, setDiscontinuationsCount]   = useState<number>(0);
+  const [failedSweepCount, setFailedSweepCount]             = useState<number>(0);
+  const [sweepToast, setSweepToast]                         = useState<string | null>(null);
 
   useEffect(() => {
     const cid = clinicId as ClinicId;
@@ -410,6 +416,72 @@ export function Sidebar({ clinicId }: SidebarProps) {
       .catch(() => {});
   }, [clinicId, isCoach]);
 
+  // ── Retry-sweep health polling (Task-156) ─────────────────────────────────
+  // Poll the in-process ring buffer summary so the sidebar can surface a red
+  // badge with the count of failed sweeps and emit a one-shot toast when the
+  // most recent sweep transitions to failed.
+  useEffect(() => {
+    if (isCoach) return;
+    let cancelled = false;
+    let lastSweepId: string | null = null;
+    let lastOutcome: string | null = null;
+    let primed = false;
+
+    async function poll() {
+      try {
+        const res = await fetch("/api/ops/retry-sweeps", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json() as {
+          failed_count: number;
+          latest: {
+            sweep_id: string;
+            outcome: string;
+            failed_clinics: string[];
+            error_message: string | null;
+          } | null;
+        };
+        if (cancelled) return;
+        setFailedSweepCount(data.failed_count ?? 0);
+        const latest = data.latest;
+        if (latest) {
+          const transitioned =
+            primed &&
+            latest.outcome === "error" &&
+            (latest.sweep_id !== lastSweepId || lastOutcome !== "error");
+          if (transitioned) {
+            const who =
+              latest.failed_clinics.length === 1
+                ? latest.failed_clinics[0]
+                : `${latest.failed_clinics.length} clinics`;
+            setSweepToast(
+              `Retry sweep failed for ${who}` +
+                (latest.error_message ? ` — ${latest.error_message}` : "")
+            );
+          }
+          lastSweepId = latest.sweep_id;
+          lastOutcome = latest.outcome;
+        }
+        primed = true;
+      } catch {
+        /* ignore — transient fetch errors shouldn't spam the UI */
+      }
+    }
+
+    void poll();
+    const id = setInterval(poll, 30 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [isCoach]);
+
+  // Auto-dismiss the sweep failure toast after a few seconds.
+  useEffect(() => {
+    if (!sweepToast) return;
+    const t = setTimeout(() => setSweepToast(null), 8000);
+    return () => clearTimeout(t);
+  }, [sweepToast]);
+
   // Live-update queue badges when an item is resolved elsewhere in-app.
   // Detail components dispatch `queue-count-changed` via `dispatchQueueCountChange`.
   useEffect(() => {
@@ -452,6 +524,7 @@ export function Sidebar({ clinicId }: SidebarProps) {
         incidentsCount,
         gpLettersCount,
         discontinuationsCount,
+        failedSweepCount,
       );
 
   function isActive(href: string) {
@@ -500,6 +573,27 @@ export function Sidebar({ clinicId }: SidebarProps) {
           </div>
         );
       })}
+      {sweepToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 left-4 z-50 max-w-sm bg-err text-white text-[12px] font-medium px-3 py-2 rounded-md shadow-lg flex items-start gap-2"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-px" aria-hidden />
+          <div className="flex-1">
+            <div className="font-bold">Retry sweep failed</div>
+            <div className="opacity-90 break-words">{sweepToast}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSweepToast(null)}
+            className="opacity-80 hover:opacity-100 text-white text-[11px] font-bold ml-1"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

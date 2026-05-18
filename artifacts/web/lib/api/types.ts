@@ -305,6 +305,18 @@ export type Order = {
     decided_at: string;
     rationale: string;
   } | null;
+
+  // Task-159 — Audit trail for `reverseDecision`. Each undo appends a record
+  // pinning which prior decision was reversed, by whom, and when, so the
+  // Activity log can render a "Decision undone" row long after the decision
+  // itself has been cleared from `clinical_decision`.
+  clinical_decision_reversals?: Array<{
+    prior_decision: 'approved' | 'declined' | 'queried';
+    prior_prescriber_user_id: string;
+    prior_decided_at: string;        // ISO — when the now-reversed decision was originally made
+    reversed_by_user_id: string;
+    reversed_at: string;             // ISO
+  }> | null;
   sla_warn_at: string;
   sla_breach_at: string;
   g6_flags: string[];

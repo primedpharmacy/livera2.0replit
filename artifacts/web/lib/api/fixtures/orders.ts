@@ -608,6 +608,19 @@ export async function reverseDecision(
     throw new APIError('VALIDATION', 'No decision to reverse on this order');
   }
   const prior = o.clinical_decision.decision;
+  // Task-159 — pin the reversal on the order so the Activity log can render
+  // a "Decision undone" row even after `clinical_decision` is cleared.
+  const reversalRecord = {
+    prior_decision: prior,
+    prior_prescriber_user_id: o.clinical_decision.prescriber_user_id,
+    prior_decided_at: o.clinical_decision.decided_at,
+    reversed_by_user_id: CURRENT_USER.id,
+    reversed_at: NOW,
+  };
+  o.clinical_decision_reversals = [
+    ...(o.clinical_decision_reversals ?? []),
+    reversalRecord,
+  ];
   o.clinical_decision = null;
   o.intervention_raised_at = null;
   o.status = 'clinical_check';

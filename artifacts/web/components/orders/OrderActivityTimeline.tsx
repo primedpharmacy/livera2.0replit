@@ -180,6 +180,27 @@ export function OrderActivityTimeline({ order }: Props) {
     });
   }
 
+  // Task-159 — Render a "Decision undone" row for each reversal so reviewers
+  // can see which prior decision was reversed, who reversed it, and when —
+  // not just from the server-side audit log.
+  (order.clinical_decision_reversals ?? []).forEach((reversal, idx) => {
+    const reverser = USERS_REGISTRY[reversal.reversed_by_user_id]?.full_name
+      ?? reversal.reversed_by_user_id;
+    const priorPrescriber =
+      USERS_REGISTRY[reversal.prior_prescriber_user_id]?.full_name
+      ?? reversal.prior_prescriber_user_id;
+    entries.push({
+      key: `decision_reversed_${idx}_${reversal.reversed_at}`,
+      dot: "neutral",
+      title: `Decision undone — ${reversal.prior_decision} reversed`,
+      meta: `by ${reverser} · ${formatDateTime(reversal.reversed_at)}`,
+      ts: new Date(reversal.reversed_at).getTime(),
+      subtext:
+        `Previously ${reversal.prior_decision} by ${priorPrescriber} ` +
+        `on ${formatDateTime(reversal.prior_decided_at)}`,
+    });
+  });
+
   // Task-99 / Task-135 — weight warning acknowledgements appear in the audit
   // timeline so the wider team can see who reviewed which warning, when, and
   // why. Edits and reversals each emit their own entry; the original

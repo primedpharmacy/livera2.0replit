@@ -116,10 +116,19 @@ export function ClinicalCheckClient({
   const [undoRemainingMs,  setUndoRemainingMs]  = useState(0);
   const [isUndoing,        setIsUndoing]        = useState(false);
   const [errorToast,       setErrorToast]       = useState<string | null>(null);
+  // Bumped each time the clinician clicks a row's "N review needed" badge.
+  // The slide-over watches this nonce to switch to the Questionnaire tab and
+  // scroll/highlight the first safety-flagged answer.
+  const [jumpFlaggedNonce, setJumpFlaggedNonce] = useState(0);
   const now = new Date(NOW).getTime();
 
   const handleRowClick = useCallback((orderId: string) => {
     setSelectedOrderId((prev) => (prev === orderId ? null : orderId));
+  }, []);
+
+  const handleJumpToFlagged = useCallback((orderId: string) => {
+    setSelectedOrderId(orderId);
+    setJumpFlaggedNonce((n) => n + 1);
   }, []);
 
   // Close slide-over on Escape key
@@ -515,6 +524,7 @@ export function ClinicalCheckClient({
                 onRowClick={handleRowClick}
                 selectedOrderId={selectedOrderId ?? undefined}
                 reviewNeededByOrderId={reviewNeededByOrderId}
+                onJumpToFlagged={handleJumpToFlagged}
               />
             )}
           </div>
@@ -536,6 +546,7 @@ export function ClinicalCheckClient({
               onClose={() => setSelectedOrderId(null)}
               onDecisionMade={handleDecisionMade}
               onNavigate={navigateOrder}
+              jumpToFlaggedNonce={jumpFlaggedNonce}
             />
           )}
         </div>

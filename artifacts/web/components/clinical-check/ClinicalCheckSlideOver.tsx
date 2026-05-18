@@ -62,6 +62,12 @@ interface ClinicalCheckSlideOverProps {
   onClose: () => void;
   onDecisionMade: (orderId: string, decision: Decision, snapshot: Order) => void;
   onNavigate?: (direction: 1 | -1) => void;
+  /**
+   * Increments each time the clinician clicks a row's "N review needed" badge.
+   * When it changes, the slide-over switches to the Questionnaire tab and the
+   * questionnaire card scrolls/highlights the first safety-flagged answer.
+   */
+  jumpToFlaggedNonce?: number;
 }
 
 export function ClinicalCheckSlideOver({
@@ -72,6 +78,7 @@ export function ClinicalCheckSlideOver({
   onClose,
   onDecisionMade,
   onNavigate,
+  jumpToFlaggedNonce,
 }: ClinicalCheckSlideOverProps) {
   const [activeTab, setActiveTab] = useState<SlideOverTab>("summary");
   const [approveOpen, setApproveOpen] = useState(false);
@@ -85,6 +92,15 @@ export function ClinicalCheckSlideOver({
     const t = setTimeout(() => setErrorToast(null), 4000);
     return () => clearTimeout(t);
   }, [errorToast]);
+
+  // When the clinician clicks the "N review needed" badge in the queue, jump
+  // straight to the Questionnaire tab so the card can scroll to and highlight
+  // the first flagged answer. Guard on >0 so we don't jump on initial mount.
+  useEffect(() => {
+    if (jumpToFlaggedNonce && jumpToFlaggedNonce > 0) {
+      setActiveTab("questionnaire");
+    }
+  }, [jumpToFlaggedNonce]);
 
   const canDecide = order.status === "clinical_check" && can(CURRENT_USER, "decide", "orders");
 
@@ -476,6 +492,7 @@ export function ClinicalCheckSlideOver({
             <OrderQuestionnaireCard
               questionnaire_responses={order.questionnaire_responses as Record<string, unknown>}
               questionConfig={questionConfig}
+              scrollToFlaggedNonce={jumpToFlaggedNonce}
             />
           </div>
         )}

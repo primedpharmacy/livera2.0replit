@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { ClipboardList, Check, AlertTriangle, Minus } from "lucide-react";
 import { DCard } from "./orderPrimitives";
 import { qFlag } from "@/lib/questionnaire";
+import { cn } from "@/lib/utils";
 import type { QuestionItem, QuestionType } from "@/types";
 
 function typeLabel(type: QuestionType): string {
@@ -26,10 +28,49 @@ function formatValue(type: QuestionType, val: unknown, q: QuestionItem): string 
 interface Props {
   questionnaire_responses: Record<string, unknown>;
   questionConfig?: QuestionItem[];
+  /**
+   * When this nonce changes (and is truthy), the card scrolls to the first
+   * safety-flagged ("warn") answer and briefly highlights it so the clinician's
+   * eye lands on it. Used by the Clinical Check slide-over.
+   */
+  scrollToFlaggedNonce?: number;
 }
 
-export function OrderQuestionnaireCard({ questionnaire_responses, questionConfig }: Props) {
+export function OrderQuestionnaireCard({
+  questionnaire_responses,
+  questionConfig,
+  scrollToFlaggedNonce,
+}: Props) {
   const configProvided = questionConfig !== undefined;
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [highlightedQid, setHighlightedQid] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!scrollToFlaggedNonce || scrollToFlaggedNonce <= 0) return;
+    if (!questionConfig) return;
+    const firstFlagged = questionConfig
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .find((q) => {
+        const val = questionnaire_responses[q.id];
+        const answered = val !== undefined && val !== null && val !== "";
+        return answered && qFlag(q, val) === "warn";
+      });
+    if (!firstFlagged) return;
+    // Defer to next frame so the tab body is laid out before we scroll.
+    const raf = requestAnimationFrame(() => {
+      const el = itemRefs.current[firstFlagged.id];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightedQid(firstFlagged.id);
+      }
+    });
+    const t = setTimeout(() => setHighlightedQid(null), 2200);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [scrollToFlaggedNonce, questionConfig, questionnaire_responses]);
 
   return (
     <DCard icon={ClipboardList} title="Questionnaire Responses">
@@ -47,8 +88,16 @@ export function OrderQuestionnaireCard({ questionnaire_responses, questionConfig
                 const flag = answered ? qFlag(q, val) : "neutral";
                 const displayVal = answered ? formatValue(q.type, val, q) : "Not answered";
 
+                const isHighlighted = highlightedQid === q.id;
                 return (
-                  <div key={q.id} className="grid grid-cols-[28px_1fr] gap-3 px-4 py-3.5 items-start">
+                  <div
+                    key={q.id}
+                    ref={(el) => { itemRefs.current[q.id] = el; }}
+                    className={cn(
+                      "grid grid-cols-[28px_1fr] gap-3 px-4 py-3.5 items-start transition-all duration-500 scroll-mt-4",
+                      isHighlighted && "bg-warn-bg ring-2 ring-warn ring-inset"
+                    )}
+                  >
                     <div className="text-[10px] font-bold text-t3 bg-page-bg border border-bdr rounded text-center py-1 tabular-nums shrink-0">
                       Q{idx + 1}
                     </div>

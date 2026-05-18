@@ -76,6 +76,12 @@ export interface OrderListTableProps {
    * badge so prescribers can prioritise real safety concerns.
    */
   reviewNeededByOrderId?: Record<string, number>;
+  /**
+   * Called when a clinician clicks the "N review needed" badge on a row.
+   * Lets the parent open the slide-over AND jump straight to the first
+   * flagged questionnaire answer.
+   */
+  onJumpToFlagged?: (orderId: string) => void;
 }
 
 export function OrderListTable({
@@ -88,6 +94,7 @@ export function OrderListTable({
   onRowClick,
   selectedOrderId,
   reviewNeededByOrderId,
+  onJumpToFlagged,
 }: OrderListTableProps) {
   const router = useRouter();
   const now = new Date(NOW).getTime();
@@ -195,6 +202,7 @@ export function OrderListTable({
                     onRowClick={onRowClick}
                     isSelected={isSelected}
                     reviewNeededCount={reviewNeededByOrderId?.[order.id] ?? 0}
+                    onJumpToFlagged={onJumpToFlagged}
                   />
                 ) : (
                   <OrdersRow order={order} name={name} ctxFlags={ctxFlags} now={new Date(NOW).getTime()} clinicId={clinicId} />
@@ -295,6 +303,7 @@ function ClinicalCheckRow({
   onRowClick,
   isSelected,
   reviewNeededCount,
+  onJumpToFlagged,
 }: {
   order: Order;
   name: string;
@@ -307,6 +316,7 @@ function ClinicalCheckRow({
   onRowClick?: (orderId: string) => void;
   isSelected?: boolean;
   reviewNeededCount?: number;
+  onJumpToFlagged?: (orderId: string) => void;
 }) {
   const router = useRouter();
   const ageCls =
@@ -326,13 +336,25 @@ function ClinicalCheckRow({
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-[12.5px] font-medium text-t1 leading-tight">{name}</span>
               {reviewNeededCount && reviewNeededCount > 0 ? (
-                <span
-                  title={`${reviewNeededCount} safety-flagged "yes" answer${reviewNeededCount === 1 ? "" : "s"} on the questionnaire`}
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none"
-                >
-                  <AlertTriangle className="w-2.5 h-2.5" />
-                  {reviewNeededCount} review needed
-                </span>
+                onJumpToFlagged ? (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onJumpToFlagged(order.id); }}
+                    title={`Jump to the first of ${reviewNeededCount} safety-flagged "yes" answer${reviewNeededCount === 1 ? "" : "s"} on the questionnaire`}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none hover:bg-warn hover:text-white transition-colors cursor-pointer"
+                  >
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                    {reviewNeededCount} review needed
+                  </button>
+                ) : (
+                  <span
+                    title={`${reviewNeededCount} safety-flagged "yes" answer${reviewNeededCount === 1 ? "" : "s"} on the questionnaire`}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none"
+                  >
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                    {reviewNeededCount} review needed
+                  </span>
+                )
               ) : null}
             </div>
             <div className="text-[11px] text-t3 font-mono">{order.patient_id} · {order.id}</div>

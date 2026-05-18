@@ -197,6 +197,23 @@ export type ClinicConfig = {
   // Read by validateDob via the `minimumAgeYears` override.
   minimum_patient_age_years: number;
 
+  // Wave 9c (BLD-7.1) — per-clinic default GP letter template seed.
+  // Captures the two-template model required by DEC-08: an email body
+  // (Postmark subject + HTML body) and a PDF letter body (rendered into
+  // the attached PDF by lib/integrations/pdfGeneration). Named templates
+  // in MOCK_GP_LETTER_TEMPLATES remain the platform-shared catalogue;
+  // this field is the per-clinic fallback / default so no template
+  // content is hardcoded in components (§3.2 rule 3).
+  gp_letter_templates: {
+    email_body: {
+      subject: string;       // supports {{patient_name}} etc. tokens
+      body_html: string;
+    };
+    pdf_letter: {
+      body_html: string;
+    };
+  };
+
   // Task-100 — clinic-tunable thresholds for the weight-trend analyser.
   // Read by analyseWeightHistory in lib/clinical/weightWarnings.ts.
   weight_warning_thresholds: {

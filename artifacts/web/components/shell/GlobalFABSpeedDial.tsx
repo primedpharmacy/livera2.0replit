@@ -309,8 +309,8 @@ function FABContent({
       {incidentOpen && (
         <LogIncidentModal
           clinicId={clinicId}
-          patients={MOCK_PATIENTS}
-          orders={MOCK_ORDERS}
+          patients={MOCK_PATIENTS.filter((p) => p.clinic_id === clinicId)}
+          orders={MOCK_ORDERS.filter((o) => o.clinic_id === clinicId)}
           onClose={() => setIncidentOpen(false)}
           onSave={() => setIncidentOpen(false)}
         />

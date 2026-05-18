@@ -11,6 +11,7 @@
 import { useState, useMemo } from "react";
 import { X, Search, AlertTriangle } from "lucide-react";
 import { useCurrentUser } from "@/lib/context";
+import { MOCK_INCIDENTS } from "@/lib/api/fixtures/incidents";
 import { cn } from "@/lib/utils";
 import type {
   Incident, IncidentType, IncidentSeverity,
@@ -192,7 +193,7 @@ export function LogIncidentModal({
     if (!description.trim()) return;
 
     const newIncident: Incident = {
-      id:                    `INC-${Date.now().toString().slice(-6)}`,
+      id:                    `INC-T${Date.now().toString().slice(-5)}`,
       clinic_id:             clinicId,
       patient_id:            selectedPatient?.id ?? null,
       order_id:              selectedOrder?.id ?? null,
@@ -220,6 +221,7 @@ export function LogIncidentModal({
       created_by_user_id:    CURRENT_USER.id,
     };
 
+    MOCK_INCIDENTS.unshift(newIncident);
     onSave(newIncident);
   }
 

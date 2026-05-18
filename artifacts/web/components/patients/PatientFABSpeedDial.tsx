@@ -289,16 +289,21 @@ export function PatientFABSpeedDial({ clinicId, patientId, latestOrderId }: Prop
           </div>
         </div>
       )}
-      {incidentOpen && (
-        <LogIncidentModal
-          clinicId={clinicId}
-          patients={MOCK_PATIENTS}
-          orders={MOCK_ORDERS}
-          prefilledPatient={MOCK_PATIENTS.find((p) => p.id === patientId)}
-          onClose={() => setIncidentOpen(false)}
-          onSave={() => setIncidentOpen(false)}
-        />
-      )}
+      {incidentOpen && (() => {
+        const prefilled = MOCK_PATIENTS.find((p) => p.clinic_id === clinicId && p.id === patientId);
+        const patientOrders = MOCK_ORDERS.filter((o) => o.clinic_id === clinicId && o.patient_id === patientId);
+        if (!prefilled) return null;
+        return (
+          <LogIncidentModal
+            clinicId={clinicId}
+            patients={[]}
+            orders={patientOrders}
+            prefilledPatient={prefilled}
+            onClose={() => setIncidentOpen(false)}
+            onSave={() => setIncidentOpen(false)}
+          />
+        );
+      })()}
     </>
   );
 }

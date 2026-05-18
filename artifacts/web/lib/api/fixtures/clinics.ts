@@ -330,6 +330,29 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Minimum patient age (Task-246) — default 18.
       minimum_patient_age_years: 18,
+
+      // Wave 9c (BLD-7.1) — per-clinic default GP letter template seed.
+      gp_letter_templates: {
+        email_body: {
+          subject: 'GP letter from VSC — {{patient_name}}',
+          body_html: `<p>Dear {{gp_name}},</p>
+<p>Please find attached a clinical update regarding your patient <strong>{{patient_name}}</strong> (DOB {{patient_dob}}), currently under the care of VSC Health.</p>
+<p>The attached PDF contains the full clinical letter for your records.</p>
+<p>Kind regards,<br/>{{prescriber_name}}<br/>VSC Health<br/>{{clinic_email}}</p>`,
+        },
+        pdf_letter: {
+          body_html: `<h1>VSC Health</h1>
+<p>{{clinic_email}}</p>
+<p>{{today_date}}</p>
+<p>Dear {{gp_name}},<br/>{{gp_surgery}}</p>
+<p><strong>Re: {{patient_name}} | DOB: {{patient_dob}}</strong><br/>{{patient_address}}</p>
+<p>I am writing to provide a clinical update for your patient {{patient_name}}, currently under the care of VSC Health.</p>
+<p>Current treatment: {{medication}} at {{dose}}.<br/>{{order_summary}}</p>
+<p>We are satisfied with the patient's progress and intend to continue treatment under ongoing clinical review. Please contact us if you have any questions.</p>
+<p>Yours sincerely,</p>
+<p>{{prescriber_name}}<br/>VSC Health</p>`,
+        },
+      },
     },
   },
 
@@ -494,6 +517,29 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Minimum patient age (Task-246) — default 18.
       minimum_patient_age_years: 18,
+
+      // Wave 9c (BLD-7.1) — per-clinic default GP letter template seed.
+      gp_letter_templates: {
+        email_body: {
+          subject: 'GP letter from FeelTru — {{patient_name}}',
+          body_html: `<p>Dear {{gp_name}},</p>
+<p>Please find attached a clinical update regarding your patient <strong>{{patient_name}}</strong> (DOB {{patient_dob}}), currently under the care of FeelTru.</p>
+<p>The attached PDF contains the full clinical letter for your records.</p>
+<p>Kind regards,<br/>{{prescriber_name}}<br/>FeelTru<br/>{{clinic_email}}</p>`,
+        },
+        pdf_letter: {
+          body_html: `<h1>FeelTru</h1>
+<p>{{clinic_email}}</p>
+<p>{{today_date}}</p>
+<p>Dear {{gp_name}},<br/>{{gp_surgery}}</p>
+<p><strong>Re: {{patient_name}} | DOB: {{patient_dob}}</strong><br/>{{patient_address}}</p>
+<p>I am writing to provide a clinical update for your patient {{patient_name}}, currently under the care of FeelTru for weight management.</p>
+<p>Current treatment: {{medication}} at {{dose}}.<br/>{{order_summary}}</p>
+<p>We are satisfied with the patient's progress and intend to continue treatment under ongoing clinical review. Please do not hesitate to contact us if you have any questions or wish to discuss the patient's care.</p>
+<p>Yours sincerely,</p>
+<p>{{prescriber_name}}<br/>FeelTru</p>`,
+        },
+      },
     },
   },
 };

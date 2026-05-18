@@ -85,6 +85,13 @@ export function GPLetterDetailClient({ initialLetter, patient, clinic, clinicId 
             onClick={handleSend}
             disabled={isSending || !letter.patient_consent_verified || !gpEmail}
             className="h-7 text-[12px] gap-1.5"
+            title={
+              !letter.patient_consent_verified
+                ? "Patient has not consented to GP communication."
+                : !gpEmail
+                  ? "No GP email address on record for this patient."
+                  : undefined
+            }
           >
             <Send className="w-3.5 h-3.5" />
             {isSending ? "Sending…" : "Send letter"}

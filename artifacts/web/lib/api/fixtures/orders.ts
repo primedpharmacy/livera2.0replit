@@ -976,8 +976,10 @@ export async function attachPxUploadByToken(
     throw new APIError('SAFETY_VIOLATION', msg);
   }
 
-  const order = await attachPxUpload(clinic_id, lookup.order.id, upload);
-  if (order.px_upload) order.px_upload.source = 'email_link';
+  const order = await attachPxUpload(clinic_id, lookup.order.id, upload, {
+    user_id: null,
+    source: 'email_link',
+  });
   if (order.px_upload_link) order.px_upload_link.consumed_at = NOW;
 
   console.log('[AUDIT]', {
@@ -1032,7 +1034,13 @@ export async function attachPxUpload(
   clinic_id: ClinicId,
   order_id: string,
   upload: { filename: string; size: number; content_type: string; object_path: string },
+  actor?: { user_id: string | null; source: 'success_screen' | 'email_link' | 'staff_upload' },
 ): Promise<Order> {
+  // Task-85 — default to the patient success-screen path (preserves prior behaviour
+  // for the patient intake route which doesn't pass actor info).
+  const actorSource = actor?.source ?? 'success_screen';
+  const actorUserId = actor?.user_id ?? null;
+
   console.log('[AUDIT]', {
     event_type: 'px_upload_attempt',
     clinic_id,
@@ -1041,6 +1049,8 @@ export async function attachPxUpload(
     size: upload.size,
     content_type: upload.content_type,
     object_path: upload.object_path,
+    source: actorSource,
+    actor_user_id: actorUserId,
     timestamp: NOW,
   });
 
@@ -1097,6 +1107,8 @@ export async function attachPxUpload(
     content_type: upload.content_type,
     uploaded_at: NOW,
     object_path: upload.object_path,
+    source: actorSource,
+    uploaded_by_user_id: actorUserId,
   };
 
   // Surface a contextual flag for the clinical-check queue so prescribers can see

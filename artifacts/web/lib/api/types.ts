@@ -352,7 +352,8 @@ export type Order = {
     content_type: string;  // image/* or application/pdf
     uploaded_at: string;   // ISO timestamp
     object_path: string;   // e.g. '/objects/uploads/<uuid>' — served by /api/storage/objects/...
-    source?: 'success_screen' | 'email_link'; // Task-80 — provenance for the audit log
+    source?: 'success_screen' | 'email_link' | 'staff_upload'; // Task-80 + Task-85 — provenance for the audit log
+    uploaded_by_user_id?: string | null; // Task-85 — populated when staff uploads on patient's behalf
   } | null;
 
   // Task-80 — Tokenised email-link upload (Px upload "complete later")

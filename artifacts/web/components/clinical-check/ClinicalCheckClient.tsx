@@ -1,16 +1,34 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { Stethoscope, Flag, CreditCard, Scale, FileText, Info, AlertTriangle } from "lucide-react";
+import { Stethoscope, Flag, CreditCard, Scale, FileText, Info, AlertTriangle, CheckCircle, Undo2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { OrderListTable } from "@/components/orders/OrderListTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { LatestCoachingLogCard } from "@/components/clinical-check/LatestCoachingLogCard";
 import { ClinicalCheckSlideOver } from "@/components/clinical-check/ClinicalCheckSlideOver";
 import { NOW } from "@/lib/api/constants";
+import { reverseDecision } from "@/lib/api/mock";
 import { countReviewNeeded } from "@/lib/questionnaire";
 import { cn } from "@/lib/utils";
 import type { Order, Clinic, CoachingLog, ClinicId } from "@/types";
+
+type Decision = "approved" | "declined" | "queried";
+
+const UNDO_WINDOW_MS = 5000;
+
+interface UndoToast {
+  orderId: string;
+  decision: Decision;
+  snapshot: Order;
+  expiresAt: number;
+}
+
+const DECISION_LABELS: Record<Decision, string> = {
+  approved: "Order approved successfully.",
+  declined: "Order declined — patient notified.",
+  queried:  "Intervention raised — patient will be contacted.",
+};
 
 // ── Sub-queue tabs ─────────────────────────────────────────────────────────────
 
@@ -94,6 +112,10 @@ export function ClinicalCheckClient({
   const [activeChip,       setActiveChip]       = useState<FilterChip>("all");
   const [selectedOrderId,  setSelectedOrderId]  = useState<string | null>(null);
   const [orders,           setOrders]           = useState<Order[]>(initialOrders);
+  const [undoToast,        setUndoToast]        = useState<UndoToast | null>(null);
+  const [undoRemainingMs,  setUndoRemainingMs]  = useState(0);
+  const [isUndoing,        setIsUndoing]        = useState(false);
+  const [errorToast,       setErrorToast]       = useState<string | null>(null);
   const now = new Date(NOW).getTime();
 
   const handleRowClick = useCallback((orderId: string) => {
@@ -124,20 +146,86 @@ export function ClinicalCheckClient({
     });
   }, []);
 
-  const handleDecisionMade = useCallback((orderId: string) => {
-    setOrders((prev) => {
-      const next = prev.filter((o) => o.id !== orderId);
-      if (next.length !== prev.length && typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("clinical-check-count-changed", {
-            detail: { delta: -1, count: next.length },
-          })
-        );
+  const handleDecisionMade = useCallback(
+    (orderId: string, decision: Decision, snapshot: Order) => {
+      setOrders((prev) => {
+        const next = prev.filter((o) => o.id !== orderId);
+        if (next.length !== prev.length && typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("clinical-check-count-changed", {
+              detail: { delta: -1, count: next.length },
+            })
+          );
+        }
+        return next;
+      });
+      setSelectedOrderId(null);
+      setUndoToast({
+        orderId,
+        decision,
+        snapshot,
+        expiresAt: Date.now() + UNDO_WINDOW_MS,
+      });
+      setUndoRemainingMs(UNDO_WINDOW_MS);
+    },
+    []
+  );
+
+  // Countdown + auto-dismiss for the Undo toast.
+  useEffect(() => {
+    if (!undoToast) return;
+    const tick = () => {
+      const left = undoToast.expiresAt - Date.now();
+      if (left <= 0) {
+        setUndoToast(null);
+        setUndoRemainingMs(0);
+      } else {
+        setUndoRemainingMs(left);
       }
-      return next;
-    });
-    setSelectedOrderId(null);
-  }, []);
+    };
+    const interval = setInterval(tick, 100);
+    return () => clearInterval(interval);
+  }, [undoToast]);
+
+  // Auto-dismiss the error toast after 4s.
+  useEffect(() => {
+    if (!errorToast) return;
+    const t = setTimeout(() => setErrorToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [errorToast]);
+
+  const handleUndo = useCallback(async () => {
+    if (!undoToast || isUndoing) return;
+    setIsUndoing(true);
+    const { snapshot } = undoToast;
+    try {
+      await reverseDecision(clinicId, snapshot.id);
+      setOrders((prev) => {
+        if (prev.some((o) => o.id === snapshot.id)) return prev;
+        const restored: Order = {
+          ...snapshot,
+          status: "clinical_check",
+          clinical_decision: null,
+          intervention_raised_at: null,
+        };
+        const next = [...prev, restored];
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("clinical-check-count-changed", {
+              detail: { delta: 1, count: next.length },
+            })
+          );
+        }
+        return next;
+      });
+      setUndoToast(null);
+      setUndoRemainingMs(0);
+    } catch (err) {
+      setErrorToast(err instanceof Error ? err.message : "Undo failed. Please retry.");
+    } finally {
+      setIsUndoing(false);
+    }
+  }, [undoToast, isUndoing, clinicId]);
 
   // ── Review-needed counts per order (safety-flagged "yes" answers) ──────────
   const reviewNeededByOrderId = useMemo<Record<string, number>>(() => {
@@ -452,6 +540,38 @@ export function ClinicalCheckClient({
           )}
         </div>
       </div>
+
+      {/* ── Undo toast (persists across slide-over close) ─────────────────── */}
+      {undoToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border bg-ok-bg border-ok-bdr text-ok text-[13px] font-medium"
+        >
+          <CheckCircle className="w-4 h-4 shrink-0" />
+          <span>{DECISION_LABELS[undoToast.decision]}</span>
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={isUndoing}
+            className="ml-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-ok-bdr bg-surface text-ok hover:bg-ok hover:text-white transition-colors text-[12px] font-semibold disabled:opacity-50"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+            {isUndoing ? "Undoing…" : `Undo (${Math.max(1, Math.ceil(undoRemainingMs / 1000))}s)`}
+          </button>
+        </div>
+      )}
+
+      {/* ── Error toast ──────────────────────────────────────────────────── */}
+      {errorToast && (
+        <div
+          role="alert"
+          className="fixed bottom-6 right-6 z-[60] flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border bg-err-bg border-err-bdr text-err text-[13px] font-medium"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {errorToast}
+        </div>
+      )}
     </div>
   );
 }

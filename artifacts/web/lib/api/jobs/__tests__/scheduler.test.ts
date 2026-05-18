@@ -85,6 +85,54 @@ describe('runPatientNotificationRetrySweep() — per-clinic audit logging', () =
 
     // No error-channel audit lines.
     expect(auditLines(errorCalls)).toHaveLength(0);
+
+    // Task-231 — default trigger is the in-process scheduler with a system actor.
+    expect(lines.every((l) => l.trigger_source === 'scheduler')).toBe(true);
+    expect(lines.every((l) => l.actor_id === 'system')).toBe(true);
+  });
+});
+
+describe('runPatientNotificationRetrySweep() — trigger source', () => {
+  it('records the manual trigger source and actor id on audit lines and sweep history', async () => {
+    mockRetry.mockResolvedValue({
+      considered:    0,
+      attempted:     0,
+      delivered:     [],
+      still_failing: [],
+      bounced:       [],
+      exhausted:     [],
+    });
+
+    const { getRecentRetrySweeps } = await import('../scheduler');
+
+    await runPatientNotificationRetrySweep({ source: 'manual', actor_id: 'u_ops_jane' });
+
+    const lines = auditLines(logCalls);
+    expect(lines).toHaveLength(2);
+    expect(lines.every((l) => l.trigger_source === 'manual')).toBe(true);
+    expect(lines.every((l) => l.actor_id === 'u_ops_jane')).toBe(true);
+
+    const recent = getRecentRetrySweeps(10);
+    const fromThisRun = recent.filter((r) => r.actor_id === 'u_ops_jane');
+    expect(fromThisRun.length).toBe(2);
+    expect(fromThisRun.every((r) => r.trigger_source === 'manual')).toBe(true);
+  });
+
+  it('records the cron trigger source when invoked from the cron endpoint', async () => {
+    mockRetry.mockResolvedValue({
+      considered:    0,
+      attempted:     0,
+      delivered:     [],
+      still_failing: [],
+      bounced:       [],
+      exhausted:     [],
+    });
+
+    await runPatientNotificationRetrySweep({ source: 'cron', actor_id: 'system' });
+
+    const lines = auditLines(logCalls);
+    expect(lines.every((l) => l.trigger_source === 'cron')).toBe(true);
+    expect(lines.every((l) => l.actor_id === 'system')).toBe(true);
   });
 });
 

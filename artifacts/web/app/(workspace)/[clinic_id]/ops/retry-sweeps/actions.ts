@@ -11,8 +11,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { runPatientNotificationRetrySweep } from '@/lib/api/jobs/scheduler';
+import { requireServerActionUser } from '@/lib/auth/session';
 
 export async function triggerRetrySweepAction(clinicId: string): Promise<void> {
-  await runPatientNotificationRetrySweep();
+  // Task-231 — tag the sweep with the ops user who clicked "Run sweep now"
+  // so the resulting row + audit line make the human trigger visible.
+  const user = await requireServerActionUser();
+  await runPatientNotificationRetrySweep({ source: 'manual', actor_id: user.id });
   revalidatePath(`/${clinicId}/ops/retry-sweeps`);
 }

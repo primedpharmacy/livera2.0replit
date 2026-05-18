@@ -9,10 +9,11 @@
  * threw (outcome='error') are highlighted in red so problems jump out.
  */
 
-import { RefreshCw, AlertTriangle } from "lucide-react";
+import { RefreshCw, AlertTriangle, Clock, Globe, User as UserIcon } from "lucide-react";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Breadcrumb } from "@/components/shell/Breadcrumb";
 import { getRecentRetrySweeps, type SweepRecord } from "@/lib/api/jobs/scheduler";
+import { findUserByUid } from "@/lib/users/registry";
 import { RunSweepButton } from "./RunSweepButton";
 
 export const dynamic = "force-dynamic";
@@ -87,6 +88,7 @@ export default async function RetrySweepsPage({ params }: Props) {
             <thead className="bg-page-bg border-b border-bdr text-t3 text-[11px] uppercase tracking-wider">
               <tr>
                 <th className="text-left  font-semibold px-3 py-2">When</th>
+                <th className="text-left  font-semibold px-3 py-2">Triggered by</th>
                 <th className="text-left  font-semibold px-3 py-2">Clinic</th>
                 <th className="text-left  font-semibold px-3 py-2">Outcome</th>
                 <th className="text-right font-semibold px-3 py-2">Considered</th>
@@ -100,7 +102,7 @@ export default async function RetrySweepsPage({ params }: Props) {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-3 py-8 text-center text-t3">
+                  <td colSpan={10} className="px-3 py-8 text-center text-t3">
                     No retry sweeps recorded yet. The scheduler runs every 5 minutes;
                     the first sweep fires ~10s after server boot.
                   </td>
@@ -130,6 +132,9 @@ function SweepRow({ row, nowMs }: { row: SweepRecord; nowMs: number }) {
         <div className="font-medium text-t1">{formatRelative(row.timestamp, nowMs)}</div>
         <div className="text-[11px] text-t3">{formatTime(row.timestamp)}</div>
       </td>
+      <td className="px-3 py-2 align-top">
+        <TriggerBadge source={row.trigger_source} actorId={row.actor_id} />
+      </td>
       <td className="px-3 py-2 align-top font-medium text-t1">{row.clinic_id}</td>
       <td className="px-3 py-2 align-top">
         {isError ? (
@@ -154,6 +159,47 @@ function SweepRow({ row, nowMs }: { row: SweepRecord; nowMs: number }) {
       <Num n={row.still_failing} tone={row.still_failing > 0 ? "warn" : "muted"} />
       <Num n={row.exhausted}     tone={row.exhausted     > 0 ? "err"  : "muted"} />
     </tr>
+  );
+}
+
+function TriggerBadge({
+  source,
+  actorId,
+}: {
+  source: SweepRecord["trigger_source"];
+  actorId: string;
+}) {
+  if (source === "manual") {
+    const user = findUserByUid(actorId);
+    const label = user?.full_name ?? actorId;
+    return (
+      <div className="flex flex-col gap-0.5" data-trigger-source="manual">
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-px rounded-full bg-brand/15 text-brand border border-brand/40 w-fit">
+          <UserIcon className="w-3 h-3" aria-hidden /> Manual
+        </span>
+        <span className="text-[11px] text-t2 truncate max-w-[16ch]" title={label}>
+          {label}
+        </span>
+      </div>
+    );
+  }
+  if (source === "cron") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-px rounded-full bg-page-bg text-t2 border border-bdr w-fit"
+        data-trigger-source="cron"
+      >
+        <Globe className="w-3 h-3" aria-hidden /> Cron
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-px rounded-full bg-page-bg text-t3 border border-bdr w-fit"
+      data-trigger-source="scheduler"
+    >
+      <Clock className="w-3 h-3" aria-hidden /> Scheduler
+    </span>
   );
 }
 

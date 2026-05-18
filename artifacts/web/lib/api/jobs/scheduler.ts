@@ -38,9 +38,21 @@ export type SweepClinicSummary = {
   error_message: string | null;
 };
 
+// Task-231 — distinguish manually-triggered sweeps from scheduler/cron runs so
+// the Retry Sweeps table and the [AUDIT] line both record who kicked off the
+// sweep. `actor_id` is the user uid for manual runs, or 'system' otherwise.
+export type SweepTriggerSource = 'scheduler' | 'cron' | 'manual';
+
+export type SweepTrigger = {
+  source:    SweepTriggerSource;
+  actor_id:  string; // user uid for 'manual', otherwise 'system'
+};
+
 export type SweepRecord = SweepClinicSummary & {
-  timestamp: string; // ISO — wall-clock time the sweep tick ran
-  sweep_id:  string; // shared across all clinic rows from the same tick
+  timestamp:      string; // ISO — wall-clock time the sweep tick ran
+  sweep_id:       string; // shared across all clinic rows from the same tick
+  trigger_source: SweepTriggerSource;
+  actor_id:       string;
 };
 
 const RETRY_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
@@ -81,12 +93,17 @@ export function getRecentRetrySweeps(limit = SWEEP_HISTORY_MAX): SweepRecord[] {
   return buf.slice(-limit).reverse();
 }
 
-export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSummary[]> {
+const DEFAULT_TRIGGER: SweepTrigger = { source: 'scheduler', actor_id: 'system' };
+
+export async function runPatientNotificationRetrySweep(
+  trigger: SweepTrigger = DEFAULT_TRIGGER,
+): Promise<SweepClinicSummary[]> {
   const clinics = await listClinics();
   const summaries: SweepClinicSummary[] = [];
   const sweep_id = `sweep_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
   const sweep_started_at = new Date().toISOString();
   const records: SweepRecord[] = [];
+  const { source: trigger_source, actor_id } = trigger;
 
   for (const clinic of clinics) {
     try {
@@ -104,20 +121,21 @@ export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSum
         error_message: null,
       };
       summaries.push(summary);
-      records.push({ ...summary, timestamp: sweep_started_at, sweep_id });
+      records.push({ ...summary, timestamp: sweep_started_at, sweep_id, trigger_source, actor_id });
       console.log('[AUDIT]', {
-        event_type:    'scheduled_retry_run',
-        outcome:       'success',
-        actor_id:      'system',
-        job:           'retryFailedPatientNotifications',
-        clinic_id:     clinic.id,
-        considered:    summary.considered,
-        attempted:     summary.attempted,
-        delivered:     summary.delivered,
-        bounced:       summary.bounced,
-        still_failing: summary.still_failing,
-        exhausted:     summary.exhausted,
-        timestamp:     NOW,
+        event_type:     'scheduled_retry_run',
+        outcome:        'success',
+        actor_id,
+        trigger_source,
+        job:            'retryFailedPatientNotifications',
+        clinic_id:      clinic.id,
+        considered:     summary.considered,
+        attempted:      summary.attempted,
+        delivered:      summary.delivered,
+        bounced:        summary.bounced,
+        still_failing:  summary.still_failing,
+        exhausted:      summary.exhausted,
+        timestamp:      NOW,
       });
     } catch (err) {
       const error_message = err instanceof Error ? err.message : String(err);
@@ -133,15 +151,16 @@ export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSum
         error_message,
       };
       summaries.push(summary);
-      records.push({ ...summary, timestamp: sweep_started_at, sweep_id });
+      records.push({ ...summary, timestamp: sweep_started_at, sweep_id, trigger_source, actor_id });
       console.error('[AUDIT]', {
-        event_type:    'scheduled_retry_run',
-        outcome:       'error',
-        actor_id:      'system',
-        job:           'retryFailedPatientNotifications',
-        clinic_id:     clinic.id,
+        event_type:     'scheduled_retry_run',
+        outcome:        'error',
+        actor_id,
+        trigger_source,
+        job:            'retryFailedPatientNotifications',
+        clinic_id:      clinic.id,
         error_message,
-        timestamp:     NOW,
+        timestamp:      NOW,
       });
     }
   }

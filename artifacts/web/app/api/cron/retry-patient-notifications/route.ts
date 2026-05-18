@@ -31,7 +31,13 @@ async function handle(req: NextRequest) {
   if (!authorized(req)) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
-  const summaries = await runPatientNotificationRetrySweep();
+  // Task-231 — flag this sweep as coming from the cron endpoint (vs the
+  // in-process scheduler or a manual ops click) so the row + audit line make
+  // the trigger source explicit.
+  const summaries = await runPatientNotificationRetrySweep({
+    source:   'cron',
+    actor_id: 'system',
+  });
   return NextResponse.json({ ok: true, clinics: summaries });
 }
 

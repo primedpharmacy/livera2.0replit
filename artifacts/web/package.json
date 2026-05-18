@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start --port $PORT",
     "lint": "eslint app components lib types",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "catalog:",
@@ -31,15 +34,18 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/pdfkit": "^0.17.6",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@vitest/ui": "^2.1.9",
     "eslint": "^9.28.0",
     "eslint-config-next": "^15.3.3",
     "postcss": "^8.4.47",
     "tailwindcss": "catalog:",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
   }
 }

@@ -46,15 +46,36 @@ Both tenants run from one codebase. Workspace isolation enforced via `clinic_id`
 | BLD-15.2 | ED safeguarding banner in order detail — fires on questionnaire ED trigger keys | ✅ Done |
 | BLD-YC-01 | MHRA Yellow Card panel in incident detail — already implemented in Wave 8; confirmed complete | ✅ Done |
 
+**Wave 11 — COMPLETE ✅**
+
+| BLD | Description | Status |
+|---|---|---|
+| BLD-16.1 | PharmacyCommsPanel client component — thread list + thread detail + reply composer + new thread form | ✅ Done |
+| BLD-16.9 | Order detail Pharmacy Comms tab — order-anchored threads for ORD-00441 demo (PCT-001) | ✅ Done |
+| BLD-16.10 | Patient profile Pharmacy Comms tab — patient-anchored threads for PT-00198 demo (PCT-003) | ✅ Done |
+
+Fixtures: PCT-001 (order-anchored ORD-00441, awaiting), PCT-003 (patient-anchored PT-00198, resolved). FeelTru pharmacy_comms_enabled set to true.
+
 **Monday reconciliation (Wave 10 task #24):**
 8 additional items marked Done on Monday board: BLD-AMEND-01/02/03/04, BLD-FLAG-1, BLD-INT-MHRA-03, BLD-INTERCOM-PHOTO-01, BLD-POLISH.
 
-**Wave 11 candidates (next priority):**
+**Wave 12 — COMPLETE ✅**
+
+| BLD | Description | Status |
+|---|---|---|
+| BLD-12.1–12.4 | KPI Dashboard — metric cards (orders, approval, avg time, reorder, active patients), 13-week SVG trend line (VSC vs FeelTru), order conversion funnel, treatment mix donut. Range (7d/30d/90d/YTD) + clinic filters. | ✅ Done |
+| BLD-16.6–16.7 | Clinical Flag Dashboard — proactive disclosure effectiveness hero (73%), Annex H reference panel, 5 metric cards, flag frequency dual-bar chart (8 codes), severity distribution donut. Range/clinic/severity filters. | ✅ Done |
+| BLD-12.5–12.8 | Reports Landing — 3 sections: live dashboards (LIVE badge cards with Open → links), CQC governance audit cards (AUD-01 to AUD-19, MONDAY/COMING badges), monthly governance packs. | ✅ Done |
+
+Components: `components/kpi/KpiDashboardView.tsx`, `components/clinical-flags/ClinicalFlagsView.tsx`
+Charts: pure SVG (trend line) + CSS conic-gradient (donuts) — no recharts dependency.
+
+**Next priority candidates:**
 1. Settings landing hub page (currently redirects to /team — needs proper hub)
-2. BLD-16.1 — Pharmacy Comms thread in order detail + patient profile tab
-3. BLD-13.5 — Discontinuation Protocol entity + screen + SLAs
-4. Settings sub-pages: reorder rules (BLD-14.6), consents (BLD-CONSENT-CONFIG-01/02), clinic config
-5. Incident creation form (/incidents/new)
+2. BLD-13.5 — Discontinuation Protocol entity + screen + SLAs
+3. Settings sub-pages: reorder rules (BLD-14.6), consents (BLD-CONSENT-CONFIG-01/02), clinic config
+4. Incident creation form (/incidents/new)
+5. Complaints: dual SLA clock + resolve modal
 
 **Key fixtures added in Wave 8:**
 - `fixtures/tasks.ts` — 11 mock tasks (BLD-13.2)

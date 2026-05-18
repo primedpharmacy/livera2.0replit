@@ -17,7 +17,7 @@ export default async function GPLettersPage({ params }: Props) {
       <PageHeader
         icon={FileText}
         title="GP Letters"
-        subtitle="Correspondence sent to GPs on behalf of patients"
+        subtitle="Patient-centric workflow · one letter per patient lifetime · audit-grade record"
       />
       <Suspense key={clinic_id} fallback={<LoadingState.Table />}>
         <GPLettersContent clinicId={clinic_id as ClinicId} />

@@ -93,8 +93,8 @@ admin@feeltru.com`,
     postmark_message_id: null,
     sent_by_user_id: null,
     byte_size: null,
-    anchor_order_id: null,
-    auto_triggered: false,
+    anchor_order_id: 'ORD-00441',
+    auto_triggered: true,
   },
   // GPL-003: feeltru — awaiting_consent
   {

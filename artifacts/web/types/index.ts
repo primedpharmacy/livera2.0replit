@@ -64,4 +64,6 @@ export type {
   // Wave 9 additions (BLD-14.7, config-driven questionnaire)
   QuestionItem,
   QuestionType,
+  // Task-168 — clinical theme for grouping flagged answers
+  SafetyCategory,
 } from "@/lib/api/mock";

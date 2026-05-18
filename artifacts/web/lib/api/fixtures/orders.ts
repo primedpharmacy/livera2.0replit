@@ -1789,6 +1789,23 @@ export async function attachPxUpload(
     uploaded_by_user_id: actorUserId,
   };
 
+  // Task-171 — Persist replacement history on the order so the Order Detail
+  // UI can render a "Replacement history" without scraping audit logs. We
+  // append the prior file's filename plus the new uploader/source/timestamp,
+  // mirroring what the [AUDIT] log already captured above. Successive
+  // replacements append in chronological order.
+  if (isReplacement && priorUpload) {
+    order.px_upload_history = [
+      ...(order.px_upload_history ?? []),
+      {
+        replaced_at: NOW,
+        replaced_filename: priorUpload.filename,
+        replaced_by_user_id: actorUserId,
+        replaced_by_source: actorSource,
+      },
+    ];
+  }
+
   // Surface a contextual flag for the clinical-check queue so prescribers can see
   // at-a-glance that the patient supplied evidence for the higher-dose request.
   const flags = new Set(order.contextual_flags ?? []);

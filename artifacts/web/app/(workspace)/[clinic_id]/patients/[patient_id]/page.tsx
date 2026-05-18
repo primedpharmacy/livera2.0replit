@@ -1194,6 +1194,46 @@ function NotificationRow({
         )}
         <span className="text-[11px] text-t3 ml-auto shrink-0">{formatDateTime(n.sent_at)}</span>
       </div>
+      {/* Task-173 — surface the underlying failure reason and the relative
+          auto-retry countdown inline on Failed/Bounced rows so staff can
+          decide whether to wait or resend without opening the payload. The
+          full error is preserved in the `title` tooltip when truncated.
+          The retry pill is shown independently of `last_error` so a Failed
+          row with a future `next_retry_at` still surfaces the countdown
+          even when no error string was captured. */}
+      {(() => {
+        const showError = (n.status === "Failed" || n.status === "Bounced") && !!n.last_error;
+        const autoRetryIn =
+          n.status === "Failed" && n.next_retry_at
+            ? formatAutoRetryIn(n.next_retry_at, NOW)
+            : null;
+        if (!showError && !autoRetryIn) return null;
+        return (
+          <div className="mt-1.5 flex items-start gap-2 text-[11px] text-err leading-relaxed">
+            {showError ? (
+              <>
+                <AlertCircle className="w-3 h-3 mt-px shrink-0" />
+                <span
+                  className="truncate min-w-0 flex-1"
+                  title={n.last_error ?? undefined}
+                >
+                  <span className="font-semibold">Error:</span> {n.last_error}
+                </span>
+              </>
+            ) : (
+              <span className="min-w-0 flex-1" />
+            )}
+            {autoRetryIn && n.next_retry_at && (
+              <span
+                className="shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded-full border border-warn-bdr bg-warn-bg text-warn font-semibold"
+                title={`Scheduled auto-retry at ${formatDateTime(n.next_retry_at)}`}
+              >
+                <Clock className="w-3 h-3" /> Auto-retry {autoRetryIn}
+              </span>
+            )}
+          </div>
+        );
+      })()}
       <div className="mt-1.5 flex items-center gap-2 text-[11px] text-t3">
         <span>Template:</span>
         <code className="font-mono bg-page-bg px-1.5 py-px rounded border border-bdr text-t2">{n.template}</code>
@@ -1202,15 +1242,7 @@ function NotificationRow({
             Attempt {n.attempt_count}/{n.max_attempts}
           </span>
         )}
-        {n.next_retry_at && (
-          <span className="ml-2">· Next retry {formatDateTime(n.next_retry_at)}</span>
-        )}
       </div>
-      {n.last_error && (
-        <p className="mt-1.5 text-[11px] text-err leading-relaxed">
-          <span className="font-semibold">Last error:</span> {n.last_error}
-        </p>
-      )}
       {n.email_envelope && (
         <div className="mt-2">
           <EmailPreviewButton envelope={n.email_envelope} notificationId={n.id} />
@@ -1245,6 +1277,24 @@ function NotificationRow({
       )}
     </div>
   );
+}
+
+// Task-173 — render `next_retry_at` as a short relative countdown ("in 4 min",
+// "in 2 h", "in <1 min") so staff investigating a failed notification can see
+// at a glance how long until the scheduler retries on its own. Returns null
+// when the retry time has already passed — in that case the sweep is due any
+// moment now and the absolute timestamp would be more misleading than helpful.
+function formatAutoRetryIn(iso: string, nowIso: string): string | null {
+  const diffMs = new Date(iso).getTime() - new Date(nowIso).getTime();
+  if (diffMs <= 0) return null;
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return "in <1 min";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `in ${min} min`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `in ${hr} h`;
+  const d = Math.floor(hr / 24);
+  return `in ${d} d`;
 }
 
 // Task-132 — staff-facing copy for the `email_envelope_unavailable_reason`

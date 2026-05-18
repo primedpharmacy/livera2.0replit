@@ -16,7 +16,7 @@ import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
   MessageSquare, ShieldAlert, Scale, ShieldCheck, AlertTriangle,
   Stethoscope, Pencil, Activity, Clock, Send, Mail, CreditCard,
-  FileText, Camera, Ban, Paperclip, FileCheck2, Upload,
+  FileText, Camera, Ban, Paperclip, FileCheck2, Upload, ChevronDown, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
@@ -238,6 +238,8 @@ export function OrderDetailClient({
   // a confirm modal. On confirm we trigger the hidden file input below so the
   // same handleStaffPxUpload validation + audit pipeline runs.
   const [replacePxOpen, setReplacePxOpen]     = useState(false);
+  // Task-171 — Collapsible "Replacement history" on the prescription card.
+  const [pxHistoryOpen, setPxHistoryOpen]     = useState(false);
 
   // Task-38 — Cancel Order flow
   const [cancelOpen, setCancelOpen]           = useState(false);
@@ -1403,6 +1405,62 @@ export function OrderDetailClient({
                             )}
                             {pxUploadError && (
                               <p className="text-[11px] text-err">{pxUploadError}</p>
+                            )}
+                            {/* Task-171 — Replacement history. Sourced from
+                                Order.px_upload_history which mirrors the
+                                Task-119 audit entries (is_replacement=true).
+                                Collapsed by default; survives multiple
+                                successive replacements. */}
+                            {(order.px_upload_history?.length ?? 0) > 0 && (
+                              <div className="pt-2 border-t border-bdr">
+                                <button
+                                  type="button"
+                                  onClick={() => setPxHistoryOpen((v) => !v)}
+                                  aria-expanded={pxHistoryOpen}
+                                  className="flex items-center gap-1.5 text-[11px] font-semibold text-t2 hover:text-t1"
+                                >
+                                  {pxHistoryOpen ? (
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronRightIcon className="w-3.5 h-3.5" />
+                                  )}
+                                  Replacement history ({order.px_upload_history!.length})
+                                </button>
+                                {pxHistoryOpen && (
+                                  <ul className="mt-2 space-y-2">
+                                    {order.px_upload_history!
+                                      .slice()
+                                      .reverse()
+                                      .map((h, i) => {
+                                        const uploaderName = h.replaced_by_user_id
+                                          ? USERS_REGISTRY[h.replaced_by_user_id]?.full_name
+                                              || h.replaced_by_user_id
+                                          : "patient";
+                                        const sourceLabel =
+                                          h.replaced_by_source === "staff_upload"
+                                            ? "staff upload"
+                                            : h.replaced_by_source === "email_link"
+                                            ? "email link"
+                                            : "success screen";
+                                        return (
+                                          <li
+                                            key={`${h.replaced_at}-${i}`}
+                                            className="text-[11px] text-t2 p-2 rounded-md bg-bg2 border border-bdr"
+                                          >
+                                            <p className="text-t1">
+                                              <span className="font-semibold">Replaced:</span>{" "}
+                                              <span className="font-mono">{h.replaced_filename}</span>
+                                            </p>
+                                            <p className="mt-0.5 text-t3">
+                                              Swapped out {formatDateTime(h.replaced_at)} · new
+                                              file uploaded by {uploaderName} via {sourceLabel}
+                                            </p>
+                                          </li>
+                                        );
+                                      })}
+                                  </ul>
+                                )}
+                              </div>
                             )}
                           </div>
                         );

@@ -11,7 +11,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
-import type { FlaggedAnswer } from "@/lib/questionnaire";
+import {
+  groupFlaggedAnswersByCategory,
+  SAFETY_CATEGORY_META,
+  type FlaggedAnswer,
+} from "@/lib/questionnaire";
 import type { OrderWeightWarningState } from "@/lib/clinical/weightWarnings";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -589,16 +593,34 @@ function ReviewNeededBadge({
           <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1.5">
             Flagged answers ({flaggedAnswers!.length})
           </div>
-          <ul className="space-y-1.5">
-            {flaggedAnswers!.map((f) => (
-              <li key={f.id} className="text-[11px] leading-snug">
-                <div className="text-t1 font-medium">{f.label}</div>
-                <div className="text-warn font-semibold mt-0.5">
-                  Answered: {f.answer}
+          <div className="space-y-2">
+            {groupFlaggedAnswersByCategory(flaggedAnswers!).map(({ category, items }) => {
+              const meta = SAFETY_CATEGORY_META[category];
+              return (
+                <div key={category}>
+                  <div
+                    className={cn(
+                      "inline-flex items-center gap-1 text-[10px] font-bold border rounded-full px-1.5 py-px leading-none mb-1",
+                      meta.pillCls,
+                    )}
+                  >
+                    <span className={cn("w-1.5 h-1.5 rounded-full", meta.dotCls)} />
+                    {meta.label} · {items.length}
+                  </div>
+                  <ul className="space-y-1 pl-1">
+                    {items.map((f) => (
+                      <li key={f.id} className="text-[11px] leading-snug">
+                        <div className="text-t1 font-medium">{f.label}</div>
+                        <div className="text-warn font-semibold mt-0.5">
+                          Answered: {f.answer}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
           {onJump && (
             <div className="text-[10px] text-t3 mt-2 pt-1.5 border-t border-bdr">
               Click the badge to jump to the first flagged answer.

@@ -413,6 +413,18 @@ export type Order = {
     uploaded_by_user_id?: string | null; // Task-85 — populated when staff uploads on patient's behalf
   } | null;
 
+  // Task-171 — Replacement history for the px upload. Task-119 captures
+  // replacements in the [AUDIT] log; we also persist a slim per-order list
+  // here so the Order Detail UI can render a "Replacement history" without
+  // having to query the audit pipeline. One entry per swap, appended in
+  // chronological order. Survives multiple successive replacements.
+  px_upload_history?: Array<{
+    replaced_at: string;        // ISO — when the swap happened
+    replaced_filename: string;  // filename of the file that was swapped out
+    replaced_by_user_id: string | null; // user who uploaded the new file
+    replaced_by_source: 'success_screen' | 'email_link' | 'staff_upload';
+  }>;
+
   // Task-80 — Tokenised email-link upload (Px upload "complete later")
   // Generated at intake submission when the order requires a Px upload.
   // The patient can use the link in their email to open a minimal page that
@@ -1005,7 +1017,20 @@ export type QuestionItem = {
   scale_min?: number;      // for type = 'scale'
   scale_max?: number;      // for type = 'scale'
   safety_flag?: boolean;   // BLD-13.4 — if true, a yes_no "yes" answer triggers a clinical "Review needed" highlight on the order questionnaire card. Non-safety questions stay neutral regardless of answer.
+  safety_category?: SafetyCategory; // Task-168 — groups flagged answers by clinical theme (cardiac, mental health, etc.) so the "Review needed" popover stays scannable. Only meaningful when safety_flag is true. Inferred from the label when omitted.
 };
+
+// --- SafetyCategory (Task-168) ---
+// Clinical theme used to group safety-flagged questionnaire answers on the
+// Clinical Check queue popover so long lists stay scannable.
+export type SafetyCategory =
+  | 'cardiac'
+  | 'mental_health'
+  | 'safeguarding'
+  | 'allergy'
+  | 'pregnancy'
+  | 'medication'
+  | 'other';
 
 // --- TreatmentGapRule (BLD-14.6) ---
 // Configurable rules that fire when a patient's reorder gap exceeds thresholds.

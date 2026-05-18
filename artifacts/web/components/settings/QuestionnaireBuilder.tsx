@@ -17,7 +17,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { QuestionItem, QuestionType, ClinicId } from "@/types";
+import type { QuestionItem, QuestionType, SafetyCategory, ClinicId } from "@/types";
+import {
+  SAFETY_CATEGORIES,
+  SAFETY_CATEGORY_META,
+  resolveSafetyCategory,
+} from "@/lib/questionnaire";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -124,7 +129,7 @@ function TypeBadge({ type }: { type: QuestionType }) {
 }
 
 export function QuestionRow({
-  q, idx, total, onMove, onToggleRequired, onToggleSafety, onDelete,
+  q, idx, total, onMove, onToggleRequired, onToggleSafety, onChangeCategory, onDelete,
 }: {
   q: QuestionItem;
   idx: number;
@@ -132,12 +137,15 @@ export function QuestionRow({
   onMove: (idx: number, dir: "up" | "down") => void;
   onToggleRequired: (id: string) => void;
   onToggleSafety: (id: string) => void;
+  onChangeCategory?: (id: string, category: SafetyCategory) => void;
   onDelete: (id: string) => void;
 }) {
   const safetyApplicable = q.type === "yes_no";
   const [dismissedHint, setDismissedHint] = useState(false);
   const safetyKeywordHit = safetyApplicable && !q.safety_flag ? matchesSafetyKeyword(q.label) : null;
   const showSafetyHint = !!safetyKeywordHit && !dismissedHint;
+  const activeCategory = safetyApplicable && q.safety_flag ? resolveSafetyCategory(q) : null;
+  const categoryMeta = activeCategory ? SAFETY_CATEGORY_META[activeCategory] : null;
   return (
     <div className="flex items-start gap-2 px-3 py-2.5 bg-surface border border-bdr rounded-lg group">
       <GripVertical className="w-4 h-4 text-t3 mt-0.5 shrink-0 cursor-grab" />
@@ -156,6 +164,18 @@ export function QuestionRow({
               className="inline-flex items-center gap-1 text-[9px] font-bold text-warn bg-warn-bg border border-warn-bdr px-1.5 py-0.5 rounded uppercase tracking-wide"
             >
               <ShieldAlert className="w-3 h-3" /> Safety
+            </span>
+          )}
+          {categoryMeta && (
+            <span
+              title="Clinical category — flagged answers are grouped under this heading in the Clinical Check popover."
+              className={cn(
+                "inline-flex items-center gap-1 text-[9px] font-bold border px-1.5 py-0.5 rounded uppercase tracking-wide",
+                categoryMeta.pillCls,
+              )}
+            >
+              <span className={cn("w-1.5 h-1.5 rounded-full", categoryMeta.dotCls)} />
+              {categoryMeta.label}
             </span>
           )}
         </div>
@@ -224,6 +244,19 @@ export function QuestionRow({
             {q.safety_flag ? "Safety" : "Not safety"}
           </button>
         )}
+        {safetyApplicable && q.safety_flag && onChangeCategory && activeCategory && (
+          <select
+            title="Clinical category used to group this question's flagged answer on the Clinical Check popover."
+            aria-label="Safety category"
+            value={activeCategory}
+            onChange={(e) => onChangeCategory(q.id, e.target.value as SafetyCategory)}
+            className="text-[10px] px-1.5 py-1 rounded border border-bdr bg-page-bg text-t2 hover:text-t1"
+          >
+            {SAFETY_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{SAFETY_CATEGORY_META[c].label}</option>
+            ))}
+          </select>
+        )}
         <button
           title="Required toggle"
           onClick={() => onToggleRequired(q.id)}
@@ -270,6 +303,7 @@ function AddQuestionForm({ onAdd }: { onAdd: (q: Omit<QuestionItem, "id" | "orde
   const [type, setType]         = useState<QuestionType>("text");
   const [required, setRequired] = useState(false);
   const [safety, setSafety]     = useState(false);
+  const [category, setCategory] = useState<SafetyCategory>("other");
   const [helpText, setHelpText] = useState("");
   const [options, setOptions]   = useState("");
   const [open, setOpen]         = useState(false);
@@ -291,8 +325,9 @@ function AddQuestionForm({ onAdd }: { onAdd: (q: Omit<QuestionItem, "id" | "orde
       scale_min: type === "scale" ? 1 : undefined,
       scale_max: type === "scale" ? 10 : undefined,
       safety_flag: type === "yes_no" ? safety : undefined,
+      safety_category: type === "yes_no" && safety ? category : undefined,
     });
-    setLabel(""); setType("text"); setRequired(false); setSafety(false); setHelpText(""); setOptions(""); setOpen(false);
+    setLabel(""); setType("text"); setRequired(false); setSafety(false); setCategory("other"); setHelpText(""); setOptions(""); setOpen(false);
     setDismissedTypeHint(false);
   }
 
@@ -410,6 +445,20 @@ function AddQuestionForm({ onAdd }: { onAdd: (q: Omit<QuestionItem, "id" | "orde
               </span>
             </label>
           )}
+          {type === "yes_no" && safety && (
+            <label className="flex items-center gap-2 cursor-pointer" title="Clinical category — flagged answers are grouped under this heading in the Clinical Check popover.">
+              <span className="text-[12px] text-t2">Category</span>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as SafetyCategory)}
+                className="text-[12px] border border-bdr rounded px-2 py-1 bg-surface focus:outline-none focus:ring-1 focus:ring-brand"
+              >
+                {SAFETY_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{SAFETY_CATEGORY_META[c].label}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
         <div className="flex gap-2">
           <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)} className="h-8 text-[12px]">Cancel</Button>
@@ -453,7 +502,20 @@ function QuestionList({
   }
 
   function toggleSafety(id: string) {
-    onQuestionsChange(questions.map((q) => q.id === id ? { ...q, safety_flag: !q.safety_flag } : q));
+    onQuestionsChange(questions.map((q) => {
+      if (q.id !== id) return q;
+      const nextFlag = !q.safety_flag;
+      // When turning safety on for the first time, pre-fill the category
+      // from the inferred default so the popover always has a sensible grouping.
+      if (nextFlag && !q.safety_category) {
+        return { ...q, safety_flag: true, safety_category: resolveSafetyCategory(q) };
+      }
+      return { ...q, safety_flag: nextFlag };
+    }));
+  }
+
+  function changeCategory(id: string, category: SafetyCategory) {
+    onQuestionsChange(questions.map((q) => q.id === id ? { ...q, safety_category: category } : q));
   }
 
   function deleteQ(id: string) {
@@ -511,6 +573,7 @@ function QuestionList({
             onMove={move}
             onToggleRequired={toggleRequired}
             onToggleSafety={toggleSafety}
+            onChangeCategory={changeCategory}
             onDelete={deleteQ}
           />
         ))}

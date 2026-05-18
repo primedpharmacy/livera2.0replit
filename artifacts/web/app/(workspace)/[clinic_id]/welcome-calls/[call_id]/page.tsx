@@ -1,7 +1,16 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { WelcomeCallDetailClient } from "@/components/welcome-calls/WelcomeCallDetailClient";
-import { getWelcomeCall, listTeamMembers, listPatients } from "@/lib/api/mock";
+import {
+  getWelcomeCall,
+  listTeamMembers,
+  listPatients,
+  logWelcomeCallAttempt,
+  markWelcomeCallUnreachable,
+  reopenWelcomeCall,
+} from "@/lib/api/mock";
+import type { LogWelcomeCallAttemptInput } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 interface Props {
@@ -17,12 +26,56 @@ async function WelcomeCallDetailContent({ clinicId, callId }: { clinicId: string
     ]);
     const patient = patients.find((p) => p.id === call.patient_id);
     const patientName = patient?.demographic.full_name ?? call.patient_id;
+
+    // ── Server actions — Task-157 ────────────────────────────────────────
+    // Persist welcome-call state transitions and revalidate so the detail
+    // page (and any list rendered server-side) shows the saved state after
+    // navigation or a hard refresh.
+    async function handleLogAttempt(input: LogWelcomeCallAttemptInput) {
+      "use server";
+      try {
+        await logWelcomeCallAttempt(clinicId as ClinicId, callId, input);
+        revalidatePath(`/${clinicId}/welcome-calls/${callId}`);
+        revalidatePath(`/${clinicId}/welcome-calls`);
+        return { ok: true as const };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "Failed to log attempt" };
+      }
+    }
+
+    async function handleMarkUnreachable(reason: string) {
+      "use server";
+      try {
+        await markWelcomeCallUnreachable(clinicId as ClinicId, callId, reason);
+        revalidatePath(`/${clinicId}/welcome-calls/${callId}`);
+        revalidatePath(`/${clinicId}/welcome-calls`);
+        return { ok: true as const };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "Failed to mark unreachable" };
+      }
+    }
+
+    async function handleReopen() {
+      "use server";
+      try {
+        await reopenWelcomeCall(clinicId as ClinicId, callId);
+        revalidatePath(`/${clinicId}/welcome-calls/${callId}`);
+        revalidatePath(`/${clinicId}/welcome-calls`);
+        return { ok: true as const };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "Failed to reopen call" };
+      }
+    }
+
     return (
       <WelcomeCallDetailClient
         clinicId={clinicId}
         call={call}
         patientName={patientName}
         members={members}
+        onLogAttempt={handleLogAttempt}
+        onMarkUnreachable={handleMarkUnreachable}
+        onReopen={handleReopen}
       />
     );
   } catch {

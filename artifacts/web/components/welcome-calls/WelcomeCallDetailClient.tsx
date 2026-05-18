@@ -1,14 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Phone, PhoneOff, Voicemail, UserRound, Package,
-  ChevronRight, AlertTriangle, RotateCcw, MessageSquare, Printer, Plus,
+  ArrowLeft, Phone, PhoneOff, Voicemail, Package,
+  ChevronRight, AlertTriangle, RotateCcw, MessageSquare, Printer, Plus, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
-import type { WelcomeCall, WelcomeCallStatus, WelcomeCallAttemptType, ClinicTeamMember } from "@/types";
+import type {
+  WelcomeCall, WelcomeCallStatus, WelcomeCallAttemptType, ClinicTeamMember,
+} from "@/types";
+import type { LogWelcomeCallAttemptInput } from "@/lib/api/mock";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,22 +50,51 @@ const ATTEMPT_CONFIG: Record<WelcomeCallAttemptType, {
   voicemail: { icon: Voicemail, border: "border-l-4 border-l-info", iconBg: "bg-blue-600 text-white",    bg: "bg-info-bg",  label: "Voicemail" },
 };
 
+type ActionResult = { ok: true } | { ok: false; reason: string };
+
 interface Props {
   clinicId: string;
   call: WelcomeCall;
   patientName: string;
   members: ClinicTeamMember[];
+  onLogAttempt: (input: LogWelcomeCallAttemptInput) => Promise<ActionResult>;
+  onMarkUnreachable: (reason: string) => Promise<ActionResult>;
+  onReopen: () => Promise<ActionResult>;
 }
 
-export function WelcomeCallDetailClient({ clinicId, call, patientName, members }: Props) {
+function isOpenStatus(s: WelcomeCallStatus): boolean {
+  return s === "awaiting" || s === "attempted";
+}
+
+export function WelcomeCallDetailClient({
+  clinicId, call, patientName, members,
+  onLogAttempt, onMarkUnreachable, onReopen,
+}: Props) {
   const router = useRouter();
   const memberMap = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const [toast, setToast] = useState<string | null>(null);
-  // Guards: one-shot per page-load so repeated stub clicks don't over-decrement
-  // the sidebar badge. Replace with real status-mutation diff once
-  // welcome-call mutations land in the API.
-  const dispatchedResolveRef = useRef(false);
-  const dispatchedReopenRef = useRef(false);
+  const [logAttemptOpen, setLogAttemptOpen] = useState(false);
+  const [unreachableOpen, setUnreachableOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  // Drive the sidebar Welcome Calls badge from real status diffs. The
+  // server action revalidates the page, which feeds back a fresh
+  // `call.status` here; we compare it to the previous status to dispatch
+  // the right delta exactly once per transition.
+  const prevStatusRef = useRef<WelcomeCallStatus>(call.status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const next = call.status;
+    if (prev === next) return;
+    const wasOpen = isOpenStatus(prev);
+    const nowOpen = isOpenStatus(next);
+    if (wasOpen && !nowOpen) {
+      dispatchQueueCountChange({ queue: "welcome_calls", delta: -1 });
+    } else if (!wasOpen && nowOpen) {
+      dispatchQueueCountChange({ queue: "welcome_calls", delta: 1 });
+    }
+    prevStatusRef.current = next;
+  }, [call.status]);
 
   const sc = STATUS_CONFIG[call.status];
   const owner = memberMap[call.owner_user_id];
@@ -72,31 +104,34 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
     setTimeout(() => setToast(null), 2500);
   }
 
-  // The sidebar Welcome Calls badge tracks scheduled/awaiting/attempted calls.
-  // Resolving (complete or close-as-unreachable) removes one from that bucket;
-  // reopening adds one back. We dispatch optimistically from the stub UI so the
-  // badge stays consistent with what the user just did.
-  function resolveCallOptimistic(msg: string) {
-    showToast(msg);
-    const isOpenStatus = call.status === "awaiting" || call.status === "attempted";
-    if (isOpenStatus && !dispatchedResolveRef.current) {
-      dispatchedResolveRef.current = true;
-      dispatchedReopenRef.current = false;
-      dispatchQueueCountChange({ queue: "welcome_calls", delta: -1 });
-    }
+  function runAction(action: () => Promise<ActionResult>, successMsg: string) {
+    startTransition(async () => {
+      const result = await action();
+      if (!result.ok) {
+        showToast(result.reason || "Action failed");
+        return;
+      }
+      showToast(successMsg);
+      router.refresh();
+    });
   }
 
-  function reopenCallOptimistic(msg: string) {
-    showToast(msg);
-    const wasResolved =
-      call.status === "completed" ||
-      call.status === "unreachable" ||
-      dispatchedResolveRef.current;
-    if (wasResolved && !dispatchedReopenRef.current) {
-      dispatchedReopenRef.current = true;
-      dispatchedResolveRef.current = false;
-      dispatchQueueCountChange({ queue: "welcome_calls", delta: 1 });
-    }
+  function submitLogAttempt(input: LogWelcomeCallAttemptInput) {
+    setLogAttemptOpen(false);
+    const successMsg =
+      input.type === "success"
+        ? "Attempt logged — call marked completed."
+        : "Attempt logged.";
+    runAction(() => onLogAttempt(input), successMsg);
+  }
+
+  function submitMarkUnreachable(reason: string) {
+    setUnreachableOpen(false);
+    runAction(() => onMarkUnreachable(reason), "Call closed as unreachable.");
+  }
+
+  function submitReopen() {
+    runAction(() => onReopen(), "Call reopened.");
   }
 
   // Status-specific topbar actions
@@ -111,8 +146,9 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
           Call {patientName.split(" ")[0]}
         </button>
         <button
-          onClick={() => resolveCallOptimistic("Stub: logs a successful attempt and marks the call completed.")}
-          className="text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors"
+          onClick={() => setLogAttemptOpen(true)}
+          disabled={pending}
+          className="text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors disabled:opacity-50"
         >
           + Log attempt
         </button>
@@ -120,26 +156,23 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
     ) : call.status === "unreachable" ? (
       <>
         <button
-          onClick={() => reopenCallOptimistic("Stub: reopens call. Status returns to Attempted.")}
-          className="flex items-center gap-1.5 text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90 transition-colors"
+          onClick={submitReopen}
+          disabled={pending}
+          className="flex items-center gap-1.5 text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90 transition-colors disabled:opacity-50"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          Reopen
-        </button>
-        <button
-          onClick={() => resolveCallOptimistic("Stub: closes call as unreachable. Prescriber notified.")}
-          className="text-[12px] font-medium text-err border border-err-bdr rounded-md px-3 py-1.5 hover:bg-err-bg transition-colors"
-        >
-          Close as unreachable
+          {pending ? "Reopening…" : "Reopen"}
         </button>
       </>
     ) : (
       <>
         <button
-          onClick={() => showToast("Stub: opens edit log modal.")}
-          className="text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors"
+          onClick={submitReopen}
+          disabled={pending}
+          className="flex items-center gap-1.5 text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors disabled:opacity-50"
         >
-          Edit log
+          <RotateCcw className="w-3.5 h-3.5" />
+          {pending ? "Reopening…" : "Reopen"}
         </button>
       </>
     );
@@ -149,15 +182,16 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
     call.status === "awaiting" || call.status === "attempted" ? (
       <div className="flex flex-col gap-2">
         {[
-          { icon: Phone, label: "Call now", onClick: () => showToast("Stub: places Intercom call to patient."), primary: true },
-          { icon: Plus, label: "Log attempt", onClick: () => resolveCallOptimistic("Stub: logs a successful attempt and marks the call completed.") },
-          { icon: AlertTriangle, label: "Mark unreachable", onClick: () => resolveCallOptimistic("Stub: marks unreachable. Requires reason."), danger: true },
-        ].map(({ icon: Icon, label, onClick, primary, danger }) => (
+          { icon: Phone, label: "Call now", onClick: () => showToast("Stub: places Intercom call to patient."), primary: true, disabled: false },
+          { icon: Plus, label: "Log attempt", onClick: () => setLogAttemptOpen(true), disabled: pending },
+          { icon: AlertTriangle, label: "Mark unreachable", onClick: () => setUnreachableOpen(true), danger: true, disabled: pending },
+        ].map(({ icon: Icon, label, onClick, primary, danger, disabled }) => (
           <button
             key={label}
             onClick={onClick}
+            disabled={disabled}
             className={cn(
-              "w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border transition-colors",
+              "w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border transition-colors disabled:opacity-50",
               primary && "bg-brand text-white border-brand hover:bg-brand/90",
               danger  && "border-err-bdr text-err hover:bg-err-bg",
               !primary && !danger && "border-border text-t2 hover:bg-surface-2"
@@ -170,20 +204,28 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
       </div>
     ) : call.status === "unreachable" ? (
       <div className="flex flex-col gap-2">
-        {[
-          { icon: RotateCcw,      label: "Reopen call",            onClick: () => reopenCallOptimistic("Stub: reopens call.") },
-          { icon: MessageSquare,  label: "Escalate to prescriber",  onClick: () => showToast("Stub: opens prescriber escalation note.") },
-          { icon: MessageSquare,  label: "Send GP letter",          onClick: () => showToast("Stub: opens GP letter compose — unreachable template.") },
-        ].map(({ icon: Icon, label, onClick }) => (
-          <button
-            key={label}
-            onClick={onClick}
-            className="w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border border-border text-t2 hover:bg-surface-2 transition-colors"
-          >
-            <Icon className="w-3.5 h-3.5 shrink-0" />
-            {label}
-          </button>
-        ))}
+        <button
+          onClick={submitReopen}
+          disabled={pending}
+          className="w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border border-border text-t2 hover:bg-surface-2 transition-colors disabled:opacity-50"
+        >
+          <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+          {pending ? "Reopening…" : "Reopen call"}
+        </button>
+        <button
+          onClick={() => showToast("Stub: opens prescriber escalation note.")}
+          className="w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border border-border text-t2 hover:bg-surface-2 transition-colors"
+        >
+          <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+          Escalate to prescriber
+        </button>
+        <button
+          onClick={() => showToast("Stub: opens GP letter compose — unreachable template.")}
+          className="w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border border-border text-t2 hover:bg-surface-2 transition-colors"
+        >
+          <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+          Send GP letter
+        </button>
       </div>
     ) : (
       <div className="flex flex-col gap-2">
@@ -495,12 +537,221 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
         </div>
       </div>
 
+      {/* Log Attempt modal */}
+      {logAttemptOpen && (
+        <LogAttemptModal
+          patientName={patientName}
+          onSubmit={submitLogAttempt}
+          onClose={() => setLogAttemptOpen(false)}
+        />
+      )}
+
+      {/* Mark Unreachable / Close as unreachable modal */}
+      {unreachableOpen && (
+        <UnreachableModal
+          attemptsCount={call.attempts.length}
+          onSubmit={submitMarkUnreachable}
+          onClose={() => setUnreachableOpen(false)}
+        />
+      )}
+
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-t1 text-white text-[12.5px] font-medium px-5 py-2.5 rounded-full shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2">
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Log Attempt modal ────────────────────────────────────────────────────────
+
+function LogAttemptModal({
+  patientName,
+  onSubmit,
+  onClose,
+}: {
+  patientName: string;
+  onSubmit: (input: LogWelcomeCallAttemptInput) => void;
+  onClose: () => void;
+}) {
+  const [type, setType] = useState<WelcomeCallAttemptType>("success");
+  const [duration, setDuration] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const options: { value: WelcomeCallAttemptType; label: string; desc: string }[] = [
+    { value: "success",   label: "Connected",  desc: "Spoke with patient — marks call completed." },
+    { value: "no_answer", label: "No answer",  desc: "Rang out — call stays open as attempted." },
+    { value: "voicemail", label: "Voicemail",  desc: "Left a message — call stays open as attempted." },
+  ];
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSubmit({
+      type,
+      duration_display: duration.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-auto">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h2 className="text-[14px] font-bold text-t1">Log call attempt</h2>
+          <button onClick={onClose} className="text-t3 hover:text-t1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <p className="text-[12px] text-t2">
+            Logging an attempt for <span className="font-semibold text-t1">{patientName}</span>.
+          </p>
+
+          <div>
+            <p className="text-[11px] font-bold text-t3 uppercase tracking-wide mb-2">Outcome</p>
+            <div className="flex flex-col gap-2">
+              {options.map((opt) => (
+                <label
+                  key={opt.value}
+                  className={cn(
+                    "flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors",
+                    type === opt.value
+                      ? "border-brand bg-brand-light/40"
+                      : "border-border hover:bg-surface-2"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="attempt-type"
+                    value={opt.value}
+                    checked={type === opt.value}
+                    onChange={() => setType(opt.value)}
+                    className="mt-0.5"
+                  />
+                  <span className="flex-1">
+                    <span className="block text-[12.5px] font-semibold text-t1">{opt.label}</span>
+                    <span className="block text-[11.5px] text-t2 mt-0.5">{opt.desc}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-t3 uppercase tracking-wide mb-1.5">
+              Duration <span className="font-normal normal-case text-t3">(optional, e.g. "8 min" or "0:32")</span>
+            </label>
+            <input
+              type="text"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder={type === "success" ? "8 min" : "0:30"}
+              className="w-full text-[12.5px] px-3 py-2 border border-border rounded-md bg-surface text-t1 focus:outline-none focus:border-brand"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-t3 uppercase tracking-wide mb-1.5">
+              Notes <span className="font-normal normal-case text-t3">(optional)</span>
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              placeholder="Anything the next clinician needs to know about this attempt."
+              className="w-full text-[12.5px] px-3 py-2 border border-border rounded-md bg-surface text-t1 focus:outline-none focus:border-brand resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90"
+            >
+              Save attempt
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Unreachable modal ────────────────────────────────────────────────────────
+
+function UnreachableModal({
+  attemptsCount,
+  onSubmit,
+  onClose,
+}: {
+  attemptsCount: number;
+  onSubmit: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const disabled = reason.trim().length === 0;
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (disabled) return;
+    onSubmit(reason);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h2 className="text-[14px] font-bold text-t1">Close call as unreachable</h2>
+          <button onClick={onClose} className="text-t3 hover:text-t1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <p className="text-[12px] text-t2">
+            {attemptsCount === 0
+              ? "No attempts have been logged yet — closing as unreachable should be a last resort."
+              : `Closing after ${attemptsCount} attempt${attemptsCount === 1 ? "" : "s"}. The prescriber will be notified.`}
+          </p>
+          <div>
+            <label className="block text-[11px] font-bold text-t3 uppercase tracking-wide mb-1.5">
+              Reason <span className="text-err">*</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={4}
+              placeholder="Summarise why the patient could not be reached."
+              className="w-full text-[12.5px] px-3 py-2 border border-border rounded-md bg-surface text-t1 focus:outline-none focus:border-brand resize-none"
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={disabled}
+              className="text-[12px] font-semibold text-white bg-err rounded-md px-3 py-1.5 hover:bg-err/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Close as unreachable
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

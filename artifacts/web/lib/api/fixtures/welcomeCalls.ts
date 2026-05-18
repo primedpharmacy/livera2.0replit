@@ -8,8 +8,19 @@
  *   WC-0047: Beth Newman    — unreachable (3 attempts, escalation due)
  */
 
-import type { WelcomeCall, ClinicId } from '../types';
-import { APIError, delay, scopedToClinic } from '../constants';
+import type {
+  WelcomeCall,
+  WelcomeCallAttempt,
+  WelcomeCallAttemptType,
+  ClinicId,
+} from '../types';
+import {
+  APIError,
+  CURRENT_USER,
+  NOW,
+  delay,
+  scopedToClinic,
+} from '../constants';
 
 // ---------------------------------------------------------------------------
 // Seed data
@@ -144,4 +155,153 @@ export async function getWelcomeCall(clinicId: ClinicId, callId: string): Promis
   const call = ALL_WELCOME_CALLS.find((wc) => wc.clinic_id === clinicId && wc.id === callId);
   if (!call) throw new APIError('404', `Welcome call ${callId} not found`);
   return call;
+}
+
+// ---------------------------------------------------------------------------
+// Mutations — Task-157
+//
+// Replace the toast-only stubs on the Welcome Call detail page with real
+// persisted transitions. These mutate the in-memory MOCK_WELCOME_CALLS so
+// that a hard refresh reflects the saved state, matching the calling
+// contract of other queue mutations (acknowledgeComplaint, etc).
+// ---------------------------------------------------------------------------
+
+function findWelcomeCall(clinic_id: ClinicId, callId: string): WelcomeCall {
+  const wc = ALL_WELCOME_CALLS.find(
+    (c) => c.clinic_id === clinic_id && c.id === callId,
+  );
+  if (!wc) throw new APIError('404', `Welcome call ${callId} not found`);
+  return wc;
+}
+
+function nextAttemptId(wc: WelcomeCall): string {
+  return `att-${wc.id.toLowerCase()}-${wc.attempts.length + 1}`;
+}
+
+const ATTEMPT_BODY: Record<WelcomeCallAttemptType, string> = {
+  success:   'Connected with patient. Welcome call completed.',
+  no_answer: 'No answer.',
+  voicemail: 'Left voicemail message.',
+};
+
+const ATTEMPT_DEFAULT_DURATION: Record<WelcomeCallAttemptType, string> = {
+  success:   '5 min',
+  no_answer: '0:30',
+  voicemail: '0:45',
+};
+
+export type LogWelcomeCallAttemptInput = {
+  type: WelcomeCallAttemptType;
+  duration_display?: string;
+  notes?: string;
+  channel?: string;
+};
+
+export async function logWelcomeCallAttempt(
+  clinic_id: ClinicId,
+  callId: string,
+  input: LogWelcomeCallAttemptInput,
+): Promise<WelcomeCall> {
+  await delay(200);
+  const wc = findWelcomeCall(clinic_id, callId);
+  if (wc.status === 'completed' || wc.status === 'unreachable') {
+    throw new APIError(
+      'INVALID_STATE',
+      `Cannot log attempt: call is already ${wc.status}.`,
+    );
+  }
+  const attempt: WelcomeCallAttempt = {
+    id: nextAttemptId(wc),
+    type: input.type,
+    timestamp: NOW,
+    by_user_id: CURRENT_USER.id,
+    duration_display:
+      input.duration_display?.trim() || ATTEMPT_DEFAULT_DURATION[input.type],
+    channel: input.channel ?? 'Intercom telephone',
+    body: ATTEMPT_BODY[input.type],
+    notes: input.notes?.trim() || undefined,
+  };
+  wc.attempts = [...wc.attempts, attempt];
+  if (input.type === 'success') {
+    wc.status = 'completed';
+    wc.outcome = {
+      outcome_summary: 'Completed',
+      follow_up_needed: false,
+      ...(input.notes?.trim() ? { follow_up_note: input.notes.trim() } : {}),
+    };
+  } else {
+    wc.status = 'attempted';
+  }
+  wc.updated_at = NOW;
+  console.log('[AUDIT]', {
+    event_type: 'welcome_call_attempt_logged',
+    outcome: 'success',
+    actor_id: CURRENT_USER.id,
+    clinic_id,
+    welcome_call_id: callId,
+    attempt_type: input.type,
+    new_status: wc.status,
+    timestamp: NOW,
+  });
+  return wc;
+}
+
+export async function markWelcomeCallUnreachable(
+  clinic_id: ClinicId,
+  callId: string,
+  reason: string,
+): Promise<WelcomeCall> {
+  await delay(200);
+  const wc = findWelcomeCall(clinic_id, callId);
+  if (wc.status === 'unreachable') return wc;
+  const trimmed = reason.trim();
+  if (!trimmed) {
+    throw new APIError('VALIDATION', 'A reason is required to mark unreachable.');
+  }
+  wc.status = 'unreachable';
+  wc.outcome = {
+    outcome_summary: `Unreachable — ${wc.attempts.length} attempt${wc.attempts.length === 1 ? '' : 's'}`,
+    follow_up_needed: true,
+    follow_up_note: trimmed,
+  };
+  wc.updated_at = NOW;
+  console.log('[AUDIT]', {
+    event_type: 'welcome_call_marked_unreachable',
+    outcome: 'success',
+    actor_id: CURRENT_USER.id,
+    clinic_id,
+    welcome_call_id: callId,
+    reason: trimmed,
+    timestamp: NOW,
+  });
+  return wc;
+}
+
+export async function reopenWelcomeCall(
+  clinic_id: ClinicId,
+  callId: string,
+): Promise<WelcomeCall> {
+  await delay(200);
+  const wc = findWelcomeCall(clinic_id, callId);
+  if (wc.status !== 'completed' && wc.status !== 'unreachable') {
+    throw new APIError(
+      'INVALID_STATE',
+      'Only completed or unreachable calls can be reopened.',
+    );
+  }
+  // Per Task-157 acceptance: Reopen always returns the call to 'attempted',
+  // even if it was closed as unreachable with zero attempts logged.
+  wc.status = 'attempted';
+  wc.outcome = undefined;
+  wc.updated_at = NOW;
+  console.log('[AUDIT]', {
+    event_type: 'welcome_call_reopened',
+    outcome: 'success',
+    actor_id: CURRENT_USER.id,
+    clinic_id,
+    welcome_call_id: callId,
+    new_status: wc.status,
+    timestamp: NOW,
+  });
+  return wc;
 }

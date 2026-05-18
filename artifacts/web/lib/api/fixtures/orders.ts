@@ -1003,6 +1003,79 @@ export async function resendPxUploadLink(
   return order;
 }
 
+// ---------------------------------------------------------------------------
+// Task-92 — Scheduled reminder email reusing the original token.
+//
+// Called by the sendPxUploadReminders job for orders whose patients haven't
+// uploaded yet. Two flavours:
+//   - 'first' (48h after initial sent_at): friendly nudge.
+//   - 'final' (within 24h of expires_at): last-chance, expiry-aware copy.
+//
+// Both reuse the existing px_upload_link.token so the patient follows the
+// same secure URL they already received — no fresh token is minted.
+// ---------------------------------------------------------------------------
+
+export async function sendPxUploadReminderEmail(
+  order: Order,
+  patient: { firstName: string; lastName: string; email: string },
+  kind: 'first' | 'final',
+): Promise<{ status: 'Delivered' | 'Bounced' | 'Failed'; message_id: string | null }> {
+  if (!order.px_upload_link) {
+    throw new Error(`sendPxUploadReminderEmail: order ${order.id} has no px_upload_link`);
+  }
+
+  const link = order.px_upload_link;
+  const url  = `${appBaseUrl()}/${order.clinic_id}/px-upload/${link.token}`;
+
+  const subject =
+    kind === 'final'
+      ? 'Last chance: upload your GLP-1 prescription before the link expires'
+      : 'Reminder: upload your GLP-1 prescription to complete your order';
+
+  const intro =
+    kind === 'final'
+      ? `Your secure upload link expires on ${link.expires_at.slice(0, 10)} — that's less ` +
+        `than 24 hours away. Once it expires we can't review your order.`
+      : `Just a quick nudge — our prescriber is still waiting for a copy of your ` +
+        `current GLP-1 prescription so they can review your order (${order.id}).`;
+
+  const body =
+    `Hi ${patient.firstName},\n\n` +
+    `${intro}\n\n` +
+    `Upload your prescription here:\n${url}\n\n` +
+    `The link is the same one we sent before — it's unique to your order, can ` +
+    `only be used once, and expires on ${link.expires_at.slice(0, 10)}.\n\n` +
+    `If you've already uploaded your prescription, you can safely ignore this ` +
+    `email.\n\n` +
+    `Thanks,\nThe FeelTru team`;
+
+  const result = await sendPatientEmail({
+    to_email:  patient.email,
+    subject,
+    text_body: body,
+    template:  kind === 'final' ? 'px_upload_link_final_reminder' : 'px_upload_link_reminder',
+  });
+
+  console.log('[AUDIT]', {
+    event_type:
+      result.status === 'Delivered'
+        ? 'px_upload_link_reminder_sent'
+        : 'px_upload_link_reminder_failed',
+    outcome:       result.status,
+    kind,
+    clinic_id:     order.clinic_id,
+    order_id:      order.id,
+    patient_id:    order.patient_id,
+    to_email:      patient.email,
+    message_id:    result.message_id,
+    error_message: result.error_message ?? null,
+    expires_at:    link.expires_at,
+    timestamp:     NOW,
+  });
+
+  return { status: result.status, message_id: result.message_id };
+}
+
 /**
  * Resolve an order from a px-upload link token without consuming it.
  * Used by the patient-facing page to check validity before showing the

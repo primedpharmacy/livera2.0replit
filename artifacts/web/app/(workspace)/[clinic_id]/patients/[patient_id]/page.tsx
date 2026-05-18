@@ -20,9 +20,6 @@ import { PatientFABSpeedDial } from "@/components/patients/PatientFABSpeedDial";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
 import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
-import { ResendNotificationButton } from "@/components/patients/ResendNotificationButton";
-import { resendFailedPatientNotification } from "@/lib/api/jobs/retryPatientNotifications";
-import { revalidatePath } from "next/cache";
 import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
 import { EmailPreviewButton } from "@/components/patients/EmailPreviewButton";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
@@ -128,37 +125,7 @@ async function ProfileContent({
     const canWriteNotes = can(CURRENT_USER, "write", "clinical_notes");
     const canPurge = can(CURRENT_USER, "write", "patients");
     const canEditContact = can(CURRENT_USER, "write", "patients");
-    // Task-97 — staff-initiated resend gated to Owner/Admin (the operational
-    // roles that already manage pharmacy_comms / holiday_calendar). Coach and
-    // Prescriber do not get this action.
-    const canResendNotification = CURRENT_USER.roles.some(
-      (r) => r === "Owner" || r === "Admin" || r === "RM",
-    );
     const genderEligibility = clinic.config.gender_eligibility;
-
-    // Task-97 — server action invoked by the Resend now button on Failed rows.
-    // Re-checks permission on the server (defence-in-depth — UI gating is not
-    // enough for a mutation endpoint) and confirms the notification belongs to
-    // the patient currently being viewed before delegating to the shared
-    // resend helper that powers the scheduled retry job.
-    async function handleResendNotification(notificationId: string) {
-      "use server";
-      const allowed = CURRENT_USER.roles.some(
-        (r) => r === "Owner" || r === "Admin" || r === "RM",
-      );
-      if (!allowed) {
-        return { ok: false as const, reason: "forbidden" };
-      }
-      const result = await resendFailedPatientNotification(
-        clinicId,
-        notificationId,
-      );
-      if (result.ok && result.notification.patient_id !== patientId) {
-        return { ok: false as const, reason: "not_found" };
-      }
-      revalidatePath(`/${clinicId}/patients/${patientId}`);
-      return result.ok ? { ok: true as const } : { ok: false as const, reason: result.reason };
-    }
 
     return (
       <>
@@ -280,8 +247,6 @@ async function ProfileContent({
                   clinicId={clinicId}
                   patientId={patientId}
                   orderIdFilter={orderIdFilter}
-                  canResend={canResendNotification}
-                  onResend={handleResendNotification}
                 />
               )}
               {activeTab === "intercom" && <IntercomTab patient={patient} />}
@@ -923,22 +888,16 @@ function IntercomTab({ patient }: { patient: Patient }) {
 // Optional ?order_id=... filter when opened from an order context.
 // ─────────────────────────────────────────────────────────────────────────────
 
-type ResendActionResult = { ok: true } | { ok: false; reason: string };
-
 function NotificationsTab({
   notifications,
   clinicId,
   patientId,
   orderIdFilter,
-  canResend,
-  onResend,
 }: {
   notifications: PatientNotification[];
   clinicId: ClinicId;
   patientId: string;
   orderIdFilter: string | null;
-  canResend: boolean;
-  onResend: (notificationId: string) => Promise<ResendActionResult>;
 }) {
   const filtered = orderIdFilter
     ? notifications.filter((n) => n.order_id === orderIdFilter)
@@ -981,13 +940,7 @@ function NotificationsTab({
           />
           <div className="divide-y divide-bdr">
             {sorted.map((n) => (
-              <NotificationRow
-                key={n.id}
-                notification={n}
-                clinicId={clinicId}
-                canResend={canResend}
-                onResend={onResend}
-              />
+              <NotificationRow key={n.id} notification={n} clinicId={clinicId} />
             ))}
           </div>
         </div>
@@ -999,13 +952,9 @@ function NotificationsTab({
 function NotificationRow({
   notification: n,
   clinicId,
-  canResend,
-  onResend,
 }: {
   notification: PatientNotification;
   clinicId: ClinicId;
-  canResend: boolean;
-  onResend: (notificationId: string) => Promise<ResendActionResult>;
 }) {
   const statusMeta =
     n.status === "Delivered"
@@ -1058,15 +1007,6 @@ function NotificationRow({
           <EmailPreviewButton envelope={n.email_envelope} notificationId={n.id} />
         </div>
       )}
-      {/* Task-97 — staff-initiated immediate resend. Only on Failed rows that
-          still have retry budget AND a captured email_envelope; Bounced rows
-          are intentionally excluded per retry policy. */}
-      {canResend
-        && n.status === "Failed"
-        && n.email_envelope
-        && n.attempt_count < n.max_attempts && (
-          <ResendNotificationButton notificationId={n.id} onResend={onResend} />
-        )}
       {Object.keys(n.payload).length > 0 && (
         <details className="mt-2 group">
           <summary className="text-[11px] font-semibold text-t3 cursor-pointer hover:text-t2 select-none">

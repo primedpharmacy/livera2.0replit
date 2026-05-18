@@ -88,6 +88,29 @@ export function OrderActivityTimeline({ order }: Props) {
     });
   }
 
+  // Task-92 — Scheduled Px upload reminders (first nudge ~48h after sent_at,
+  // final nudge within 24h of expires_at). Each fires at most once.
+  if (order.px_upload_link?.reminder_sent_at) {
+    entries.push({
+      key: "px_link_reminder",
+      dot: "info",
+      title: "Px upload reminder emailed to patient",
+      meta: `to ${order.px_upload_link.to_email} · ${formatDateTime(order.px_upload_link.reminder_sent_at)}`,
+      ts: new Date(order.px_upload_link.reminder_sent_at).getTime(),
+      subtext: `Reuses the original link · expires ${order.px_upload_link.expires_at.slice(0, 10)}`,
+    });
+  }
+  if (order.px_upload_link?.final_reminder_sent_at) {
+    entries.push({
+      key: "px_link_final_reminder",
+      dot: "info",
+      title: "Final Px upload reminder emailed to patient",
+      meta: `to ${order.px_upload_link.to_email} · ${formatDateTime(order.px_upload_link.final_reminder_sent_at)}`,
+      ts: new Date(order.px_upload_link.final_reminder_sent_at).getTime(),
+      subtext: `Last chance · link expires ${order.px_upload_link.expires_at.slice(0, 10)}`,
+    });
+  }
+
   // Px upload received (success-screen or email link)
   if (order.px_upload?.uploaded_at) {
     const viaLink = order.px_upload.source === "email_link" || !!order.px_upload_link?.consumed_at;

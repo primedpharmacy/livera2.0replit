@@ -21,6 +21,7 @@ import {
   retryFailedPatientNotifications,
   type RetryPatientNotificationsResult,
 } from './retryPatientNotifications';
+import { sendPxUploadReminders } from './sendPxUploadReminders';
 import type { ClinicId } from '../types';
 
 export type SweepClinicSummary = {
@@ -36,6 +37,11 @@ export type SweepClinicSummary = {
 };
 
 const RETRY_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
+
+// Task-92 — px-upload reminders need only daily granularity (48h after sent_at
+// / within 24h of expires_at), but we re-tick hourly so reminders land within
+// an hour of becoming due even if the server has only been up briefly.
+const PX_UPLOAD_REMINDER_INTERVAL_MS = 60 * 60 * 1000; // every 60 minutes
 
 declare global {
   // eslint-disable-next-line no-var
@@ -104,6 +110,71 @@ export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSum
   return summaries;
 }
 
+// Task-92 — per-clinic sweep that nudges patients who still haven't uploaded
+// their GLP-1 prescription. Mirrors the retry sweep's shape: always logs a
+// `[AUDIT] scheduled_px_upload_reminder_run` line per clinic so operators can
+// confirm the loop is alive even when nothing was eligible.
+export type PxUploadReminderClinicSummary = {
+  clinic_id:     ClinicId;
+  outcome:       'success' | 'error';
+  considered:    number;
+  sent:          number;
+  failed:        number;
+  error_message: string | null;
+};
+
+export async function runPxUploadReminderSweep(): Promise<PxUploadReminderClinicSummary[]> {
+  const clinics = await listClinics();
+  const summaries: PxUploadReminderClinicSummary[] = [];
+
+  for (const clinic of clinics) {
+    try {
+      const result = await sendPxUploadReminders(clinic.id);
+      const summary: PxUploadReminderClinicSummary = {
+        clinic_id:     clinic.id,
+        outcome:       'success',
+        considered:    result.considered,
+        sent:          result.sent.length,
+        failed:        result.failed.length,
+        error_message: null,
+      };
+      summaries.push(summary);
+      console.log('[AUDIT]', {
+        event_type:    'scheduled_px_upload_reminder_run',
+        outcome:       'success',
+        actor_id:      'system',
+        job:           'sendPxUploadReminders',
+        clinic_id:     clinic.id,
+        considered:    summary.considered,
+        sent:          summary.sent,
+        failed:        summary.failed,
+        timestamp:     NOW,
+      });
+    } catch (err) {
+      const error_message = err instanceof Error ? err.message : String(err);
+      summaries.push({
+        clinic_id:     clinic.id,
+        outcome:       'error',
+        considered:    0,
+        sent:          0,
+        failed:        0,
+        error_message,
+      });
+      console.error('[AUDIT]', {
+        event_type:    'scheduled_px_upload_reminder_run',
+        outcome:       'error',
+        actor_id:      'system',
+        job:           'sendPxUploadReminders',
+        clinic_id:     clinic.id,
+        error_message,
+        timestamp:     NOW,
+      });
+    }
+  }
+
+  return summaries;
+}
+
 export function startJobScheduler(): void {
   if (globalThis.__LIVERA_SCHEDULER_STARTED__) return;
   globalThis.__LIVERA_SCHEDULER_STARTED__ = true;
@@ -116,18 +187,33 @@ export function startJobScheduler(): void {
     interval_ms: RETRY_INTERVAL_MS,
     timestamp:  NOW,
   });
+  console.log('[AUDIT]', {
+    event_type: 'scheduler_started',
+    outcome:    'success',
+    actor_id:   'system',
+    job:        'sendPxUploadReminders',
+    interval_ms: PX_UPLOAD_REMINDER_INTERVAL_MS,
+    timestamp:  NOW,
+  });
 
   // Kick off an initial sweep shortly after boot so audit logs appear without
   // waiting a full interval, then continue on the recurring schedule.
   setTimeout(() => {
     void runPatientNotificationRetrySweep();
   }, 10 * 1000);
+  setTimeout(() => {
+    void runPxUploadReminderSweep();
+  }, 15 * 1000);
 
-  const timer = setInterval(() => {
+  const retryTimer = setInterval(() => {
     void runPatientNotificationRetrySweep();
   }, RETRY_INTERVAL_MS);
+  const reminderTimer = setInterval(() => {
+    void runPxUploadReminderSweep();
+  }, PX_UPLOAD_REMINDER_INTERVAL_MS);
 
-  // Avoid keeping the Node.js event loop alive solely for this timer (so
+  // Avoid keeping the Node.js event loop alive solely for these timers (so
   // graceful shutdowns aren't blocked).
-  if (typeof timer.unref === 'function') timer.unref();
+  if (typeof retryTimer.unref === 'function')    retryTimer.unref();
+  if (typeof reminderTimer.unref === 'function') reminderTimer.unref();
 }

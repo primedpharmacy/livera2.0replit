@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { LatestCoachingLogCard } from "@/components/clinical-check/LatestCoachingLogCard";
 import { ClinicalCheckSlideOver } from "@/components/clinical-check/ClinicalCheckSlideOver";
 import { NOW } from "@/lib/api/constants";
-import { reverseDecision } from "@/lib/api/mock";
+import { reverseDecision, acknowledgeWeightWarning } from "@/lib/api/mock";
 import { openOrderUndoWindow, clearOrderUndoWindow, ORDER_UNDO_WINDOW_MS } from "@/lib/orderUndo";
 import {
   countReviewNeeded,
@@ -20,6 +20,8 @@ import {
 import type { SafetyCategory } from "@/types";
 import {
   summariseOrderWeightWarnings,
+  analyseWeightHistory,
+  findAcknowledgement,
   type OrderWeightWarningState,
 } from "@/lib/clinical/weightWarnings";
 import { computeReminderStatus } from "@/lib/clinical/pxUploadReminderStatus";
@@ -151,6 +153,10 @@ export function ClinicalCheckClient({
   // Task-271 — Order ids whose bounced-reminder retry is currently in
   // flight, so the queue row can render a spinner and disable the button.
   const [resendingReminderIds, setResendingReminderIds] = useState<Set<string>>(() => new Set());
+  // Task-280 — Order ids whose row-level weight-warning acknowledgement is
+  // currently in flight, so the row's "Acknowledge" button can show a spinner
+  // and stay disabled while we fan the rationale across each unack'd kind.
+  const [ackingWeightWarningIds, setAckingWeightWarningIds] = useState<Set<string>>(() => new Set());
   // Bumped each time the clinician clicks a row's "N review needed" badge.
   // The slide-over watches this nonce to switch to the Questionnaire tab and
   // scroll/highlight the first safety-flagged answer.
@@ -332,6 +338,75 @@ export function ClinicalCheckClient({
       });
     }
   }, [orders, clinicId, resendingReminderIds]);
+
+  // Task-280 — Acknowledge every still-unacknowledged weight warning on an
+  // order straight from the queue row. We deliberately recompute the list of
+  // unack'd kinds *here* (rather than trusting a stale prop) and only call
+  // the mock for kinds without an active acknowledgement, so a teammate's
+  // prior ack on a different kind is never silently overwritten. The mock
+  // already rejects double-acks defensively; this guard just skips the
+  // round-trip and avoids spurious "already acknowledged" errors.
+  const handleAcknowledgeRowWeightWarnings = useCallback(
+    async (orderId: string, rationale: string) => {
+      const target = orders.find((o) => o.id === orderId);
+      if (!target) {
+        setErrorToast("This order is no longer in the queue.");
+        return;
+      }
+      if (ackingWeightWarningIds.has(orderId)) return;
+
+      const warnings = analyseWeightHistory(target.weight_history, {
+        isContinuation: target.type === "reorder",
+        thresholds: clinic.config.weight_warning_thresholds,
+      });
+      const pendingKinds = warnings
+        .map((w) => w.kind)
+        .filter((kind) => !findAcknowledgement(target, kind));
+      if (pendingKinds.length === 0) {
+        setErrorToast("No unacknowledged weight warnings remain on this order.");
+        return;
+      }
+
+      setAckingWeightWarningIds((prev) => {
+        const next = new Set(prev);
+        next.add(orderId);
+        return next;
+      });
+      try {
+        let latest: Order = target;
+        for (const kind of pendingKinds) {
+          // Acknowledge each kind in sequence so the mock's append-only
+          // acknowledgement list ends up with one entry per kind (matching
+          // the slide-over flow's audit trail one-for-one).
+          latest = await acknowledgeWeightWarning(
+            clinicId,
+            orderId,
+            kind,
+            rationale,
+            clinic.config.weight_warning_thresholds,
+          );
+        }
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? latest : o)));
+        setOkToast(
+          pendingKinds.length === 1
+            ? "Weight warning acknowledged."
+            : `${pendingKinds.length} weight warnings acknowledged.`,
+        );
+      } catch (err) {
+        setErrorToast(
+          err instanceof Error ? err.message : "Could not save acknowledgement.",
+        );
+        throw err;
+      } finally {
+        setAckingWeightWarningIds((prev) => {
+          const next = new Set(prev);
+          next.delete(orderId);
+          return next;
+        });
+      }
+    },
+    [orders, ackingWeightWarningIds, clinic.config.weight_warning_thresholds, clinicId],
+  );
 
   const handleUndo = useCallback(async () => {
     if (!undoToast || isUndoing) return;
@@ -910,6 +985,8 @@ export function ClinicalCheckClient({
                 onResendBouncedReminder={handleResendBouncedReminder}
                 resendingReminderOrderIds={resendingReminderIds}
                 weightWarningStateByOrderId={weightWarningStateByOrderId}
+                onAcknowledgeRowWeightWarnings={handleAcknowledgeRowWeightWarnings}
+                acknowledgingWeightWarningOrderIds={ackingWeightWarningIds}
               />
             )}
           </div>

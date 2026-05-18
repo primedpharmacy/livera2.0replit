@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Mail, MailX, MailCheck, RefreshCw, Undo2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Mail, MailX, MailCheck, RefreshCw, Undo2, X } from "lucide-react";
 import { NOW, USERS_REGISTRY } from "@/lib/api/constants";
 import {
   groupFlaggedAnswersByCategory,
@@ -123,6 +123,17 @@ export interface OrderListTableProps {
    */
   weightWarningStateByOrderId?: Record<string, OrderWeightWarningState>;
   /**
+   * Task-280 — When provided in clinical_check context, rows whose order has
+   * at least one unacknowledged weight warning show an inline "Acknowledge"
+   * affordance next to the weight-warning pill. The handler is responsible
+   * for fanning the rationale across every still-unacknowledged warning kind
+   * on that order (so teammate acks aren't silently overwritten) and
+   * reflecting the resulting order back into local state.
+   */
+  onAcknowledgeRowWeightWarnings?: (orderId: string, rationale: string) => void | Promise<void>;
+  /** Order ids whose row-level weight-warning acknowledgement is in flight. */
+  acknowledgingWeightWarningOrderIds?: ReadonlySet<string>;
+  /**
    * Task-242 — Per-order breakdown of unresolved questionnaire issues
    * (safety-flagged "yes" answers + missing required answers). Rendered as a
    * small badge in the orders-context Patient cell so triagers can see at a
@@ -146,6 +157,8 @@ export function OrderListTable({
   onResendBouncedReminder,
   resendingReminderOrderIds,
   weightWarningStateByOrderId,
+  onAcknowledgeRowWeightWarnings,
+  acknowledgingWeightWarningOrderIds,
   unresolvedIssuesByOrderId,
 }: OrderListTableProps) {
   const router = useRouter();
@@ -259,6 +272,8 @@ export function OrderListTable({
                     onResendBouncedReminder={onResendBouncedReminder}
                     isResendingReminder={resendingReminderOrderIds?.has(order.id) ?? false}
                     weightWarningState={weightWarningStateByOrderId?.[order.id]}
+                    onAcknowledgeWeightWarnings={onAcknowledgeRowWeightWarnings}
+                    isAcknowledgingWeightWarnings={acknowledgingWeightWarningOrderIds?.has(order.id) ?? false}
                   />
                 ) : (
                   <OrdersRow
@@ -378,6 +393,8 @@ function ClinicalCheckRow({
   onResendBouncedReminder,
   isResendingReminder,
   weightWarningState,
+  onAcknowledgeWeightWarnings,
+  isAcknowledgingWeightWarnings,
 }: {
   order: Order;
   name: string;
@@ -395,6 +412,8 @@ function ClinicalCheckRow({
   onResendBouncedReminder?: (orderId: string) => void | Promise<void>;
   isResendingReminder?: boolean;
   weightWarningState?: OrderWeightWarningState;
+  onAcknowledgeWeightWarnings?: (orderId: string, rationale: string) => void | Promise<void>;
+  isAcknowledgingWeightWarnings?: boolean;
 }) {
   const router = useRouter();
   const ageCls =
@@ -446,7 +465,17 @@ function ClinicalCheckRow({
                 return <ReversalPill entry={latest} />;
               })()}
               {weightWarningState && (weightWarningState.hasUnacknowledged || weightWarningState.allAcknowledged) ? (
-                <WeightWarningSummaryPill state={weightWarningState} />
+                <>
+                  <WeightWarningSummaryPill state={weightWarningState} />
+                  {weightWarningState.hasUnacknowledged && onAcknowledgeWeightWarnings ? (
+                    <AcknowledgeRowWeightWarningButton
+                      orderId={order.id}
+                      pendingCount={weightWarningState.unacknowledged}
+                      isBusy={Boolean(isAcknowledgingWeightWarnings)}
+                      onSubmit={onAcknowledgeWeightWarnings}
+                    />
+                  ) : null}
+                </>
               ) : null}
             </div>
             <div className="text-[11px] text-t3 font-mono">{order.patient_id} · {order.id}</div>
@@ -1175,6 +1204,142 @@ function ResendBouncedReminderButton({
       <RefreshCw className={cn("w-2.5 h-2.5", isBusy && "animate-spin")} />
       {isBusy ? "Resending…" : "Resend now"}
     </button>
+  );
+}
+
+// ── Row-level acknowledge weight warning (Task-280) ──────────────────────────
+/**
+ * Compact inline affordance rendered immediately after the "N weight" pill
+ * on the Clinical Check queue. Lets reviewers acknowledge every still-
+ * unacknowledged weight warning on the order with a single rationale,
+ * without having to open the slide-over.
+ *
+ * Behaviour mirrors the slide-over's WeightWarningChips:
+ *   • Requires a rationale of at least 3 characters.
+ *   • The parent fans the rationale across each still-unacknowledged warning
+ *     kind, so teammate acknowledgements on other kinds are preserved.
+ *   • Click events stop propagating so the row's onClick (slide-over open)
+ *     doesn't fire alongside.
+ */
+function AcknowledgeRowWeightWarningButton({
+  orderId,
+  pendingCount,
+  isBusy,
+  onSubmit,
+}: {
+  orderId: string;
+  pendingCount: number;
+  isBusy: boolean;
+  onSubmit: (orderId: string, rationale: string) => void | Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+
+  // Close the popover when the user clicks outside of it.
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (!wrapRef.current) return;
+      if (e.target instanceof Node && wrapRef.current.contains(e.target)) return;
+      setOpen(false);
+      setError(null);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const reset = () => {
+    setOpen(false);
+    setText("");
+    setError(null);
+  };
+
+  return (
+    <span ref={wrapRef} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (isBusy) return;
+          setOpen((v) => !v);
+          setError(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+        }}
+        disabled={isBusy}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`Acknowledge weight warning${pendingCount === 1 ? "" : "s"}`}
+        title="Acknowledge this weight warning without opening the order"
+        className={cn(
+          "inline-flex items-center gap-1 text-[10px] font-bold border rounded-full px-1.5 py-px leading-none transition-colors",
+          "text-brand bg-surface border-brand/40 hover:bg-brand/10",
+          "disabled:opacity-60 disabled:cursor-not-allowed",
+        )}
+      >
+        <CheckCircle2 className={cn("w-2.5 h-2.5", isBusy && "animate-spin")} />
+        {isBusy ? "Saving…" : "Acknowledge"}
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Acknowledge weight warning"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          className="absolute z-30 top-full left-0 mt-1 w-[280px] rounded-md border border-bdr bg-surface shadow-lg p-2"
+        >
+          <label className="block text-[10.5px] font-semibold text-t2 mb-1">
+            Why is it safe to proceed despite{" "}
+            {pendingCount === 1 ? "this warning" : `these ${pendingCount} warnings`}?
+          </label>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={3}
+            disabled={isBusy}
+            autoFocus
+            placeholder="e.g. Patient on holiday last fortnight — weight stable on review."
+            className="w-full text-[12px] rounded border border-bdr bg-page-bg px-2 py-1.5 text-t1 focus:outline-none focus:ring-1 focus:ring-brand resize-y"
+          />
+          {error && (
+            <p className="mt-1 text-[10.5px] text-err font-medium">{error}</p>
+          )}
+          <div className="mt-1.5 flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); reset(); }}
+              disabled={isBusy}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-t2 px-2 py-1 rounded hover:bg-page-bg disabled:opacity-50"
+            >
+              <X className="w-3 h-3" /> Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isBusy || text.trim().length < 3}
+              onClick={async (e) => {
+                e.stopPropagation();
+                setError(null);
+                try {
+                  await onSubmit(orderId, text.trim());
+                  // Parent state will drop the unack'd pill, which unmounts
+                  // this button; we still reset for safety.
+                  reset();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Could not save acknowledgement");
+                }
+              }}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-brand hover:bg-brand/90 px-2.5 py-1 rounded disabled:opacity-50"
+            >
+              <CheckCircle2 className="w-3 h-3" />
+              {isBusy ? "Saving…" : "Save acknowledgement"}
+            </button>
+          </div>
+        </div>
+      )}
+    </span>
   );
 }
 

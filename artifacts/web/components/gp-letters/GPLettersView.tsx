@@ -15,8 +15,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { GPLetterComposeModal } from "@/components/gp-letters/GPLetterComposeModal";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { CURRENT_USER } from "@/lib/api/mock";
-import { cancelGPLetterAction } from "@/lib/actions/gpLetterActions";
+import { cancelGPLetter, CURRENT_USER } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { GPLetter, Patient, Clinic, ClinicId, GPLetterTemplate } from "@/types";
@@ -138,7 +137,7 @@ export function GPLettersView({
     if (!cancelTarget || cancelReason.trim().length < 20) return;
     setCancelling(true);
     try {
-      const updated = await cancelGPLetterAction(clinicId, cancelTarget.id, cancelReason.trim());
+      const updated = await cancelGPLetter(clinicId, cancelTarget.id, cancelReason.trim());
       setLetters((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
       showToast("Letter cancelled", "ok");
       setCancelTarget(null);

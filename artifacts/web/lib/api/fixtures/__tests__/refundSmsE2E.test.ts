@@ -145,7 +145,7 @@ describe('Refund flow → patient notification log (Twilio fetch-stubbed)', () =
       refund_type: 'partial',
       amount_gbp:  50,
       reason:      'partial_use',
-    }, { ...(await import('../../constants')).CURRENT_USER, can_refund: true });
+    });
 
     // Twilio Messages API was called exactly once with the expected
     // recipient, body, and Basic auth header.
@@ -194,7 +194,7 @@ describe('Refund flow → patient notification log (Twilio fetch-stubbed)', () =
       refund_type: 'partial',
       amount_gbp:  25,
       reason:      'partial_use',
-    }, { ...(await import('../../constants')).CURRENT_USER, can_refund: true });
+    });
 
     // Twilio was hit exactly once; Postmark stays in mock mode so no
     // additional outbound HTTP is fired for the email fallback.

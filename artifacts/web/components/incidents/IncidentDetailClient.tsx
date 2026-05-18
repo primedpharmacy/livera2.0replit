@@ -12,12 +12,11 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLegend";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { CURRENT_USER } from "@/lib/api/mock";
 import {
-  updateIncidentStatusAction, notifyCQCAction,
-  syncIncidentFromMondayAction, recordYellowCardDecisionAction,
-  addIncidentCommentAction,
-} from "@/lib/actions/incidentActions";
+  updateIncidentStatus, submitYellowCard, notifyCQC,
+  syncIncidentFromMonday, recordYellowCardDecision,
+  addIncidentComment, CURRENT_USER,
+} from "@/lib/api/mock";
 import { USERS_REGISTRY } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
@@ -189,7 +188,7 @@ function CommentsPanel({
     if (!trimmed) return;
     setPosting(true);
     try {
-      const newComment = await addIncidentCommentAction(clinicId, incidentId, trimmed);
+      const newComment = await addIncidentComment(clinicId, incidentId, trimmed);
       setComments((prev) => [...prev, newComment]);
       setBody("");
     } finally {
@@ -362,7 +361,7 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
     setIsActing(true);
     try {
       const wasOpen = !["resolved", "closed"].includes(incident.status);
-      const updated = await updateIncidentStatusAction(clinicId, incident.id, status);
+      const updated = await updateIncidentStatus(clinicId, incident.id, status);
       setIncident(updated);
       const nowOpen = !["resolved", "closed"].includes(updated.status);
       if (wasOpen !== nowOpen) {
@@ -381,7 +380,7 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
     if (ycLocalDecision === "filed" && !ycRef.trim()) return;
     setYcSaving(true);
     try {
-      const updated = await recordYellowCardDecisionAction(
+      const updated = await recordYellowCardDecision(
         clinicId, incident.id, ycLocalDecision,
         ycLocalDecision === "filed" ? ycRef.trim() : undefined
       );
@@ -402,7 +401,7 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
   async function handleNotifyCQC() {
     setIsActing(true);
     try {
-      const updated = await notifyCQCAction(clinicId, incident.id);
+      const updated = await notifyCQC(clinicId, incident.id);
       setIncident(updated);
       setToast({ message: "CQC notified", type: "ok" });
     } catch (err) {
@@ -415,7 +414,7 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
   async function handleSync() {
     setIsSyncing(true);
     try {
-      const updated = await syncIncidentFromMondayAction(clinicId, incident.id);
+      const updated = await syncIncidentFromMonday(clinicId, incident.id);
       setIncident(updated);
       setToast({ message: "Synced from Monday.com", type: "ok" });
     } catch (err) {

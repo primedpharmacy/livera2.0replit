@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createGPLetterAction } from "@/lib/actions/gpLetterActions";
+import { createGPLetter } from "@/lib/api/mock";
 import type { Patient, Clinic, ClinicId, GPLetterTemplate } from "@/types";
 
 interface Props {
@@ -61,7 +61,7 @@ export function GPLetterNewClient({ patients, templates, clinic, clinicId }: Pro
     setError(null);
     setIsSubmitting(true);
     try {
-      const letter = await createGPLetterAction(clinicId, {
+      const letter = await createGPLetter(clinicId, {
         patient_id: selectedPatientId,
         template_id: selectedTemplateId || "custom",
         subject,

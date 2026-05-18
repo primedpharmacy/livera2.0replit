@@ -17,8 +17,7 @@ import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLege
 import { saveQueue } from "@/lib/queueNavigation";
 import { Package, Clock, ArrowRight, CheckCircle, AlertTriangle } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
-import { decideOrder, CURRENT_USER } from "@/lib/api/mock";
-import { createClinicalNoteAction } from "@/lib/actions/clinicalNoteActions";
+import { decideOrder, createClinicalNote, CURRENT_USER } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import type { AIDraftResult } from "@/components/clinical-notes/AINoteDraftingModal";
 import type { Order, Clinic, ClinicId } from "@/types";
@@ -81,7 +80,7 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
     ) => {
       setIsSubmitting(true);
       try {
-        await createClinicalNoteAction(clinicId as ClinicId, {
+        await createClinicalNote(clinicId as ClinicId, {
           patient_id:                 target.patient_id,
           order_id:                   target.id,
           body,

@@ -1119,6 +1119,14 @@ function NotificationRow({
           <EmailPreviewButton envelope={n.email_envelope} notificationId={n.id} />
         </div>
       )}
+      {/* Task-132 — explain why "Preview email" is missing on older rows
+          that the envelope-backfill job could not reconstruct, instead of
+          silently hiding the action. */}
+      {!n.email_envelope && n.email_envelope_unavailable_reason && (
+        <p className="mt-2 text-[11px] text-t3 italic">
+          Email preview unavailable: {formatUnavailableReason(n.email_envelope_unavailable_reason)}
+        </p>
+      )}
       {/* Task-97 — staff-initiated immediate resend. Only on Failed rows that
           still have retry budget AND a captured email_envelope; Bounced rows
           are intentionally excluded per retry policy. */}
@@ -1140,6 +1148,19 @@ function NotificationRow({
       )}
     </div>
   );
+}
+
+// Task-132 — staff-facing copy for the `email_envelope_unavailable_reason`
+// flag set by the envelope-backfill job. Kept colocated with the notification
+// row renderer above so the wording can evolve alongside the UI.
+function formatUnavailableReason(reason: string): string {
+  switch (reason) {
+    case 'patient_not_found':    return 'patient record is no longer on file.';
+    case 'order_not_found':      return 'the originating order has been removed.';
+    case 'no_email_on_file':     return 'no email address is on file for this patient.';
+    case 'unsupported_template': return 'the email template is no longer supported.';
+    default:                     return reason;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -64,6 +64,14 @@ export type PatientNotification = {
   last_attempt_at: string | null;
   next_retry_at: string | null;
   email_envelope: PatientEmailEnvelope | null;
+  // Task-132 — populated by backfillPatientNotificationEnvelopes when an
+  // older row's envelope cannot be reconstructed (e.g. the originating order
+  // was hard-deleted, the row was a non-email channel, or the template is
+  // no longer known). Surfaced in the per-patient notification log so staff
+  // understand why the "Preview email" action is missing instead of silently
+  // hiding it. Stays null on rows that either have an envelope already or
+  // were never email sends in the first place.
+  email_envelope_unavailable_reason: string | null;
 };
 
 // Task-66 — default retry policy. 3 attempts total (initial + 2 retries) so the
@@ -107,6 +115,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     next_retry_at:   null,
     // Task-98 — snapshot of the email the patient received, surfaced by the
     // "Preview email" action in the per-patient notification log.
+    email_envelope_unavailable_reason: null,
     email_envelope:  {
       to_email: 'patient+pt00198@example.com',
       subject:  'Your refund for order ORD-00450 has been processed',
@@ -160,6 +169,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     last_error:      'Postmark 504: upstream timeout while accepting message',
     last_attempt_at: '2026-05-18T09:12:00Z',
     next_retry_at:   '2026-05-18T09:17:00Z',
+    email_envelope_unavailable_reason: null,
     email_envelope:  {
       to_email: 'patient+pt00198@example.com',
       subject:  'Your order ORD-00451 has been approved',
@@ -194,6 +204,7 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     last_error:      'Hard bounce: mailbox does not exist (550 5.1.1)',
     last_attempt_at: '2026-05-17T16:04:00Z',
     next_retry_at:   null,
+    email_envelope_unavailable_reason: null,
     email_envelope:  {
       to_email: 'patient+pt00198@example.com',
       subject:  'Your order ORD-00452 is on its way',
@@ -232,7 +243,8 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     last_error:      'Unreachable destination handset (Twilio 30003)',
     last_attempt_at: '2026-05-18T08:01:00Z',
     next_retry_at:   null,
-    email_envelope:  null,
+    email_envelope:                    null,
+    email_envelope_unavailable_reason: null,
   },
   // Task-137 — SMS marked Failed by the carrier (landline / unroutable). Same
   // shape as above; UI must surface the carrier reason so clinicians know to
@@ -258,7 +270,52 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     last_error:      'Landline or unreachable carrier (Twilio 30006)',
     last_attempt_at: '2026-05-18T07:42:00Z',
     next_retry_at:   null,
-    email_envelope:  null,
+    email_envelope:                    null,
+    email_envelope_unavailable_reason: null,
+  },
+  // Task-132 — "older" rows recorded before the email_envelope snapshot field
+  // existed. The backfill job (backfillPatientNotificationEnvelopes) walks
+  // these and reconstructs the envelope from the originating order + patient.
+  // NOTIF-LEGACY-001 is reconstructible (order still in fixtures); -002 points
+  // at a long-deleted order so the job marks it unrecoverable and sets
+  // email_envelope_unavailable_reason so the UI explains the missing preview.
+  {
+    id: 'NOTIF-LEGACY-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00441',
+    type: 'order_approved',
+    channel: 'Email',
+    template: 'order_approved',
+    status: 'Delivered',
+    sent_at: '2025-11-04T11:08:00Z',
+    payload: { order_id: 'ORD-00441' },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2025-11-04T11:08:00Z',
+    next_retry_at:   null,
+    email_envelope:                    null,
+    email_envelope_unavailable_reason: null,
+  },
+  {
+    id: 'NOTIF-LEGACY-002',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00099',
+    type: 'order_dispatched',
+    channel: 'Email',
+    template: 'order_dispatched',
+    status: 'Delivered',
+    sent_at: '2025-09-19T15:41:00Z',
+    payload: { order_id: 'ORD-00099', tracking_number: 'AB000000000GB' },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2025-09-19T15:41:00Z',
+    next_retry_at:   null,
+    email_envelope:                    null,
+    email_envelope_unavailable_reason: null,
   },
 ];
 
@@ -302,6 +359,7 @@ export function recordPatientNotification(input: {
     last_attempt_at: sentAt,
     next_retry_at:   input.status === 'Failed' ? nextRetryAtFor(attemptCount, sentAt) : null,
     email_envelope:  input.email_envelope ?? null,
+    email_envelope_unavailable_reason: null,
   };
   MOCK_PATIENT_NOTIFICATIONS.push(record);
   return record;

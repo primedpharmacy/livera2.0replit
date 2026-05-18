@@ -124,14 +124,32 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
       const staff = USERS_REGISTRY[resend.by_user_id]?.full_name
         ?? resend.by_user_id;
       const attemptLabel = `Resend ${idx + 1} of ${totalResends}`;
+      // Task-178 — Render Bounced/Failed resends as a distinct error entry
+      // instead of treating them as a successful "Px upload link resent".
+      const isDelivered = (resend.status ?? 'Delivered') === 'Delivered';
+      const whenIso = isDelivered
+        ? (resend.sent_at ?? resend.attempted_at)
+        : (resend.attempted_at ?? resend.sent_at);
+      if (!whenIso) return;
+      if (!isDelivered) {
+        entries.push({
+          key: `px_link_resend_failed_${idx}`,
+          dot: "err",
+          title: `Px upload link resend failed to deliver`,
+          meta: `to ${resend.to_email} · ${formatDateTime(whenIso)} · by ${staff} · ${resend.status}`,
+          ts: new Date(whenIso).getTime(),
+          rationale: resend.error_message ?? "Postmark did not return an error message.",
+        });
+        return;
+      }
       entries.push({
         key: `px_link_resent_${idx}`,
         dot: "info",
         title: resend.previous_expired
           ? "Px upload link re-issued (previous link had expired)"
           : "Px upload link resent to patient",
-        meta: `to ${resend.to_email} · ${formatDateTime(resend.sent_at)} · by ${staff}`,
-        ts: new Date(resend.sent_at).getTime(),
+        meta: `to ${resend.to_email} · ${formatDateTime(whenIso)} · by ${staff}`,
+        ts: new Date(whenIso).getTime(),
         subtext: `${attemptLabel} · New single-use link · expires ${resend.expires_at.slice(0, 10)}`,
       });
     });

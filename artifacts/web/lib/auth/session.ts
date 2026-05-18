@@ -18,6 +18,10 @@ import type { NextRequest } from 'next/server';
 import { USERS_REGISTRY } from '@/lib/api/constants';
 import type { User } from '@/lib/api/types';
 
+// `next/headers` is dynamically imported below (only inside the
+// `requireServerActionUser` server-action helper) so this module stays usable
+// from middleware / route handlers that take a NextRequest.
+
 export const SESSION_COOKIE_NAME = 'livera_session_uid';
 
 // Dev fallback only — production deployments must set SESSION_SECRET.
@@ -69,5 +73,30 @@ export function getSessionUser(request: NextRequest): User | null {
   if (!uid) return null;
   const user = USERS_REGISTRY[uid];
   if (!user || !user.active) return null;
+  return user;
+}
+
+// ── Server-action variant — reads the cookie via `next/headers` ────────────
+// Task-194: staff mutations implemented as React server actions resolve their
+// actor via this helper instead of the hard-coded `CURRENT_USER` constant.
+// Throws `UNAUTHENTICATED` on anonymous / forged / inactive callers so the
+// caller fixture never records an audit line for an unknown user.
+export class UnauthenticatedActionError extends Error {
+  code = 'UNAUTHENTICATED' as const;
+  constructor(message = 'Sign-in required to perform this action') {
+    super(message);
+    this.name = 'UnauthenticatedActionError';
+  }
+}
+
+export async function requireServerActionUser(): Promise<User> {
+  const { cookies } = await import('next/headers');
+  const jar = await cookies();
+  const raw = jar.get(SESSION_COOKIE_NAME)?.value;
+  if (!raw) throw new UnauthenticatedActionError();
+  const uid = verify(raw);
+  if (!uid) throw new UnauthenticatedActionError();
+  const user = USERS_REGISTRY[uid];
+  if (!user || !user.active) throw new UnauthenticatedActionError();
   return user;
 }

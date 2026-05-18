@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime, formatRelativeTime, formatAge } from "@/lib/format";
-import { decideAmendment, processRefundAmendment } from "@/lib/api/mock";
+import { decideAmendmentAction, processRefundAmendmentAction } from "@/lib/actions/amendmentActions";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { useCurrentUser } from "@/lib/context";
 import type { Amendment, Order, Patient } from "@/types";
@@ -95,7 +95,7 @@ export function AmendmentDetailClient({
     setIsSubmitting(true);
     try {
       const wasOpen = amendment.status === "requested" || amendment.status === "reviewing";
-      const updated = await decideAmendment(clinicId as "vsc" | "feeltru", amendment.id, decision, r);
+      const updated = await decideAmendmentAction(clinicId as "vsc" | "feeltru", amendment.id, decision, r);
       setAmendment(updated);
       const nowOpen = updated.status === "requested" || updated.status === "reviewing";
       if (wasOpen && !nowOpen) {
@@ -127,7 +127,7 @@ export function AmendmentDetailClient({
     }
     setIsSubmitting(true);
     try {
-      const updated = await processRefundAmendment(clinicId as "vsc" | "feeltru", amendment.id, {
+      const updated = await processRefundAmendmentAction(clinicId as "vsc" | "feeltru", amendment.id, {
         decision: "approve",
         refund_type: refundType,
         amount_gbp: Number(amountGbp.toFixed(2)),
@@ -146,7 +146,7 @@ export function AmendmentDetailClient({
     if (!rationale.trim()) return;
     setIsSubmitting(true);
     try {
-      const updated = await processRefundAmendment(clinicId as "vsc" | "feeltru", amendment.id, {
+      const updated = await processRefundAmendmentAction(clinicId as "vsc" | "feeltru", amendment.id, {
         decision: "reject",
         rationale,
       });

@@ -7,7 +7,8 @@ import {
   FileText, AlertTriangle, TrendingDown, TrendingUp, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { decideOrder, createClinicalNote, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { decideOrder, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { createClinicalNoteAction } from "@/lib/actions/clinicalNoteActions";
 import { can } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/format";
 import {
@@ -232,7 +233,7 @@ export function ClinicalCheckSlideOver({
     // entry without an extra fetch round-trip.
     const snapshot: Order = { ...order };
     try {
-      await createClinicalNote(clinicId, {
+      await createClinicalNoteAction(clinicId, {
         patient_id:                  order.patient_id,
         order_id:                    order.id,
         body,

@@ -16,11 +16,11 @@ import { useState, useEffect, useCallback } from "react";
 import {
   MessageSquare, ChevronLeft, Send, Plus, CheckCircle, Clock, AlertTriangle,
 } from "lucide-react";
+import { listPharmacyCommThreads } from "@/lib/api/mock";
 import {
-  listPharmacyCommThreads,
-  replyToPharmacyCommThread,
-  createPharmacyCommThread,
-} from "@/lib/api/mock";
+  replyToPharmacyCommThreadAction,
+  createPharmacyCommThreadAction,
+} from "@/lib/actions/pharmacyCommActions";
 import { CURRENT_USER } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/format";
@@ -105,7 +105,7 @@ export function PharmacyCommsPanel({ clinicId, anchorType, anchorId }: Props) {
     if (!selectedThread || !replyBody.trim() || isSending) return;
     setIsSending(true);
     try {
-      await replyToPharmacyCommThread(clinicId, selectedThread.id, replyBody.trim());
+      await replyToPharmacyCommThreadAction(clinicId, selectedThread.id, replyBody.trim());
       setReplyBody("");
       await fetchThreads();
     } catch (e) {
@@ -119,7 +119,7 @@ export function PharmacyCommsPanel({ clinicId, anchorType, anchorId }: Props) {
     if (!newBody.trim() || isCreating) return;
     setIsCreating(true);
     try {
-      const thread = await createPharmacyCommThread(clinicId, {
+      const thread = await createPharmacyCommThreadAction(clinicId, {
         anchor_type: anchorType,
         anchor_id:   anchorId,
         topic:       newTopic,

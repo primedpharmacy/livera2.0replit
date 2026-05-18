@@ -14,8 +14,8 @@
  *   POLISH    — Date.now() replaced with monotonic counter to stay consistent with NOW
  */
 
-import type { ClinicId, PharmacyCommThread, PharmacyCommMessage } from '../types';
-import { delay, APIError, scopedToClinic, CURRENT_USER, NOW } from '../constants';
+import type { ClinicId, PharmacyCommThread, PharmacyCommMessage, User } from '../types';
+import { delay, APIError, scopedToClinic, NOW } from '../constants';
 import { can } from '@/lib/permissions';
 
 // ---------------------------------------------------------------------------
@@ -168,15 +168,16 @@ export async function createPharmacyCommThread(
     body: string;
     amendment_id?: string | null;
   },
+  actor: User,
 ): Promise<PharmacyCommThread> {
   await delay();
 
   // Layer 2 — BLOCKER 4: permission gate (Fix Cycle 1)
-  if (!can(CURRENT_USER, 'write', 'pharmacy_comms')) {
+  if (!can(actor, 'write', 'pharmacy_comms')) {
     console.log('[AUDIT]', {
       event_type: 'pharmacy_comm_thread_create_blocked',
       outcome:    'PERMISSION_DENIED',
-      actor_id:   CURRENT_USER.id,
+      actor_id:   actor.id,
       clinic_id,
       timestamp:  NOW,
     });
@@ -199,7 +200,7 @@ export async function createPharmacyCommThread(
     topic:       payload.topic,
     priority:    payload.priority,
     status:      'open',
-    created_by_user_id: CURRENT_USER.id,
+    created_by_user_id: actor.id,
     created_at:  NOW,
     updated_at:  NOW,
     amendment_id: payload.amendment_id ?? null,
@@ -209,7 +210,7 @@ export async function createPharmacyCommThread(
         thread_id:       threadId,
         direction:       'outbound',
         body:            payload.body,
-        sent_by_user_id: CURRENT_USER.id,
+        sent_by_user_id: actor.id,
         sent_at:         NOW,
         attachments:     [],
       },
@@ -222,7 +223,7 @@ export async function createPharmacyCommThread(
   console.log('[AUDIT]', {
     event_type:   'pharmacy_comm_thread_created',
     outcome:      'success',
-    actor_id:     CURRENT_USER.id,
+    actor_id:     actor.id,
     thread_id:    threadId,
     clinic_id,
     anchor_type:  payload.anchor_type,
@@ -244,7 +245,8 @@ export async function replyToPharmacyCommThread(
   clinic_id: ClinicId,
   thread_id: string,
   body: string,
-  attachments: string[] = [],
+  attachments: string[],
+  actor: User,
 ): Promise<PharmacyCommMessage> {
   await delay();
 
@@ -263,7 +265,7 @@ export async function replyToPharmacyCommThread(
     thread_id,
     direction:       'outbound',
     body,
-    sent_by_user_id: CURRENT_USER.id,
+    sent_by_user_id: actor.id,
     sent_at:         NOW,
     attachments,
   };
@@ -275,7 +277,7 @@ export async function replyToPharmacyCommThread(
   console.log('[AUDIT]', {
     event_type: 'pharmacy_comm_reply_sent',
     outcome:    'success',
-    actor_id:   CURRENT_USER.id,
+    actor_id:   actor.id,
     thread_id,
     clinic_id,
     timestamp:  NOW,

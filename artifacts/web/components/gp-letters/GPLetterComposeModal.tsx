@@ -17,7 +17,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, FileText, AlertCircle, CheckCircle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createGPLetter, CURRENT_USER } from "@/lib/api/mock";
+import { CURRENT_USER } from "@/lib/api/mock";
+import { createGPLetterAction } from "@/lib/actions/gpLetterActions";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -83,7 +84,7 @@ export function GPLetterComposeModal({ clinicId, patients, templates, clinic, on
     setError(null);
     setSubmitting(true);
     try {
-      const letter = await createGPLetter(clinicId, {
+      const letter = await createGPLetterAction(clinicId, {
         patient_id:  selectedPatientId,
         template_id: selectedTemplateId || "custom",
         subject:     subject.trim(),

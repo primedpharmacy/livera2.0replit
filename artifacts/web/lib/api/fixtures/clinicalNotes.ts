@@ -12,7 +12,8 @@
  */
 
 import type { ClinicId, ClinicalNote } from '../types';
-import { delay, APIError, scopedToClinic, CURRENT_USER, NOW } from '../constants';
+import { delay, APIError, scopedToClinic, NOW } from '../constants';
+import type { User } from '../types';
 import { getClinicSync } from './clinics';
 import { can } from '@/lib/permissions';
 import { recordAudit } from '../audit'; // Task-167 — durable spine
@@ -377,21 +378,22 @@ export async function createClinicalNote(
     ai_draft_edited_by?: string | null;
     ai_prompt_version_id?: string | null;
   },
+  actor: User,
 ): Promise<ClinicalNote> {
   await delay();
 
   const clinic = getClinicSync(clinicId);
 
   // Layer 2 — role gate
-  if (!can(CURRENT_USER, 'write', 'clinical_notes')) {
-    console.log('[AUDIT]', { event_type: 'clinical_note_create_blocked', outcome: 'PERMISSION_DENIED', actor_id: CURRENT_USER.id, clinic_id: clinicId });
+  if (!can(actor, 'write', 'clinical_notes')) {
+    console.log('[AUDIT]', { event_type: 'clinical_note_create_blocked', outcome: 'PERMISSION_DENIED', actor_id: actor.id, clinic_id: clinicId });
     throw new APIError('SAFETY_VIOLATION', 'Only Prescribers and Admins may write clinical notes');
   }
 
   // Layer 2 — min-chars gate
   const minChars = clinic.config.clinical_note_min_chars;
   if (payload.body.length < minChars) {
-    console.log('[AUDIT]', { event_type: 'clinical_note_create_blocked', outcome: 'TOO_SHORT', actor_id: CURRENT_USER.id, clinic_id: clinicId, body_length: payload.body.length, min_chars: minChars });
+    console.log('[AUDIT]', { event_type: 'clinical_note_create_blocked', outcome: 'TOO_SHORT', actor_id: actor.id, clinic_id: clinicId, body_length: payload.body.length, min_chars: minChars });
     throw new APIError('SAFETY_VIOLATION', `Clinical note must be at least ${minChars} characters`);
   }
 
@@ -402,8 +404,8 @@ export async function createClinicalNote(
     patient_id: payload.patient_id,
     order_id: payload.order_id,
     clinic_id: clinicId,
-    author_user_id: CURRENT_USER.id,
-    author_role: CURRENT_USER.roles.includes('Prescriber') ? 'Prescriber' : 'Admin',
+    author_user_id: actor.id,
+    author_role: actor.roles.includes('Prescriber') ? 'Prescriber' : 'Admin',
     body: payload.body,
     created_at: NOW,
     updated_at: NOW,
@@ -427,7 +429,7 @@ export async function createClinicalNote(
   console.log('[AUDIT]', {
     event_type:     'clinical_note_created',
     outcome:        'success',
-    actor_id:       CURRENT_USER.id,
+    actor_id:       actor.id,
     note_id:        note.id,
     patient_id:     note.patient_id,
     clinic_id:      clinicId,
@@ -439,10 +441,10 @@ export async function createClinicalNote(
   });
   void recordAudit({
     clinic_id: clinicId,
-    actor: CURRENT_USER,
+    actor,
     entity: { type: 'clinical_note', id: note.id },
     event_type: 'clinical_note_created',
-    summary: `Clinical note ${note.id} created for ${note.patient_id} by ${CURRENT_USER.full_name}.`,
+    summary: `Clinical note ${note.id} created for ${note.patient_id} by ${actor.full_name}.`,
     after: {
       patient_id: note.patient_id,
       order_id: note.order_id,
@@ -466,21 +468,22 @@ export async function updateClinicalNote(
   clinicId: ClinicId,
   noteId: string,
   payload: { body: string },
+  actor: User,
 ): Promise<ClinicalNote> {
   await delay();
 
   const clinic = getClinicSync(clinicId);
 
   // Layer 2 — role gate
-  if (!can(CURRENT_USER, 'write', 'clinical_notes')) {
-    console.log('[AUDIT]', { event_type: 'clinical_note_update_blocked', outcome: 'PERMISSION_DENIED', actor_id: CURRENT_USER.id, note_id: noteId });
+  if (!can(actor, 'write', 'clinical_notes')) {
+    console.log('[AUDIT]', { event_type: 'clinical_note_update_blocked', outcome: 'PERMISSION_DENIED', actor_id: actor.id, note_id: noteId });
     throw new APIError('SAFETY_VIOLATION', 'Only Prescribers and Admins may update clinical notes');
   }
 
   // Layer 2 — min-chars gate
   const minChars = clinic.config.clinical_note_min_chars;
   if (payload.body.length < minChars) {
-    console.log('[AUDIT]', { event_type: 'clinical_note_update_blocked', outcome: 'TOO_SHORT', actor_id: CURRENT_USER.id, note_id: noteId, body_length: payload.body.length });
+    console.log('[AUDIT]', { event_type: 'clinical_note_update_blocked', outcome: 'TOO_SHORT', actor_id: actor.id, note_id: noteId, body_length: payload.body.length });
     throw new APIError('SAFETY_VIOLATION', `Clinical note must be at least ${minChars} characters`);
   }
 
@@ -490,8 +493,8 @@ export async function updateClinicalNote(
   const existing = MOCK_CLINICAL_NOTES[idx]!;
 
   // Layer 2 — author-only gate (prescribers may only edit their own notes)
-  if (existing.author_user_id !== CURRENT_USER.id) {
-    console.log('[AUDIT]', { event_type: 'clinical_note_update_blocked', outcome: 'NOT_AUTHOR', actor_id: CURRENT_USER.id, note_id: noteId });
+  if (existing.author_user_id !== actor.id) {
+    console.log('[AUDIT]', { event_type: 'clinical_note_update_blocked', outcome: 'NOT_AUTHOR', actor_id: actor.id, note_id: noteId });
     throw new APIError('SAFETY_VIOLATION', 'You may only edit your own clinical notes');
   }
 
@@ -506,7 +509,7 @@ export async function updateClinicalNote(
     updated_at: NOW,
     edit_history: [
       ...existing.edit_history,
-      { edited_at: NOW, edited_by: CURRENT_USER.id, previous_body: existing.body },
+      { edited_at: NOW, edited_by: actor.id, previous_body: existing.body },
     ],
     // BLD-6.4: update final_note and ai_draft_edits if AI-drafted
     ai_draft_edits: newAiDraftEdits,
@@ -520,7 +523,7 @@ export async function updateClinicalNote(
   console.log('[AUDIT]', {
     event_type:     eventType,
     outcome:        'success',
-    actor_id:       CURRENT_USER.id,
+    actor_id:       actor.id,
     note_id:        noteId,
     clinic_id:      clinicId,
     body_length:    updated.body.length,
@@ -532,10 +535,10 @@ export async function updateClinicalNote(
   });
   void recordAudit({
     clinic_id: clinicId,
-    actor: CURRENT_USER,
+    actor,
     entity: { type: 'clinical_note', id: noteId },
     event_type: eventType,
-    summary: `Clinical note ${noteId} updated by ${CURRENT_USER.full_name}.`,
+    summary: `Clinical note ${noteId} updated by ${actor.full_name}.`,
     before: { body_length: existing.body.length, edit_count: existing.edit_history.length },
     after: {
       body_length: updated.body.length,

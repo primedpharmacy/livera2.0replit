@@ -11,7 +11,8 @@
  */
 
 import type { ClinicId, CoachingLog, CalendlyBooking } from '../types';
-import { delay, scopedToClinic, CURRENT_USER, NOW } from '../constants';
+import { delay, scopedToClinic, NOW } from '../constants';
+import type { User } from '../types';
 import { getClinicSync } from './clinics';
 import { getPatient } from './patients';
 import { can } from '@/lib/permissions';
@@ -304,12 +305,13 @@ export async function listCoachingLogs(
 
 export async function addCoachingLog(
   clinic_id: ClinicId,
-  data: Omit<CoachingLog, 'id' | 'clinic_id' | 'created_at' | 'updated_at'>
+  data: Omit<CoachingLog, 'id' | 'clinic_id' | 'created_at' | 'updated_at'>,
+  actor: User,
 ): Promise<CoachingLog> {
   await delay(400);
 
   // ── Layer 1: role check ──────────────────────────────────────────────────
-  if (!can(CURRENT_USER, 'write', 'coaching_log')) {
+  if (!can(actor, 'write', 'coaching_log')) {
     throw new Error('FORBIDDEN: only Coach role may write coaching logs');
   }
 
@@ -321,7 +323,7 @@ export async function addCoachingLog(
 
   // ── Layer 3: coach ownership of patient ─────────────────────────────────
   const patient = await getPatient(clinic_id, data.patient_id);
-  if (patient.coach_id !== CURRENT_USER.id) {
+  if (patient.coach_id !== actor.id) {
     throw new Error('FORBIDDEN: patient is not assigned to you');
   }
 

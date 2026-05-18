@@ -7,14 +7,13 @@
  *   - Stores ryft_refund_ref + refunded_amount_gbp on successful refunds
  */
 
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { processRefundAmendment } from '../amendments';
 import { MOCK_AMENDMENTS } from '../amendments';
 import { MOCK_ORDERS } from '../orders';
 import { CURRENT_USER } from '../../constants';
-import type { Amendment, Order } from '../../types';
+import type { Amendment, Order, User } from '../../types';
 
-const originalCanRefund = CURRENT_USER.can_refund;
 let ordersSnapshot: Order[];
 let amendmentsSnapshot: Amendment[];
 
@@ -29,13 +28,11 @@ function restore() {
 
 snapshot();
 
+const ACTOR_WITH_REFUND: User = { ...CURRENT_USER, can_refund: true };
+const ACTOR_WITHOUT_REFUND: User = { ...CURRENT_USER, can_refund: false };
+
 beforeEach(() => {
   restore();
-  CURRENT_USER.can_refund = true;
-});
-
-afterAll(() => {
-  CURRENT_USER.can_refund = originalCanRefund;
 });
 
 // Fixture: AMEND-003 is the seeded refund amendment on ORD-00450 (£179, requested).
@@ -44,14 +41,13 @@ const CLINIC = 'feeltru';
 
 describe('processRefundAmendment() — refund authority gate', () => {
   it('throws FORBIDDEN when the user does not have can_refund', async () => {
-    CURRENT_USER.can_refund = false;
     await expect(
       processRefundAmendment(CLINIC, REFUND_AMENDMENT_ID, {
         decision: 'approve',
         refund_type: 'full',
         amount_gbp: 179,
         reason: 'dispensing_fee',
-      }),
+      }, ACTOR_WITHOUT_REFUND),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
@@ -64,7 +60,7 @@ describe('processRefundAmendment() — amount validation', () => {
         refund_type: 'partial',
         amount_gbp: 0,
         reason: 'partial_use',
-      }),
+      }, ACTOR_WITH_REFUND),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
@@ -75,7 +71,7 @@ describe('processRefundAmendment() — amount validation', () => {
         refund_type: 'partial',
         amount_gbp: 999,
         reason: 'partial_use',
-      }),
+      }, ACTOR_WITH_REFUND),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
@@ -86,7 +82,7 @@ describe('processRefundAmendment() — amount validation', () => {
         refund_type: 'partial',
         amount_gbp: 0.5,
         reason: 'partial_use',
-      }),
+      }, ACTOR_WITH_REFUND),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 });
@@ -98,10 +94,10 @@ describe('processRefundAmendment() — approve path', () => {
       refund_type: 'full',
       amount_gbp: 179,
       reason: 'dispensing_fee',
-    });
+    }, ACTOR_WITH_REFUND);
 
     expect(updated.status).toBe('applied');
-    expect(updated.decided_by).toBe(CURRENT_USER.id);
+    expect(updated.decided_by).toBe(ACTOR_WITH_REFUND.id);
     expect(updated.decided_at).toBeTruthy();
     expect(updated.details.refund_type).toBe('full');
     expect(updated.details.refund_reason_code).toBe('dispensing_fee');
@@ -116,7 +112,7 @@ describe('processRefundAmendment() — approve path', () => {
       refund_type: 'partial',
       amount_gbp: 50,
       reason: 'partial_use',
-    });
+    }, ACTOR_WITH_REFUND);
 
     expect(updated.status).toBe('applied');
     expect(updated.details.refund_type).toBe('partial');
@@ -130,7 +126,7 @@ describe('processRefundAmendment() — reject path', () => {
       processRefundAmendment(CLINIC, REFUND_AMENDMENT_ID, {
         decision: 'reject',
         rationale: '   ',
-      }),
+      }, ACTOR_WITH_REFUND),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
@@ -138,10 +134,10 @@ describe('processRefundAmendment() — reject path', () => {
     const updated = await processRefundAmendment(CLINIC, REFUND_AMENDMENT_ID, {
       decision: 'reject',
       rationale: 'Outside policy — patient retained product for full course.',
-    });
+    }, ACTOR_WITH_REFUND);
 
     expect(updated.status).toBe('rejected');
     expect(updated.decision_rationale).toContain('Outside policy');
-    expect(updated.decided_by).toBe(CURRENT_USER.id);
+    expect(updated.decided_by).toBe(ACTOR_WITH_REFUND.id);
   });
 });

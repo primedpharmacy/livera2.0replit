@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * GP Letter server actions — BLD-7.3 / BLD-7.4 (Wave 5).
+ * GP Letter server actions — BLD-7.3 / BLD-7.4 (Wave 5), Task-194.
  *
  * Server actions allow the GPLetterDetailClient (client component) to
  * orchestrate Node.js-only operations (pdfkit, Postmark) without bundling
@@ -17,20 +17,35 @@
  *   Layer 2 — server gate in sendGPLetter fixture (consent/terminal state checks)
  *   Layer 3 — audit log in sendGPLetter fixture ([AUDIT] entry)
  *
- * cancelGPLetterAction uses cancelGPLetter fixture directly (no PDF/email step).
+ * Task-194: actor is resolved server-side via requireServerActionUser().
  */
 
+import { requireServerActionUser } from '@/lib/auth/session';
 import { generateGpLetterPdf } from '@/lib/integrations/pdfGeneration';
 import { sendViaPostmark } from '@/lib/integrations/postmark';
 import {
   getGPLetter,
   getPatient,
   getClinic,
+  createGPLetter,
   sendGPLetter,
   cancelGPLetter,
-  CURRENT_USER,
 } from '@/lib/api/mock';
 import type { ClinicId, GPLetter } from '@/lib/api/types';
+
+type CreateGPLetterPayload = Parameters<typeof createGPLetter>[1];
+
+// ---------------------------------------------------------------------------
+// createGPLetterAction — Task-194
+// ---------------------------------------------------------------------------
+
+export async function createGPLetterAction(
+  clinicId: ClinicId,
+  payload: CreateGPLetterPayload,
+): Promise<GPLetter> {
+  const actor = await requireServerActionUser();
+  return createGPLetter(clinicId, payload, actor);
+}
 
 // ---------------------------------------------------------------------------
 // sendGPLetterAction — BLD-7.3 orchestration
@@ -40,6 +55,8 @@ export async function sendGPLetterAction(
   clinicId: ClinicId,
   letterId: string,
 ): Promise<GPLetter> {
+  const actor = await requireServerActionUser();
+
   const [letter, clinic] = await Promise.all([
     getGPLetter(clinicId, letterId),
     getClinic(clinicId),
@@ -58,8 +75,7 @@ export async function sendGPLetterAction(
     patient,
     order:           null,
     clinic,
-    // TODO V1.2: resolve CURRENT_USER.id to display name via team member lookup
-    prescriber_name: CURRENT_USER.id,
+    prescriber_name: actor.full_name,
   });
 
   // Step 2 — Send via Postmark (or mock)
@@ -77,7 +93,7 @@ export async function sendGPLetterAction(
     pdf_filename:         pdfResult.filename,
     postmark_message_id:  postmarkResult.message_id,
     byte_size:            pdfResult.byte_size,
-  });
+  }, actor);
 
   return updated;
 }
@@ -91,5 +107,6 @@ export async function cancelGPLetterAction(
   letterId: string,
   cancelReason: string,
 ): Promise<GPLetter> {
-  return cancelGPLetter(clinicId, letterId, cancelReason);
+  const actor = await requireServerActionUser();
+  return cancelGPLetter(clinicId, letterId, cancelReason, actor);
 }

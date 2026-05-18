@@ -15,7 +15,7 @@
 
 import { useState } from "react";
 import { PenLine, CheckCircle, AlertTriangle, ChevronDown, ChevronUp, History } from "lucide-react";
-import { createClinicalNote, updateClinicalNote } from "@/lib/api/mock";
+import { createClinicalNoteAction, updateClinicalNoteAction } from "@/lib/actions/clinicalNoteActions";
 import { formatDateTime } from "@/lib/format";
 import type { ClinicId, ClinicalNote } from "@/types";
 
@@ -60,12 +60,12 @@ export function ClinicalNoteEditor({
     setError(null);
     try {
       if (isEditMode && existingNote) {
-        const updated = await updateClinicalNote(clinicId, existingNote.id, { body });
+        const updated = await updateClinicalNoteAction(clinicId, existingNote.id, { body });
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
         onNoteUpdated?.(updated);
       } else {
-        const note = await createClinicalNote(clinicId, {
+        const note = await createClinicalNoteAction(clinicId, {
           patient_id:                 patientId,
           order_id:                   orderId ?? null,
           body,

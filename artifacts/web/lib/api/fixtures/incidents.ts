@@ -6,7 +6,7 @@
  */
 
 import type { ClinicId, Incident, IncidentComment, IncidentOrigin, IncidentType, IncidentSeverity, User } from '../types';
-import { delay, APIError, scopedToClinic, CURRENT_USER, USERS_REGISTRY, SYSTEM_USER, NOW } from '../constants';
+import { delay, APIError, scopedToClinic, USERS_REGISTRY, NOW } from '../constants';
 import { mondayWrite, mondayRead } from '../monday';
 import { can } from '@/lib/permissions';
 import { allowIntercomClosure } from '@/lib/integrations/intercom';
@@ -209,13 +209,14 @@ export async function addIncidentComment(
   _clinic_id: ClinicId,
   incident_id: string,
   body: string,
+  actor: User,
 ): Promise<IncidentComment> {
   await delay(250);
-  const { name, initials } = resolveUser(CURRENT_USER.id);
+  const { name, initials } = resolveUser(actor.id);
   const comment: IncidentComment = {
     id: `ICM-${Date.now().toString().slice(-6)}`,
     incident_id,
-    user_id: CURRENT_USER.id,
+    user_id: actor.id,
     user_name: name,
     user_initials: initials,
     body: body.trim(),
@@ -226,7 +227,7 @@ export async function addIncidentComment(
     event_type: 'incident_comment_added',
     incident_id,
     comment_id: comment.id,
-    actor_id: CURRENT_USER.id,
+    actor_id: actor.id,
     timestamp: comment.created_at,
   });
   return comment;
@@ -255,7 +256,8 @@ export async function updateIncidentStatus(
   clinic_id: ClinicId,
   id: string,
   status: Incident['status'],
-  resolution_notes?: string
+  resolution_notes: string | undefined,
+  actor: User,
 ): Promise<Incident> {
   await delay(300);
   const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
@@ -295,13 +297,13 @@ export async function updateIncidentStatus(
     prev_status: prevStatus,
     new_status: status,
     clinic_id,
-    actor_id: CURRENT_USER.id,
+    actor_id: actor.id,
     timestamp: NOW,
   });
   return i;
 }
 
-export async function submitYellowCard(clinic_id: ClinicId, id: string): Promise<Incident> {
+export async function submitYellowCard(clinic_id: ClinicId, id: string, actor: User): Promise<Incident> {
   await delay(600);
   const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
@@ -309,7 +311,7 @@ export async function submitYellowCard(clinic_id: ClinicId, id: string): Promise
   i.yellow_card_submitted = true;
   i.yellow_card_decision = 'filed';
   i.yellow_card_reference = `MHRA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(6, '0')}`;
-  console.log('[AUDIT]', { action: 'yellow_card.submitted', incident_id: id, reference: i.yellow_card_reference, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  console.log('[AUDIT]', { action: 'yellow_card.submitted', incident_id: id, reference: i.yellow_card_reference, clinic_id, user_id: actor.id, timestamp: new Date().toISOString() });
   return i;
 }
 
@@ -318,7 +320,8 @@ export async function recordYellowCardDecision(
   clinic_id: ClinicId,
   id: string,
   decision: 'filed' | 'not_applicable',
-  reference?: string
+  reference: string | undefined,
+  actor: User,
 ): Promise<Incident> {
   await delay(500);
   const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
@@ -336,26 +339,26 @@ export async function recordYellowCardDecision(
     reference: i.yellow_card_reference ?? null,
     incident_id: id,
     clinic_id,
-    user_id: CURRENT_USER.id,
+    user_id: actor.id,
     timestamp: NOW,
   });
   return i;
 }
 
-export async function notifyCQC(clinic_id: ClinicId, id: string): Promise<Incident> {
+export async function notifyCQC(clinic_id: ClinicId, id: string, actor: User): Promise<Incident> {
   await delay(400);
   const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
   if (i.cqc_notified_at) throw new APIError('ALREADY_NOTIFIED', 'CQC has already been notified for this incident');
   i.cqc_notified_at = new Date().toISOString();
-  console.log('[AUDIT]', { action: 'cqc.notified', incident_id: id, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  console.log('[AUDIT]', { action: 'cqc.notified', incident_id: id, clinic_id, user_id: actor.id, timestamp: new Date().toISOString() });
   return i;
 }
 
 // ── createIncident — BLD-8.3 (Wave 6) ────────────────────────────────────────
 // Primary caller: app/api/webhooks/intercom/route.ts with actor=SYSTEM_USER
 //   (origin='intercom_tag', intercom_thread_url set)
-// Future callers may create incidents manually (origin='manual', actor=CURRENT_USER).
+// Manual callers (logIncidentAction) pass the resolved signed-in user.
 //
 // Layer 1 (UI gate): n/a for webhook-driven path — no Livera UI calls this in V1.1
 // Layer 2 (server gate): can() check on 'incidents' resource
@@ -364,13 +367,13 @@ export async function createIncident(
   patient_id: string,
   origin: IncidentOrigin,
   body: string,
-  options?: {
+  options: {
     intercom_thread_url?: string;
     clinic_id?: string;
     incident_type?: IncidentType;
     severity?: IncidentSeverity;
-  },
-  actor: User = CURRENT_USER
+  } | undefined,
+  actor: User,
 ): Promise<Incident> {
   await delay(300);
 
@@ -449,11 +452,11 @@ export async function createIncident(
   return incident;
 }
 
-export async function syncIncidentFromMonday(clinic_id: ClinicId, id: string): Promise<Incident> {
+export async function syncIncidentFromMonday(clinic_id: ClinicId, id: string, actor: User): Promise<Incident> {
   const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
   await mondayRead(i.monday_board_id);
   i.sync_status = 'in_sync';
-  console.log('[AUDIT]', { action: 'incident.synced_from_monday', incident_id: id, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  console.log('[AUDIT]', { action: 'incident.synced_from_monday', incident_id: id, clinic_id, user_id: actor.id, timestamp: new Date().toISOString() });
   return i;
 }

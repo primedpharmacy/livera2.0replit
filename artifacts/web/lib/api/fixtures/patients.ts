@@ -4,8 +4,8 @@
  * Pure data lives in `./patients.data.ts` (client-safe). This module owns the
  * mutating fixture functions that pull in the audit / db spine. The audit
  * module itself keeps `@workspace/db` out of the client bundle via a
- * webpack-ignored dynamic import — see `lib/api/audit.ts` for the boundary
- * rationale.
+ * `"use server"` boundary (impl guarded by `import "server-only"`) — see
+ * `lib/api/audit.ts` for the boundary rationale.
  */
 
 import type { ClinicId, Patient } from '../types';

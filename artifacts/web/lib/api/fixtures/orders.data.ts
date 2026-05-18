@@ -6,7 +6,7 @@
  * → `pg` into the browser.
  *
  * Mutating server functions live in `./orders.ts`. The audit / db spine
- * (`lib/api/audit.ts`) reaches `@workspace/db` only via a webpack-ignored
+ * (`lib/api/audit.ts`) reaches `@workspace/db` only via a `"use server"` /
  * dynamic import, so client components that only need to read fixture data
  * should import from this module to stay off that path entirely.
  */

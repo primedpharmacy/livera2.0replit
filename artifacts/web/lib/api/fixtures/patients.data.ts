@@ -8,7 +8,7 @@
  * Mutations of these arrays + async helpers that reach the audit / db spine
  * live in `./patients.ts`. Client components that only need to read fixture
  * data should import from this module so they never transitively pull in
- * `lib/api/audit.ts` (where `@workspace/db` is loaded via a webpack-ignored
+ * `lib/api/audit.ts` (where `@workspace/db` is loaded via a `"use server"` /
  * dynamic import).
  */
 

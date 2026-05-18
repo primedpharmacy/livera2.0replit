@@ -5,7 +5,8 @@
  * px-upload-history backfill) lives in `./orders.data.ts` so client components
  * can read it without pulling in the audit/db spine. This module owns the
  * mutating functions; the audit module keeps `@workspace/db` out of the client
- * bundle via a webpack-ignored dynamic import — see `lib/api/audit.ts`.
+ * bundle via a `"use server"` boundary (impl guarded by
+ * `import "server-only"`) — see `lib/api/audit.ts`.
  */
 
 import type { ClinicId, Order, OrderStatus } from '../types';

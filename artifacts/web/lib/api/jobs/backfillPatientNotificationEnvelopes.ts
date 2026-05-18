@@ -39,6 +39,7 @@ import {
 } from '../fixtures/patientNotifications';
 import { MOCK_PATIENTS } from '../fixtures/patients';
 import { MOCK_ORDERS } from '../fixtures/orders';
+import { renderPatientEmail } from '../../integrations/emailTemplates';
 
 export type BackfillUnrecoverableReason =
   | 'patient_not_found'
@@ -353,23 +354,17 @@ function buildBodyForTemplate(
   }
 }
 
-// Mirrors the branded HTML wrappers used by the live notification paths
-// (amendments.ts processRefundAmendment, orders.ts cancelOrder auth-release
-// branch) so the "Preview email" modal renders the same styled email staff
-// see on new sends. Kept in lockstep with the source markup: any wording
-// change there should be mirrored here so backfilled rows stay faithful.
+// Renders backfilled HTML via the same shared `renderPatientEmail` shell the
+// live notification paths use (amendments.ts processRefundAmendment,
+// orders.ts cancelOrder auth-release branch). Going through the shared
+// renderer guarantees structural parity — when branding changes there, the
+// backfill picks the change up automatically. Only the per-template
+// paragraph copy is owned here, mirroring the wording the live send used.
 function buildHtmlForTemplate(
   template: HtmlSupportedTemplate,
   ctx: { firstName: string; orderId: string; payload: Record<string, unknown> },
 ): string | null {
   const { firstName, orderId, payload } = ctx;
-  const shell = (inner: string) =>
-    `<!doctype html><html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;">` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">` +
-    `<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">` +
-    `<tr><td style="background:#0a7e57;padding:20px 28px;color:#ffffff;font-weight:600;font-size:18px;">Livera</td></tr>` +
-    `<tr><td style="padding:28px;font-size:15px;line-height:1.55;">${inner}</td></tr>` +
-    `</table></td></tr></table></body></html>`;
 
   switch (template) {
     case 'order_cancelled_no_charge': {
@@ -387,15 +382,19 @@ function buildHtmlForTemplate(
         : `No charge has been taken — the pre-authorisation on your card ` +
           `has been released and you'll see it disappear from your ` +
           `statement within a few working days.`;
-      return shell(
-        `<p style="margin:0 0 14px;">Hi ${firstName},</p>` +
-        `<p style="margin:0 0 14px;">We've cancelled order <strong>${orderId}</strong>. ${authCopy}</p>` +
-        (reason
-          ? `<p style="margin:0 0 14px;"><span style="color:#6b7280;">Reason recorded:</span> ${reason}</p>`
-          : '') +
-        `<p style="margin:0 0 20px;">If you have any questions, just reply to this email.</p>` +
-        `<p style="margin:0;color:#6b7280;">Thanks,<br/>The Livera team</p>`,
-      );
+      const paragraphs: string[] = [
+        `We've cancelled order <strong>${orderId}</strong>. ${authCopy}`,
+      ];
+      if (reason) {
+        paragraphs.push(
+          `<span style="color:#6b7280;">Reason recorded:</span> ${reason}`,
+        );
+      }
+      paragraphs.push(`If you have any questions, just reply to this email.`);
+      return renderPatientEmail({
+        heading: `Hi ${firstName},`,
+        paragraphs,
+      }).html;
     }
     case 'order_cancelled_refund': {
       const amount =
@@ -404,14 +403,17 @@ function buildHtmlForTemplate(
           : null;
       const cardLast4 =
         typeof payload.card_last4 === 'string' ? payload.card_last4 : '••••';
-      return shell(
-        `<p style="margin:0 0 14px;">Hi ${firstName},</p>` +
-        `<p style="margin:0 0 14px;">We've processed a refund` +
+      const refundBody =
+        `We've processed a refund` +
         (amount ? ` of <strong>${amount}</strong>` : '') +
-        ` for order <strong>${orderId}</strong>. The funds will return to the card ending <strong>${cardLast4}</strong> within 3–5 working days.</p>` +
-        `<p style="margin:0 0 20px;">If you have any questions, just reply to this email.</p>` +
-        `<p style="margin:0;color:#6b7280;">Thanks,<br/>The Livera team</p>`,
-      );
+        ` for order <strong>${orderId}</strong>. The funds will return to the card ending <strong>${cardLast4}</strong> within 3–5 working days.`;
+      return renderPatientEmail({
+        heading: `Hi ${firstName},`,
+        paragraphs: [
+          refundBody,
+          `If you have any questions, just reply to this email.`,
+        ],
+      }).html;
     }
   }
 }

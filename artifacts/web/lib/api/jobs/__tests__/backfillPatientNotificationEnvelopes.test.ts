@@ -32,6 +32,7 @@ import {
   type PatientNotification,
 } from '../../fixtures/patientNotifications';
 import { backfillPatientNotificationEnvelopes } from '../backfillPatientNotificationEnvelopes';
+import { renderPatientEmail } from '../../../integrations/emailTemplates';
 
 function findRow(id: string): PatientNotification {
   const row = MOCK_PATIENT_NOTIFICATIONS.find((n) => n.id === id);
@@ -146,6 +147,32 @@ describe('backfillPatientNotificationEnvelopes', () => {
     expect(row.email_envelope?.html_body).toBeNull();
     // Text body must remain intact.
     expect(row.email_envelope?.text_body).toContain('ORD-00441');
+  });
+
+  it('renders html_body that matches the live renderPatientEmail shell structure', async () => {
+    await backfillPatientNotificationEnvelopes('feeltru');
+
+    const row = findRow('NOTIF-LEGACY-003');
+    const html = row.email_envelope?.html_body ?? '';
+
+    // Backfilled HTML must match exactly what the live notification path
+    // (orders.ts cancelOrder) would have produced for the same inputs — i.e.
+    // the same shared shell + paragraph wording. Any branding drift in the
+    // shared renderer is therefore picked up automatically.
+    const expected = renderPatientEmail({
+      heading: `Hi Sarah,`,
+      paragraphs: [
+        `We've cancelled order <strong>ORD-00450</strong>. ` +
+          `No charge has been taken — the pre-authorisation on your card ` +
+          `has been released and you'll see it disappear from your ` +
+          `statement within a few working days.`,
+        `<span style="color:#6b7280;">Reason recorded:</span> ` +
+          `Patient changed their mind before dispatch.`,
+        `If you have any questions, just reply to this email.`,
+      ],
+    }).html;
+
+    expect(html).toBe(expected);
   });
 
   it('includes html_body when reconstructing an envelope from scratch for an HTML-supported template', async () => {

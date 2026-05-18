@@ -16,8 +16,8 @@ import { ReviewNeededBadge } from '../OrderListTable';
 import type { FlaggedAnswer } from '@/lib/questionnaire';
 
 const flagged: FlaggedAnswer[] = [
-  { id: 'q_pregnant',        label: 'Are you pregnant?',           answer: 'yes' },
-  { id: 'q_eating_disorder', label: 'History of eating disorder?', answer: 'yes' },
+  { id: 'q_pregnant',        label: 'Are you pregnant?',           answer: 'yes', category: 'pregnancy' },
+  { id: 'q_eating_disorder', label: 'History of eating disorder?', answer: 'yes', category: 'mental_health' },
 ];
 
 describe('ReviewNeededBadge — Task-169', () => {

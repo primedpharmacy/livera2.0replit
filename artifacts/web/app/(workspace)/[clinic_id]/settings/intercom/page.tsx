@@ -87,6 +87,27 @@ type CredentialStatus = {
 };
 
 /**
+ * How long a webhook signing secret may sit un-rotated before we nudge the
+ * Owner to roll it. Kept as a single tunable here so the threshold can move
+ * (e.g. tightening to 90 days) without touching any rendering code.
+ */
+const SECRET_ROTATION_WARN_DAYS = 180;
+
+/**
+ * Returns true when the given rotation timestamp is older than the warning
+ * threshold. A null/missing timestamp is treated as "no warning" — the
+ * absence of a rotation date is a separate signal handled by the configured
+ * vs. demo-mode banner above.
+ */
+function isSecretRotationStale(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return false;
+  const ageDays = (Date.now() - then) / (1000 * 60 * 60 * 24);
+  return ageDays > SECRET_ROTATION_WARN_DAYS;
+}
+
+/**
  * Render an ISO timestamp as a short relative string (e.g. "3 days ago",
  * "just now"). Falls back to the absolute date when the gap is bigger than
  * ~a month — relative wording past that becomes noise rather than signal.
@@ -322,6 +343,17 @@ function WorkspaceAccessTokenSection({
               >
                 Token saved {formatRelative(status.token_saved_at)} · Secret rotated {formatRelative(status.secret_rotated_at)}
               </span>
+              {isSecretRotationStale(status.secret_rotated_at) && (
+                <button
+                  type="button"
+                  onClick={() => { setRotateOpen(true); setRotateError(null); }}
+                  className="mt-0.5 inline-flex items-center gap-1 text-warn hover:underline focus:outline-none focus:underline"
+                  title={`Signing secret hasn't been rotated in over ${SECRET_ROTATION_WARN_DAYS} days — roll it to keep the webhook secure.`}
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Rotation recommended — last rotated over {SECRET_ROTATION_WARN_DAYS} days ago
+                </button>
+              )}
             </>
           ) : (
             <span className="text-warn flex items-center gap-1.5">

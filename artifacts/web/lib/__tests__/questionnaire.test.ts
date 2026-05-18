@@ -30,7 +30,7 @@ describe('listFlaggedAnswers — Task-169', () => {
       q_weight: 92,
     });
     expect(out).toEqual([
-      { id: 'q_pregnant', label: 'Are you pregnant?', answer: 'yes' },
+      { id: 'q_pregnant', label: 'Are you pregnant?', answer: 'yes', category: 'pregnancy' },
     ]);
   });
 

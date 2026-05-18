@@ -5,7 +5,7 @@ import {
   AlertTriangle, Scale, Package, FileText, MessageSquare,
   Camera, ClipboardList, Calendar, Pill, MessageCircle, Map,
   TrendingDown, CreditCard, Clock, HeartPulse, Link2, Truck,
-  Mail, CheckCircle2, XCircle, AlertCircle, ArrowRightLeft,
+  Mail, CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
 import { differenceInWeeks, parseISO } from "date-fns";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -30,9 +30,9 @@ import {
   getPatient, listOrders, getClinic, listCoachingLogs,
   listClinicalNotes, listGPLetters, listAdminNotesByPatient,
   listIncidents, listCourierEvents, CURRENT_USER, getUpcomingCalendlyBookings,
-  listPatientNotifications, listPatientPreferredChannelChanges,
+  listPatientNotifications,
 } from "@/lib/api/mock";
-import type { PatientNotification, PatientPreferredChannelChange } from "@/lib/api/mock";
+import type { PatientNotification } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import type {
@@ -97,7 +97,7 @@ async function ProfileContent({
     const [
       patient, orders, clinicalNotes, gpLetters, adminNotes,
       coachingLogs, allIncidents, calendlyBookings, allCourierEvents,
-      notifications, channelChanges,
+      notifications,
     ] = await Promise.all([
       getPatient(clinicId, patientId),
       listOrders(clinicId, { patient_id: patientId }),
@@ -113,7 +113,6 @@ async function ProfileContent({
         : Promise.resolve([] as CalendlyBooking[]),
       listCourierEvents(clinicId),
       listPatientNotifications(clinicId, { patient_id: patientId }),
-      listPatientPreferredChannelChanges(clinicId, { patient_id: patientId }),
     ]);
 
     const patientOrderIds = new Set(orders.map((o) => o.id));
@@ -281,7 +280,6 @@ async function ProfileContent({
               {activeTab === "notifications" && (
                 <NotificationsTab
                   notifications={notifications}
-                  channelChanges={channelChanges}
                   clinicId={clinicId}
                   patientId={patientId}
                   orderIdFilter={orderIdFilter}
@@ -930,13 +928,8 @@ function IntercomTab({ patient }: { patient: Patient }) {
 
 type ResendActionResult = { ok: true } | { ok: false; reason: string };
 
-type NotificationLogItem =
-  | { kind: "notification"; at: string; id: string; notification: PatientNotification }
-  | { kind: "channel_change"; at: string; id: string; change: PatientPreferredChannelChange };
-
 function NotificationsTab({
   notifications,
-  channelChanges,
   clinicId,
   patientId,
   orderIdFilter,
@@ -944,31 +937,16 @@ function NotificationsTab({
   onResend,
 }: {
   notifications: PatientNotification[];
-  channelChanges: PatientPreferredChannelChange[];
   clinicId: ClinicId;
   patientId: string;
   orderIdFilter: string | null;
   canResend: boolean;
   onResend: (notificationId: string) => Promise<ResendActionResult>;
 }) {
-  const filteredNotifs = orderIdFilter
+  const filtered = orderIdFilter
     ? notifications.filter((n) => n.order_id === orderIdFilter)
     : notifications;
-  // Channel-change breadcrumbs are patient-scoped, not order-scoped — only
-  // surface them when the user is viewing the unfiltered log.
-  const items: NotificationLogItem[] = [
-    ...filteredNotifs.map<NotificationLogItem>((n) => ({
-      kind: "notification", at: n.sent_at, id: n.id, notification: n,
-    })),
-    ...(orderIdFilter
-      ? []
-      : channelChanges.map<NotificationLogItem>((c) => ({
-          kind: "channel_change", at: c.changed_at, id: c.id, change: c,
-        }))),
-  ];
-  const sorted = items.sort((a, b) => b.at.localeCompare(a.at));
-  const notifCount = filteredNotifs.length;
-  const changeCount = orderIdFilter ? 0 : channelChanges.length;
+  const sorted = [...filtered].sort((a, b) => b.sent_at.localeCompare(a.sent_at));
 
   return (
     <div className="p-5 flex flex-col gap-3">
@@ -1002,51 +980,21 @@ function NotificationsTab({
         <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
           <SCardHead
             icon={Mail}
-            title={
-              changeCount > 0
-                ? `${notifCount} notification${notifCount !== 1 ? "s" : ""} · ${changeCount} channel change${changeCount !== 1 ? "s" : ""}`
-                : `${notifCount} notification${notifCount !== 1 ? "s" : ""}`
-            }
+            title={`${sorted.length} notification${sorted.length !== 1 ? "s" : ""}`}
           />
           <div className="divide-y divide-bdr">
-            {sorted.map((item) =>
-              item.kind === "notification" ? (
-                <NotificationRow
-                  key={item.id}
-                  notification={item.notification}
-                  clinicId={clinicId}
-                  canResend={canResend}
-                  onResend={onResend}
-                />
-              ) : (
-                <ChannelChangeRow key={item.id} change={item.change} />
-              )
-            )}
+            {sorted.map((n) => (
+              <NotificationRow
+                key={n.id}
+                notification={n}
+                clinicId={clinicId}
+                canResend={canResend}
+                onResend={onResend}
+              />
+            ))}
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function ChannelChangeRow({ change }: { change: PatientPreferredChannelChange }) {
-  const label = (c: 'email' | 'sms' | 'phone') =>
-    c === 'sms' ? 'SMS' : c === 'email' ? 'Email' : 'Phone';
-  return (
-    <div className="px-4 py-3 bg-page-bg/60">
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="font-mono text-[11px] font-semibold text-t2 shrink-0">{change.id}</span>
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-px rounded-full border shrink-0 bg-info-bg text-info border-info-bdr">
-          <ArrowRightLeft className="w-3 h-3" /> System
-        </span>
-        <span className="text-[12px] text-t1 font-medium">
-          Preferred channel changed from{" "}
-          <span className="font-semibold">{label(change.previous_channel)}</span>{" "}
-          to <span className="font-semibold">{label(change.new_channel)}</span>{" "}
-          <span className="text-t3 font-normal">by {change.actor_name}</span>
-        </span>
-        <span className="text-[11px] text-t3 ml-auto shrink-0">{formatDateTime(change.changed_at)}</span>
-      </div>
     </div>
   );
 }

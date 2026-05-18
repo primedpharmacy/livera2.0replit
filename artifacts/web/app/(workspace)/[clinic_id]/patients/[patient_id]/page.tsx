@@ -302,6 +302,8 @@ async function ProfileContent({
                   orderIdFilter={orderIdFilter}
                   canResend={canResendNotification}
                   onResend={handleResendNotification}
+                  currentChannel={patient.contact.preferred_channel}
+                  canSwitchChannel={canEditContact}
                 />
               )}
               {activeTab === "intercom" && <IntercomTab patient={patient} />}
@@ -1000,6 +1002,8 @@ function NotificationsTab({
   orderIdFilter,
   canResend,
   onResend,
+  currentChannel,
+  canSwitchChannel,
 }: {
   notifications: PatientNotification[];
   channelChanges: PatientPreferredChannelChange[];
@@ -1009,6 +1013,8 @@ function NotificationsTab({
   orderIdFilter: string | null;
   canResend: boolean;
   onResend: (notificationId: string) => Promise<ResendActionResult>;
+  currentChannel: 'email' | 'sms' | 'phone';
+  canSwitchChannel: boolean;
 }) {
   const filteredNotifs = orderIdFilter
     ? notifications.filter((n) => n.order_id === orderIdFilter)
@@ -1080,8 +1086,11 @@ function NotificationsTab({
                   key={item.id}
                   notification={item.notification}
                   clinicId={clinicId}
+                  patientId={patientId}
                   canResend={canResend}
                   onResend={onResend}
+                  currentChannel={currentChannel}
+                  canSwitchChannel={canSwitchChannel}
                 />
               ) : item.kind === "channel_change" ? (
                 <ChannelChangeRow key={item.id} change={item.change} />

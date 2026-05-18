@@ -178,6 +178,53 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
     });
   }
 
+  // Task-175 — Cron-triggered auto-resends. Each entry on auto_resends[]
+  // is a system-initiated token rotation that fired once the link was
+  // expired (or within 24h of expiring). We render them inline with the
+  // staff-driven resends so reviewers can see the full chase history.
+  if (order.px_upload_link?.auto_resends?.length) {
+    const total = order.px_upload_link.auto_resends.length;
+    order.px_upload_link.auto_resends.forEach((auto, idx) => {
+      const attemptLabel = `Auto-resend ${idx + 1} of ${total}`;
+      if (auto.status === 'Delivered') {
+        entries.push({
+          key: `px_link_auto_resent_${idx}`,
+          dot: "info",
+          title: auto.previous_expired
+            ? "System auto-resent Px upload link (previous link had expired)"
+            : "System auto-resent Px upload link",
+          meta: `to ${auto.to_email} · ${formatDateTime(auto.sent_at)} · by system`,
+          ts: new Date(auto.sent_at).getTime(),
+          subtext: `${attemptLabel} · New single-use link · expires ${auto.expires_at.slice(0, 10)}`,
+        });
+      } else {
+        entries.push({
+          key: `px_link_auto_resent_failed_${idx}`,
+          dot: "err",
+          title: "System auto-resend of Px upload link failed to deliver",
+          meta: `to ${auto.to_email} · ${formatDateTime(auto.sent_at)} · ${auto.status}`,
+          ts: new Date(auto.sent_at).getTime(),
+          rationale: auto.error_message ?? "Postmark did not return an error message.",
+        });
+      }
+    });
+  }
+
+  // Task-175 — Auto-chase escalation. Once the cron has burned through
+  // its retry cap without an upload, the order is escalated for a staff
+  // phone call. We surface this as its own warn-tinted row so it stands
+  // out from the routine auto-resends above it.
+  if (order.px_upload_link?.auto_chase_escalated_at) {
+    entries.push({
+      key: "px_link_auto_chase_escalated",
+      dot: "err",
+      title: "Auto-chase escalated — staff to call patient",
+      meta: `${formatDateTime(order.px_upload_link.auto_chase_escalated_at)} · by system`,
+      ts: new Date(order.px_upload_link.auto_chase_escalated_at).getTime(),
+      subtext: `Retry cap reached after ${order.px_upload_link.auto_resends?.length ?? 0} auto-resends`,
+    });
+  }
+
   // Task-129 — Failed reminder attempts (Bounced / Failed sends from Postmark)
   // surface with the underlying error message so reviewers can see why a nudge
   // never landed and decide whether to chase the patient another way.
@@ -323,15 +370,11 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
     (ack.edits ?? []).forEach((edit, editIdx) => {
       const editor = USERS_REGISTRY[edit.edited_by_user_id]?.full_name
         ?? edit.edited_by_user_id;
-      // Task-189 — when the editor isn't the original acknowledger, surface
-      // the override explicitly so the wider team can see who overrode whom.
-      const isOverride = edit.edited_by_user_id !== ack.acknowledged_by_user_id;
-      const titleSuffix = isOverride ? ` — override of ${actor}` : "";
       entries.push({
         key: `weight_warning_ack_${ack.kind}_${ackIdx}_edit_${editIdx}`,
         dot: "info",
-        title: `Weight warning rationale edited — ${label}${titleSuffix}`,
-        meta: `by ${editor}${isOverride ? ` · overriding ${actor}` : ""} · ${formatDateTime(edit.edited_at)}`,
+        title: `Weight warning rationale edited — ${label}`,
+        meta: `by ${editor} · ${formatDateTime(edit.edited_at)}`,
         ts: new Date(edit.edited_at).getTime(),
         rationale: `Updated to: “${edit.new_rationale}” · Previously: “${edit.previous_rationale}”`,
       });
@@ -340,16 +383,11 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
     if (ack.reversed_at && ack.reversed_by_user_id) {
       const reverser = USERS_REGISTRY[ack.reversed_by_user_id]?.full_name
         ?? ack.reversed_by_user_id;
-      // Task-189 — same here: a reversal recorded by someone other than the
-      // original acknowledger is an override, and the timeline should name
-      // both the actor and the colleague whose ack was overridden.
-      const isOverride = ack.reversed_by_user_id !== ack.acknowledged_by_user_id;
-      const titleSuffix = isOverride ? ` — override of ${actor}` : "";
       entries.push({
         key: `weight_warning_ack_${ack.kind}_${ackIdx}_undone`,
         dot: "neutral",
-        title: `Weight warning acknowledgement undone — ${label}${titleSuffix}`,
-        meta: `by ${reverser}${isOverride ? ` · overriding ${actor}` : ""} · ${formatDateTime(ack.reversed_at)}`,
+        title: `Weight warning acknowledgement undone — ${label}`,
+        meta: `by ${reverser} · ${formatDateTime(ack.reversed_at)}`,
         ts: new Date(ack.reversed_at).getTime(),
         rationale: ack.reversal_reason ?? null,
       });

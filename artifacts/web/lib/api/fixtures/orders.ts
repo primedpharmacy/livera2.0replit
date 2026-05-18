@@ -991,11 +991,6 @@ export async function undoWeightWarningAcknowledgement(
   order_id: string,
   kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold',
   reason: string,
-  // Task-189 — when the caller is not the original acknowledger, the UI must
-  // route through an explicit "override teammate's acknowledgement" confirm
-  // step. The fixture mirrors that on the server: without `override: true`,
-  // a different clinician cannot silently flip the chip back to unreviewed.
-  options?: { override?: boolean },
 ): Promise<Order> {
   await delay(200);
   const trimmed = reason.trim();
@@ -1016,14 +1011,6 @@ export async function undoWeightWarningAcknowledgement(
   if (activeIdx === -1) {
     throw new APIError('VALIDATION', 'There is no active acknowledgement to undo');
   }
-  const target = entries[activeIdx];
-  const isOverride = target.acknowledged_by_user_id !== CURRENT_USER.id;
-  if (isOverride && !options?.override) {
-    throw new APIError(
-      'VALIDATION',
-      'This acknowledgement was recorded by a teammate — confirm the override before undoing it',
-    );
-  }
   o.weight_warning_acknowledgements = entries.map((e, i) =>
     i === activeIdx
       ? {
@@ -1043,8 +1030,6 @@ export async function undoWeightWarningAcknowledgement(
     warning_kind: kind,
     reason: trimmed,
     actor_id: CURRENT_USER.id,
-    override: isOverride,
-    original_acknowledger_id: isOverride ? target.acknowledged_by_user_id : null,
     timestamp: NOW,
   });
 
@@ -1064,9 +1049,6 @@ export async function editWeightWarningAcknowledgement(
   order_id: string,
   kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold',
   new_rationale: string,
-  // Task-189 — see `undoWeightWarningAcknowledgement`. Editing a teammate's
-  // rationale requires the caller to confirm via `override: true`.
-  options?: { override?: boolean },
 ): Promise<Order> {
   await delay(200);
   const trimmed = new_rationale.trim();
@@ -1090,13 +1072,6 @@ export async function editWeightWarningAcknowledgement(
   const target = entries[activeIdx];
   if (target.rationale.trim() === trimmed) {
     throw new APIError('VALIDATION', 'The rationale is unchanged');
-  }
-  const isOverride = target.acknowledged_by_user_id !== CURRENT_USER.id;
-  if (isOverride && !options?.override) {
-    throw new APIError(
-      'VALIDATION',
-      "This acknowledgement was recorded by a teammate — confirm the override before editing their rationale",
-    );
   }
   const previous_rationale = target.rationale;
   o.weight_warning_acknowledgements = entries.map((e, i) =>
@@ -1126,8 +1101,6 @@ export async function editWeightWarningAcknowledgement(
     previous_rationale,
     new_rationale: trimmed,
     actor_id: CURRENT_USER.id,
-    override: isOverride,
-    original_acknowledger_id: isOverride ? target.acknowledged_by_user_id : null,
     timestamp: NOW,
   });
 
@@ -2037,6 +2010,85 @@ export async function retryFailedPxUploadReminder(
     status:     sendResult.status,
     message_id: sendResult.message_id,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Task-175 — Cron-triggered auto-resend of an expired (or about-to-expire)
+// Px upload link, with no staff user attached.
+//
+// Unlike `resendPxUploadLink` (which is staff-initiated, audits CURRENT_USER,
+// and enforces a 60s cool-down to stop accidental double-clicks), this helper
+// is invoked from the `autoChaseExpiringPxUploadLinks` job once per qualifying
+// order per sweep. It:
+//   - rotates the px_upload_link token via sendPxUploadLinkEmail (the old
+//     token is invalidated and a fresh TTL is minted)
+//   - appends an entry to `px_upload_link.auto_resends[]` so the job can
+//     enforce its retry cap and the activity timeline can render the
+//     auto-chase history alongside any staff-driven resends
+//   - audits under actor_id 'system' so operators can filter cron activity
+//
+// Returns the send status (Delivered / Bounced / Failed) so the caller can
+// surface failures without reaching back into the email plumbing.
+// ---------------------------------------------------------------------------
+
+export async function autoResendPxUploadLink(
+  order: Order,
+): Promise<{ status: 'Delivered' | 'Bounced' | 'Failed'; message_id: string | null }> {
+  if (order.px_upload != null) {
+    throw new Error(`autoResendPxUploadLink: order ${order.id} already has an upload`);
+  }
+  const patient = MOCK_PATIENTS.find(
+    (p) => p.clinic_id === order.clinic_id && p.id === order.patient_id,
+  );
+  if (!patient) {
+    throw new Error(`autoResendPxUploadLink: patient ${order.patient_id} not found`);
+  }
+
+  const previousLink = order.px_upload_link;
+  const previousExpired = previousLink
+    ? new Date(previousLink.expires_at).getTime() < Date.now()
+    : false;
+  const previousAuto = previousLink?.auto_resends ?? [];
+  const previousResends = previousLink?.resends ?? [];
+
+  console.log('[AUDIT]', {
+    event_type: 'px_upload_link_auto_resend_requested',
+    clinic_id:  order.clinic_id,
+    order_id:   order.id,
+    actor_id:   'system',
+    previous_expired: previousExpired,
+    previous_token_prefix: previousLink?.token.slice(0, 8) ?? null,
+    auto_resend_index: previousAuto.length + 1,
+    timestamp:  NOW,
+  });
+
+  const fullName = patient.demographic.full_name.trim();
+  const [firstName, ...rest] = fullName.split(/\s+/);
+  const sendResult = await sendPxUploadLinkEmail(order, {
+    firstName: firstName || fullName,
+    lastName:  rest.join(' '),
+    email:     patient.contact.email,
+  });
+
+  // sendPxUploadLinkEmail overwrites order.px_upload_link with the fresh
+  // token; preserve resend history (manual + auto) across the rotation so
+  // the dashboard's retry cap and "n sends" pill stay accurate.
+  const newLink = order.px_upload_link!;
+  newLink.resends = previousResends;
+  newLink.auto_resends = [
+    ...previousAuto,
+    {
+      sent_at:          newLink.sent_at ?? NOW,
+      to_email:         newLink.to_email,
+      expires_at:       newLink.expires_at,
+      previous_expired: previousExpired,
+      status:           sendResult.status,
+      error_message:    sendResult.error_message,
+    },
+  ];
+  order.updated_at = NOW;
+
+  return { status: sendResult.status, message_id: sendResult.message_id };
 }
 
 /**

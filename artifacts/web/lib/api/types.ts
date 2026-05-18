@@ -491,6 +491,23 @@ export type Order = {
       status: 'Bounced' | 'Failed';
       error_message: string | null;
     }>;
+    // Task-175 — Auto-chase bookkeeping for the scheduled job that re-issues
+    // an expired (or about-to-expire) upload link without staff effort.
+    // Each entry records one cron-triggered token rotation; the job stops
+    // re-issuing once the array length hits MAX_AUTO_RESENDS and instead
+    // escalates the order for a staff phone call.
+    auto_resends?: Array<{
+      sent_at: string;            // ISO — when the auto-resend email was queued
+      to_email: string;
+      expires_at: string;         // new TTL for the freshly-issued token
+      previous_expired: boolean;  // true if the previous token was past its TTL
+      status: 'Delivered' | 'Bounced' | 'Failed';
+      error_message: string | null;
+    }>;
+    // Task-175 — Set once the auto-resend cap has been hit and the link is
+    // still expired (or near-expired) with no upload. Surfaces a "call the
+    // patient" task instead of silently re-trying forever.
+    auto_chase_escalated_at?: string | null;
   } | null;
 
   created_at: string;

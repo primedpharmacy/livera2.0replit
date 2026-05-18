@@ -66,7 +66,15 @@ export function aggregateTimeline(
     const prescriberName = o.clinical_decision
       ? userNames[o.clinical_decision.prescriber_user_id]
       : undefined;
-    entries.push(...adaptOrderEvent(o, clinicId, prescriberName));
+    // Task-234 — Build a reverser-name map from `userNames` so the patient
+    // timeline can label each reversal entry with the clinician who undid
+    // the decision (mirrors the order-detail Activity log).
+    const reverserNames: Record<string, string> = {};
+    for (const rev of o.reversal_log ?? []) {
+      const name = userNames[rev.reversed_by_user_id];
+      if (name) reverserNames[rev.reversed_by_user_id] = name;
+    }
+    entries.push(...adaptOrderEvent(o, clinicId, prescriberName, reverserNames));
   }
 
   // ── GP Letters ────────────────────────────────────────────────────────────

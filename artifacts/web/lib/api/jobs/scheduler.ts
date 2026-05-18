@@ -23,6 +23,7 @@ import {
 } from './retryPatientNotifications';
 import { sendPxUploadReminders } from './sendPxUploadReminders';
 import { autoChaseExpiringPxUploadLinks } from './autoChaseExpiringPxUploadLinks';
+import { evaluateSweepForOnCall } from './oncallAlerts';
 import type { ClinicId } from '../types';
 
 export type SweepClinicSummary = {
@@ -146,6 +147,7 @@ export async function runPatientNotificationRetrySweep(): Promise<SweepClinicSum
   }
 
   recordSweepEntries(records);
+  await evaluateSweepForOnCall(records);
   return summaries;
 }
 

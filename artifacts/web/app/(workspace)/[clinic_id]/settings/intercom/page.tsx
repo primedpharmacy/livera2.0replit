@@ -77,7 +77,37 @@ const SEV_STYLES: Record<string, string> = {
 // the token in-process; the response never echoes it back. State here only
 // tracks whether the clinic is configured + the last save outcome.
 
-type CredentialStatus = { configured: boolean; demo_mode?: boolean; workspace_id?: string };
+type CredentialStatus = {
+  configured: boolean;
+  demo_mode?: boolean;
+  workspace_id?: string;
+  /** ISO-8601 timestamps; null when in demo mode or unsaved. */
+  token_saved_at?: string | null;
+  secret_rotated_at?: string | null;
+};
+
+/**
+ * Render an ISO timestamp as a short relative string (e.g. "3 days ago",
+ * "just now"). Falls back to the absolute date when the gap is bigger than
+ * ~a month — relative wording past that becomes noise rather than signal.
+ */
+function formatRelative(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "—";
+  const diffSec = Math.round((Date.now() - then) / 1000);
+  if (diffSec < 30) return "just now";
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const min = Math.round(diffSec / 60);
+  if (min < 60) return `${min} min${min === 1 ? "" : "s"} ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
+  const days = Math.round(hr / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: "numeric", month: "short", day: "numeric",
+  });
+}
 
 function WorkspaceAccessTokenSection({
   clinicId,
@@ -132,8 +162,17 @@ function WorkspaceAccessTokenSection({
         const detail = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
         throw new Error(detail.error ?? `save_failed_${res.status}`);
       }
-      const next = (await res.json()) as CredentialStatus & { workspace_id?: string };
-      setStatus({ configured: next.configured, demo_mode: next.demo_mode, workspace_id: next.workspace_id });
+      // Re-fetch /status so the rendered "Token saved" / "Secret rotated"
+      // timestamps reflect the bump that just happened on the server — the
+      // POST /credentials response itself doesn't echo them back.
+      const saved = (await res.json()) as CredentialStatus;
+      try {
+        const fresh = (await fetch(`/api/intercom/${clinicId}/credentials/status`, { cache: "no-store" })
+          .then((r) => r.json())) as CredentialStatus;
+        setStatus(fresh);
+      } catch {
+        setStatus(saved);
+      }
       setToken("");
       setSecret("");
       onToast("Intercom token saved");
@@ -191,6 +230,14 @@ function WorkspaceAccessTokenSection({
       }
       setRotateSecret("");
       setRotateOpen(false);
+      // Refresh status so the "Secret rotated" relative timestamp updates.
+      try {
+        const fresh = (await fetch(`/api/intercom/${clinicId}/credentials/status`, { cache: "no-store" })
+          .then((r) => r.json())) as CredentialStatus;
+        setStatus(fresh);
+      } catch {
+        // Non-fatal: rotation persisted; next mount will pick up the new ts.
+      }
       onToast("Webhook signing secret rotated");
     } catch (err) {
       setRotateError(err instanceof Error ? err.message : "rotate_failed");
@@ -249,14 +296,33 @@ function WorkspaceAccessTokenSection({
         </div>
       </div>
       <div className="flex items-center justify-between gap-3">
-        <div className="text-[11.5px]">
+        <div className="text-[11.5px] space-y-0.5">
           {status === null ? (
             <span className="text-t3">Checking status…</span>
           ) : status.configured ? (
-            <span className="text-ok flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Live token configured · workspace {status.workspace_id ?? "—"}
-            </span>
+            <>
+              <span className="text-ok flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Live token configured · workspace {status.workspace_id ?? "—"}
+              </span>
+              <span
+                className="text-t3 block"
+                title={
+                  [
+                    status.token_saved_at
+                      ? `Token saved ${new Date(status.token_saved_at).toLocaleString()}`
+                      : null,
+                    status.secret_rotated_at
+                      ? `Secret rotated ${new Date(status.secret_rotated_at).toLocaleString()}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                }
+              >
+                Token saved {formatRelative(status.token_saved_at)} · Secret rotated {formatRelative(status.secret_rotated_at)}
+              </span>
+            </>
           ) : (
             <span className="text-warn flex items-center gap-1.5">
               <AlertCircle className="w-3.5 h-3.5" />

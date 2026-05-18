@@ -3,7 +3,7 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { Suspense } from "react";
 import { OrderDetailClient } from "@/components/orders/OrderDetailClient";
-import { getOrder, getPatient, getClinicSync, listClinicalNotes } from "@/lib/api/mock";
+import { getOrder, getPatient, getClinicSync, listClinicalNotes, listPatientNotifications } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 type OrderDetailPageProps = { params: Promise<{ clinic_id: string; order_id: string }> };
@@ -25,9 +25,14 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 async function OrderContent({ clinicId, orderId }: { clinicId: ClinicId; orderId: string }) {
   try {
     const order = await getOrder(clinicId, orderId);
-    const [patient, clinicalNotes] = await Promise.all([
+    const [patient, clinicalNotes, orderNotifications] = await Promise.all([
       getPatient(clinicId, order.patient_id),
       listClinicalNotes(clinicId, { patient_id: order.patient_id }),
+      // Task-199 — fetch this order's notifications so the order-level
+      // panel can surface the Twilio carrier reason on Bounced/Failed SMS
+      // rows inline (same renderer as the per-patient log) without staff
+      // having to drill into the patient profile.
+      listPatientNotifications(clinicId, { order_id: orderId }),
     ]);
     const clinic = getClinicSync(clinicId);
 
@@ -38,6 +43,7 @@ async function OrderContent({ clinicId, orderId }: { clinicId: ClinicId; orderId
         clinic={clinic}
         clinicId={clinicId}
         initialClinicalNotes={clinicalNotes}
+        orderNotifications={orderNotifications}
       />
     );
   } catch (err) {

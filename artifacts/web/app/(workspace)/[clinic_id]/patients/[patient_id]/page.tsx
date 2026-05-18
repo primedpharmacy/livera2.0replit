@@ -4,30 +4,53 @@ import {
   ArrowLeft, ChevronRight, Phone, Stethoscope, ShieldCheck,
   AlertTriangle, Scale, Package, FileText, MessageSquare,
   Camera, ClipboardList, Calendar, Pill, MessageCircle, Map,
-  TrendingDown, CreditCard, Clock, HeartPulse, Link2,
+  TrendingDown, CreditCard, Clock, HeartPulse, Link2, Truck,
+  Mail, ArrowRightLeft, AlertCircle,
+  Star, Activity, UserCog,
 } from "lucide-react";
 import { differenceInWeeks, parseISO } from "date-fns";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { PatientQuickActions } from "@/components/patients/PatientQuickActions";
+import { GenderEligibilityBanner } from "@/components/patients/GenderEligibilityBanner";
 import { CoachingLogTab } from "@/components/patients/CoachingLogTab";
 import { PatientNotesTimeline } from "@/components/timeline/PatientNotesTimeline";
 import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
-import { AdminNoteFABModal } from "@/components/patients/AdminNoteFABModal";
+import { PatientFABSpeedDial } from "@/components/patients/PatientFABSpeedDial";
+import { PatientQueueNav } from "@/components/patients/PatientQueueNav";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
+import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
+import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
+import { VipFlagEditor, StatusFlagEditor, CoachFlagEditor } from "@/components/patients/PatientFlagsEditor";
+import { PatientEmailEditor, PatientPhoneEditor, PatientPostcodeEditor } from "@/components/patients/PatientContactFieldEditor";
+import { LogWeightForm } from "@/components/patients/LogWeightForm";
+import { WeightTrendChart } from "@/components/patients/WeightTrendChart";
+import { PatientWeightCheckIns } from "@/components/patients/PatientWeightCheckIns";
+import { PatientUploadLinkEmails } from "@/components/patients/PatientUploadLinkEmails";
+import { PreferredChannelHistory } from "@/components/patients/PreferredChannelHistory";
+import { NotificationRow, type ResendActionResult } from "@/components/patients/NotificationRow";
+import { resendFailedPatientNotification } from "@/lib/api/jobs/retryPatientNotifications";
+import { revalidatePath } from "next/cache";
+import { verifySessionCookie } from "@/lib/auth/session";
+import { findUserByUid } from "@/lib/users/registry";
+import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import {
   getPatient, listOrders, getClinic, listCoachingLogs,
   listClinicalNotes, listGPLetters, listAdminNotesByPatient,
-  listIncidents, CURRENT_USER,
+  listIncidents, listCourierEvents, CURRENT_USER, getUpcomingCalendlyBookings,
+  listPatientNotifications, listPatientPreferredChannelChanges,
+  listPatientFlagChanges, listCoachOptions, listPatientWeightCheckIns,
 } from "@/lib/api/mock";
+import type { PatientNotification, PatientPreferredChannelChange, PatientFlagChange, PatientWeightCheckIn } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import type {
   Patient, Order, ClinicId, CoachingLog, ClinicalNote,
-  GPLetter, AdminNote, Incident, Clinic,
+  GPLetter, AdminNote, Incident, Clinic, CalendlyBooking, CourierEvent,
 } from "@/lib/api/types";
+import { CourierTrackingCard } from "@/components/orders/CourierTrackingCard";
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 const TABS = [
@@ -38,27 +61,53 @@ const TABS = [
   { key: "notes",          label: "Notes" },
   { key: "coaching",       label: "Coaching" },
   { key: "pharmacy-comms", label: "Pharmacy Comms" },
+  { key: "notifications",  label: "Notification log" },
   { key: "intercom",       label: "Intercom" },
   { key: "journey",        label: "Journey" },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
 
+// Task-326 (Wave 9a) — labels for the multi-step SumSub mirror surfaced on
+// the admin-facing Verification panel below. Patient-facing /feeltru/verify
+// owns its own copy.
+const SUMSUB_STEP_LABEL: Record<NonNullable<Patient["verification"]["sumsub_step"]>, string> = {
+  applicant: "Applicant created",
+  document_upload: "Awaiting document",
+  liveness: "Awaiting liveness check",
+  completed: "Completed",
+};
+const SUMSUB_STATUS_LABEL: Record<NonNullable<Patient["verification"]["sumsub_status"]>, string> = {
+  pending: "Pending",
+  submitted: "Submitted",
+  review: "Under review",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+const SUMSUB_DOC_LABEL: Record<NonNullable<NonNullable<Patient["verification"]["sumsub_document_type"]>>, string> = {
+  passport: "Passport",
+  driving_licence: "Driving licence",
+  national_id: "National ID",
+};
+
 type PageProps = {
   params: Promise<{ clinic_id: string; patient_id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; order_id?: string; notif_filter?: string }>;
 };
 
 export default async function PatientProfilePage({ params, searchParams }: PageProps) {
   const { clinic_id, patient_id } = await params;
-  const { tab } = await searchParams;
+  const { tab, order_id, notif_filter } = await searchParams;
   const activeTab = (tab ?? "overview") as TabKey;
+  const notifFilter: NotifStatusFilter = notif_filter === "failures" ? "failures" : "all";
   return (
-    <Suspense key={`${clinic_id}-${patient_id}-${activeTab}`} fallback={<LoadingState.Detail />}>
+    <Suspense key={`${clinic_id}-${patient_id}-${activeTab}-${order_id ?? ""}-${notifFilter}`} fallback={<LoadingState.Detail />}>
       <ProfileContent
         clinicId={clinic_id as ClinicId}
         patientId={patient_id}
         activeTab={activeTab}
+        orderIdFilter={order_id ?? null}
+        notifFilter={notifFilter}
       />
     </Suspense>
   );
@@ -69,10 +118,14 @@ async function ProfileContent({
   clinicId,
   patientId,
   activeTab,
+  orderIdFilter,
+  notifFilter,
 }: {
   clinicId: ClinicId;
   patientId: string;
   activeTab: TabKey;
+  orderIdFilter: string | null;
+  notifFilter: NotifStatusFilter;
 }) {
   try {
     const clinic = await getClinic(clinicId);
@@ -80,7 +133,8 @@ async function ProfileContent({
 
     const [
       patient, orders, clinicalNotes, gpLetters, adminNotes,
-      coachingLogs, allIncidents,
+      coachingLogs, allIncidents, calendlyBookings, allCourierEvents,
+      notifications, channelChanges, flagChanges, weightCheckIns,
     ] = await Promise.all([
       getPatient(clinicId, patientId),
       listOrders(clinicId, { patient_id: patientId }),
@@ -91,8 +145,19 @@ async function ProfileContent({
         ? listCoachingLogs(clinicId, { patient_id: patientId })
         : Promise.resolve([] as CoachingLog[]),
       listIncidents(clinicId),
+      coachingEnabled
+        ? getUpcomingCalendlyBookings(clinicId, patientId)
+        : Promise.resolve([] as CalendlyBooking[]),
+      listCourierEvents(clinicId),
+      listPatientNotifications(clinicId, { patient_id: patientId }),
+      listPatientPreferredChannelChanges(clinicId, { patient_id: patientId }),
+      listPatientFlagChanges(clinicId, { patient_id: patientId }),
+      listPatientWeightCheckIns(clinicId, { patient_id: patientId }),
     ]);
 
+    const coachOptions = listCoachOptions(clinicId);
+    const patientOrderIds = new Set(orders.map((o) => o.id));
+    const courierEvents = allCourierEvents.filter((e) => patientOrderIds.has(e.order_id));
     const incidents = allIncidents.filter((i) => i.patient_id === patientId);
     const sortedLogs = [...coachingLogs].sort((a, b) => b.entry_date.localeCompare(a.entry_date));
     const latestOrder = orders.length > 0 ? orders[orders.length - 1] : null;
@@ -101,15 +166,64 @@ async function ProfileContent({
     const rawWeightLost = patient.baseline.baseline_weight_kg - patient.latest.weight_kg;
     const weightLost = rawWeightLost > 0 ? `${rawWeightLost.toFixed(1)} kg` : "—";
     const totalSpend = orders.reduce((s, o) => s + (o.amount_authorised ?? 0), 0);
-    const canWriteNotes = can(CURRENT_USER, "write", "clinical_notes");
+    // Task-287 — resolve the actor from the signed session cookie minted by
+    // middleware (Clerk → uid OR ?as=<uid> demo override). Falls back to the
+    // module-level CURRENT_USER only when no session cookie is present, so
+    // every gating decision below honours the real persona (Owner / Admin /
+    // RM / Coach / Prescriber) rather than always rendering as Owner.
+    const { cookies: __readCookies } = await import("next/headers");
+    const __cookieJar = await __readCookies();
+    const __sessionRaw = __cookieJar.get("livera_session_uid")?.value ?? null;
+    const __sessionUid = __sessionRaw ? verifySessionCookie(__sessionRaw) : null;
+    const actor = (__sessionUid ? findUserByUid(__sessionUid) : null) ?? CURRENT_USER;
+
+    const canWriteNotes = can(actor, "write", "clinical_notes");
+    // task-104 — purge stays Owner-only (explicit role check) so that widening
+    // write:patients to Admin (for the preferred-channel editor) does not
+    // accidentally grant data-purge rights.
+    const canPurge = actor.roles.includes("Owner");
+    const canEditContact = can(actor, "write", "patients");
+    // Task-97 — staff-initiated resend gated to Owner/Admin (the operational
+    // roles that already manage pharmacy_comms / holiday_calendar). Coach and
+    // Prescriber do not get this action.
+    const canResendNotification = actor.roles.some(
+      (r) => r === "Owner" || r === "Admin" || r === "RM",
+    );
+    const genderEligibility = clinic.config.gender_eligibility;
+
+    // Task-97 — server action invoked by the Resend now button on Failed rows.
+    // Re-checks permission on the server (defence-in-depth — UI gating is not
+    // enough for a mutation endpoint) and confirms the notification belongs to
+    // the patient currently being viewed before delegating to the shared
+    // resend helper that powers the scheduled retry job.
+    async function handleResendNotification(notificationId: string) {
+      "use server";
+      const allowed = CURRENT_USER.roles.some(
+        (r) => r === "Owner" || r === "Admin" || r === "RM",
+      );
+      if (!allowed) {
+        return { ok: false as const, reason: "forbidden" };
+      }
+      const result = await resendFailedPatientNotification(
+        clinicId,
+        notificationId,
+      );
+      if (result.ok && result.notification.patient_id !== patientId) {
+        return { ok: false as const, reason: "not_found" };
+      }
+      revalidatePath(`/${clinicId}/patients/${patientId}`);
+      return result.ok ? { ok: true as const } : { ok: false as const, reason: result.reason };
+    }
 
     return (
+      <>
       <div className="flex flex-col h-full">
         {/* Breadcrumb */}
         <div className="px-6 py-2.5 bg-surface border-b border-bdr flex items-center gap-1.5 text-[12px] text-t3 shrink-0">
           <Link href={`/${clinicId}/patients`} className="flex items-center gap-1 hover:text-brand transition-colors">
             <ArrowLeft className="w-3 h-3" /> Patients
           </Link>
+          <PatientQueueNav clinicId={clinicId} patientId={patientId} />
           <ChevronRight className="w-3 h-3" />
           <span className="text-t1 font-medium">{patient.demographic.full_name}</span>
         </div>
@@ -121,10 +235,25 @@ async function ProfileContent({
             latestOrder={latestOrder}
             clinicId={clinicId}
             age={age}
+            canEditContact={canEditContact}
+            canEditWeight={canEditContact}
+            canEditFlags={canEditContact}
+            coachOptions={coachOptions}
+            channelChanges={channelChanges}
+            weightCheckIns={weightCheckIns}
           />
 
           {/* Right column */}
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+            {/* BLD-10.2/10.3 — Gender eligibility mismatch banner */}
+            <GenderEligibilityBanner
+              clinicId={clinicId}
+              patientId={patient.id}
+              patientName={patient.demographic.full_name}
+              sexAtBirth={patient.demographic.sex_at_birth}
+              genderEligibility={genderEligibility}
+              canPurge={canPurge}
+            />
             {/* Tab bar */}
             <div className="flex bg-surface border-b border-bdr px-4 overflow-x-auto shrink-0">
               {TABS.map(({ key, label }) => {
@@ -133,6 +262,13 @@ async function ProfileContent({
                 if (key === "incidents" && incidents.length > 0) badge = String(incidents.length);
                 if (key === "notes" && clinicalNotes.length > 0) badge = String(clinicalNotes.length);
                 if (key === "orders" && orders.length > 0) badge = String(orders.length);
+                if (key === "notifications") {
+                  // Count notifications + the patient-scoped system changes
+                  // (channel + flag) so the tab badge signals activity even
+                  // when a patient has no real notifications yet.
+                  const total = notifications.length + channelChanges.length + flagChanges.length;
+                  if (total > 0) badge = String(total);
+                }
                 return (
                   <Link
                     key={key}
@@ -171,6 +307,7 @@ async function ProfileContent({
                   weightLost={weightLost}
                   totalSpend={totalSpend}
                   latestOrder={latestOrder}
+                  weightCheckIns={weightCheckIns}
                 />
               )}
               {activeTab === "orders" && (
@@ -189,6 +326,7 @@ async function ProfileContent({
                   orders={orders}
                   gpLetters={gpLetters}
                   adminNotes={adminNotes}
+                  channelChanges={channelChanges}
                   canWriteNotes={canWriteNotes}
                   minChars={clinic.config.clinical_note_min_chars}
                 />
@@ -199,15 +337,36 @@ async function ProfileContent({
                   clinicId={clinicId}
                   logs={sortedLogs}
                   coachingEnabled={coachingEnabled}
+                  bookings={calendlyBookings}
                 />
               )}
-              {activeTab === "pharmacy-comms" && <PharmacyCommsTab />}
+              {activeTab === "pharmacy-comms" && (
+                <PharmacyCommsTab clinicId={clinicId} patientId={patientId} />
+              )}
+              {activeTab === "notifications" && (
+                <NotificationsTab
+                  notifications={notifications}
+                  channelChanges={channelChanges}
+                  flagChanges={flagChanges}
+                  clinicId={clinicId}
+                  patientId={patientId}
+                  orderIdFilter={orderIdFilter}
+                  statusFilter={notifFilter}
+                  canResend={canResendNotification}
+                  onResend={handleResendNotification}
+                  currentChannel={patient.contact.preferred_channel}
+                  canSwitchChannel={canEditContact}
+                />
+              )}
               {activeTab === "intercom" && <IntercomTab patient={patient} />}
-              {activeTab === "journey" && <JourneyTab />}
+              {activeTab === "journey" && <JourneyTab orders={orders as Order[]} courierEvents={courierEvents} />}
             </div>
           </div>
         </div>
       </div>
+      {/* Speed-dial FAB — visible on all tabs, actions gated by role */}
+      <PatientFABSpeedDial clinicId={clinicId} patientId={patientId} latestOrderId={latestOrder?.id ?? null} />
+      </>
     );
   } catch (err) {
     return (
@@ -225,11 +384,23 @@ function LeftColumn({
   latestOrder,
   clinicId,
   age,
+  canEditContact,
+  canEditWeight,
+  canEditFlags,
+  coachOptions,
+  channelChanges,
+  weightCheckIns,
 }: {
   patient: Patient;
   latestOrder: Order | null;
   clinicId: ClinicId;
   age: string;
+  canEditContact: boolean;
+  canEditWeight: boolean;
+  canEditFlags: boolean;
+  coachOptions: Array<{ id: string; full_name: string }>;
+  channelChanges: PatientPreferredChannelChange[];
+  weightCheckIns: PatientWeightCheckIn[];
 }) {
   const d       = patient.demographic;
   const hasB4   = patient.flags.some((f) => f.code === "B4");
@@ -303,14 +474,60 @@ function LeftColumn({
         <DR k="Date of birth" v={`${formatDate(d.dob)} (${age} yrs)`} />
         <DR k="Sex at birth" v={d.sex_at_birth} />
         <DR k="Ethnicity"   v={d.ethnicity.replace(/_/g, " ")} />
-        <DR k="Address"     v={[d.address.line1, d.address.line2, d.address.city, d.address.postcode].filter(Boolean).join(", ")} />
+        <DR k="Address"     v={[d.address.line1, d.address.line2, d.address.city].filter(Boolean).join(", ")} />
+        <PatientPostcodeEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={d.address.postcode ?? ""}
+          canEdit={canEditContact}
+        />
+      </PSec>
+
+      {/* Flags — Task-225 inline editors (audited via PATIENT_FLAG_CHANGES) */}
+      <PSec title="Flags" icon={Star}>
+        <VipFlagEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.vip}
+          canEdit={canEditFlags}
+        />
+        <StatusFlagEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.status}
+          canEdit={canEditFlags}
+        />
+        <CoachFlagEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.coach_id ?? null}
+          coaches={coachOptions}
+          canEdit={canEditFlags}
+        />
       </PSec>
 
       {/* Contact */}
       <PSec title="Contact" icon={Phone}>
-        <DR k="Email"   v={patient.contact.email} mono />
-        <DR k="Phone"   v={patient.contact.phone} mono />
-        <DR k="Channel" v={patient.contact.preferred_channel} />
+        <PatientEmailEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.contact.email}
+          canEdit={canEditContact}
+        />
+        <PatientPhoneEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.contact.phone ?? ""}
+          canEdit={canEditContact}
+        />
+        <PreferredChannelEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.contact.preferred_channel}
+          hasPhone={!!patient.contact.phone}
+          canEdit={canEditContact}
+        />
+        <PreferredChannelHistory changes={channelChanges} />
       </PSec>
 
       {/* GP */}
@@ -337,6 +554,21 @@ function LeftColumn({
         <DR k="Latest weight"    v={formatWeight(patient.latest.weight_kg)} />
         <DR k="Latest BMI"       v={formatBMI(patient.latest.bmi)} />
         <DR k="Recorded"         v={formatDate(patient.latest.recorded_at)} />
+        <WeightDeltaRow
+          baselineKg={patient.baseline.baseline_weight_kg}
+          latestKg={patient.latest.weight_kg}
+        />
+        <LogWeightForm
+          clinicId={clinicId}
+          patientId={patient.id}
+          heightCm={patient.baseline.height_cm}
+          canEdit={canEditWeight}
+        />
+        <PatientWeightCheckIns
+          clinicId={clinicId}
+          checkIns={weightCheckIns}
+          canAcknowledge={canEditWeight}
+        />
       </PSec>
 
       {/* Verification */}
@@ -344,6 +576,18 @@ function LeftColumn({
         <DR k="Sumsub ID"  v={patient.verification.sumsub_id || "—"} mono />
         <DR k="Identity"   v={patient.verification.identity_verified_at ? formatDate(patient.verification.identity_verified_at) : "Not verified"} />
         <DR k="BMI"        v={patient.verification.bmi_verified_at ? formatDate(patient.verification.bmi_verified_at) : "Not verified"} />
+        {patient.verification.sumsub_step && (
+          <DR k="SDK step"  v={SUMSUB_STEP_LABEL[patient.verification.sumsub_step]} />
+        )}
+        {patient.verification.sumsub_status && (
+          <DR k="SDK status" v={SUMSUB_STATUS_LABEL[patient.verification.sumsub_status]} />
+        )}
+        {patient.verification.sumsub_document_type && (
+          <DR k="Document"  v={SUMSUB_DOC_LABEL[patient.verification.sumsub_document_type]} />
+        )}
+        {typeof patient.verification.sumsub_confidence === 'number' && (
+          <DR k="Confidence" v={`${Math.round(patient.verification.sumsub_confidence * 100)}%`} />
+        )}
       </PSec>
 
       {/* Consents */}
@@ -378,6 +622,34 @@ function PSec({
   );
 }
 
+function WeightDeltaRow({
+  baselineKg,
+  latestKg,
+}: {
+  baselineKg: number;
+  latestKg: number;
+}) {
+  const delta = Math.round((latestKg - baselineKg) * 10) / 10;
+  // No delta yet — patient is still at intake baseline. Hide the row rather
+  // than display "0.0 kg" so it doesn't clutter freshly-onboarded profiles.
+  if (delta === 0) return null;
+  const isLoss = delta < 0;
+  const abs = Math.abs(delta).toFixed(1);
+  return (
+    <div className="flex justify-between items-baseline gap-2 py-[3px]">
+      <span className="text-[12px] text-t2 shrink-0">vs baseline</span>
+      <span
+        className={`text-[12px] text-right font-semibold ${
+          isLoss ? "text-ok" : "text-warn"
+        }`}
+      >
+        {isLoss ? "−" : "+"}
+        {abs} kg
+      </span>
+    </div>
+  );
+}
+
 function DR({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   return (
     <div className="flex justify-between items-baseline gap-2 py-[3px]">
@@ -403,6 +675,7 @@ function OverviewTab({
   weightLost,
   totalSpend,
   latestOrder,
+  weightCheckIns,
 }: {
   patient: Patient;
   orders: Order[];
@@ -413,6 +686,7 @@ function OverviewTab({
   weightLost: string;
   totalSpend: number;
   latestOrder: Order | null;
+  weightCheckIns: PatientWeightCheckIn[];
 }) {
   return (
     <div className="p-5 flex flex-col gap-4">
@@ -433,6 +707,16 @@ function OverviewTab({
           </div>
         </div>
       )}
+
+      {/* Weight trend — Task-243 */}
+      <WeightTrendChart
+        baseline={{
+          weight_kg: patient.baseline.baseline_weight_kg,
+          bmi: patient.baseline.baseline_bmi,
+          recorded_at: patient.created_at,
+        }}
+        checkIns={weightCheckIns}
+      />
 
       {/* 4-up KPI strip */}
       <div className="grid grid-cols-4 gap-3">
@@ -459,6 +743,12 @@ function OverviewTab({
           </div>
         </div>
       )}
+
+      {/* Task-266 — Aggregated upload-link email history across this
+          patient's orders. Mirrors the per-order Email-history view from
+          OrderDetailClient (Task-178), keyed by order so staff can answer
+          "I never got the email" without hopping between order pages. */}
+      <PatientUploadLinkEmails clinicId={clinicId} orders={orders} />
 
       {/* Linked incidents */}
       {incidents.length > 0 && (
@@ -728,6 +1018,7 @@ function NotesTab({
   orders,
   gpLetters,
   adminNotes,
+  channelChanges,
   canWriteNotes,
   minChars,
 }: {
@@ -738,6 +1029,7 @@ function NotesTab({
   orders: Order[];
   gpLetters: GPLetter[];
   adminNotes: AdminNote[];
+  channelChanges: PatientPreferredChannelChange[];
   canWriteNotes: boolean;
   minChars: number;
 }) {
@@ -760,13 +1052,9 @@ function NotesTab({
         orders={orders}
         gpLetters={gpLetters}
         adminNotes={adminNotes}
+        channelChanges={channelChanges}
         actor={CURRENT_USER}
         minChars={minChars}
-      />
-      {/* FAB only shown on Notes tab; component hides itself if role lacks write */}
-      <AdminNoteFABModal
-        clinicId={clinicId}
-        patientId={patientId}
       />
     </div>
   );
@@ -781,11 +1069,13 @@ function CoachingTab({
   clinicId,
   logs,
   coachingEnabled,
+  bookings,
 }: {
   patient: Patient;
   clinicId: ClinicId;
   logs: CoachingLog[];
   coachingEnabled: boolean;
+  bookings: CalendlyBooking[];
 }) {
   if (!coachingEnabled) {
     return (
@@ -802,22 +1092,18 @@ function CoachingTab({
       </div>
     );
   }
-  return <CoachingLogTab patient={patient} clinicId={clinicId} logs={logs} />;
+  return <CoachingLogTab patient={patient} clinicId={clinicId} logs={logs} bookings={bookings} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PHARMACY COMMS TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PharmacyCommsTab() {
+// BLD-16.1 — Pharmacy Comms tab (patient-anchored threads)
+function PharmacyCommsTab({ clinicId, patientId }: { clinicId: ClinicId; patientId: string }) {
   return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Pharmacy Comms threads"
-        wave_reference="Wave 16 (BLD-16.1)"
-        description="Patient-anchored pharmacy communication threads across orders, initiated from the patient profile."
-        icon={Pill}
-      />
+    <div className="border-t border-bdr">
+      <PharmacyCommsPanel clinicId={clinicId} anchorType="patient" anchorId={patientId} />
     </div>
   );
 }
@@ -826,51 +1112,310 @@ function PharmacyCommsTab() {
 // INTERCOM TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
+// BLD-INTERCOM-PHOTO-01 — delegates to client component for photo modal
 function IntercomTab({ patient }: { patient: Patient }) {
-  if (patient.intercom_user_id) {
-    return (
-      <div className="p-5 flex flex-col gap-4">
-        <div className="bg-ok-bg border border-ok-bdr rounded-lg px-4 py-3 flex items-center gap-3">
-          <MessageCircle className="w-4 h-4 text-ok shrink-0" />
-          <div>
-            <p className="text-[12px] font-semibold text-ok">Patient linked to Intercom</p>
-            <p className="text-[12px] text-t2 mt-px font-mono">{patient.intercom_user_id}</p>
+  return <IntercomPhotoTab patient={patient} />;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATION LOG TAB — Task-50
+// Per-patient notification log (channel, template, status, sent_at, payload).
+// Optional ?order_id=... filter when opened from an order context.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type NotificationLogItem =
+  | { kind: "notification"; at: string; id: string; notification: PatientNotification }
+  | { kind: "channel_change"; at: string; id: string; change: PatientPreferredChannelChange }
+  | { kind: "flag_change"; at: string; id: string; change: PatientFlagChange };
+
+type NotifStatusFilter = "all" | "failures";
+
+function NotificationsTab({
+  notifications,
+  channelChanges,
+  flagChanges,
+  clinicId,
+  patientId,
+  orderIdFilter,
+  statusFilter,
+  canResend,
+  onResend,
+  currentChannel,
+  canSwitchChannel,
+}: {
+  notifications: PatientNotification[];
+  channelChanges: PatientPreferredChannelChange[];
+  flagChanges: PatientFlagChange[];
+  clinicId: ClinicId;
+  patientId: string;
+  orderIdFilter: string | null;
+  statusFilter: NotifStatusFilter;
+  canResend: boolean;
+  onResend: (notificationId: string) => Promise<ResendActionResult>;
+  currentChannel: 'email' | 'sms' | 'phone';
+  canSwitchChannel: boolean;
+}) {
+  const orderScoped = orderIdFilter
+    ? notifications.filter((n) => n.order_id === orderIdFilter)
+    : notifications;
+  // Task-258 — "Show failures only" quick-filter so reviewers triaging delivery
+  // problems can jump straight to Failed + Bounced rows without scrolling past
+  // Delivered/Queued noise. When the failures-only chip is active we also
+  // suppress the patient-scoped system breadcrumbs (channel/flag changes),
+  // which are never "failures" themselves.
+  const failuresOnly = statusFilter === "failures";
+  const totalFailureCount = orderScoped.filter(
+    (n) => n.status === "Failed" || n.status === "Bounced",
+  ).length;
+  const filteredNotifs = failuresOnly
+    ? orderScoped.filter((n) => n.status === "Failed" || n.status === "Bounced")
+    : orderScoped;
+  // Channel-change & flag-change breadcrumbs are patient-scoped, not
+  // order-scoped — only surface them when the user is viewing the
+  // unfiltered log.
+  const showSystemChanges = !orderIdFilter && !failuresOnly;
+  const items: NotificationLogItem[] = [
+    ...filteredNotifs.map<NotificationLogItem>((n) => ({
+      kind: "notification", at: n.sent_at, id: n.id, notification: n,
+    })),
+    ...(showSystemChanges
+      ? [
+          ...channelChanges.map<NotificationLogItem>((c) => ({
+            kind: "channel_change" as const, at: c.changed_at, id: c.id, change: c,
+          })),
+          ...flagChanges.map<NotificationLogItem>((c) => ({
+            kind: "flag_change" as const, at: c.changed_at, id: c.id, change: c,
+          })),
+        ]
+      : []),
+  ];
+  const sorted = items.sort((a, b) => b.at.localeCompare(a.at));
+  const notifCount = filteredNotifs.length;
+  const changeCount = showSystemChanges ? channelChanges.length + flagChanges.length : 0;
+
+  const baseQuery = orderIdFilter ? `&order_id=${orderIdFilter}` : "";
+  const allHref = `/${clinicId}/patients/${patientId}?tab=notifications${baseQuery}`;
+  const failuresHref = `/${clinicId}/patients/${patientId}?tab=notifications${baseQuery}&notif_filter=failures`;
+
+  return (
+    <div className="p-5 flex flex-col gap-3">
+      {orderIdFilter && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2 bg-info-bg border border-info-bdr rounded-md text-[12px] text-info">
+          <span>
+            Filtered to order{" "}
+            <Link href={`/${clinicId}/orders/${orderIdFilter}`} className="font-mono font-semibold underline hover:text-info">
+              {orderIdFilter}
+            </Link>
+          </span>
+          <Link
+            href={`/${clinicId}/patients/${patientId}?tab=notifications${failuresOnly ? "&notif_filter=failures" : ""}`}
+            className="text-[11px] font-semibold hover:underline shrink-0"
+          >
+            Clear filter
+          </Link>
+        </div>
+      )}
+
+      {/* Task-258 — quick-filter chips (state lives in ?notif_filter=) */}
+      <div className="flex items-center gap-1.5">
+        <Link
+          href={allHref}
+          aria-pressed={!failuresOnly}
+          className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+            !failuresOnly
+              ? "bg-t1 text-surface border-t1"
+              : "bg-surface text-t2 border-bdr hover:border-t3"
+          }`}
+        >
+          All
+          <span className={`text-[10px] font-bold px-1.5 py-px rounded-full ${
+            !failuresOnly ? "bg-surface/20 text-surface" : "bg-page-bg text-t3"
+          }`}>
+            {orderScoped.length}
+          </span>
+        </Link>
+        <Link
+          href={failuresHref}
+          aria-pressed={failuresOnly}
+          className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+            failuresOnly
+              ? "bg-err text-white border-err"
+              : "bg-surface text-t2 border-bdr hover:border-err-bdr hover:text-err"
+          }`}
+        >
+          <AlertCircle className="w-3 h-3" />
+          Failures only
+          <span className={`text-[10px] font-bold px-1.5 py-px rounded-full ${
+            failuresOnly ? "bg-white/20 text-white" : "bg-page-bg text-t3"
+          }`}>
+            {totalFailureCount}
+          </span>
+        </Link>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="p-10 flex flex-col items-center gap-3 text-center">
+          <Mail className="w-10 h-10 text-t3 opacity-40" />
+          <p className="text-[13px] text-t3">
+            {failuresOnly
+              ? orderIdFilter
+                ? "No failed deliveries for this order."
+                : "No failed deliveries — every notification has landed."
+              : orderIdFilter
+              ? "No notifications sent for this order."
+              : "No notifications sent to this patient yet."}
+          </p>
+          {failuresOnly && (
+            <Link
+              href={allHref}
+              className="text-[11px] font-semibold text-brand hover:underline"
+            >
+              Show all notifications
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
+          <SCardHead
+            icon={Mail}
+            title={
+              changeCount > 0
+                ? `${notifCount} notification${notifCount !== 1 ? "s" : ""} · ${changeCount} system change${changeCount !== 1 ? "s" : ""}`
+                : `${notifCount} notification${notifCount !== 1 ? "s" : ""}`
+            }
+          />
+          <div className="divide-y divide-bdr">
+            {sorted.map((item) =>
+              item.kind === "notification" ? (
+                <NotificationRow
+                  key={item.id}
+                  notification={item.notification}
+                  clinicId={clinicId}
+                  patientId={patientId}
+                  canResend={canResend}
+                  onResend={onResend}
+                  currentChannel={currentChannel}
+                  canSwitchChannel={canSwitchChannel}
+                />
+              ) : item.kind === "channel_change" ? (
+                <ChannelChangeRow key={item.id} change={item.change} />
+              ) : (
+                <FlagChangeRow key={item.id} change={item.change} />
+              )
+            )}
           </div>
         </div>
-        <FuturePlaceholderCard
-          title="Intercom conversation thread display"
-          wave_reference="BLD-INT-INTERCOM-01"
-          description="Live Intercom conversation threads, tags, and labels for this patient will be embedded here."
-          icon={MessageCircle}
-        />
-      </div>
-    );
-  }
+      )}
+    </div>
+  );
+}
+
+function FlagChangeRow({ change }: { change: PatientFlagChange }) {
+  const meta =
+    change.kind === 'vip'
+      ? { Icon: Star,     label: 'VIP flag'      }
+      : change.kind === 'status'
+      ? { Icon: Activity, label: 'Patient status' }
+      : { Icon: UserCog,  label: 'Coach'         };
+  const Icon = meta.Icon;
+  const prev = change.previous_display ?? change.previous_value;
+  const next = change.new_display ?? change.new_value;
   return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Patient not yet linked to Intercom"
-        wave_reference="BLD-INT-INTERCOM-01"
-        description="Once the patient's Intercom user ID is set via the webhook integration, their conversation threads and tags will appear here."
-        icon={MessageCircle}
-      />
+    <div className="px-4 py-3 bg-page-bg/60">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="font-mono text-[11px] font-semibold text-t2 shrink-0">{change.id}</span>
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-px rounded-full border shrink-0 bg-info-bg text-info border-info-bdr">
+          <Icon className="w-3 h-3" /> System
+        </span>
+        <span className="text-[12px] text-t1 font-medium">
+          {meta.label} changed from{" "}
+          <span className="font-semibold">{prev}</span> to{" "}
+          <span className="font-semibold">{next}</span>{" "}
+          <span className="text-t3 font-normal">by {change.actor_name}</span>
+        </span>
+        <span className="text-[11px] text-t3 ml-auto shrink-0">{formatDateTime(change.changed_at)}</span>
+      </div>
+    </div>
+  );
+}
+
+function ChannelChangeRow({ change }: { change: PatientPreferredChannelChange }) {
+  const label = (c: 'email' | 'sms' | 'phone') =>
+    c === 'sms' ? 'SMS' : c === 'email' ? 'Email' : 'Phone';
+  return (
+    <div className="px-4 py-3 bg-page-bg/60">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="font-mono text-[11px] font-semibold text-t2 shrink-0">{change.id}</span>
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-px rounded-full border shrink-0 bg-info-bg text-info border-info-bdr">
+          <ArrowRightLeft className="w-3 h-3" /> System
+        </span>
+        <span className="text-[12px] text-t1 font-medium">
+          Preferred channel changed from{" "}
+          <span className="font-semibold">{label(change.previous_channel)}</span>{" "}
+          to <span className="font-semibold">{label(change.new_channel)}</span>{" "}
+          <span className="text-t3 font-normal">by {change.actor_name}</span>
+        </span>
+        <span className="text-[11px] text-t3 ml-auto shrink-0">{formatDateTime(change.changed_at)}</span>
+      </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JOURNEY TAB
+// JOURNEY TAB — BLD-11.2
 // ─────────────────────────────────────────────────────────────────────────────
 
-function JourneyTab() {
+function JourneyTab({
+  orders,
+  courierEvents,
+}: {
+  orders: Order[];
+  courierEvents: CourierEvent[];
+}) {
+  const dispatched = orders.filter(
+    (o) => o.status === "dispatched" || o.status === "delivered"
+  );
+
+  if (dispatched.length === 0) {
+    return (
+      <div className="p-5">
+        <div className="rounded-lg border border-bdr bg-surface px-5 py-8 text-center">
+          <Package className="w-8 h-8 text-t3 mx-auto mb-3" />
+          <p className="text-[13px] font-semibold text-t2">No dispatched orders</p>
+          <p className="text-[12px] text-t3 mt-1">
+            Royal Mail tracking will appear here once an order has been dispatched.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Patient journey timeline"
-        wave_reference="later waves"
-        description="End-to-end patient journey — enrolment, orders, clinical checks, escalations, and resolution events — displayed as a chronological timeline."
-        icon={Map}
-      />
+    <div className="p-5 space-y-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Truck className="w-4 h-4 text-brand" />
+        <h2 className="text-[13px] font-bold text-t1">Royal Mail tracking</h2>
+        <span className="text-[11px] text-t3">— BLD-11.2</span>
+      </div>
+
+      {dispatched.map((order) => {
+        const events = courierEvents.filter((e) => e.order_id === order.id);
+        return (
+          <div key={order.id} className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Package className="w-3.5 h-3.5 text-t3" />
+              <span className="text-[12px] font-semibold text-t1">
+                {order.id} · {order.product.medication} {order.product.dose}
+              </span>
+              <StatusBadge value={order.status} kind="order" />
+            </div>
+            <CourierTrackingCard
+              trackingId={order.royal_mail_tracking_id ?? null}
+              events={events}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { decideOrder, reverseDecision, CURRENT_USER } from "@/lib/api/mock";
 import { createClinicalNoteAction } from "@/lib/actions/clinicalNoteActions";
 import { can } from "@/lib/permissions";
 import { openOrderUndoWindow, clearOrderUndoWindow, ORDER_UNDO_WINDOW_MS } from "@/lib/orderUndo";
+import { countUnresolvedIssues, type UnresolvedIssueCounts } from "@/lib/questionnaire";
 import type { AIDraftResult } from "@/components/clinical-notes/AINoteDraftingModal";
 import type { Order, Clinic, ClinicId } from "@/types";
 
@@ -51,6 +52,27 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
 
   const activeOrders  = useMemo(() => orders.filter((o) => o.status !== "expired"), [orders]);
   const expiredOrders = useMemo(() => orders.filter((o) => o.status === "expired"), [orders]);
+
+  // Task-242 — Per-order unresolved questionnaire issue counts (flagged "yes"
+  // + missing required answers). Drives the one-glance badge on each order
+  // row and the "Has unresolved" filter/sort in OrderListFilters so triagers
+  // can see at a glance which orders still need a clinician's eye before
+  // opening them.
+  const { issueCountsByOrderId, issueTotalsByOrderId } = useMemo(() => {
+    const counts: Record<string, UnresolvedIssueCounts> = {};
+    const totals: Record<string, number> = {};
+    for (const o of orders) {
+      const config = o.type === "new"
+        ? clinic.config.questionnaire_order
+        : clinic.config.questionnaire_reorder;
+      const c = countUnresolvedIssues(config, o.questionnaire_responses);
+      if (c.total > 0) {
+        counts[o.id] = c;
+        totals[o.id] = c.total;
+      }
+    }
+    return { issueCountsByOrderId: counts, issueTotalsByOrderId: totals };
+  }, [orders, clinic]);
 
   // ── Inline approve/decline (Task-152) ─────────────────────────────────────
   // Power-users can press A/D on a highlighted order in the queue to open the
@@ -308,7 +330,11 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
       {/* ── Active tab ─────────────────────────────────────────────────────── */}
       {viewTab === "active" && (
         <>
-          <OrderListFilters orders={activeOrders} onFilter={handleFilter} />
+          <OrderListFilters
+            orders={activeOrders}
+            onFilter={handleFilter}
+            unresolvedIssuesByOrderId={issueTotalsByOrderId}
+          />
           <div className="px-6 py-4">
             {filtered.length === 0 ? (
               <EmptyState
@@ -335,6 +361,7 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
                   patientNames={patientNames}
                   context="orders"
                   selectedOrderId={focusedOrderId}
+                  unresolvedIssuesByOrderId={issueCountsByOrderId}
                 />
               </>
             )}
@@ -452,6 +479,7 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
                   patientNames={patientNames}
                   context="orders"
                   selectedOrderId={focusedOrderId}
+                  unresolvedIssuesByOrderId={issueCountsByOrderId}
                 />
               </div>
             )}

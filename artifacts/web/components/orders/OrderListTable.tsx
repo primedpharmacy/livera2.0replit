@@ -109,6 +109,13 @@ export interface OrderListTableProps {
    * warnings on the row.
    */
   weightWarningStateByOrderId?: Record<string, OrderWeightWarningState>;
+  /**
+   * Task-242 — Per-order breakdown of unresolved questionnaire issues
+   * (safety-flagged "yes" answers + missing required answers). Rendered as a
+   * small badge in the orders-context Patient cell so triagers can see at a
+   * glance which orders still need a clinician's eye before opening them.
+   */
+  unresolvedIssuesByOrderId?: Record<string, { warn: number; missing: number; total: number }>;
 }
 
 export function OrderListTable({
@@ -124,6 +131,7 @@ export function OrderListTable({
   flaggedAnswersByOrderId,
   onJumpToFlagged,
   weightWarningStateByOrderId,
+  unresolvedIssuesByOrderId,
 }: OrderListTableProps) {
   const router = useRouter();
   const now = new Date(NOW).getTime();
@@ -236,7 +244,14 @@ export function OrderListTable({
                     weightWarningState={weightWarningStateByOrderId?.[order.id]}
                   />
                 ) : (
-                  <OrdersRow order={order} name={name} ctxFlags={ctxFlags} now={new Date(NOW).getTime()} clinicId={clinicId} />
+                  <OrdersRow
+                    order={order}
+                    name={name}
+                    ctxFlags={ctxFlags}
+                    now={new Date(NOW).getTime()}
+                    clinicId={clinicId}
+                    unresolvedIssues={unresolvedIssuesByOrderId?.[order.id]}
+                  />
                 )}
               </TableRow>
             );
@@ -253,12 +268,14 @@ function OrdersRow({
   name,
   now,
   clinicId,
+  unresolvedIssues,
 }: {
   order: Order;
   name: string;
   ctxFlags: string[];
   now: number;
   clinicId: string;
+  unresolvedIssues?: { warn: number; missing: number; total: number };
 }) {
   const router = useRouter();
   const typeLabel = order.type === "reorder" ? "Reorder" : "First order";
@@ -276,8 +293,13 @@ function OrdersRow({
       <TableCell className="py-3">
         <div className="flex items-center gap-2.5">
           <Avatar pid={order.patient_id} name={name} size="sm" />
-          <div>
-            <div className="text-[12.5px] font-medium text-t1 leading-tight">{name}</div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[12.5px] font-medium text-t1 leading-tight">{name}</span>
+              {unresolvedIssues && unresolvedIssues.total > 0 && (
+                <UnresolvedIssuesBadge counts={unresolvedIssues} />
+              )}
+            </div>
             <div className="text-[11px] text-t3 font-mono">{order.patient_id}</div>
           </div>
         </div>
@@ -502,6 +524,44 @@ function ClinicalCheckRow({
         )}
       </TableCell>
     </>
+  );
+}
+
+// ── Unresolved questionnaire issues badge (Task-242) ─────────────────────────
+/**
+ * Small one-glance badge for the Orders list. Shows the combined count of
+ * flagged + missing-required questionnaire issues on the order; hovering or
+ * focusing reveals the breakdown ("2 flagged, 1 missing required") via the
+ * native title tooltip.
+ */
+export function UnresolvedIssuesBadge({
+  counts,
+}: {
+  counts: { warn: number; missing: number; total: number };
+}) {
+  const parts: string[] = [];
+  if (counts.warn > 0)    parts.push(`${counts.warn} flagged`);
+  if (counts.missing > 0) parts.push(`${counts.missing} missing required`);
+  const title = `${counts.total} unresolved questionnaire issue${counts.total === 1 ? "" : "s"}: ${parts.join(", ")}`;
+
+  // Colour blends to warn when any flagged answer is present; otherwise info
+  // (missing-only) which is less alarming but still draws the eye.
+  const cls = counts.warn > 0
+    ? "bg-warn-bg text-warn border-warn-bdr"
+    : "bg-info-bg text-info border-info-bdr";
+
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      className={cn(
+        "inline-flex items-center gap-1 text-[10px] font-bold border rounded-full px-1.5 py-px leading-none",
+        cls,
+      )}
+    >
+      <AlertTriangle className="w-2.5 h-2.5" />
+      {counts.total}
+    </span>
   );
 }
 

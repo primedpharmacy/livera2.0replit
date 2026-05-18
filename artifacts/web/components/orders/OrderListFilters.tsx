@@ -8,11 +8,18 @@ import type { Order, OrderStatus } from "@/types";
 interface OrderListFiltersProps {
   orders: Order[];
   onFilter: (filtered: Order[]) => void;
+  /**
+   * Map of orderId → unresolved questionnaire issue count (flagged + missing
+   * required). When provided, enables the "Has unresolved issues" toggle that
+   * narrows the list and sorts most-issues-first.
+   */
+  unresolvedIssuesByOrderId?: Record<string, number>;
 }
 
 type StatusFilter = "all" | "new_intake" | OrderStatus;
 type TypeFilter   = "all" | "new" | "reorder";
 type RangeFilter  = "7d" | "30d" | "90d";
+type IssueSort    = "default" | "issues_desc";
 
 const STATUS_CHIPS: { value: StatusFilter; label: string }[] = [
   { value: "all",            label: "All"                },
@@ -40,11 +47,22 @@ const RANGE_CHIPS: { value: RangeFilter; label: string; days: number }[] = [
   { value: "90d", label: "90d", days: 90 },
 ];
 
-export function OrderListFilters({ orders, onFilter }: OrderListFiltersProps) {
+export function OrderListFilters({
+  orders,
+  onFilter,
+  unresolvedIssuesByOrderId,
+}: OrderListFiltersProps) {
   const [search, setSearch]  = useState("");
   const [status, setStatus]  = useState<StatusFilter>("all");
   const [type,   setType]    = useState<TypeFilter>("all");
   const [range,  setRange]   = useState<RangeFilter>("90d");
+  const [issuesOnly, setIssuesOnly] = useState(false);
+  const [issueSort,  setIssueSort]  = useState<IssueSort>("default");
+
+  const issuesAvailable = !!unresolvedIssuesByOrderId;
+  const issuesTotalCount = issuesAvailable
+    ? orders.reduce((n, o) => n + ((unresolvedIssuesByOrderId![o.id] ?? 0) > 0 ? 1 : 0), 0)
+    : 0;
 
   const now = new Date(NOW).getTime();
 
@@ -86,15 +104,33 @@ export function OrderListFilters({ orders, onFilter }: OrderListFiltersProps) {
     const cutoff    = now - rangeDays * 86_400_000;
     results = results.filter((o) => new Date(o.created_at).getTime() >= cutoff);
 
+    // unresolved questionnaire issues
+    if (issuesAvailable && issuesOnly) {
+      results = results.filter((o) => (unresolvedIssuesByOrderId![o.id] ?? 0) > 0);
+    }
+    if (issuesAvailable && issueSort === "issues_desc") {
+      results = [...results].sort(
+        (a, b) =>
+          (unresolvedIssuesByOrderId![b.id] ?? 0) -
+          (unresolvedIssuesByOrderId![a.id] ?? 0),
+      );
+    }
+
     onFilter(results);
-  }, [orders, search, status, type, range, now, onFilter]);
+  }, [orders, search, status, type, range, now, onFilter, issuesOnly, issueSort, issuesAvailable, unresolvedIssuesByOrderId]);
 
   useEffect(() => {
     const t = setTimeout(applyFilters, 300);
     return () => clearTimeout(t);
   }, [applyFilters]);
 
-  const dirty = search || status !== "all" || type !== "all" || range !== "90d";
+  const dirty =
+    search ||
+    status !== "all" ||
+    type !== "all" ||
+    range !== "90d" ||
+    issuesOnly ||
+    issueSort !== "default";
 
   const visibleStatusChips = STATUS_CHIPS.filter(
     (chip) => chip.value === "all" || (counts[chip.value] ?? 0) > 0
@@ -124,7 +160,14 @@ export function OrderListFilters({ orders, onFilter }: OrderListFiltersProps) {
         </div>
         {dirty && (
           <button
-            onClick={() => { setSearch(""); setStatus("all"); setType("all"); setRange("90d"); }}
+            onClick={() => {
+              setSearch("");
+              setStatus("all");
+              setType("all");
+              setRange("90d");
+              setIssuesOnly(false);
+              setIssueSort("default");
+            }}
             className="text-[12px] text-t3 hover:text-t1 transition-colors"
           >
             Clear
@@ -153,6 +196,43 @@ export function OrderListFilters({ orders, onFilter }: OrderListFiltersProps) {
             );
           })}
         </div>
+
+        {issuesAvailable && (
+          <div className="flex items-center gap-1.5">
+            <SubLabel>Issues</SubLabel>
+            <button
+              type="button"
+              onClick={() => setIssuesOnly((v) => !v)}
+              aria-pressed={issuesOnly}
+              title={`Only show orders with unresolved questionnaire issues (${issuesTotalCount})`}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[12px] font-semibold rounded border transition-colors ${
+                issuesOnly
+                  ? "bg-warn text-white border-warn"
+                  : "bg-surface text-t2 border-bdr hover:border-warn hover:text-warn"
+              }`}
+            >
+              Has unresolved
+              <span className={`text-[10px] font-bold tabular-nums ${issuesOnly ? "opacity-80" : "opacity-50"}`}>
+                {issuesTotalCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setIssueSort((s) => (s === "issues_desc" ? "default" : "issues_desc"))
+              }
+              aria-pressed={issueSort === "issues_desc"}
+              title="Sort by number of unresolved issues, most first"
+              className={`px-2.5 py-0.5 text-[12px] font-semibold rounded border transition-colors ${
+                issueSort === "issues_desc"
+                  ? "bg-brand text-white border-brand"
+                  : "bg-surface text-t2 border-bdr hover:border-brand hover:text-brand"
+              }`}
+            >
+              Most first
+            </button>
+          </div>
+        )}
 
         <div className="flex items-center gap-1.5">
           <SubLabel>Range</SubLabel>

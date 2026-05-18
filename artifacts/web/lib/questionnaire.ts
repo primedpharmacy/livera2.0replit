@@ -33,6 +33,37 @@ export function countReviewNeeded(
 }
 
 /**
+ * Per-order summary of unresolved questionnaire issues — safety-flagged "yes"
+ * answers plus required questions the patient hasn't answered. Used by the
+ * Orders list to surface a one-glance badge so triagers know which rows still
+ * need a clinician's eye before opening them.
+ */
+export type UnresolvedIssueCounts = {
+  warn: number;     // safety-flagged "yes" answers
+  missing: number;  // required questions left unanswered
+  total: number;
+};
+
+export function countUnresolvedIssues(
+  questionConfig: QuestionItem[] | undefined,
+  responses: Record<string, unknown> | undefined,
+): UnresolvedIssueCounts {
+  if (!questionConfig || !responses) return { warn: 0, missing: 0, total: 0 };
+  let warn = 0;
+  let missing = 0;
+  for (const q of questionConfig) {
+    const val = responses[q.id];
+    const answered = val !== undefined && val !== null && val !== "";
+    if (!answered) {
+      if (q.required) missing++;
+    } else if (qFlag(q, val) === "warn") {
+      warn++;
+    }
+  }
+  return { warn, missing, total: warn + missing };
+}
+
+/**
  * A single safety-flagged answer surfaced on the Clinical Check queue popover.
  * Lets clinicians see *which* questions were flagged + the patient's literal
  * answer without having to open the slide-over.

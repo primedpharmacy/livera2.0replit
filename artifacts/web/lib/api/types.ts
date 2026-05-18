@@ -935,6 +935,13 @@ export type WelcomeCallAttempt = {
   notes?: string;               // clinician's own notes / quote
 };
 
+export type WelcomeCallOutcomeNote = {
+  id: string;
+  body: string;
+  by_user_id: string;
+  timestamp: string;            // ISO
+};
+
 export type WelcomeCallOutcome = {
   outcome_summary: string;
   patient_receptive?: boolean;
@@ -943,6 +950,7 @@ export type WelcomeCallOutcome = {
   follow_up_needed?: boolean;
   follow_up_note?: string;
   flag_raised_text?: string;
+  additional_notes?: WelcomeCallOutcomeNote[];
 };
 
 export type WelcomeCallFlag = {

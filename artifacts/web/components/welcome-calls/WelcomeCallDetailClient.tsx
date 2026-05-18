@@ -9,9 +9,13 @@ import {
 import { cn } from "@/lib/utils";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type {
-  WelcomeCall, WelcomeCallStatus, WelcomeCallAttemptType, ClinicTeamMember,
+  WelcomeCall, WelcomeCallStatus, WelcomeCallAttempt,
+  WelcomeCallAttemptType, ClinicTeamMember,
 } from "@/types";
-import type { LogWelcomeCallAttemptInput } from "@/lib/api/mock";
+import type {
+  LogWelcomeCallAttemptInput,
+  EditWelcomeCallAttemptInput,
+} from "@/lib/api/mock";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,6 +64,11 @@ interface Props {
   onLogAttempt: (input: LogWelcomeCallAttemptInput) => Promise<ActionResult>;
   onMarkUnreachable: (reason: string) => Promise<ActionResult>;
   onReopen: () => Promise<ActionResult>;
+  onEditAttempt: (attemptId: string, input: EditWelcomeCallAttemptInput) => Promise<ActionResult>;
+  onAddNote: (body: string) => Promise<ActionResult>;
+  onEscalateToPrescriber: (reason: string) => Promise<
+    { ok: true; taskId: string } | { ok: false; reason: string }
+  >;
 }
 
 function isOpenStatus(s: WelcomeCallStatus): boolean {
@@ -69,12 +78,17 @@ function isOpenStatus(s: WelcomeCallStatus): boolean {
 export function WelcomeCallDetailClient({
   clinicId, call, patientName, members,
   onLogAttempt, onMarkUnreachable, onReopen,
+  onEditAttempt, onAddNote, onEscalateToPrescriber,
 }: Props) {
   const router = useRouter();
   const memberMap = Object.fromEntries(members.map((m) => [m.user_id, m]));
   const [toast, setToast] = useState<string | null>(null);
   const [logAttemptOpen, setLogAttemptOpen] = useState(false);
   const [unreachableOpen, setUnreachableOpen] = useState(false);
+  const [editAttempt, setEditAttempt] = useState<WelcomeCallAttempt | null>(null);
+  const [addNoteOpen, setAddNoteOpen] = useState(false);
+  const [escalateOpen, setEscalateOpen] = useState(false);
+  const [escalateSubmitting, setEscalateSubmitting] = useState(false);
   const [pending, startTransition] = useTransition();
 
   // Drive the sidebar Welcome Calls badge from real status diffs. The
@@ -134,12 +148,48 @@ export function WelcomeCallDetailClient({
     runAction(() => onReopen(), "Call reopened.");
   }
 
+  function submitEditAttempt(attemptId: string, input: EditWelcomeCallAttemptInput) {
+    setEditAttempt(null);
+    runAction(() => onEditAttempt(attemptId, input), "Attempt updated.");
+  }
+
+  function submitAddNote(body: string) {
+    setAddNoteOpen(false);
+    runAction(() => onAddNote(body), "Note added.");
+  }
+
+  function handlePrintLog() {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  }
+
+  async function submitEscalate(reason: string) {
+    setEscalateSubmitting(true);
+    try {
+      const result = await onEscalateToPrescriber(reason);
+      if (!result.ok) {
+        showToast(result.reason || "Failed to escalate.");
+        return;
+      }
+      setEscalateOpen(false);
+      showToast("Prescriber task created.");
+      router.push(`/${clinicId}/tasks/${result.taskId}`);
+    } finally {
+      setEscalateSubmitting(false);
+    }
+  }
+
+  function handleSendGpLetter() {
+    router.push(`/${clinicId}/gp-letters/new?patient_id=${call.patient_id}`);
+  }
+
   // Status-specific topbar actions
   const topbarActions =
     call.status === "awaiting" || call.status === "attempted" ? (
       <>
         <button
-          onClick={() => showToast("Stub: Intercom telephone integration places call to patient.")}
+          onClick={() => showToast("Call placement is not yet integrated — Intercom telephone hook-up is pending.")}
           className="flex items-center gap-1.5 text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90 transition-colors"
         >
           <Phone className="w-3.5 h-3.5" />
@@ -182,7 +232,7 @@ export function WelcomeCallDetailClient({
     call.status === "awaiting" || call.status === "attempted" ? (
       <div className="flex flex-col gap-2">
         {[
-          { icon: Phone, label: "Call now", onClick: () => showToast("Stub: places Intercom call to patient."), primary: true, disabled: false },
+          { icon: Phone, label: "Call now", onClick: () => showToast("Call placement is not yet integrated — Intercom telephone hook-up is pending."), primary: true, disabled: false },
           { icon: Plus, label: "Log attempt", onClick: () => setLogAttemptOpen(true), disabled: pending },
           { icon: AlertTriangle, label: "Mark unreachable", onClick: () => setUnreachableOpen(true), danger: true, disabled: pending },
         ].map(({ icon: Icon, label, onClick, primary, danger, disabled }) => (
@@ -213,14 +263,15 @@ export function WelcomeCallDetailClient({
           {pending ? "Reopening…" : "Reopen call"}
         </button>
         <button
-          onClick={() => showToast("Stub: opens prescriber escalation note.")}
-          className="w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border border-border text-t2 hover:bg-surface-2 transition-colors"
+          onClick={() => setEscalateOpen(true)}
+          disabled={pending || escalateSubmitting}
+          className="w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border border-border text-t2 hover:bg-surface-2 transition-colors disabled:opacity-50"
         >
           <MessageSquare className="w-3.5 h-3.5 shrink-0" />
           Escalate to prescriber
         </button>
         <button
-          onClick={() => showToast("Stub: opens GP letter compose — unreachable template.")}
+          onClick={handleSendGpLetter}
           className="w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border border-border text-t2 hover:bg-surface-2 transition-colors"
         >
           <MessageSquare className="w-3.5 h-3.5 shrink-0" />
@@ -230,14 +281,27 @@ export function WelcomeCallDetailClient({
     ) : (
       <div className="flex flex-col gap-2">
         {[
-          { icon: MessageSquare, label: "Edit log",  onClick: () => showToast("Stub: opens edit log modal.") },
-          { icon: Printer,       label: "Print log", onClick: () => showToast("Stub: opens print view of call log.") },
-          { icon: Plus,          label: "Add note",  onClick: () => showToast("Stub: opens add note modal.") },
-        ].map(({ icon: Icon, label, onClick }) => (
+          {
+            icon: MessageSquare,
+            label: "Edit log",
+            onClick: () => {
+              const last = call.attempts[call.attempts.length - 1];
+              if (!last) {
+                showToast("No attempts to edit on this call.");
+                return;
+              }
+              setEditAttempt(last);
+            },
+            disabled: pending || call.attempts.length === 0,
+          },
+          { icon: Printer, label: "Print log", onClick: handlePrintLog, disabled: false },
+          { icon: Plus,    label: "Add note",  onClick: () => setAddNoteOpen(true), disabled: pending },
+        ].map(({ icon: Icon, label, onClick, disabled }) => (
           <button
             key={label}
             onClick={onClick}
-            className="w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border border-border text-t2 hover:bg-surface-2 transition-colors"
+            disabled={disabled}
+            className="w-full text-left flex items-center gap-2 text-[12px] font-medium px-3 py-2 rounded-lg border border-border text-t2 hover:bg-surface-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Icon className="w-3.5 h-3.5 shrink-0" />
             {label}
@@ -438,6 +502,26 @@ export function WelcomeCallDetailClient({
                           );
                         })}
                     </div>
+                    {call.outcome.additional_notes && call.outcome.additional_notes.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        <p className="text-[10px] font-bold text-ok uppercase tracking-wide">
+                          Notes added later ({call.outcome.additional_notes.length})
+                        </p>
+                        {call.outcome.additional_notes.map((n) => {
+                          const author = memberMap[n.by_user_id]?.full_name ?? n.by_user_id;
+                          return (
+                            <div key={n.id} className="bg-white border border-ok-bdr rounded-md px-3 py-2">
+                              <p className="text-[11px] text-t3">
+                                {fmtDateTime(n.timestamp)} · {author}
+                              </p>
+                              <p className="text-[12px] text-t1 mt-1 leading-relaxed whitespace-pre-wrap">
+                                {n.body}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -552,6 +636,36 @@ export function WelcomeCallDetailClient({
           attemptsCount={call.attempts.length}
           onSubmit={submitMarkUnreachable}
           onClose={() => setUnreachableOpen(false)}
+        />
+      )}
+
+      {/* Edit log modal */}
+      {editAttempt && (
+        <EditAttemptModal
+          attempt={editAttempt}
+          onSubmit={(input) => submitEditAttempt(editAttempt.id, input)}
+          onClose={() => setEditAttempt(null)}
+        />
+      )}
+
+      {/* Add note modal */}
+      {addNoteOpen && (
+        <AddNoteModal
+          patientName={patientName}
+          onSubmit={submitAddNote}
+          onClose={() => setAddNoteOpen(false)}
+        />
+      )}
+
+      {/* Escalate to prescriber modal */}
+      {escalateOpen && (
+        <EscalateModal
+          patientName={patientName}
+          callId={call.id}
+          attemptsCount={call.attempts.length}
+          submitting={escalateSubmitting}
+          onSubmit={submitEscalate}
+          onClose={() => setEscalateOpen(false)}
         />
       )}
 
@@ -827,6 +941,237 @@ function UnreachableModal({
               className="text-[12px] font-semibold text-white bg-err rounded-md px-3 py-1.5 hover:bg-err/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Close as unreachable
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit Attempt modal ───────────────────────────────────────────────────────
+
+function EditAttemptModal({
+  attempt,
+  onSubmit,
+  onClose,
+}: {
+  attempt: WelcomeCallAttempt;
+  onSubmit: (input: EditWelcomeCallAttemptInput) => void;
+  onClose: () => void;
+}) {
+  const [duration, setDuration] = useState(attempt.duration_display ?? "");
+  const [notes, setNotes] = useState(attempt.notes ?? "");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSubmit({
+      duration_display: duration.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-auto">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h2 className="text-[14px] font-bold text-t1">Edit call log</h2>
+          <button onClick={onClose} className="text-t3 hover:text-t1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <p className="text-[12px] text-t2">
+            Editing the most recent attempt. The outcome type and timestamp are
+            preserved; only the duration and notes can be revised here.
+          </p>
+
+          <div>
+            <label className="block text-[11px] font-bold text-t3 uppercase tracking-wide mb-1.5">
+              Duration
+            </label>
+            <input
+              type="text"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder="e.g. 8 min or 0:32"
+              className="w-full text-[12.5px] px-3 py-2 border border-border rounded-md bg-surface text-t1 focus:outline-none focus:border-brand"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-t3 uppercase tracking-wide mb-1.5">
+              Notes
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={6}
+              placeholder="Clinician notes on this attempt."
+              className="w-full text-[12.5px] px-3 py-2 border border-border rounded-md bg-surface text-t1 focus:outline-none focus:border-brand resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90"
+            >
+              Save changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Note modal ───────────────────────────────────────────────────────────
+
+function AddNoteModal({
+  patientName,
+  onSubmit,
+  onClose,
+}: {
+  patientName: string;
+  onSubmit: (body: string) => void;
+  onClose: () => void;
+}) {
+  const [body, setBody] = useState("");
+  const disabled = body.trim().length === 0;
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (disabled) return;
+    onSubmit(body);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h2 className="text-[14px] font-bold text-t1">Add note</h2>
+          <button onClick={onClose} className="text-t3 hover:text-t1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <p className="text-[12px] text-t2">
+            Appends a note to {patientName}&apos;s completed welcome call. The
+            original outcome stays intact; the note appears alongside it for the
+            next clinician.
+          </p>
+          <div>
+            <label className="block text-[11px] font-bold text-t3 uppercase tracking-wide mb-1.5">
+              Note <span className="text-err">*</span>
+            </label>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={5}
+              placeholder="Anything the next clinician needs to know."
+              className="w-full text-[12.5px] px-3 py-2 border border-border rounded-md bg-surface text-t1 focus:outline-none focus:border-brand resize-none"
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={disabled}
+              className="text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add note
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Escalate to Prescriber modal ─────────────────────────────────────────────
+
+function EscalateModal({
+  patientName,
+  callId,
+  attemptsCount,
+  submitting,
+  onSubmit,
+  onClose,
+}: {
+  patientName: string;
+  callId: string;
+  attemptsCount: number;
+  submitting: boolean;
+  onSubmit: (reason: string) => void;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState(
+    `Welcome call ${callId} closed unreachable after ${attemptsCount} attempt${attemptsCount === 1 ? "" : "s"}. Requesting prescriber review of next steps for ${patientName}.`
+  );
+  const disabled = reason.trim().length === 0 || submitting;
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (disabled) return;
+    onSubmit(reason);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <h2 className="text-[14px] font-bold text-t1">Escalate to prescriber</h2>
+          <button onClick={onClose} className="text-t3 hover:text-t1">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <p className="text-[12px] text-t2">
+            Creates a high-priority task for the prescriber team, linked to this
+            welcome call. You&apos;ll be taken to the task once it&apos;s created.
+          </p>
+          <div>
+            <label className="block text-[11px] font-bold text-t3 uppercase tracking-wide mb-1.5">
+              Reason <span className="text-err">*</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={5}
+              className="w-full text-[12.5px] px-3 py-2 border border-border rounded-md bg-surface text-t1 focus:outline-none focus:border-brand resize-none"
+              autoFocus
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={disabled}
+              className="text-[12px] font-semibold text-white bg-brand rounded-md px-3 py-1.5 hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? "Creating task…" : "Create prescriber task"}
             </button>
           </div>
         </form>

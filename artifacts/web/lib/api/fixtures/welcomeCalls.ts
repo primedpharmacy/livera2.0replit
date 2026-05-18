@@ -308,6 +308,82 @@ export async function markWelcomeCallUnreachable(
   return wc;
 }
 
+export type EditWelcomeCallAttemptInput = {
+  notes?: string;
+  duration_display?: string;
+};
+
+export async function editWelcomeCallAttempt(
+  clinic_id: ClinicId,
+  callId: string,
+  attemptId: string,
+  input: EditWelcomeCallAttemptInput,
+): Promise<WelcomeCall> {
+  await delay(150);
+  const wc = findWelcomeCall(clinic_id, callId);
+  const attempt = wc.attempts.find((a) => a.id === attemptId);
+  if (!attempt) {
+    throw new APIError('404', `Attempt ${attemptId} not found on ${callId}.`);
+  }
+  const trimmedDuration = input.duration_display?.trim();
+  const trimmedNotes = input.notes?.trim();
+  if (trimmedDuration !== undefined && trimmedDuration.length > 0) {
+    attempt.duration_display = trimmedDuration;
+  }
+  attempt.notes = trimmedNotes && trimmedNotes.length > 0 ? trimmedNotes : undefined;
+  wc.updated_at = NOW;
+  console.log('[AUDIT]', {
+    event_type: 'welcome_call_attempt_edited',
+    outcome: 'success',
+    actor_id: CURRENT_USER.id,
+    clinic_id,
+    welcome_call_id: callId,
+    attempt_id: attemptId,
+    timestamp: NOW,
+  });
+  return wc;
+}
+
+export async function addWelcomeCallNote(
+  clinic_id: ClinicId,
+  callId: string,
+  body: string,
+): Promise<WelcomeCall> {
+  await delay(150);
+  const wc = findWelcomeCall(clinic_id, callId);
+  const trimmed = body.trim();
+  if (!trimmed) {
+    throw new APIError('VALIDATION', 'A note body is required.');
+  }
+  if (!wc.outcome) {
+    throw new APIError(
+      'INVALID_STATE',
+      'Cannot add a note to a call that has no recorded outcome.',
+    );
+  }
+  const note = {
+    id: `wcn-${wc.id.toLowerCase()}-${(wc.outcome.additional_notes?.length ?? 0) + 1}`,
+    body: trimmed,
+    by_user_id: CURRENT_USER.id,
+    timestamp: NOW,
+  };
+  wc.outcome = {
+    ...wc.outcome,
+    additional_notes: [...(wc.outcome.additional_notes ?? []), note],
+  };
+  wc.updated_at = NOW;
+  console.log('[AUDIT]', {
+    event_type: 'welcome_call_note_added',
+    outcome: 'success',
+    actor_id: CURRENT_USER.id,
+    clinic_id,
+    welcome_call_id: callId,
+    note_id: note.id,
+    timestamp: NOW,
+  });
+  return wc;
+}
+
 export async function reopenWelcomeCall(
   clinic_id: ClinicId,
   callId: string,

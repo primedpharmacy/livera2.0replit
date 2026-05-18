@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,24 @@ function fillTemplate(template: string, patient: Patient, clinic: Clinic): strin
 
 export function GPLetterNewClient({ patients, templates, clinic, clinicId }: Props) {
   const router = useRouter();
-  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const searchParams = useSearchParams();
+  const initialPatientId = (() => {
+    const q = searchParams?.get("patient_id");
+    return q && patients.some((p) => p.id === q) ? q : "";
+  })();
+  const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
+
+  // If the URL param arrives or changes after mount (e.g. client-side
+  // navigation from the welcome-call detail page), preselect the patient
+  // — but never clobber a value the user has already chosen manually.
+  useEffect(() => {
+    const q = searchParams?.get("patient_id");
+    if (q && q !== selectedPatientId && patients.some((p) => p.id === q) && selectedPatientId === "") {
+      setSelectedPatientId(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");

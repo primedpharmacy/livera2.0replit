@@ -9,8 +9,15 @@ import {
   logWelcomeCallAttempt,
   markWelcomeCallUnreachable,
   reopenWelcomeCall,
+  editWelcomeCallAttempt,
+  addWelcomeCallNote,
+  createTask,
+  CURRENT_USER,
 } from "@/lib/api/mock";
-import type { LogWelcomeCallAttemptInput } from "@/lib/api/mock";
+import type {
+  LogWelcomeCallAttemptInput,
+  EditWelcomeCallAttemptInput,
+} from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 interface Props {
@@ -55,6 +62,57 @@ async function WelcomeCallDetailContent({ clinicId, callId }: { clinicId: string
       }
     }
 
+    async function handleEditAttempt(attemptId: string, input: EditWelcomeCallAttemptInput) {
+      "use server";
+      try {
+        await editWelcomeCallAttempt(clinicId as ClinicId, callId, attemptId, input);
+        revalidatePath(`/${clinicId}/welcome-calls/${callId}`);
+        revalidatePath(`/${clinicId}/welcome-calls`);
+        return { ok: true as const };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "Failed to edit attempt" };
+      }
+    }
+
+    async function handleAddNote(body: string) {
+      "use server";
+      try {
+        await addWelcomeCallNote(clinicId as ClinicId, callId, body);
+        revalidatePath(`/${clinicId}/welcome-calls/${callId}`);
+        revalidatePath(`/${clinicId}/welcome-calls`);
+        return { ok: true as const };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "Failed to add note" };
+      }
+    }
+
+    async function handleEscalateToPrescriber(reason: string) {
+      "use server";
+      try {
+        const trimmed = reason.trim();
+        if (!trimmed) {
+          return { ok: false as const, reason: "A reason is required to escalate." };
+        }
+        const task = await createTask(clinicId as ClinicId, {
+          title: `Escalate to prescriber — welcome call ${call.id} unreachable`,
+          priority: "high",
+          due_date: new Date().toISOString().slice(0, 10),
+          description:
+            `${patientName} (${call.patient_id}) could not be reached for their welcome call after ${call.attempts.length} attempt${call.attempts.length === 1 ? "" : "s"}.\n` +
+            `Original order: ${call.order_id}\n` +
+            `Welcome call: ${call.id}\n\n` +
+            `Reason for escalation:\n${trimmed}\n\n` +
+            `Raised by ${CURRENT_USER.full_name} from the welcome-call detail page.`,
+        });
+        revalidatePath(`/${clinicId}/tasks`);
+        revalidatePath(`/${clinicId}/tasks/${task.id}`);
+        revalidatePath(`/${clinicId}/welcome-calls/${callId}`);
+        return { ok: true as const, taskId: task.id };
+      } catch (err) {
+        return { ok: false as const, reason: err instanceof Error ? err.message : "Failed to escalate." };
+      }
+    }
+
     async function handleReopen() {
       "use server";
       try {
@@ -76,6 +134,9 @@ async function WelcomeCallDetailContent({ clinicId, callId }: { clinicId: string
         onLogAttempt={handleLogAttempt}
         onMarkUnreachable={handleMarkUnreachable}
         onReopen={handleReopen}
+        onEditAttempt={handleEditAttempt}
+        onAddNote={handleAddNote}
+        onEscalateToPrescriber={handleEscalateToPrescriber}
       />
     );
   } catch {

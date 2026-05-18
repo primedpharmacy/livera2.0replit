@@ -25,7 +25,7 @@ export type PatientPreferredChannelChange = {
   changed_at: string;
 };
 
-export const PREFERRED_CHANNEL_CHANGES: PatientPreferredChannelChange[] = [
+const __PCC_INITIAL: PatientPreferredChannelChange[] = [
   // Seed entry: Sarah Cookland's channel was switched from SMS → Email in
   // late April so the refund email sent on 2026-05-10 (NOTIF-001) follows
   // an earlier SMS in the same log. Without this breadcrumb the channel
@@ -566,7 +566,7 @@ const LEGACY_UNFIXABLE_VSC: Patient = {
   updated_at: '2025-11-20T11:00:00Z',
 };
 
-export const MOCK_PATIENTS: Patient[] = [
+const __MOCK_PATIENTS_INITIAL: Patient[] = [
   SARAH_FEELTRU, SARAH_VSC,
   JAMES_VSC, MIRIAM_VSC, TOM_VSC, PRIYA_VSC,
   EMMA_FEELTRU, ZARA_FEELTRU, FIONA_FEELTRU,
@@ -574,6 +574,17 @@ export const MOCK_PATIENTS: Patient[] = [
   RYAN_FEELTRU,
   LEGACY_FIXABLE_VSC, LEGACY_UNFIXABLE_VSC,
 ];
+
+// Task-287 — both MOCK_PATIENTS and PREFERRED_CHANNEL_CHANGES are mutated by
+// server actions (e.g. updatePreferredChannelAction). Next.js compiles each
+// server segment to its own JS bundle, so a plain `export const arr = [...]`
+// would be a fresh array per bundle and mutations from one bundle would be
+// invisible to the next page render. Backing them with globalThis singletons
+// guarantees a single shared instance across every server bundle.
+export const MOCK_PATIENTS: Patient[] =
+  ((globalThis as unknown as { __LIVERA_PATIENTS__?: Patient[] }).__LIVERA_PATIENTS__ ??= __MOCK_PATIENTS_INITIAL);
+export const PREFERRED_CHANNEL_CHANGES: PatientPreferredChannelChange[] =
+  ((globalThis as unknown as { __LIVERA_PCC__?: PatientPreferredChannelChange[] }).__LIVERA_PCC__ ??= __PCC_INITIAL);
 
 export const WEIGHT_MIN_KG = 30;
 export const WEIGHT_MAX_KG = 300;

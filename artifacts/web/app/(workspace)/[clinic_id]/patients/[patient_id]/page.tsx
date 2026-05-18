@@ -32,6 +32,8 @@ import { PreferredChannelHistory } from "@/components/patients/PreferredChannelH
 import { NotificationRow, type ResendActionResult } from "@/components/patients/NotificationRow";
 import { resendFailedPatientNotification } from "@/lib/api/jobs/retryPatientNotifications";
 import { revalidatePath } from "next/cache";
+import { verifySessionCookie } from "@/lib/auth/session";
+import { findUserByUid } from "@/lib/users/registry";
 import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import {
@@ -164,16 +166,27 @@ async function ProfileContent({
     const rawWeightLost = patient.baseline.baseline_weight_kg - patient.latest.weight_kg;
     const weightLost = rawWeightLost > 0 ? `${rawWeightLost.toFixed(1)} kg` : "—";
     const totalSpend = orders.reduce((s, o) => s + (o.amount_authorised ?? 0), 0);
-    const canWriteNotes = can(CURRENT_USER, "write", "clinical_notes");
+    // Task-287 — resolve the actor from the signed session cookie minted by
+    // middleware (Clerk → uid OR ?as=<uid> demo override). Falls back to the
+    // module-level CURRENT_USER only when no session cookie is present, so
+    // every gating decision below honours the real persona (Owner / Admin /
+    // RM / Coach / Prescriber) rather than always rendering as Owner.
+    const { cookies: __readCookies } = await import("next/headers");
+    const __cookieJar = await __readCookies();
+    const __sessionRaw = __cookieJar.get("livera_session_uid")?.value ?? null;
+    const __sessionUid = __sessionRaw ? verifySessionCookie(__sessionRaw) : null;
+    const actor = (__sessionUid ? findUserByUid(__sessionUid) : null) ?? CURRENT_USER;
+
+    const canWriteNotes = can(actor, "write", "clinical_notes");
     // task-104 — purge stays Owner-only (explicit role check) so that widening
     // write:patients to Admin (for the preferred-channel editor) does not
     // accidentally grant data-purge rights.
-    const canPurge = CURRENT_USER.roles.includes("Owner");
-    const canEditContact = can(CURRENT_USER, "write", "patients");
+    const canPurge = actor.roles.includes("Owner");
+    const canEditContact = can(actor, "write", "patients");
     // Task-97 — staff-initiated resend gated to Owner/Admin (the operational
     // roles that already manage pharmacy_comms / holiday_calendar). Coach and
     // Prescriber do not get this action.
-    const canResendNotification = CURRENT_USER.roles.some(
+    const canResendNotification = actor.roles.some(
       (r) => r === "Owner" || r === "Admin" || r === "RM",
     );
     const genderEligibility = clinic.config.gender_eligibility;

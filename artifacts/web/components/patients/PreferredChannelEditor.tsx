@@ -21,7 +21,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { AlertTriangle, Check, Pencil, X } from "lucide-react";
-import { updatePatientPreferredChannel } from "@/lib/api/mock";
+import { updatePreferredChannelAction } from "@/app/actions/preferredChannel";
 import type { ClinicId } from "@/lib/api/types";
 
 type Channel = "email" | "sms" | "phone";
@@ -93,7 +93,7 @@ export function PreferredChannelEditor({
     setSaving(true);
     setError(null);
     try {
-      await updatePatientPreferredChannel(clinicId, patientId, draft);
+      await updatePreferredChannelAction(clinicId, patientId, draft);
       setEditing(false);
       startTransition(() => router.refresh());
     } catch (err) {

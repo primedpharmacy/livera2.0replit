@@ -24,7 +24,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Mail } from "lucide-react";
-import { updatePatientPreferredChannel } from "@/lib/api/mock";
+import { updatePreferredChannelAction } from "@/app/actions/preferredChannel";
 import type { ClinicId } from "@/lib/api/types";
 
 interface Props {
@@ -48,7 +48,7 @@ export function SwitchToEmailButton({ clinicId, patientId }: Props) {
     setError(null);
     setSaving(true);
     try {
-      await updatePatientPreferredChannel(clinicId, patientId, "email");
+      await updatePreferredChannelAction(clinicId, patientId, "email");
       startTransition(() => router.refresh());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not switch channel.");
@@ -67,7 +67,7 @@ export function SwitchToEmailButton({ clinicId, patientId }: Props) {
         title="Set preferred channel to Email"
       >
         <Mail className="w-3 h-3" />
-        {pending ? "Switching…" : "Switch to email"}
+        {saving ? "Switching…" : "Switch to email"}
       </button>
       {error && <span className="text-[11px] text-err">{error}</span>}
     </div>

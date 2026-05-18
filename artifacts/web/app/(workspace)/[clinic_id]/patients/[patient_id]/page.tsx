@@ -4,30 +4,37 @@ import {
   ArrowLeft, ChevronRight, Phone, Stethoscope, ShieldCheck,
   AlertTriangle, Scale, Package, FileText, MessageSquare,
   Camera, ClipboardList, Calendar, Pill, MessageCircle, Map,
-  TrendingDown, CreditCard, Clock, HeartPulse, Link2,
+  TrendingDown, CreditCard, Clock, HeartPulse, Link2, Truck,
+  Mail, CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
 import { differenceInWeeks, parseISO } from "date-fns";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { PatientQuickActions } from "@/components/patients/PatientQuickActions";
+import { GenderEligibilityBanner } from "@/components/patients/GenderEligibilityBanner";
 import { CoachingLogTab } from "@/components/patients/CoachingLogTab";
 import { PatientNotesTimeline } from "@/components/timeline/PatientNotesTimeline";
 import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
-import { AdminNoteFABModal } from "@/components/patients/AdminNoteFABModal";
+import { PatientFABSpeedDial } from "@/components/patients/PatientFABSpeedDial";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
+import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
+import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import {
   getPatient, listOrders, getClinic, listCoachingLogs,
   listClinicalNotes, listGPLetters, listAdminNotesByPatient,
-  listIncidents, CURRENT_USER,
+  listIncidents, listCourierEvents, CURRENT_USER, getUpcomingCalendlyBookings,
+  listPatientNotifications,
 } from "@/lib/api/mock";
+import type { PatientNotification } from "@/lib/api/mock";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import type {
   Patient, Order, ClinicId, CoachingLog, ClinicalNote,
-  GPLetter, AdminNote, Incident, Clinic,
+  GPLetter, AdminNote, Incident, Clinic, CalendlyBooking, CourierEvent,
 } from "@/lib/api/types";
+import { CourierTrackingCard } from "@/components/orders/CourierTrackingCard";
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 const TABS = [
@@ -38,6 +45,7 @@ const TABS = [
   { key: "notes",          label: "Notes" },
   { key: "coaching",       label: "Coaching" },
   { key: "pharmacy-comms", label: "Pharmacy Comms" },
+  { key: "notifications",  label: "Notification log" },
   { key: "intercom",       label: "Intercom" },
   { key: "journey",        label: "Journey" },
 ] as const;
@@ -46,19 +54,20 @@ type TabKey = typeof TABS[number]["key"];
 
 type PageProps = {
   params: Promise<{ clinic_id: string; patient_id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; order_id?: string }>;
 };
 
 export default async function PatientProfilePage({ params, searchParams }: PageProps) {
   const { clinic_id, patient_id } = await params;
-  const { tab } = await searchParams;
+  const { tab, order_id } = await searchParams;
   const activeTab = (tab ?? "overview") as TabKey;
   return (
-    <Suspense key={`${clinic_id}-${patient_id}-${activeTab}`} fallback={<LoadingState.Detail />}>
+    <Suspense key={`${clinic_id}-${patient_id}-${activeTab}-${order_id ?? ""}`} fallback={<LoadingState.Detail />}>
       <ProfileContent
         clinicId={clinic_id as ClinicId}
         patientId={patient_id}
         activeTab={activeTab}
+        orderIdFilter={order_id ?? null}
       />
     </Suspense>
   );
@@ -69,10 +78,12 @@ async function ProfileContent({
   clinicId,
   patientId,
   activeTab,
+  orderIdFilter,
 }: {
   clinicId: ClinicId;
   patientId: string;
   activeTab: TabKey;
+  orderIdFilter: string | null;
 }) {
   try {
     const clinic = await getClinic(clinicId);
@@ -80,7 +91,8 @@ async function ProfileContent({
 
     const [
       patient, orders, clinicalNotes, gpLetters, adminNotes,
-      coachingLogs, allIncidents,
+      coachingLogs, allIncidents, calendlyBookings, allCourierEvents,
+      notifications,
     ] = await Promise.all([
       getPatient(clinicId, patientId),
       listOrders(clinicId, { patient_id: patientId }),
@@ -91,8 +103,15 @@ async function ProfileContent({
         ? listCoachingLogs(clinicId, { patient_id: patientId })
         : Promise.resolve([] as CoachingLog[]),
       listIncidents(clinicId),
+      coachingEnabled
+        ? getUpcomingCalendlyBookings(clinicId, patientId)
+        : Promise.resolve([] as CalendlyBooking[]),
+      listCourierEvents(clinicId),
+      listPatientNotifications(clinicId, { patient_id: patientId }),
     ]);
 
+    const patientOrderIds = new Set(orders.map((o) => o.id));
+    const courierEvents = allCourierEvents.filter((e) => patientOrderIds.has(e.order_id));
     const incidents = allIncidents.filter((i) => i.patient_id === patientId);
     const sortedLogs = [...coachingLogs].sort((a, b) => b.entry_date.localeCompare(a.entry_date));
     const latestOrder = orders.length > 0 ? orders[orders.length - 1] : null;
@@ -102,8 +121,11 @@ async function ProfileContent({
     const weightLost = rawWeightLost > 0 ? `${rawWeightLost.toFixed(1)} kg` : "—";
     const totalSpend = orders.reduce((s, o) => s + (o.amount_authorised ?? 0), 0);
     const canWriteNotes = can(CURRENT_USER, "write", "clinical_notes");
+    const canPurge = can(CURRENT_USER, "write", "patients");
+    const genderEligibility = clinic.config.gender_eligibility;
 
     return (
+      <>
       <div className="flex flex-col h-full">
         {/* Breadcrumb */}
         <div className="px-6 py-2.5 bg-surface border-b border-bdr flex items-center gap-1.5 text-[12px] text-t3 shrink-0">
@@ -125,6 +147,15 @@ async function ProfileContent({
 
           {/* Right column */}
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+            {/* BLD-10.2/10.3 — Gender eligibility mismatch banner */}
+            <GenderEligibilityBanner
+              clinicId={clinicId}
+              patientId={patient.id}
+              patientName={patient.demographic.full_name}
+              sexAtBirth={patient.demographic.sex_at_birth}
+              genderEligibility={genderEligibility}
+              canPurge={canPurge}
+            />
             {/* Tab bar */}
             <div className="flex bg-surface border-b border-bdr px-4 overflow-x-auto shrink-0">
               {TABS.map(({ key, label }) => {
@@ -133,6 +164,7 @@ async function ProfileContent({
                 if (key === "incidents" && incidents.length > 0) badge = String(incidents.length);
                 if (key === "notes" && clinicalNotes.length > 0) badge = String(clinicalNotes.length);
                 if (key === "orders" && orders.length > 0) badge = String(orders.length);
+                if (key === "notifications" && notifications.length > 0) badge = String(notifications.length);
                 return (
                   <Link
                     key={key}
@@ -199,15 +231,29 @@ async function ProfileContent({
                   clinicId={clinicId}
                   logs={sortedLogs}
                   coachingEnabled={coachingEnabled}
+                  bookings={calendlyBookings}
                 />
               )}
-              {activeTab === "pharmacy-comms" && <PharmacyCommsTab />}
+              {activeTab === "pharmacy-comms" && (
+                <PharmacyCommsTab clinicId={clinicId} patientId={patientId} />
+              )}
+              {activeTab === "notifications" && (
+                <NotificationsTab
+                  notifications={notifications}
+                  clinicId={clinicId}
+                  patientId={patientId}
+                  orderIdFilter={orderIdFilter}
+                />
+              )}
               {activeTab === "intercom" && <IntercomTab patient={patient} />}
-              {activeTab === "journey" && <JourneyTab />}
+              {activeTab === "journey" && <JourneyTab orders={orders as Order[]} courierEvents={courierEvents} />}
             </div>
           </div>
         </div>
       </div>
+      {/* Speed-dial FAB — visible on all tabs, actions gated by role */}
+      <PatientFABSpeedDial clinicId={clinicId} patientId={patientId} latestOrderId={latestOrder?.id ?? null} />
+      </>
     );
   } catch (err) {
     return (
@@ -763,11 +809,6 @@ function NotesTab({
         actor={CURRENT_USER}
         minChars={minChars}
       />
-      {/* FAB only shown on Notes tab; component hides itself if role lacks write */}
-      <AdminNoteFABModal
-        clinicId={clinicId}
-        patientId={patientId}
-      />
     </div>
   );
 }
@@ -781,11 +822,13 @@ function CoachingTab({
   clinicId,
   logs,
   coachingEnabled,
+  bookings,
 }: {
   patient: Patient;
   clinicId: ClinicId;
   logs: CoachingLog[];
   coachingEnabled: boolean;
+  bookings: CalendlyBooking[];
 }) {
   if (!coachingEnabled) {
     return (
@@ -802,22 +845,18 @@ function CoachingTab({
       </div>
     );
   }
-  return <CoachingLogTab patient={patient} clinicId={clinicId} logs={logs} />;
+  return <CoachingLogTab patient={patient} clinicId={clinicId} logs={logs} bookings={bookings} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PHARMACY COMMS TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PharmacyCommsTab() {
+// BLD-16.1 — Pharmacy Comms tab (patient-anchored threads)
+function PharmacyCommsTab({ clinicId, patientId }: { clinicId: ClinicId; patientId: string }) {
   return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Pharmacy Comms threads"
-        wave_reference="Wave 16 (BLD-16.1)"
-        description="Patient-anchored pharmacy communication threads across orders, initiated from the patient profile."
-        icon={Pill}
-      />
+    <div className="border-t border-bdr">
+      <PharmacyCommsPanel clinicId={clinicId} anchorType="patient" anchorId={patientId} />
     </div>
   );
 }
@@ -826,51 +865,200 @@ function PharmacyCommsTab() {
 // INTERCOM TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
+// BLD-INTERCOM-PHOTO-01 — delegates to client component for photo modal
 function IntercomTab({ patient }: { patient: Patient }) {
-  if (patient.intercom_user_id) {
-    return (
-      <div className="p-5 flex flex-col gap-4">
-        <div className="bg-ok-bg border border-ok-bdr rounded-lg px-4 py-3 flex items-center gap-3">
-          <MessageCircle className="w-4 h-4 text-ok shrink-0" />
-          <div>
-            <p className="text-[12px] font-semibold text-ok">Patient linked to Intercom</p>
-            <p className="text-[12px] text-t2 mt-px font-mono">{patient.intercom_user_id}</p>
+  return <IntercomPhotoTab patient={patient} />;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATION LOG TAB — Task-50
+// Per-patient notification log (channel, template, status, sent_at, payload).
+// Optional ?order_id=... filter when opened from an order context.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function NotificationsTab({
+  notifications,
+  clinicId,
+  patientId,
+  orderIdFilter,
+}: {
+  notifications: PatientNotification[];
+  clinicId: ClinicId;
+  patientId: string;
+  orderIdFilter: string | null;
+}) {
+  const filtered = orderIdFilter
+    ? notifications.filter((n) => n.order_id === orderIdFilter)
+    : notifications;
+  const sorted = [...filtered].sort((a, b) => b.sent_at.localeCompare(a.sent_at));
+
+  return (
+    <div className="p-5 flex flex-col gap-3">
+      {orderIdFilter && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2 bg-info-bg border border-info-bdr rounded-md text-[12px] text-info">
+          <span>
+            Filtered to order{" "}
+            <Link href={`/${clinicId}/orders/${orderIdFilter}`} className="font-mono font-semibold underline hover:text-info">
+              {orderIdFilter}
+            </Link>
+          </span>
+          <Link
+            href={`/${clinicId}/patients/${patientId}?tab=notifications`}
+            className="text-[11px] font-semibold hover:underline shrink-0"
+          >
+            Clear filter
+          </Link>
+        </div>
+      )}
+
+      {sorted.length === 0 ? (
+        <div className="p-10 flex flex-col items-center gap-3 text-center">
+          <Mail className="w-10 h-10 text-t3 opacity-40" />
+          <p className="text-[13px] text-t3">
+            {orderIdFilter
+              ? "No notifications sent for this order."
+              : "No notifications sent to this patient yet."}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-surface border border-bdr rounded-lg overflow-hidden">
+          <SCardHead
+            icon={Mail}
+            title={`${sorted.length} notification${sorted.length !== 1 ? "s" : ""}`}
+          />
+          <div className="divide-y divide-bdr">
+            {sorted.map((n) => (
+              <NotificationRow key={n.id} notification={n} clinicId={clinicId} />
+            ))}
           </div>
         </div>
-        <FuturePlaceholderCard
-          title="Intercom conversation thread display"
-          wave_reference="BLD-INT-INTERCOM-01"
-          description="Live Intercom conversation threads, tags, and labels for this patient will be embedded here."
-          icon={MessageCircle}
-        />
-      </div>
-    );
-  }
+      )}
+    </div>
+  );
+}
+
+function NotificationRow({
+  notification: n,
+  clinicId,
+}: {
+  notification: PatientNotification;
+  clinicId: ClinicId;
+}) {
+  const statusMeta =
+    n.status === "Delivered"
+      ? { Icon: CheckCircle2, cls: "bg-ok-bg text-ok border-ok-bdr" }
+      : n.status === "Queued"
+      ? { Icon: Clock, cls: "bg-info-bg text-info border-info-bdr" }
+      : n.status === "Failed"
+      ? { Icon: AlertCircle, cls: "bg-warn-bg text-warn border-warn-bdr" }
+      : { Icon: XCircle, cls: "bg-err-bg text-err border-err-bdr" };
+  const StatusIcon = statusMeta.Icon;
+
   return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Patient not yet linked to Intercom"
-        wave_reference="BLD-INT-INTERCOM-01"
-        description="Once the patient's Intercom user ID is set via the webhook integration, their conversation threads and tags will appear here."
-        icon={MessageCircle}
-      />
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="font-mono text-[11px] font-semibold text-t2 shrink-0">{n.id}</span>
+        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-px rounded-full border shrink-0 ${statusMeta.cls}`}>
+          <StatusIcon className="w-3 h-3" /> {n.status}
+        </span>
+        <span className="text-[11px] font-semibold text-t2 shrink-0">{n.channel}</span>
+        <span className="text-[12px] text-t1 font-medium">{n.type.replace(/_/g, " ")}</span>
+        {n.order_id && (
+          <Link
+            href={`/${clinicId}/orders/${n.order_id}`}
+            className="font-mono text-[11px] text-brand hover:underline shrink-0"
+          >
+            {n.order_id}
+          </Link>
+        )}
+        <span className="text-[11px] text-t3 ml-auto shrink-0">{formatDateTime(n.sent_at)}</span>
+      </div>
+      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-t3">
+        <span>Template:</span>
+        <code className="font-mono bg-page-bg px-1.5 py-px rounded border border-bdr text-t2">{n.template}</code>
+        {n.attempt_count > 1 && (
+          <span className="ml-2">
+            Attempt {n.attempt_count}/{n.max_attempts}
+          </span>
+        )}
+        {n.next_retry_at && (
+          <span className="ml-2">· Next retry {formatDateTime(n.next_retry_at)}</span>
+        )}
+      </div>
+      {n.last_error && (
+        <p className="mt-1.5 text-[11px] text-err leading-relaxed">
+          <span className="font-semibold">Last error:</span> {n.last_error}
+        </p>
+      )}
+      {Object.keys(n.payload).length > 0 && (
+        <details className="mt-2 group">
+          <summary className="text-[11px] font-semibold text-t3 cursor-pointer hover:text-t2 select-none">
+            Payload
+          </summary>
+          <pre className="mt-1.5 text-[11px] leading-relaxed bg-page-bg border border-bdr rounded p-2 overflow-x-auto font-mono text-t2">
+{JSON.stringify(n.payload, null, 2)}
+          </pre>
+        </details>
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JOURNEY TAB
+// JOURNEY TAB — BLD-11.2
 // ─────────────────────────────────────────────────────────────────────────────
 
-function JourneyTab() {
+function JourneyTab({
+  orders,
+  courierEvents,
+}: {
+  orders: Order[];
+  courierEvents: CourierEvent[];
+}) {
+  const dispatched = orders.filter(
+    (o) => o.status === "dispatched" || o.status === "delivered"
+  );
+
+  if (dispatched.length === 0) {
+    return (
+      <div className="p-5">
+        <div className="rounded-lg border border-bdr bg-surface px-5 py-8 text-center">
+          <Package className="w-8 h-8 text-t3 mx-auto mb-3" />
+          <p className="text-[13px] font-semibold text-t2">No dispatched orders</p>
+          <p className="text-[12px] text-t3 mt-1">
+            Royal Mail tracking will appear here once an order has been dispatched.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-5">
-      <FuturePlaceholderCard
-        title="Patient journey timeline"
-        wave_reference="later waves"
-        description="End-to-end patient journey — enrolment, orders, clinical checks, escalations, and resolution events — displayed as a chronological timeline."
-        icon={Map}
-      />
+    <div className="p-5 space-y-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Truck className="w-4 h-4 text-brand" />
+        <h2 className="text-[13px] font-bold text-t1">Royal Mail tracking</h2>
+        <span className="text-[11px] text-t3">— BLD-11.2</span>
+      </div>
+
+      {dispatched.map((order) => {
+        const events = courierEvents.filter((e) => e.order_id === order.id);
+        return (
+          <div key={order.id} className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Package className="w-3.5 h-3.5 text-t3" />
+              <span className="text-[12px] font-semibold text-t1">
+                {order.id} · {order.product.medication} {order.product.dose}
+              </span>
+              <StatusBadge value={order.status} kind="order" />
+            </div>
+            <CourierTrackingCard
+              trackingId={order.royal_mail_tracking_id ?? null}
+              events={events}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

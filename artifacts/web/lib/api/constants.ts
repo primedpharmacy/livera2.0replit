@@ -25,6 +25,10 @@ export const CURRENT_USER: User = {
   active_clinic_id: 'feeltru',
   professional_registrations: [],
   active: true,
+  // Task-38 — refund authority granted to the demo Owner so the refund panel
+  // is unlocked. Other team members in fixtures/users.ts have can_refund:false
+  // so the gated-state UI remains demonstrable from any patient/admin view.
+  can_refund: true,
 };
 
 // ── Users registry — lookup by user_id for team-related actions ─────────────

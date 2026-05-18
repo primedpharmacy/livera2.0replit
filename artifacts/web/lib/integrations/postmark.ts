@@ -41,6 +41,20 @@ export type PostmarkSendResult = {
   accepted: boolean;
 };
 
+// Task-49 — patient transactional email (no PDF attachment).
+export type PatientEmailInput = {
+  to_email: string;
+  subject: string;
+  text_body: string;
+  template: string;
+};
+
+export type PatientEmailResult = {
+  message_id: string | null;
+  status: 'Delivered' | 'Bounced' | 'Failed';
+  error_message?: string;
+};
+
 // ---------------------------------------------------------------------------
 // Mock mode (LIVERA_POSTMARK_LIVE=false or unset)
 // ---------------------------------------------------------------------------
@@ -140,4 +154,95 @@ export async function sendViaPostmark(
 
   if (!isLive) return mockSend(input);
   return liveSend(input);
+}
+
+// ---------------------------------------------------------------------------
+// sendPatientEmail — Task-49
+//
+// Plain-text transactional email to a patient (no PDF attachment). Used by the
+// refund + cancellation flows to notify patients when:
+//   - a refund amendment moves to 'applied' (order_cancelled_refund_processed)
+//   - an auth-release cancellation completes with no charge (order_cancelled_no_charge)
+//
+// Mock mode (default in dev) just console-logs and returns a synthetic
+// message_id with status='Delivered' so the patient notification log shows
+// the expected outcome. Live mode calls Postmark and maps HTTP errors to
+// Bounced (4xx 'inactive recipient') / Failed (everything else) so the
+// notification log mirrors real delivery state.
+// ---------------------------------------------------------------------------
+
+export async function sendPatientEmail(
+  input: PatientEmailInput,
+): Promise<PatientEmailResult> {
+  const flag = process.env.LIVERA_POSTMARK_LIVE;
+  const isLive = flag === 'true';
+
+  if (!isLive) {
+    const message_id = nextMockMessageId();
+    console.log('[POSTMARK_MOCK] sendPatientEmail —', {
+      to:       input.to_email,
+      subject:  input.subject,
+      template: input.template,
+      message_id,
+    });
+    return { message_id, status: 'Delivered' };
+  }
+
+  const token = process.env.POSTMARK_SERVER_TOKEN;
+  if (!token) {
+    return {
+      message_id:    null,
+      status:        'Failed',
+      error_message: 'POSTMARK_SERVER_TOKEN env var is not set',
+    };
+  }
+
+  const fromAddress = process.env.POSTMARK_FROM_ADDRESS ?? 'noreply@livera.health';
+
+  try {
+    const res = await fetch('https://api.postmarkapp.com/email', {
+      method: 'POST',
+      headers: {
+        'Accept':                  'application/json',
+        'Content-Type':            'application/json',
+        'X-Postmark-Server-Token': token,
+      },
+      body: JSON.stringify({
+        From:     fromAddress,
+        To:       input.to_email,
+        Subject:  input.subject,
+        TextBody: input.text_body,
+      }),
+    });
+
+    if (!res.ok) {
+      let detail = '';
+      let errorCode: number | undefined;
+      try {
+        const parsed = (await res.json()) as { Message?: string; ErrorCode?: number };
+        detail = parsed.Message ?? '';
+        errorCode = parsed.ErrorCode;
+      } catch { /* noop */ }
+      // Postmark ErrorCode 406 = inactive recipient (hard bounce / suppressed)
+      const isBounce = errorCode === 406;
+      return {
+        message_id:    null,
+        status:        isBounce ? 'Bounced' : 'Failed',
+        error_message: `Postmark ${res.status}: ${detail || res.statusText}`,
+      };
+    }
+
+    const data = (await res.json()) as { MessageID?: string; ErrorCode?: number };
+    if (data.ErrorCode && data.ErrorCode !== 0) {
+      return {
+        message_id:    null,
+        status:        data.ErrorCode === 406 ? 'Bounced' : 'Failed',
+        error_message: `Postmark error code ${data.ErrorCode}`,
+      };
+    }
+    return { message_id: data.MessageID ?? null, status: 'Delivered' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { message_id: null, status: 'Failed', error_message: message };
+  }
 }

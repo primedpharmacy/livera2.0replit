@@ -22,6 +22,7 @@ import {
   Settings,
   BookOpen,
   ShieldAlert,
+  XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ import {
   listOrders,
   listConsultations,
   listClinicalEscalationFlags,
+  listDiscontinuations,
   CURRENT_USER,
 } from "@/lib/api/mock";
 import type { ClinicId } from "@/lib/api/mock";
@@ -135,7 +137,8 @@ function buildSections(
   welcomeCallsCount: number,
   complaintsCount: number,
   incidentsCount: number,
-  gpLettersCount: number
+  gpLettersCount: number,
+  discontinuationsCount: number
 ): NavSection[] {
   return [
     {
@@ -247,6 +250,16 @@ function buildSections(
             : {}),
           permission: { action: "read", resource: "gp_letters" },
         },
+        {
+          key: "discontinuations",
+          label: "Discontinuations",
+          icon: XCircle,
+          href: `/${clinicId}/discontinuations`,
+          ...(discontinuationsCount > 0
+            ? { badge: { value: discontinuationsCount, variant: "warn" as BadgeVariant } }
+            : {}),
+          permission: { action: "read", resource: "complaints" },
+        },
       ],
     },
     {
@@ -326,9 +339,10 @@ export function Sidebar({ clinicId }: SidebarProps) {
   const [clinicalCheckCount, setClinicalCheckCount]   = useState<number>(0);
   const [amendmentsCount, setAmendmentsCount]         = useState<number>(0);
   const [welcomeCallsCount, setWelcomeCallsCount]     = useState<number>(0);
-  const [complaintsCount, setComplaintsCount]         = useState<number>(0);
-  const [incidentsCount, setIncidentsCount]           = useState<number>(0);
-  const [gpLettersCount, setGPLettersCount]           = useState<number>(0);
+  const [complaintsCount, setComplaintsCount]               = useState<number>(0);
+  const [incidentsCount, setIncidentsCount]                 = useState<number>(0);
+  const [gpLettersCount, setGPLettersCount]                 = useState<number>(0);
+  const [discontinuationsCount, setDiscontinuationsCount]   = useState<number>(0);
 
   useEffect(() => {
     const cid = clinicId as ClinicId;
@@ -373,7 +387,28 @@ export function Sidebar({ clinicId }: SidebarProps) {
     listGPLetters(cid)
       .then((g) => setGPLettersCount(g.length))
       .catch(() => {});
+
+    listDiscontinuations(cid)
+      .then((d) => setDiscontinuationsCount(d.filter((x) => x.status !== "closed").length))
+      .catch(() => {});
   }, [clinicId, isCoach]);
+
+  // Live-update Clinical Check badge when a decision is made elsewhere
+  useEffect(() => {
+    function onClinicalCheckCountChanged(e: Event) {
+      const detail = (e as CustomEvent<{ delta?: number; count?: number }>).detail;
+      if (!detail) return;
+      if (typeof detail.count === "number") {
+        setClinicalCheckCount(Math.max(0, detail.count));
+      } else if (typeof detail.delta === "number") {
+        setClinicalCheckCount((prev) => Math.max(0, prev + detail.delta!));
+      }
+    }
+    window.addEventListener("clinical-check-count-changed", onClinicalCheckCountChanged);
+    return () => {
+      window.removeEventListener("clinical-check-count-changed", onClinicalCheckCountChanged);
+    };
+  }, []);
 
   const sections = isCoach
     ? buildCoachSections(clinicId, openEscalations)
@@ -387,6 +422,7 @@ export function Sidebar({ clinicId }: SidebarProps) {
         complaintsCount,
         incidentsCount,
         gpLettersCount,
+        discontinuationsCount,
       );
 
   function isActive(href: string) {

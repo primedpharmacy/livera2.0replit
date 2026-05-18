@@ -13,7 +13,7 @@
  */
 
 import { useState } from "react";
-import { CheckCircle, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,8 @@ interface ApproveConfirmModalProps {
   clinic: Clinic;
   clinicId: ClinicId;
   isSubmitting: boolean;
+  /** Task-81 — if set, the modal renders the block and disables Confirm. */
+  blockedReason?: string | null;
   onApprove: (clinicalNote: string, aiData?: Omit<AIDraftResult, "body">) => void;
 }
 
@@ -45,6 +47,7 @@ export function ApproveConfirmModal({
   clinic,
   clinicId,
   isSubmitting,
+  blockedReason,
   onApprove,
 }: ApproveConfirmModalProps) {
   const [body, setBody]               = useState("");
@@ -52,8 +55,9 @@ export function ApproveConfirmModal({
   const [aiMeta, setAiMeta]           = useState<Omit<AIDraftResult, "body"> | null>(null);
 
   const minChars   = clinic.config.clinical_note_min_chars;
-  const isValid    = body.length >= minChars;
-  const charColour = isValid ? "text-ok" : "text-warn";
+  const isBlocked  = !!blockedReason;
+  const isValid    = body.length >= minChars && !isBlocked;
+  const charColour = body.length >= minChars ? "text-ok" : "text-warn";
 
   function handleClose() {
     setBody("");
@@ -91,6 +95,16 @@ export function ApproveConfirmModal({
               <strong className="font-mono">{orderId}</strong> for{" "}
               <strong>{patientName}</strong>. This will be recorded as the approval clinical note.
             </p>
+
+            {isBlocked && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded bg-err-bg border border-err-bdr text-[12px] text-err">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Approval blocked</p>
+                  <p className="leading-snug">{blockedReason}</p>
+                </div>
+              </div>
+            )}
 
             {aiMeta?.ai_drafted && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-brand-light border border-brand/20 text-[11px] text-brand font-medium">

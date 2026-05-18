@@ -1,0 +1,183 @@
+/**
+ * Per-patient notification log fixture (BLD-FCM-LOG-01 surface).
+ *
+ * Task-38 — adds an `order_cancelled_refund_processed` fixture so the
+ * notification log shows that the patient was emailed when a refund was
+ * processed against a cancelled order. Live Postmark send is post-launch;
+ * for now this fixture is the source of truth visible in the per-patient
+ * notification log UI.
+ *
+ * Task-66 — adds retry bookkeeping fields (`attempt_count`, `max_attempts`,
+ * `last_error`, `last_attempt_at`, `next_retry_at`) plus an `email_envelope`
+ * snapshot so the `retryFailedPatientNotifications` job can resend a Failed
+ * notification without having to reconstruct the original email content from
+ * the originating order / refund. Hard bounces (status='Bounced') are NOT
+ * retried — only transient 'Failed' rows.
+ *
+ * The shape mirrors the columns used by the BLD-FCM-LOG-01 prototype
+ * (channel, template, status, payload) and extends them with the retry
+ * metadata above.
+ */
+
+import type { ClinicId } from '../types';
+import { scopedToClinic, delay, NOW } from '../constants';
+
+export type PatientNotificationChannel = 'Email' | 'SMS' | 'Push' | 'InApp';
+export type PatientNotificationStatus = 'Delivered' | 'Queued' | 'Failed' | 'Bounced';
+
+export type PatientNotificationType =
+  | 'order_cancelled_refund_processed'
+  | 'order_cancelled_no_charge'
+  | 'order_approved'
+  | 'order_dispatched'
+  | 'order_declined';
+
+// Task-66 — snapshot of the email content captured at first-send time so the
+// retry job can resend without coupling back to the originating order/refund.
+export type PatientEmailEnvelope = {
+  to_email: string;
+  subject: string;
+  text_body: string;
+  template: string;
+};
+
+export type PatientNotification = {
+  id: string;
+  clinic_id: ClinicId;
+  patient_id: string;
+  order_id: string | null;
+  type: PatientNotificationType;
+  channel: PatientNotificationChannel;
+  template: string;
+  status: PatientNotificationStatus;
+  sent_at: string;
+  payload: Record<string, unknown>;
+  // ── Task-66 retry bookkeeping ──────────────────────────────────────────
+  attempt_count: number;
+  max_attempts: number;
+  last_error: string | null;
+  last_attempt_at: string | null;
+  next_retry_at: string | null;
+  email_envelope: PatientEmailEnvelope | null;
+};
+
+// Task-66 — default retry policy. 3 attempts total (initial + 2 retries) so the
+// backoff schedule only needs two slots: 5 min after attempt 1, 15 min after
+// attempt 2. After attempt 3 the row is exhausted and no further retry is
+// scheduled.
+export const DEFAULT_MAX_ATTEMPTS = 3;
+export const RETRY_BACKOFF_MINUTES = [5, 15] as const;
+
+export function nextRetryAtFor(attemptCount: number, fromIso: string = NOW): string | null {
+  // attemptCount is the count *after* the just-completed attempt. The next
+  // retry waits RETRY_BACKOFF_MINUTES[attemptCount-1] from fromIso. Returns
+  // null when no further retries are scheduled.
+  if (attemptCount < 1 || attemptCount >= DEFAULT_MAX_ATTEMPTS) return null;
+  const minutes = RETRY_BACKOFF_MINUTES[attemptCount - 1];
+  if (minutes == null) return null;
+  return new Date(new Date(fromIso).getTime() + minutes * 60 * 1000).toISOString();
+}
+
+export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
+  {
+    id: 'NOTIF-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00450',
+    type: 'order_cancelled_refund_processed',
+    channel: 'Email',
+    template: 'order_cancelled_refund',
+    status: 'Delivered',
+    sent_at: '2026-05-10T14:32:00Z',
+    payload: {
+      order_id: 'ORD-00450',
+      refunded_amount: 179.00,
+      card_last4: '4242',
+      reason: 'Order cancellation — relocating overseas',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2026-05-10T14:32:00Z',
+    next_retry_at:   null,
+    email_envelope:  null,
+  },
+];
+
+// Task-49 — append a notification record after a real Postmark send. Returns
+// the appended record so callers can audit / surface its ID.
+//
+// Task-66 — accepts `email_envelope` (snapshot used by the retry job) and
+// `error_message` (becomes `last_error` when status is 'Failed' / 'Bounced').
+// When status='Failed' a `next_retry_at` is scheduled using the default
+// backoff; 'Delivered' and 'Bounced' never schedule retries.
+export function recordPatientNotification(input: {
+  clinic_id: ClinicId;
+  patient_id: string;
+  order_id: string | null;
+  type: PatientNotificationType;
+  template: string;
+  status: PatientNotificationStatus;
+  payload: Record<string, unknown>;
+  channel?: PatientNotificationChannel;
+  sent_at?: string;
+  email_envelope?: PatientEmailEnvelope | null;
+  error_message?: string | null;
+}): PatientNotification {
+  const next = String(MOCK_PATIENT_NOTIFICATIONS.length + 1).padStart(3, '0');
+  const sentAt = input.sent_at ?? NOW;
+  const attemptCount = 1;
+  const record: PatientNotification = {
+    id: `NOTIF-${next}`,
+    clinic_id:  input.clinic_id,
+    patient_id: input.patient_id,
+    order_id:   input.order_id,
+    type:       input.type,
+    channel:    input.channel ?? 'Email',
+    template:   input.template,
+    status:     input.status,
+    sent_at:    sentAt,
+    payload:    input.payload,
+    attempt_count:   attemptCount,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      input.status === 'Delivered' ? null : (input.error_message ?? null),
+    last_attempt_at: sentAt,
+    next_retry_at:   input.status === 'Failed' ? nextRetryAtFor(attemptCount, sentAt) : null,
+    email_envelope:  input.email_envelope ?? null,
+  };
+  MOCK_PATIENT_NOTIFICATIONS.push(record);
+  return record;
+}
+
+// Task-66 — mutate a notification after a retry attempt. Centralised so the
+// retry job and tests stay in sync with the retry policy.
+export function applyRetryOutcome(
+  notif: PatientNotification,
+  outcome: { status: PatientNotificationStatus; error_message?: string | null; message_id?: string | null },
+  attemptedAt: string = NOW,
+): PatientNotification {
+  notif.attempt_count   = notif.attempt_count + 1;
+  notif.status          = outcome.status;
+  notif.last_attempt_at = attemptedAt;
+  notif.last_error      = outcome.status === 'Delivered' ? null : (outcome.error_message ?? notif.last_error);
+  // Only schedule another retry while transient-failing and below max_attempts.
+  notif.next_retry_at =
+    outcome.status === 'Failed' && notif.attempt_count < notif.max_attempts
+      ? nextRetryAtFor(notif.attempt_count, attemptedAt)
+      : null;
+  if (outcome.message_id) {
+    notif.payload = { ...notif.payload, postmark_message_id: outcome.message_id };
+  }
+  return notif;
+}
+
+export async function listPatientNotifications(
+  clinic_id: ClinicId,
+  opts?: { patient_id?: string; order_id?: string },
+): Promise<PatientNotification[]> {
+  await delay();
+  let results = scopedToClinic(MOCK_PATIENT_NOTIFICATIONS, clinic_id);
+  if (opts?.patient_id) results = results.filter((n) => n.patient_id === opts.patient_id);
+  if (opts?.order_id) results = results.filter((n) => n.order_id === opts.order_id);
+  return results;
+}

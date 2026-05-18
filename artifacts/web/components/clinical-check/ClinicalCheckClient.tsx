@@ -1,225 +1,493 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Stethoscope, AlertTriangle } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { Stethoscope, Flag, CreditCard, Scale, FileText, Info, AlertTriangle } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { OrderListTable } from "@/components/orders/OrderListTable";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { LatestCoachingLogCard } from "@/components/clinical-check/LatestCoachingLogCard";
-import { SlaTimerWidget } from "@/components/sla/SlaTimerWidget";
+import { ClinicalCheckSlideOver } from "@/components/clinical-check/ClinicalCheckSlideOver";
 import { NOW } from "@/lib/api/constants";
+import { countReviewNeeded } from "@/lib/questionnaire";
+import { cn } from "@/lib/utils";
 import type { Order, Clinic, CoachingLog, ClinicId } from "@/types";
 
-type SubTab = "all" | "awaiting_photos" | "g6_flagged" | "reorders";
+// ── Sub-queue tabs ─────────────────────────────────────────────────────────────
 
-const SUB_TABS: { key: SubTab; label: string }[] = [
-  { key: "all",             label: "All orders"      },
-  { key: "awaiting_photos", label: "Awaiting Photos" },
-  { key: "g6_flagged",      label: "G6 Flagged"      },
-  { key: "reorders",        label: "Reorders"        },
+type SubQueue = "all" | "awaiting_id" | "awaiting_bmi" | "awaiting_rx";
+
+const SUB_QUEUES: {
+  value: SubQueue;
+  label: string;
+  flag: string | null;
+  icon: LucideIcon;
+  banner: { text: string; action: string };
+}[] = [
+  {
+    value: "all",
+    label: "All",
+    flag: null,
+    icon: Stethoscope,
+    banner: { text: "", action: "" },
+  },
+  {
+    value: "awaiting_id",
+    label: "Awaiting ID",
+    flag: "Awaiting ID",
+    icon: CreditCard,
+    banner: {
+      text: "These orders are blocked pending patient identity verification.",
+      action: "Review SumSub result on the patient profile and mark ID as verified before approving.",
+    },
+  },
+  {
+    value: "awaiting_bmi",
+    label: "Awaiting BMI",
+    flag: "Awaiting BMI",
+    icon: Scale,
+    banner: {
+      text: "These orders are blocked pending a verified BMI submission.",
+      action: "Review the patient's photo evidence and confirm BMI before proceeding to clinical decision.",
+    },
+  },
+  {
+    value: "awaiting_rx",
+    label: "Awaiting Rx evidence",
+    flag: "Awaiting Rx evidence",
+    icon: FileText,
+    banner: {
+      text: "These orders are blocked pending prescription or prior authorisation evidence.",
+      action: "Request the supporting document from the patient or GP before approving.",
+    },
+  },
+];
+
+// ── Medication filter chips (secondary, within the selected sub-queue) ─────────
+
+type FilterChip = "all" | "flagged" | "review_needed" | "mounjaro" | "wegovy" | "dose_increase";
+
+const CHIPS: { value: FilterChip; label: string }[] = [
+  { value: "all",           label: "All orders"     },
+  { value: "flagged",       label: "Flagged only"   },
+  { value: "review_needed", label: "Review needed"  },
+  { value: "mounjaro",      label: "Mounjaro"       },
+  { value: "wegovy",        label: "Wegovy"         },
+  { value: "dose_increase", label: "Dose increase"  },
 ];
 
 interface ClinicalCheckClientProps {
   orders: Order[];
   clinic: Clinic;
   clinicId: ClinicId;
-  // BLD-2.9 — coaching logs keyed by patient_id for Reorders sub-tab
   coachingLogsByPatientId?: Record<string, CoachingLog[]>;
   patientNames?: Record<string, string>;
 }
 
 export function ClinicalCheckClient({
-  orders,
+  orders: initialOrders,
   clinic,
   clinicId,
   coachingLogsByPatientId,
   patientNames = {},
 }: ClinicalCheckClientProps) {
-  const [activeTab, setActiveTab] = useState<SubTab>("all");
-
+  const [subQueue,         setSubQueue]         = useState<SubQueue>("all");
+  const [activeChip,       setActiveChip]       = useState<FilterChip>("all");
+  const [selectedOrderId,  setSelectedOrderId]  = useState<string | null>(null);
+  const [orders,           setOrders]           = useState<Order[]>(initialOrders);
   const now = new Date(NOW).getTime();
 
-  const warnCount = orders.filter((o) => {
-    const warnAt   = new Date(o.sla_warn_at).getTime();
-    const breachAt = new Date(o.sla_breach_at).getTime();
-    return now > warnAt && now <= breachAt;
-  }).length;
+  const handleRowClick = useCallback((orderId: string) => {
+    setSelectedOrderId((prev) => (prev === orderId ? null : orderId));
+  }, []);
 
-  const breachCount = orders.filter(
-    (o) => now > new Date(o.sla_breach_at).getTime()
-  ).length;
+  // Close slide-over on Escape key
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setSelectedOrderId(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
-  const tabCounts: Record<SubTab, number> = useMemo(() => ({
-    all:             orders.length,
-    awaiting_photos: orders.filter(
-      (o) => "bmi_photo_url" in o.questionnaire_responses && !o.questionnaire_responses["bmi_photo_url"]
-    ).length,
-    g6_flagged: orders.filter((o) => o.g6_flags.length > 0).length,
-    reorders:   orders.filter((o) => o.type === "reorder").length,
-  }), [orders]);
+  const filteredIdsRef = useRef<string[]>([]);
 
+  const navigateOrder = useCallback((direction: 1 | -1) => {
+    setSelectedOrderId((current) => {
+      const ids = filteredIdsRef.current;
+      if (ids.length === 0) return current;
+      if (!current) return ids[0];
+      const idx = ids.indexOf(current);
+      if (idx === -1) return ids[0];
+      const next = idx + direction;
+      if (next < 0 || next >= ids.length) return current;
+      return ids[next];
+    });
+  }, []);
+
+  const handleDecisionMade = useCallback((orderId: string) => {
+    setOrders((prev) => {
+      const next = prev.filter((o) => o.id !== orderId);
+      if (next.length !== prev.length && typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("clinical-check-count-changed", {
+            detail: { delta: -1, count: next.length },
+          })
+        );
+      }
+      return next;
+    });
+    setSelectedOrderId(null);
+  }, []);
+
+  // ── Review-needed counts per order (safety-flagged "yes" answers) ──────────
+  const reviewNeededByOrderId = useMemo<Record<string, number>>(() => {
+    const map: Record<string, number> = {};
+    for (const o of orders) {
+      const config = o.type === "new"
+        ? clinic.config.questionnaire_order
+        : clinic.config.questionnaire_reorder;
+      const count = countReviewNeeded(config, o.questionnaire_responses);
+      if (count > 0) map[o.id] = count;
+    }
+    return map;
+  }, [orders, clinic]);
+
+  // ── KPI tiles (always over the full queue) ────────────────────────────────
+  const { under4, btw4to8, over8, flaggedCount, reviewNeededTotal } = useMemo(() => {
+    let u4 = 0, b48 = 0, o8 = 0, fl = 0, rn = 0;
+    for (const o of orders) {
+      const hrs = (now - new Date(o.created_at).getTime()) / 3_600_000;
+      if (hrs < 4)      u4++;
+      else if (hrs < 8) b48++;
+      else              o8++;
+      if (o.g6_flags.length > 0 || (o.contextual_flags ?? []).length > 0) fl++;
+      if ((reviewNeededByOrderId[o.id] ?? 0) > 0) rn++;
+    }
+    return { under4: u4, btw4to8: b48, over8: o8, flaggedCount: fl, reviewNeededTotal: rn };
+  }, [orders, now, reviewNeededByOrderId]);
+
+  // ── Sub-queue counts ─────────────────────────────────────────────────────
+  const subQueueCounts = useMemo<Record<SubQueue, number>>(() => {
+    const counts: Record<SubQueue, number> = {
+      all: orders.length, awaiting_id: 0, awaiting_bmi: 0, awaiting_rx: 0,
+    };
+    for (const o of orders) {
+      const flags = o.contextual_flags ?? [];
+      if (flags.includes("Awaiting ID"))          counts.awaiting_id++;
+      if (flags.includes("Awaiting BMI"))         counts.awaiting_bmi++;
+      if (flags.includes("Awaiting Rx evidence")) counts.awaiting_rx++;
+    }
+    return counts;
+  }, [orders]);
+
+  // ── Step 1: sub-queue filter ──────────────────────────────────────────────
+  const subFiltered = useMemo(() => {
+    const sq = SUB_QUEUES.find((s) => s.value === subQueue)!;
+    if (!sq.flag) return orders;
+    return orders.filter((o) => (o.contextual_flags ?? []).includes(sq.flag!));
+  }, [orders, subQueue]);
+
+  // ── Step 2: chip filter (within sub-queue) ────────────────────────────────
+  // Orders with safety-flagged "yes" answers are surfaced to the top of the
+  // queue so prescribers triage real safety concerns first, then we fall back
+  // to oldest-first by created_at.
   const filtered = useMemo(() => {
-    if (activeTab === "all")             return orders;
-    if (activeTab === "awaiting_photos") return orders.filter(
-      (o) => "bmi_photo_url" in o.questionnaire_responses && !o.questionnaire_responses["bmi_photo_url"]
-    );
-    if (activeTab === "g6_flagged") return orders.filter((o) => o.g6_flags.length > 0);
-    if (activeTab === "reorders")   return orders.filter((o) => o.type === "reorder");
-    return orders;
-  }, [orders, activeTab]);
+    let list: Order[];
+    switch (activeChip) {
+      case "flagged":
+        list = subFiltered.filter(
+          (o) => o.g6_flags.length > 0 || (o.contextual_flags ?? []).length > 0
+        );
+        break;
+      case "review_needed":
+        list = subFiltered.filter((o) => (reviewNeededByOrderId[o.id] ?? 0) > 0);
+        break;
+      case "mounjaro":
+        list = subFiltered.filter((o) => o.product.medication.toLowerCase() === "mounjaro");
+        break;
+      case "wegovy":
+        list = subFiltered.filter((o) => o.product.medication.toLowerCase() === "wegovy");
+        break;
+      case "dose_increase":
+        list = subFiltered.filter((o) => o.contextual_flags?.includes("Dose increase"));
+        break;
+      default:
+        list = subFiltered;
+    }
+    return [...list].sort((a, b) => {
+      const ra = reviewNeededByOrderId[a.id] ?? 0;
+      const rb = reviewNeededByOrderId[b.id] ?? 0;
+      if (ra !== rb) return rb - ra;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+  }, [subFiltered, activeChip, reviewNeededByOrderId]);
 
-  // ── BLD-2.9: unique patients with coaching logs in the current reorders set ──
-  const reorderPatientsWithLogs = useMemo(() => {
-    if (activeTab !== "reorders" || !coachingLogsByPatientId) return [];
+  // Keep ref in sync with filtered order ids for keyboard navigation
+  useEffect(() => {
+    filteredIdsRef.current = filtered.map((o) => o.id);
+  }, [filtered]);
+
+  // ── Coaching cards (only in "all" sub-queue) ──────────────────────────────
+  const coachingCards = useMemo(() => {
+    if (subQueue !== "all" || activeChip !== "all" || !coachingLogsByPatientId) return [];
     const seen = new Set<string>();
     const rows: { patientId: string; patientName: string; logs: CoachingLog[] }[] = [];
-    for (const order of filtered) {
+    for (const order of filtered.filter((o) => o.type === "reorder")) {
       const pid = order.patient_id;
       if (seen.has(pid)) continue;
       const logs = coachingLogsByPatientId[pid];
-      if (logs && logs.length > 0) {
+      if (logs?.length) {
         seen.add(pid);
-        rows.push({
-          patientId: pid,
-          patientName: patientNames[pid] ?? pid,
-          logs,
-        });
+        rows.push({ patientId: pid, patientName: patientNames[pid] ?? pid, logs });
       }
     }
     return rows;
-  }, [activeTab, filtered, coachingLogsByPatientId, patientNames]);
+  }, [subQueue, activeChip, filtered, coachingLogsByPatientId, patientNames]);
+
+  const activeSQ = SUB_QUEUES.find((s) => s.value === subQueue)!;
+
+  function handleSubQueueChange(sq: SubQueue) {
+    setSubQueue(sq);
+    setActiveChip("all");
+  }
+
+  const selectedOrder = selectedOrderId
+    ? orders.find((o) => o.id === selectedOrderId) ?? null
+    : null;
 
   return (
-    <div>
-      {/* SLA stats card */}
-      <div className="px-6 py-4 border-b border-bdr bg-surface">
-        <div className="grid grid-cols-3 gap-3">
-          <StatTile
-            label="Total in queue"
-            value={orders.length}
-            variant="neutral"
-          />
-          <StatTile
-            label={`Warning — within ${clinic.config.default_slas.approval_warn_hours}h`}
-            value={warnCount}
-            variant={warnCount > 0 ? "warn" : "neutral"}
-          />
-          <StatTile
-            label={`Breached — past ${clinic.config.default_slas.approval_breach_hours}h`}
-            value={breachCount}
-            variant={breachCount > 0 ? "err" : "neutral"}
-          />
+    <div className="flex flex-col min-h-0">
+      {/* ── KPI tiles ──────────────────────────────────────────────────────── */}
+      <div className="px-6 py-4 border-b border-bdr bg-surface shrink-0">
+        <div className="flex items-start gap-3">
+          <div className="grid grid-cols-4 gap-3 flex-1">
+            <BucketTile label="Total in queue" value={orders.length} variant="neutral" />
+            <BucketTile label="Under 4h"        value={under4}        variant="ok"      />
+            <BucketTile label="4 – 8h"           value={btw4to8}       variant="warn"    />
+            <BucketTile label="Over 8h"          value={over8}         variant="err"     />
+          </div>
+          {flaggedCount > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#fecaca] bg-[#fef2f2] self-center shrink-0">
+              <Flag className="w-3.5 h-3.5 text-[#dc2626]" />
+              <span className="text-[13px] font-bold text-[#dc2626] tabular-nums">{flaggedCount}</span>
+              <span className="text-[11px] text-[#b91c1c]">Flagged orders</span>
+            </div>
+          )}
+          {reviewNeededTotal > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-warn-bdr bg-warn-bg self-center shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-warn" />
+              <span className="text-[13px] font-bold text-warn tabular-nums">{reviewNeededTotal}</span>
+              <span className="text-[11px] text-warn">Need review</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Sub-queue tab bar ──────────────────────────────────────────────── */}
+      <div className="px-6 border-b border-bdr bg-surface shrink-0">
+        <div className="flex items-end gap-0 -mb-px">
+          {SUB_QUEUES.map((sq) => {
+            const isActive = subQueue === sq.value;
+            const count    = subQueueCounts[sq.value];
+            const Icon     = sq.icon;
+            return (
+              <button
+                key={sq.value}
+                onClick={() => handleSubQueueChange(sq.value)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-3 text-[13px] font-semibold border-b-2 transition-colors whitespace-nowrap",
+                  isActive
+                    ? "border-brand text-brand"
+                    : "border-transparent text-t2 hover:text-t1 hover:border-bdr"
+                )}
+              >
+                <Icon className={cn("w-3.5 h-3.5", isActive ? "text-brand" : "text-t3")} />
+                {sq.label}
+                {sq.value !== "all" && (
+                  <span className={cn(
+                    "text-[11px] font-bold px-1.5 py-0.5 rounded-full tabular-nums min-w-[20px] text-center",
+                    isActive
+                      ? "bg-brand text-white"
+                      : count > 0
+                        ? "bg-warn-bg text-warn border border-warn-bdr"
+                        : "bg-page-bg text-t3 border border-bdr"
+                  )}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Sub-queue info banner (when not on "all") ─────────────────────── */}
+      {subQueue !== "all" && activeSQ.banner.text && (
+        <div className="mx-6 mt-4 flex items-start gap-3 bg-info-bg border border-info-bdr rounded-lg px-4 py-3 shrink-0">
+          <Info className="w-4 h-4 text-info shrink-0 mt-0.5" />
+          <div>
+            <p className="text-[13px] text-info font-medium">{activeSQ.banner.text}</p>
+            <p className="text-[12px] text-info/80 mt-0.5">{activeSQ.banner.action}</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Filter chips ───────────────────────────────────────────────────── */}
+      <div className="px-6 py-2.5 border-b border-bdr bg-surface flex items-center justify-between gap-3 flex-wrap mt-4 shrink-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {CHIPS.map((chip) => {
+            const active = activeChip === chip.value;
+            // Scope review-needed chip count to the current sub-queue so the
+            // number always matches what the user will see if they click it.
+            const subReviewCount =
+              chip.value === "review_needed"
+                ? subFiltered.reduce(
+                    (acc, o) => acc + ((reviewNeededByOrderId[o.id] ?? 0) > 0 ? 1 : 0),
+                    0,
+                  )
+                : 0;
+            const count = chip.value === "review_needed" ? subReviewCount : undefined;
+            const disabled = chip.value === "review_needed" && subReviewCount === 0;
+            return (
+              <button
+                key={chip.value}
+                onClick={() => !disabled && setActiveChip(chip.value)}
+                disabled={disabled}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1 text-[12px] font-semibold rounded-full border transition-colors",
+                  active
+                    ? "bg-brand text-white border-brand"
+                    : disabled
+                    ? "bg-surface text-t3 border-bdr opacity-50 cursor-not-allowed"
+                    : "bg-surface text-t2 border-bdr hover:border-brand hover:text-brand"
+                )}
+              >
+                {chip.label}
+                {count !== undefined && count > 0 && (
+                  <span className={cn(
+                    "text-[10px] font-bold tabular-nums px-1.5 py-px rounded-full",
+                    active ? "bg-white/20 text-white" : "bg-warn-bg text-warn border border-warn-bdr"
+                  )}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[11px] text-t3 whitespace-nowrap">
+          {filtered.length} order{filtered.length !== 1 ? "s" : ""} · Sort: Review needed, then oldest first
+        </span>
+      </div>
+
+      {/* ── Queue + slide-over flex row ────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0">
+
+        {/* Queue table (scrollable, shrinks when panel is open) */}
+        <div className="flex-1 overflow-y-auto min-w-0 px-6 py-4">
+          <div className="flex flex-col gap-4">
+            {coachingCards.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] font-bold text-t3 uppercase tracking-wider">
+                  Coaching context for reorder patients
+                </p>
+                {coachingCards.map(({ patientId, patientName, logs }) => (
+                  <LatestCoachingLogCard
+                    key={patientId}
+                    patientId={patientId}
+                    patientName={patientName}
+                    clinicId={clinicId}
+                    logs={logs}
+                  />
+                ))}
+              </div>
+            )}
+
+            {filtered.length === 0 ? (
+              <EmptyState
+                icon={activeSQ.icon}
+                title={
+                  subQueue === "all"
+                    ? "No orders in this filter"
+                    : `No orders ${activeSQ.label.toLowerCase()}`
+                }
+                description={
+                  subQueue === "all"
+                    ? "Try a different filter chip."
+                    : "All orders in this sub-queue have been resolved."
+                }
+              />
+            ) : (
+              <OrderListTable
+                orders={filtered}
+                clinicId={clinicId}
+                clinic={clinic}
+                patientNames={patientNames}
+                context="clinical_check"
+                onRowClick={handleRowClick}
+                selectedOrderId={selectedOrderId ?? undefined}
+                reviewNeededByOrderId={reviewNeededByOrderId}
+              />
+            )}
+          </div>
         </div>
 
-        {/* BLD-3.1 — SlaTimerWidget for most-urgent order in queue */}
-        {(() => {
-          const urgent = [...orders]
-            .filter((o) => o.status === "clinical_check")
-            .sort((a, b) => a.sla_breach_at.localeCompare(b.sla_breach_at))[0];
-          if (!urgent) return null;
-          return (
-            <div className="mt-3">
-              <SlaTimerWidget
-                sla_deadline={urgent.sla_breach_at}
-                sla_warn_at={urgent.sla_warn_at}
-                label={`Next breach — ${urgent.id}`}
-                total_hours={clinic.config.default_slas.approval_breach_hours}
-                variant="full"
-              />
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="flex items-center border-b border-bdr bg-surface px-6 overflow-x-auto">
-        {SUB_TABS.filter((t) => t.key === "all" || tabCounts[t.key] > 0).map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-[12px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors ${
-              activeTab === tab.key
-                ? "border-brand text-brand"
-                : "border-transparent text-t2 hover:text-t1"
-            }`}
-          >
-            {tab.label}
-            <span className={`text-[10px] font-bold tabular-nums ${activeTab === tab.key ? "opacity-80" : "opacity-50"}`}>
-              {tabCounts[tab.key]}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
-      <div className="px-6 py-4 flex flex-col gap-4">
-        {/* BLD-2.9 — coaching context cards above reorders table */}
-        {reorderPatientsWithLogs.length > 0 && (
-          <div className="flex flex-col gap-3">
-            <p className="text-[11px] font-bold text-t3 uppercase tracking-wider">
-              Coaching context for reorder patients
-            </p>
-            {reorderPatientsWithLogs.map(({ patientId, patientName, logs }) => (
-              <LatestCoachingLogCard
-                key={patientId}
-                patientId={patientId}
-                patientName={patientName}
-                clinicId={clinicId}
-                logs={logs}
-              />
-            ))}
-          </div>
-        )}
-
-        {filtered.length === 0 ? (
-          <EmptyState
-            icon={Stethoscope}
-            title="No orders in this filter"
-            description="Try switching to a different sub-tab."
-          />
-        ) : (
-          <OrderListTable orders={filtered} clinicId={clinicId} clinic={clinic} showQueueAge />
-        )}
+        {/* Slide-over panel (420px, animated in/out) */}
+        <div
+          className={cn(
+            "shrink-0 border-l border-bdr overflow-hidden transition-all duration-300",
+            selectedOrder ? "w-[420px] opacity-100" : "w-0 opacity-0"
+          )}
+        >
+          {selectedOrder && (
+            <ClinicalCheckSlideOver
+              order={selectedOrder}
+              patientName={patientNames[selectedOrder.patient_id] ?? selectedOrder.patient_id}
+              clinic={clinic}
+              clinicId={clinicId}
+              onClose={() => setSelectedOrderId(null)}
+              onDecisionMade={handleDecisionMade}
+              onNavigate={navigateOrder}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function StatTile({
+// ── Bucket tile ───────────────────────────────────────────────────────────────
+function BucketTile({
   label,
   value,
   variant,
 }: {
   label: string;
   value: number;
-  variant: "neutral" | "warn" | "err";
+  variant: "neutral" | "ok" | "warn" | "err";
 }) {
+  const wrapCls =
+    variant === "err"  ? "bg-err-bg  border-err-bdr"  :
+    variant === "warn" ? "bg-warn-bg border-warn-bdr"  :
+    variant === "ok"   ? "bg-ok-bg   border-ok-bdr"    :
+    "bg-page-bg border-bdr";
+  const numCls =
+    variant === "err"  ? "text-err"  :
+    variant === "warn" ? "text-warn" :
+    variant === "ok"   ? "text-ok"   :
+    "text-t1";
+  const lblCls =
+    variant === "err"  ? "text-err"  :
+    variant === "warn" ? "text-warn" :
+    variant === "ok"   ? "text-ok"   :
+    "text-t3";
+
   return (
-    <div
-      className={`rounded-lg border px-4 py-3.5 flex items-center gap-3 ${
-        variant === "err"  ? "bg-err-bg border-err-bdr"   :
-        variant === "warn" ? "bg-warn-bg border-warn-bdr" :
-        "bg-page-bg border-bdr"
-      }`}
-    >
-      {variant !== "neutral" && (
-        <AlertTriangle
-          className={`w-5 h-5 shrink-0 ${variant === "err" ? "text-err" : "text-warn"}`}
-        />
-      )}
-      <div>
-        <div className={`text-[26px] font-bold tabular-nums leading-none ${
-          variant === "err" ? "text-err" : variant === "warn" ? "text-warn" : "text-t1"
-        }`}>
-          {value}
-        </div>
-        <div className={`text-[11px] mt-0.5 leading-tight ${
-          variant === "neutral" ? "text-t3" :
-          variant === "err"     ? "text-err" :
-          "text-warn"
-        }`}>
-          {label}
-        </div>
+    <div className={cn("rounded-lg border px-4 py-3", wrapCls)}>
+      <div className={cn("text-[26px] font-bold tabular-nums leading-none", numCls)}>
+        {value}
       </div>
+      <div className={cn("text-[11px] mt-0.5 leading-tight", lblCls)}>{label}</div>
     </div>
   );
 }

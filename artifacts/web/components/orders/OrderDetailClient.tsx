@@ -16,14 +16,20 @@ import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
   MessageSquare, ShieldAlert, Scale, ShieldCheck, AlertTriangle,
   Stethoscope, Pencil, Activity, Clock, Send, Mail, CreditCard,
-  FileText, Camera,
+  FileText, Camera, Ban, Paperclip, FileCheck2,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, createClinicalNote, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, CURRENT_USER, NOW } from "@/lib/api/mock";
+import {
+  Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent,
+  DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle,
+  DialogFooter as ConfirmDialogFooter,
+} from "@/components/ui/dialog";
 import { type AIDraftResult } from "@/components/clinical-notes/AINoteDraftingModal";
 import { can } from "@/lib/permissions";
-import type { Order, Patient, Clinic, ClinicId, ClinicalNote, Amendment } from "@/types";
+import type { Order, Patient, Clinic, ClinicId, ClinicalNote, Amendment, CourierEvent } from "@/types";
+import { CourierTrackingCard } from "@/components/orders/CourierTrackingCard";
 import { DCard, Row, Metric, EmptyPane } from "./orderPrimitives";
 import { OrderDecisionDialogs, type Modal, type ToastState } from "./OrderDecisionDialogs";
 import { OrderQuestionnaireCard } from "./OrderQuestionnaireCard";
@@ -36,9 +42,13 @@ import { RecentNotesCard } from "@/components/timeline/RecentNotesCard";
 import { DeclineConfirmModal } from "./DeclineConfirmModal";
 import { InterventionConfirmModal } from "./InterventionConfirmModal";
 import { ApproveConfirmModal } from "./ApproveConfirmModal";
+import { LogIncidentModal } from "@/components/incidents/LogIncidentModal";
 import { OrderNICEChecklistCard } from "./OrderNICEChecklistCard";
 import { OrderDoseEscalationGateCard } from "./OrderDoseEscalationGateCard";
 import { OrderWeightTrajectoryCard } from "./OrderWeightTrajectoryCard";
+import { OrderBMIValidationCard } from "./OrderBMIValidationCard";
+import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
+import { DispatchDateCard } from "./DispatchDateCard";
 import { addWorkingHours } from "@/lib/utils/workingHours";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,7 +62,7 @@ interface OrderDetailClientProps {
   initialClinicalNotes: ClinicalNote[];
 }
 
-type RightTab = "questionnaire" | "clinical_evidence" | "prescription" | "amendments" | "activity" | "notes";
+type RightTab = "questionnaire" | "clinical_evidence" | "prescription" | "amendments" | "activity" | "notes" | "pharmacy_comms" | "intercom";
 
 const RIGHT_TABS: { key: RightTab; label: string }[] = [
   { key: "questionnaire",     label: "Questionnaire"     },
@@ -60,6 +70,8 @@ const RIGHT_TABS: { key: RightTab; label: string }[] = [
   { key: "prescription",      label: "Prescription"      },
   { key: "notes",             label: "Notes"             },
   { key: "amendments",        label: "Amendments"        },
+  { key: "pharmacy_comms",    label: "Pharmacy Comms"    },
+  { key: "intercom",          label: "Intercom"          },
   { key: "activity",          label: "Activity log"      },
 ];
 
@@ -117,6 +129,39 @@ export function OrderDetailClient({
   const [declineOpen, setDeclineOpen]           = useState(false);
   const [interventionOpen, setInterventionOpen] = useState(false);
   const [approveOpen, setApproveOpen]           = useState(false);
+  const [incidentOpen, setIncidentOpen]         = useState(false);
+  // Intercom tab compose state — persisted to sessionStorage per order so it
+  // survives tab switches within the same order detail session.
+  const intercomStorageKey = `orderDetail:intercom:${initialOrder.id}`;
+  const [requestInfoMsg, setRequestInfoMsg]     = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const raw = window.sessionStorage.getItem(intercomStorageKey);
+      if (!raw) return "";
+      return (JSON.parse(raw) as { msg?: string }).msg ?? "";
+    } catch { return ""; }
+  });
+  const [requestInfoSent, setRequestInfoSent]   = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const raw = window.sessionStorage.getItem(intercomStorageKey);
+      if (!raw) return false;
+      return Boolean((JSON.parse(raw) as { sent?: boolean }).sent);
+    } catch { return false; }
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(
+        intercomStorageKey,
+        JSON.stringify({ msg: requestInfoMsg, sent: requestInfoSent }),
+      );
+    } catch { /* ignore quota / disabled storage */ }
+  }, [intercomStorageKey, requestInfoMsg, requestInfoSent]);
+
+  // BLD-11.2 — Royal Mail courier events
+  const [courierEvents, setCourierEvents]     = useState<CourierEvent[]>([]);
 
   // BLD-5.1/5.2 — amendments tab state
   const [amendments, setAmendments]           = useState<Amendment[]>([]);
@@ -126,11 +171,88 @@ export function OrderDetailClient({
   const [showAmendForm, setShowAmendForm]     = useState(false);
   const [amendLoaded, setAmendLoaded]         = useState(false);
 
+  // Task-38 — Cancel Order flow
+  const [cancelOpen, setCancelOpen]           = useState(false);
+  const [cancelReason, setCancelReason]       = useState("");
+  const [isCancelling, setIsCancelling]       = useState(false);
+  const [refundAmendment, setRefundAmendment] = useState<Amendment | null>(null);
+
+  // Load linked refund amendment so OrderPaymentSummary can surface refunded amount.
+  useEffect(() => {
+    if (!order.refund_amendment_id) {
+      setRefundAmendment(null);
+      return;
+    }
+    getAmendment(clinicId, order.refund_amendment_id)
+      .then((a) => setRefundAmendment(a))
+      .catch(() => setRefundAmendment(null));
+  }, [clinicId, order.refund_amendment_id, amendments]);
+
+  async function handleCancelOrder() {
+    if (cancelReason.trim().length < 20) return;
+    setIsCancelling(true);
+    try {
+      const result = await cancelOrder(clinicId, order.id, cancelReason.trim());
+      setOrder(result.order);
+      setCancelOpen(false);
+      setCancelReason("");
+      if (result.refund_amendment) {
+        setAmendments((prev) => [result.refund_amendment!, ...prev]);
+        setRefundAmendment(result.refund_amendment);
+        setToast({
+          message: `Order cancelled — refund amendment ${result.refund_amendment.id} created for review.`,
+          type: "ok",
+        });
+      } else if (result.release_auth_failed) {
+        // Ryft release call failed — order is still flipped to cancelled, but
+        // finance needs to manually reconcile / retry the auth release.
+        setToast({
+          message: `Order cancelled, but Ryft auth release failed: ${result.release_auth_failed.message}. Finance must reconcile manually.`,
+          type: "err",
+        });
+      } else {
+        setToast({
+          message: "Order cancelled — payment authorisation released (no charge taken).",
+          type: "ok",
+        });
+      }
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Cancellation failed. Please retry.",
+        type: "err",
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  }
+
+  const canCancelOrder =
+    (order.status === "approved" || order.status === "in_dispensing") &&
+    !order.dispatched_at;
+  const cancelBranch: "release_auth" | "refund_amendment" =
+    order.amount_charged == null ? "release_auth" : "refund_amendment";
+  const refundDetails = refundAmendment?.status === "applied" ? refundAmendment.details : null;
+  const refundedAmount =
+    refundDetails && typeof refundDetails.refunded_amount_gbp === "number"
+      ? (refundDetails.refunded_amount_gbp as number)
+      : null;
+  const ryftRefundRef =
+    refundDetails && typeof refundDetails.ryft_refund_ref === "string"
+      ? (refundDetails.ryft_refund_ref as string)
+      : null;
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // BLD-11.2 — Load Royal Mail courier events for dispatched/delivered orders
+  useEffect(() => {
+    if (order.status === "dispatched" || order.status === "delivered") {
+      listCourierEvents(clinicId, { order_id: order.id }).then(setCourierEvents).catch(() => {});
+    }
+  }, [order.id, order.status, clinicId]);
 
   // Load amendments when tab is opened
   useEffect(() => {
@@ -217,6 +339,7 @@ export function OrderDetailClient({
   const minChars          = clinic.config.clinical_note_min_chars;
   const canWriteNotes     = can(CURRENT_USER, "write", "clinical_notes");
   const canDecide         = order.status === "clinical_check" && can(CURRENT_USER, "decide", "orders");
+  const canWriteIncident  = can(CURRENT_USER, "write", "incidents");
 
   const hasHighSeverityFlag = patient.flags.some((f) => f.severity === "high");
   const hasB4Acknowledged   = patient.flags.some((f) => f.code === "B4_acknowledged");
@@ -249,6 +372,12 @@ export function OrderDetailClient({
   // Fix Cycle 1 BLOCKER 2: hasApprovalNote gate removed — the approval note is now
   // created inside ApproveConfirmModal via handleDecideWithNote (3-layer chain).
   // BLD-14.2: all three gates must be clear before approve is enabled.
+  // Task-81 — GLP-1 higher-dose patients must upload their current prescription
+  // before a prescriber can approve. Block matches the decideOrder safety gate.
+  const pxUploadPending =
+    order.contextual_flags?.includes("Px upload pending") ?? false;
+  const pxUploadMissing = pxUploadPending && order.px_upload == null;
+
   const approveBlockedReason =
     hasHighSeverityFlag && !hasB4Acknowledged
       ? "Patient has an unacknowledged high-severity flag — acknowledge before approving"
@@ -258,6 +387,8 @@ export function OrderDetailClient({
       ? "Dose escalation requires prior dose evidence in the questionnaire"
       : weightHistoryMissing
       ? "No weight history on record — patient must log a check-in weight before approval"
+      : pxUploadMissing
+      ? "GLP-1 prescription upload required from patient before approval"
       : null;
   const approveBlocked = approveBlockedReason !== null;
 
@@ -320,48 +451,107 @@ export function OrderDetailClient({
             </div>
           </div>
 
-          {canDecide && (
-            <div className="flex items-center gap-2">
-              {/* BLD-6.3 — opens InterventionConfirmModal instead of modal='query' */}
+          <div className="flex items-center gap-2">
+            {/* Intercom — Request info: switches to Intercom tab */}
+            <button
+              onClick={() => { setActiveTab("intercom"); setRequestInfoSent(false); setRequestInfoMsg(""); }}
+              className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-t2 border border-bdr bg-surface hover:border-brand hover:text-brand rounded-md transition-colors"
+            >
+              <Mail className="w-4 h-4" /> Request info
+            </button>
+            {canWriteIncident && (
               <button
-                onClick={() => setInterventionOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-info border border-info-bdr bg-info-bg hover:bg-info hover:text-white rounded-md transition-colors"
+                onClick={() => setIncidentOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-err border border-err-bdr bg-err-bg hover:bg-err hover:text-white rounded-md transition-colors"
               >
-                <MessageSquare className="w-4 h-4" /> Query
+                <AlertTriangle className="w-4 h-4" /> Log incident
               </button>
-              {/* BLD-6.3 — opens DeclineConfirmModal instead of modal='decline' */}
+            )}
+            {/* Task-38 — Cancel Order (approved/in_dispensing, not dispatched) */}
+            {canCancelOrder && (
               <button
-                onClick={() => setDeclineOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-err border border-err-bdr bg-err-bg hover:bg-err hover:text-white rounded-md transition-colors"
+                onClick={() => setCancelOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-err border border-err-bdr bg-err-bg hover:bg-err hover:text-white rounded-md transition-colors"
               >
-                <XCircle className="w-4 h-4" /> Decline
+                <Ban className="w-4 h-4" /> Cancel Order
               </button>
-              <div className="flex flex-col items-end gap-1">
-                {/* Fix Cycle 1 BLOCKER 2: opens ApproveConfirmModal (clinical note + AI audit captured inside) */}
+            )}
+            {canDecide && (
+              <>
+                {/* BLD-6.3 — opens InterventionConfirmModal instead of modal='query' */}
                 <button
-                  onClick={() => { if (!approveBlocked) setApproveOpen(true); }}
-                  disabled={approveBlocked}
-                  className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-md transition-colors shadow-sm ${
-                    approveBlocked
-                      ? "bg-ok/40 text-white cursor-not-allowed"
-                      : "text-white bg-ok hover:bg-ok/90"
-                  }`}
+                  onClick={() => setInterventionOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-info border border-info-bdr bg-info-bg hover:bg-info hover:text-white rounded-md transition-colors"
                 >
-                  <CheckCircle className="w-4 h-4" /> Approve
+                  <MessageSquare className="w-4 h-4" /> Query
                 </button>
-                {approveBlocked && approveBlockedReason && (
-                  <span className="text-[10px] text-err max-w-[220px] text-right leading-tight">
-                    {approveBlockedReason}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
+                {/* BLD-6.3 — opens DeclineConfirmModal instead of modal='decline' */}
+                <button
+                  onClick={() => setDeclineOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-err border border-err-bdr bg-err-bg hover:bg-err hover:text-white rounded-md transition-colors"
+                >
+                  <XCircle className="w-4 h-4" /> Decline
+                </button>
+                <div className="flex flex-col items-end gap-1">
+                  {/* Fix Cycle 1 BLOCKER 2: opens ApproveConfirmModal (clinical note + AI audit captured inside) */}
+                  <button
+                    onClick={() => { if (!approveBlocked) setApproveOpen(true); }}
+                    disabled={approveBlocked}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-md transition-colors shadow-sm ${
+                      approveBlocked
+                        ? "bg-ok/40 text-white cursor-not-allowed"
+                        : "text-white bg-ok hover:bg-ok/90"
+                    }`}
+                  >
+                    <CheckCircle className="w-4 h-4" /> Approve
+                  </button>
+                  {approveBlocked && approveBlockedReason && (
+                    <span className="text-[10px] text-err max-w-[220px] text-right leading-tight">
+                      {approveBlockedReason}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
+
+        {/* Task-38 — Cancelled banner */}
+        {order.status === "cancelled" && order.cancelled_at && (
+          <div className="mx-6 mt-4 bg-err-bg border border-err-bdr rounded-lg px-4 py-3">
+            <div className="flex items-start gap-3">
+              <Ban className="w-4 h-4 text-err shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-err">
+                  Order cancelled — {formatDateTime(order.cancelled_at)}
+                </p>
+                {order.cancellation_reason && (
+                  <p className="text-[12px] text-err mt-1 leading-relaxed">
+                    {order.cancellation_reason}
+                  </p>
+                )}
+                {order.refund_amendment_id && (
+                  <p className="text-[11px] text-t2 mt-1.5">
+                    Refund amendment:{" "}
+                    <Link
+                      href={`/${clinicId}/amendments/${order.refund_amendment_id}`}
+                      className="font-mono font-semibold text-brand hover:underline"
+                    >
+                      {order.refund_amendment_id}
+                    </Link>
+                    {refundAmendment && (
+                      <span className="ml-2 capitalize">· {refundAmendment.status}</span>
+                    )}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* BLD-15.2 — ED safeguarding banner */}
         {edSafeguardingTrigger && (
@@ -411,12 +601,20 @@ export function OrderDetailClient({
                   <div className="text-[10.5px] text-t3 font-mono">{patient.id} · {age} yrs · {d.sex_at_birth}</div>
                 </div>
               </div>
-              <Link
-                href={`/${clinicId}/patients/${patient.id}`}
-                className="mt-2.5 flex items-center gap-1 text-[11.5px] font-semibold text-brand hover:underline"
-              >
-                View patient profile →
-              </Link>
+              <div className="mt-2.5 flex items-center gap-4">
+                <Link
+                  href={`/${clinicId}/patients/${patient.id}`}
+                  className="flex items-center gap-1 text-[11.5px] font-semibold text-brand hover:underline"
+                >
+                  View patient profile →
+                </Link>
+                <Link
+                  href={`/${clinicId}/patients/${patient.id}?tab=notifications&order_id=${order.id}`}
+                  className="flex items-center gap-1 text-[11.5px] font-semibold text-brand hover:underline"
+                >
+                  Notification log →
+                </Link>
+              </div>
             </div>
 
             {/* ── Order summary ── */}
@@ -551,6 +749,22 @@ export function OrderDetailClient({
                 variant="full"
               />
             )}
+
+            {/* BLD-4.6.3 — Four-scenario dispatch date calculator */}
+            <DispatchDateCard
+              approvedAt={order.clinical_decision?.decided_at ?? order.created_at}
+              holidays={clinic.config.holiday_calendar}
+              orderStatus={order.status}
+            />
+
+            {/* BLD-11.2 — Royal Mail tracking (dispatched / delivered orders) */}
+            {(order.status === "dispatched" || order.status === "delivered") && order.royal_mail_tracking_id && (
+              <CourierTrackingCard
+                trackingId={order.royal_mail_tracking_id ?? null}
+                events={courierEvents}
+                compact
+              />
+            )}
           </div>
 
           {/* Right — tabbed panel 3/5 */}
@@ -567,7 +781,14 @@ export function OrderDetailClient({
             </div>
 
             {activeTab === "questionnaire" && (
-              <OrderQuestionnaireCard questionnaire_responses={order.questionnaire_responses as Record<string, unknown>} />
+              <OrderQuestionnaireCard
+                questionnaire_responses={order.questionnaire_responses as Record<string, unknown>}
+                questionConfig={
+                  order.type === "new"
+                    ? clinic.config.questionnaire_order
+                    : clinic.config.questionnaire_reorder
+                }
+              />
             )}
 
             {activeTab === "clinical_evidence" && (
@@ -581,9 +802,70 @@ export function OrderDetailClient({
                   />
                 )}
 
+                {/* BLD-16.2 — BMI AI Validation (FeelTru only while flag is off for VSC) */}
+                {clinic.config.features.bmi_ai_validation_enabled && (
+                  <OrderBMIValidationCard patient={patient} order={order} />
+                )}
+
                 {/* BLD-14.4 — Dose escalation gate */}
                 {order.dose_escalation_gate?.is_dose_escalation && (
                   <OrderDoseEscalationGateCard gate={order.dose_escalation_gate} />
+                )}
+
+                {/* Task 61 — Patient-uploaded GLP-1 prescription (intake higher-dose path) */}
+                {(order.px_upload || order.contextual_flags?.includes("Px upload pending")) && (
+                  <DCard icon={FileCheck2} title="Patient-uploaded prescription">
+                    {order.px_upload ? (
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3 p-3 rounded-lg bg-ok-bg border border-ok-bdr">
+                          <Paperclip className="w-4 h-4 text-ok shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-t1 truncate">
+                              {order.px_upload.filename}
+                            </p>
+                            <p className="text-[11px] text-t2 mt-0.5">
+                              {order.px_upload.content_type} ·{" "}
+                              {order.px_upload.size < 1024 * 1024
+                                ? `${(order.px_upload.size / 1024).toFixed(1)} KB`
+                                : `${(order.px_upload.size / 1024 / 1024).toFixed(1)} MB`}{" "}
+                              · uploaded {formatDateTime(order.px_upload.uploaded_at)}
+                            </p>
+                          </div>
+                          {order.px_upload.data_url && (
+                            <a
+                              href={order.px_upload.data_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              download={order.px_upload.filename}
+                              className="text-[11px] font-semibold text-ok hover:underline shrink-0"
+                            >
+                              Open
+                            </a>
+                          )}
+                        </div>
+                        {order.px_upload.data_url?.startsWith("data:image/") && (
+                          <img
+                            src={order.px_upload.data_url}
+                            alt={`Prescription upload from patient (${order.px_upload.filename})`}
+                            className="max-h-72 w-auto rounded-md border border-bdr"
+                          />
+                        )}
+                        {!order.px_upload.data_url && (
+                          <p className="text-[11px] text-t2">
+                            Preview unavailable — file exceeded the inline preview size.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-warn-bg border border-warn-bdr">
+                        <AlertTriangle className="w-4 h-4 text-warn shrink-0" />
+                        <p className="text-[12px] text-warn">
+                          Patient requested a higher GLP-1 starting dose — awaiting prescription
+                          upload from the intake success screen.
+                        </p>
+                      </div>
+                    )}
+                  </DCard>
                 )}
 
                 {/* BLD-14.5 — Weight trajectory */}
@@ -654,6 +936,8 @@ export function OrderDetailClient({
                   amount_authorised={order.amount_authorised}
                   amount_charged={order.amount_charged}
                   ryft_authorisation_id={order.ryft_authorisation_id}
+                  refunded_amount_gbp={refundedAmount}
+                  ryft_refund_ref={ryftRefundRef}
                 />
 
                 <DCard icon={Activity} title="Patient-facing SLA messaging">
@@ -869,6 +1153,110 @@ export function OrderDetailClient({
               </div>
             )}
 
+            {/* BLD-16.1 / BLD-16.10 — Pharmacy Comms tab */}
+            {activeTab === "pharmacy_comms" && (
+              <PharmacyCommsPanel
+                clinicId={clinicId}
+                anchorType="order"
+                anchorId={order.id}
+              />
+            )}
+
+            {/* Intercom tab — conversation thread + compose */}
+            {activeTab === "intercom" && (
+              <div className="flex flex-col" style={{ minHeight: "520px" }}>
+                {/* Context strip */}
+                <div className="flex items-center gap-3 px-4 py-3 mb-4 bg-page-bg border border-bdr rounded-lg">
+                  <Mail className="w-4 h-4 text-brand shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12.5px] font-semibold text-t1">
+                      {patient.demographic.full_name}
+                    </p>
+                    <p className="text-[11px] text-t3">
+                      Intercom conversation · order {order.id} · {clinic.config.intercom_workspace_id ? `workspace ${clinic.config.intercom_workspace_id}` : "no workspace configured"}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-1 bg-ok-bg text-ok border border-ok-bdr rounded">
+                    Active
+                  </span>
+                </div>
+
+                {/* Thread */}
+                <div className="flex-1 space-y-4 mb-4 overflow-y-auto">
+                  {/* System message */}
+                  <div className="text-center">
+                    <span className="text-[10px] font-semibold text-t3 bg-page-bg border border-bdr px-3 py-1 rounded-full">
+                      Conversation started · {formatDate(order.created_at)}
+                    </span>
+                  </div>
+                  {/* Incoming (patient) */}
+                  <div className="flex gap-2">
+                    <div className="w-7 h-7 rounded-full bg-brand/20 border border-brand/30 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-[10px] font-bold text-brand">
+                        {patient.demographic.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                      </span>
+                    </div>
+                    <div className="bg-page-bg border border-bdr rounded-xl rounded-tl-none px-3 py-2 max-w-[320px]">
+                      <p className="text-[12px] text-t1 leading-relaxed">
+                        Hi, I wanted to check — should I continue with the same dose or wait for my next appointment?
+                      </p>
+                      <p className="text-[10px] text-t3 mt-1">{formatDateTime(order.created_at)}</p>
+                    </div>
+                  </div>
+                  {/* Outgoing (clinic) */}
+                  <div className="flex gap-2 justify-end">
+                    <div className="bg-brand text-white rounded-xl rounded-tr-none px-3 py-2 max-w-[320px]">
+                      <p className="text-[12px] leading-relaxed">
+                        Hi {patient.demographic.full_name.split(" ")[0]}, thanks for reaching out. We&apos;re reviewing your order now — we may need a few more details.
+                      </p>
+                      <p className="text-[10px] text-white/70 mt-1">Livera Care Team · {formatDate(order.created_at)}</p>
+                    </div>
+                  </div>
+                  {/* Sent confirmation */}
+                  {requestInfoSent && (
+                    <div className="flex gap-2 justify-end">
+                      <div className="bg-brand text-white rounded-xl rounded-tr-none px-3 py-2 max-w-[320px]">
+                        <p className="text-[12px] leading-relaxed">{requestInfoMsg}</p>
+                        <p className="text-[10px] text-white/70 mt-1 flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" /> Sent just now
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Compose */}
+                {!requestInfoSent ? (
+                  <div className="border border-bdr rounded-lg px-4 py-3 space-y-2 bg-surface">
+                    <p className="text-[11px] font-semibold text-t3 uppercase tracking-wider">Send via Intercom</p>
+                    <textarea
+                      rows={3}
+                      placeholder={`Ask ${patient.demographic.full_name.split(" ")[0]} for more information…`}
+                      value={requestInfoMsg}
+                      onChange={(e) => setRequestInfoMsg(e.target.value)}
+                      className="w-full text-[13px] border border-bdr rounded-lg px-3 py-2 bg-page-bg text-t1 placeholder:text-t3 resize-none focus:outline-none focus:border-brand"
+                    />
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] text-t3">Patient will be notified by email</p>
+                      <button
+                        disabled={!requestInfoMsg.trim()}
+                        onClick={() => { if (requestInfoMsg.trim()) setRequestInfoSent(true); }}
+                        className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Send className="w-3.5 h-3.5" /> Send
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border border-ok-bdr rounded-lg px-4 py-3 bg-ok-bg">
+                    <p className="text-[12px] font-semibold text-ok text-center flex items-center justify-center gap-1.5">
+                      <CheckCircle className="w-4 h-4" /> Message sent to {patient.demographic.full_name.split(" ")[0]}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === "activity" && (
               <OrderActivityTimeline order={order} />
             )}
@@ -912,6 +1300,7 @@ export function OrderDetailClient({
       />
       {/* Fix Cycle 1 BLOCKER 2 — ApproveConfirmModal (replaces legacy modal='approve') */}
       <ApproveConfirmModal
+        blockedReason={approveBlockedReason}
         open={approveOpen}
         onClose={() => setApproveOpen(false)}
         orderId={order.id}
@@ -921,6 +1310,119 @@ export function OrderDetailClient({
         isSubmitting={isSubmitting}
         onApprove={(body, aiData) => handleDecideWithNote("approved", body, aiData)}
       />
+      {/* Task-38 — Cancel Order confirmation dialog */}
+      <ConfirmDialog open={cancelOpen} onOpenChange={(o) => !o && !isCancelling && setCancelOpen(false)}>
+        <ConfirmDialogContent className="max-w-md">
+          <ConfirmDialogHeader>
+            <ConfirmDialogTitle className="text-base flex items-center gap-2">
+              <Ban className="w-4 h-4 text-err" />
+              Cancel order {order.id}
+            </ConfirmDialogTitle>
+          </ConfirmDialogHeader>
+          <div className="space-y-3">
+            {/* Context summary — patient, product, amount */}
+            <div className="rounded-md border border-bdr bg-page-bg px-3 py-2 space-y-1 text-[12px]">
+              <div className="flex justify-between gap-3">
+                <span className="text-t3">Patient</span>
+                <span className="text-t1 font-semibold text-right">{d.full_name}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-t3">Medication</span>
+                <span className="text-t1 font-medium text-right">
+                  {order.product.medication} {order.product.dose} · {order.product.plan}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-t3">Amount authorised</span>
+                <span className="text-t1 font-medium text-right tabular-nums">
+                  £{(order.amount_authorised ?? 0).toFixed(2)}
+                </span>
+              </div>
+              {order.amount_charged != null && (
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">Amount captured</span>
+                  <span className="text-t1 font-medium text-right tabular-nums">
+                    £{order.amount_charged.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Branch-specific explanation */}
+            <div className={`text-[12px] rounded-md px-3 py-2 border ${
+              cancelBranch === "release_auth"
+                ? "bg-info-bg border-info-bdr text-info"
+                : "bg-warn-bg border-warn-bdr text-warn"
+            }`}>
+              {cancelBranch === "release_auth" ? (
+                <>
+                  <strong>Auth release:</strong> payment has been authorised but not captured.
+                  Ryft will release the £{(order.amount_authorised ?? 0).toFixed(2)} hold on {d.full_name}&apos;s card immediately. No money has left the patient&apos;s account.
+                </>
+              ) : (
+                <>
+                  <strong>Refund required:</strong> £{(order.amount_charged ?? 0).toFixed(2)} has already been captured from {d.full_name}.
+                  A refund amendment will be created and routed to a clinician with refund authority for review before the money is returned.
+                </>
+              )}
+            </div>
+
+            {/* Irreversible warning */}
+            <div className="flex items-start gap-2 text-[12px] rounded-md px-3 py-2 border border-err-bdr bg-err-bg text-err">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <strong>This action cannot be undone.</strong> Cancelling will stop dispensing for this order and notify {d.full_name.split(" ")[0]} by email. A new order would have to be raised to resume treatment.
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-1 block">
+                Cancellation reason <span className="text-err normal-case">(min 20 characters)</span>
+              </label>
+              <Textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Why is this order being cancelled? Captured on the audit log and patient notification."
+                rows={4}
+                className="text-[13px]"
+              />
+              <p className={`text-[11px] mt-1 ${cancelReason.trim().length >= 20 ? "text-ok" : "text-t3"}`}>
+                {cancelReason.trim().length} / 20 characters
+              </p>
+            </div>
+          </div>
+          <ConfirmDialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setCancelOpen(false)} disabled={isCancelling}>
+              Keep order
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleCancelOrder}
+              disabled={isCancelling || cancelReason.trim().length < 20}
+            >
+              <Ban className="w-3.5 h-3.5 mr-1" />
+              {isCancelling
+                ? "Cancelling…"
+                : cancelBranch === "release_auth"
+                  ? "Confirm — Release auth"
+                  : "Confirm — Create refund"}
+            </Button>
+          </ConfirmDialogFooter>
+        </ConfirmDialogContent>
+      </ConfirmDialog>
+
+      {incidentOpen && (
+        <LogIncidentModal
+          clinicId={clinicId}
+          patients={[]}
+          orders={[order]}
+          prefilledPatient={patient}
+          prefilledOrder={order}
+          onClose={() => setIncidentOpen(false)}
+          onSave={() => setIncidentOpen(false)}
+        />
+      )}
+
     </div>
   );
 }

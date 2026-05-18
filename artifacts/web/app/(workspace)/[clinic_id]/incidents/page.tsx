@@ -5,7 +5,7 @@ import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { IncidentsView } from "@/components/incidents/IncidentsView";
-import { listIncidents, listPatients, getClinicSync } from "@/lib/api/mock";
+import { listIncidents, listPatients, listOrders, getClinicSync } from "@/lib/api/mock";
 import type { ClinicId } from "@/types";
 
 type Props = { params: Promise<{ clinic_id: string }> };
@@ -17,7 +17,7 @@ export default async function IncidentsPage({ params }: Props) {
       <PageHeader
         icon={AlertTriangle}
         title="Incidents"
-        subtitle="Clinical incidents and safety events"
+        subtitle="Patient safety, clinical, and operational incidents"
       />
       <Suspense key={clinic_id} fallback={<LoadingState.Table />}>
         <IncidentsContent clinicId={clinic_id as ClinicId} />
@@ -28,9 +28,10 @@ export default async function IncidentsPage({ params }: Props) {
 
 async function IncidentsContent({ clinicId }: { clinicId: ClinicId }) {
   try {
-    const [incidents, patients, clinic] = await Promise.all([
+    const [incidents, patients, orders, clinic] = await Promise.all([
       listIncidents(clinicId),
       listPatients(clinicId),
+      listOrders(clinicId),
       Promise.resolve(getClinicSync(clinicId)),
     ]);
     if (incidents.length === 0) {
@@ -42,7 +43,7 @@ async function IncidentsContent({ clinicId }: { clinicId: ClinicId }) {
         />
       );
     }
-    return <IncidentsView initialIncidents={incidents} patients={patients} clinicId={clinicId} clinic={clinic} />;
+    return <IncidentsView initialIncidents={incidents} initialOrders={orders} patients={patients} clinicId={clinicId} clinic={clinic} />;
   } catch (err) {
     return <ErrorState message={err instanceof Error ? err.message : "Failed to load incidents"} />;
   }

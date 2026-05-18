@@ -27,6 +27,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     professional_registration: null,
     active: true,
     joined_at: '2026-01-01T00:00:00Z',
+    can_refund: true,  // Task-38 — refund authority
   },
   {
     // BLD-1.6 — Mobeen Alam, second Owner on FeelTru per DEC-13
@@ -43,6 +44,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     },
     active: true,
     joined_at: '2026-03-17T00:00:00Z',  // CQC Registered Manager approved date
+    can_refund: false,  // Task-38 — refund authority withheld so the gate is demonstrable
   },
   {
     user_id: 'user_claire',
@@ -58,6 +60,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     },
     active: true,
     joined_at: '2026-02-01T00:00:00Z',
+    can_refund: false,
   },
   {
     user_id: 'user_olwyn',
@@ -68,6 +71,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     professional_registration: null,
     active: true,
     joined_at: '2026-02-15T00:00:00Z',
+    can_refund: false,
   },
 
   // ── VSC team ──────────────────────────────────────────────────────────────
@@ -80,6 +84,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     professional_registration: null,
     active: true,
     joined_at: '2025-06-01T00:00:00Z',
+    can_refund: true,
   },
   {
     user_id: 'user_yohan',
@@ -90,6 +95,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     professional_registration: null,
     active: true,
     joined_at: '2025-07-01T00:00:00Z',
+    can_refund: false,
   },
 ];
 

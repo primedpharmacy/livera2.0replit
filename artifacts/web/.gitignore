@@ -1,3 +1,4 @@
 # Next.js build output — never commit
 .next/
 out/
+test-results/

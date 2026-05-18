@@ -57,3 +57,55 @@ export async function releaseAuth(
   // Real Ryft API wiring — post-launch
   throw new Error('LIVERA_RYFT_LIVE=true wiring not yet implemented');
 }
+
+// ---------------------------------------------------------------------------
+// Task-38 — refundPayment
+//
+// Called by the refund-amendment approval flow when a payment has already been
+// CAPTURED. (For uncaptured auths, use releaseAuth() above — no money has
+// moved, so the "refund" concept does not apply.)
+//
+// Stubbed behind LIVERA_RYFT_LIVE; mirrors the shape of releaseAuth so the
+// later live wiring is a like-for-like swap. Failure is non-blocking — the
+// caller is responsible for catching and surfacing the error.
+// ---------------------------------------------------------------------------
+
+export interface RyftRefundResult {
+  success: boolean;
+  ryft_auth_id: string;
+  ryft_refund_ref: string;       // deterministic stub ref in dev; real Ryft id when live
+  order_id: string;
+  amount_pence: number;          // amount actually refunded
+  message: string;
+}
+
+export async function refundPayment(
+  ryft_auth_id: string,
+  amount_pence: number,
+  order_id: string,
+): Promise<RyftRefundResult> {
+  console.log('[AUDIT]', {
+    event_type:    'ryft_refund_attempt',
+    ryft_auth_id,
+    order_id,
+    amount_pence,
+    live:          RYFT_LIVE,
+    timestamp:     NOW,
+  });
+
+  if (!RYFT_LIVE) {
+    const stubRef = `ryft_ref_${order_id.toLowerCase()}_${amount_pence}`;
+    console.info('[RYFT]', `refundPayment stub — refunded ${amount_pence}p on auth ${ryft_auth_id} (order ${order_id}) → ${stubRef}`);
+    return {
+      success:         true,
+      ryft_auth_id,
+      ryft_refund_ref: stubRef,
+      order_id,
+      amount_pence,
+      message:         `refund of £${(amount_pence / 100).toFixed(2)} issued`,
+    };
+  }
+
+  // Real Ryft API wiring — post-launch
+  throw new Error('LIVERA_RYFT_LIVE=true wiring not yet implemented');
+}

@@ -29,7 +29,7 @@
  */
 
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 
 const CLINIC = 'feeltru';
 const ORDER_ID = 'ORD-00441';
@@ -37,7 +37,22 @@ const PATIENT_ID = 'PT-00198';
 // Default demo persona (see DEFAULT_PERSONA_ID in lib/api/constants.ts).
 const DEMO_USER_ID = 'user_qadir';
 const DEMO_USER_NAME = 'Qadir Hussain';
-const DEMO_USER_ROLE = 'owner';
+
+// Task #217 — the api-server's readClinicianContext now derives the actor
+// from the signed `livera_session_uid` cookie instead of trusting browser
+// headers. Playwright's standalone `request` fixture doesn't inherit the
+// browser context's cookies, so we mint our own session cookie using the
+// same SESSION_SECRET the web app + api-server share (dev fallback when
+// unset, matching lib/auth/session.ts and lib/session.ts).
+const SESSION_SECRET =
+  process.env.SESSION_SECRET ?? 'livera-dev-session-secret-do-not-use-in-prod';
+
+function signSessionCookie(uid: string): string {
+  const sig = createHmac('sha256', SESSION_SECRET).update(uid).digest('hex');
+  return `livera_session_uid=${encodeURIComponent(`${uid}.${sig}`)}`;
+}
+
+const SESSION_COOKIE_HEADER = signSessionCookie(DEMO_USER_ID);
 
 type AuditRow = {
   id: number;
@@ -57,11 +72,7 @@ async function fetchOutboundAudit(request: APIRequestContext): Promise<AuditRow[
   const res = await request.get(
     `/api/intercom/${CLINIC}/audit/outbound?limit=50`,
     {
-      headers: {
-        'X-Livera-User-Id': DEMO_USER_ID,
-        'X-Livera-User-Name': DEMO_USER_NAME,
-        'X-Livera-Role': DEMO_USER_ROLE,
-      },
+      headers: { cookie: SESSION_COOKIE_HEADER },
     },
   );
   expect(res.status(), `audit fetch should succeed, body: ${await res.text()}`).toBe(200);

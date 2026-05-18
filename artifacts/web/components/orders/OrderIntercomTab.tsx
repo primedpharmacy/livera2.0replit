@@ -28,30 +28,15 @@ import {
 } from "lucide-react";
 import type { Patient, Clinic, ClinicId } from "@/types";
 import { useCurrentUser } from "@/lib/context";
-import type { Role, User } from "@/lib/api/types";
+import type { Role } from "@/lib/api/types";
 
-// Phase 2 — until the web→api auth proxy lands (follow-up #88) the browser
-// supplies its own clinician identity for the audit log. We derive it from
-// the signed-in demo persona (cookie-resolved via useCurrentUser) so each
-// outbound message is attributed to the real clinician viewing the order.
-//
-// api-server's readClinicianContext allow-lists three role values: owner,
-// admin, clinician. Map the web app's richer Role union down to that.
-function mapRoleToApi(roles: Role[]): "owner" | "admin" | "clinician" {
-  if (roles.includes("Owner")) return "owner";
-  if (roles.includes("Admin")) return "admin";
-  // Prescriber, Coach, and the deprecated clinical roles all act as
-  // clinicians for the purposes of outbound Intercom writes.
-  return "clinician";
-}
-
-function clinicianHeaders(user: User): Record<string, string> {
-  return {
-    "X-Livera-Role": mapRoleToApi(user.roles),
-    "X-Livera-User-Id": user.id,
-    "X-Livera-User-Name": user.full_name,
-  };
-}
+// Task #217 — outbound Intercom writes are now attributed by the api-server
+// from the signed `livera_session_uid` cookie (verified server-side against
+// SESSION_SECRET, same path the credential guard uses). The browser no
+// longer forwards an `X-Livera-*` clinician context header, because any
+// HTTP caller could have forged those values to write under a different
+// clinician's name. The session cookie is sent automatically with every
+// same-host `/api/...` request.
 
 function primaryRoleLabel(roles: Role[]): string {
   // Prefer the most senior/visible role for the compose footer.
@@ -314,7 +299,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
     const data = await fileToBase64(file);
     const res = await fetch(`/api/intercom/${clinicId}/uploads`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...clinicianHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: file.name,
         content_type: file.type || "application/octet-stream",
@@ -469,7 +454,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         `/api/intercom/${clinicId}/contacts/${patient.id}/conversations/${conv.id}/reply`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...clinicianHeaders(currentUser) },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ body: draft, attachment_ids: attachmentIds }),
         },
       );
@@ -578,7 +563,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         `/api/intercom/${clinicId}/contacts/${patient.id}/conversations`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...clinicianHeaders(currentUser) },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ subject, body, attachment_ids: attachmentIds }),
         },
       );
@@ -649,15 +634,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         `/api/intercom/${clinicId}/contacts/${patient.id}/link`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            // Phase 1 stub for the Owner/Admin authz guard on the api-server.
-            // A proper server-side proxy will inject this from the session in
-            // a follow-up (#88) so the browser can't spoof it. Until then we
-            // pass through the signed-in clinician so non-admins are correctly
-            // rejected by the api-server's requireAdminRole guard.
-            ...clinicianHeaders(currentUser),
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: linkEmail.trim() }),
         },
       );

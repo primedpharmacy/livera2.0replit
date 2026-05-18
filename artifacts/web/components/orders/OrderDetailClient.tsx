@@ -233,6 +233,10 @@ export function OrderDetailClient({
   // when they email/post a copy instead of using the intake success screen).
   const [isUploadingPx, setIsUploadingPx]     = useState(false);
   const [pxUploadError, setPxUploadError]     = useState<string | null>(null);
+  // Task-119 — Replace flow: a Replace button on the existing-upload card opens
+  // a confirm modal. On confirm we trigger the hidden file input below so the
+  // same handleStaffPxUpload validation + audit pipeline runs.
+  const [replacePxOpen, setReplacePxOpen]     = useState(false);
 
   // Task-38 — Cancel Order flow
   const [cancelOpen, setCancelOpen]           = useState(false);
@@ -1135,6 +1139,49 @@ export function OrderDetailClient({
                                 Use “Open” to view the full document in a new tab.
                               </p>
                             )}
+                            {/* Task-119 — Replace affordance for the wrong file
+                                (wrong page, wrong patient, illegible). Gated to
+                                staff with order write access. Opens a confirm
+                                modal that triggers the hidden file input below
+                                so the same staff-upload validation + audit
+                                pipeline runs and captures the prior file. */}
+                            {can(CURRENT_USER, "write", "orders") && (
+                              <div className="flex items-center justify-between gap-3 pt-1">
+                                <p className="text-[11px] text-t3">
+                                  Wrong file uploaded? Replace it — the previous
+                                  filename and uploader are preserved in the audit log.
+                                </p>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPxUploadError(null);
+                                    setReplacePxOpen(true);
+                                  }}
+                                  disabled={isUploadingPx}
+                                  className="gap-1.5 shrink-0"
+                                >
+                                  <Upload className="w-3.5 h-3.5" />
+                                  {isUploadingPx ? "Uploading…" : "Replace"}
+                                </Button>
+                                <input
+                                  id="px-replace-file-input"
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                                  className="hidden"
+                                  disabled={isUploadingPx}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    e.target.value = "";
+                                    if (f) void handleStaffPxUpload(f);
+                                  }}
+                                />
+                              </div>
+                            )}
+                            {pxUploadError && (
+                              <p className="text-[11px] text-err">{pxUploadError}</p>
+                            )}
                           </div>
                         );
                       })()
@@ -1705,6 +1752,70 @@ export function OrderDetailClient({
                 : cancelBranch === "release_auth"
                   ? "Confirm — Release auth"
                   : "Confirm — Create refund"}
+            </Button>
+          </ConfirmDialogFooter>
+        </ConfirmDialogContent>
+      </ConfirmDialog>
+
+      {/* Task-119 — Replace prescription confirm modal.
+          Surfaces the existing file metadata so staff know exactly what they're
+          swapping out, then opens the hidden file input. The replacement runs
+          through handleStaffPxUpload which uses the same presigned-URL +
+          validation pipeline as the original Task-85 staff upload, and the
+          fixture's attachPxUpload captures both the prior file and the new
+          uploader in the audit log. */}
+      <ConfirmDialog open={replacePxOpen} onOpenChange={(o) => !o && !isUploadingPx && setReplacePxOpen(false)}>
+        <ConfirmDialogContent className="max-w-md">
+          <ConfirmDialogHeader>
+            <ConfirmDialogTitle className="text-base flex items-center gap-2">
+              <Upload className="w-4 h-4 text-warn" />
+              Replace patient prescription
+            </ConfirmDialogTitle>
+          </ConfirmDialogHeader>
+          <div className="space-y-3">
+            {order.px_upload && (
+              <div className="rounded-md border border-bdr bg-page-bg px-3 py-2 space-y-1 text-[12px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">Current file</span>
+                  <span className="text-t1 font-semibold text-right truncate max-w-[16rem]">
+                    {order.px_upload.filename}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">Uploaded</span>
+                  <span className="text-t1 text-right">
+                    {formatDateTime(order.px_upload.uploaded_at)}
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="flex items-start gap-2 text-[12px] rounded-md px-3 py-2 border border-warn-bdr bg-warn-bg text-warn">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                The current file will be swapped for the one you pick next. The
+                previous filename and uploader stay in the audit log so reviewers
+                can see what changed.
+              </div>
+            </div>
+            <p className="text-[11px] text-t2">
+              JPG, PNG, WebP, HEIC or PDF, up to 10&nbsp;MB.
+            </p>
+          </div>
+          <ConfirmDialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setReplacePxOpen(false)} disabled={isUploadingPx}>
+              Keep current file
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setReplacePxOpen(false);
+                const input = document.getElementById("px-replace-file-input") as HTMLInputElement | null;
+                input?.click();
+              }}
+              disabled={isUploadingPx}
+            >
+              <Upload className="w-3.5 h-3.5 mr-1" />
+              Choose replacement file
             </Button>
           </ConfirmDialogFooter>
         </ConfirmDialogContent>

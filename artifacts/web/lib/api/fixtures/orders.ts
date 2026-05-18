@@ -1325,6 +1325,14 @@ export async function attachPxUpload(
   const actorSource = actor?.source ?? 'success_screen';
   const actorUserId = actor?.user_id ?? null;
 
+  // Task-119 — Detect replacement of an existing px_upload so the audit log can
+  // capture both the file being swapped out and the new uploader. Resolved
+  // before the attempt audit fires so the prior metadata is preserved even if
+  // validation fails.
+  const existingOrder = MOCK_ORDERS.find((o) => o.clinic_id === clinic_id && o.id === order_id);
+  const priorUpload = existingOrder?.px_upload ?? null;
+  const isReplacement = priorUpload != null;
+
   console.log('[AUDIT]', {
     event_type: 'px_upload_attempt',
     clinic_id,
@@ -1335,6 +1343,18 @@ export async function attachPxUpload(
     object_path: upload.object_path,
     source: actorSource,
     actor_user_id: actorUserId,
+    is_replacement: isReplacement,
+    replaced_from: priorUpload
+      ? {
+          filename: priorUpload.filename,
+          size: priorUpload.size,
+          content_type: priorUpload.content_type,
+          uploaded_at: priorUpload.uploaded_at,
+          object_path: priorUpload.object_path,
+          source: priorUpload.source ?? null,
+          uploaded_by_user_id: priorUpload.uploaded_by_user_id ?? null,
+        }
+      : null,
     timestamp: NOW,
   });
 
@@ -1409,6 +1429,22 @@ export async function attachPxUpload(
     order_id,
     filename: upload.filename,
     size: upload.size,
+    source: actorSource,
+    actor_user_id: actorUserId,
+    // Task-119 — preserve the prior file metadata on the success audit so
+    // reviewers can see what was swapped out alongside the new uploader.
+    is_replacement: isReplacement,
+    replaced_from: priorUpload
+      ? {
+          filename: priorUpload.filename,
+          size: priorUpload.size,
+          content_type: priorUpload.content_type,
+          uploaded_at: priorUpload.uploaded_at,
+          object_path: priorUpload.object_path,
+          source: priorUpload.source ?? null,
+          uploaded_by_user_id: priorUpload.uploaded_by_user_id ?? null,
+        }
+      : null,
     timestamp: NOW,
   });
 

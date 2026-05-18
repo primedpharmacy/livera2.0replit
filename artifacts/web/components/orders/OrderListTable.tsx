@@ -9,8 +9,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Mail, MailX, MailCheck } from "lucide-react";
-import { NOW } from "@/lib/api/constants";
+import { AlertTriangle, CheckCircle2, Mail, MailX, MailCheck, Undo2 } from "lucide-react";
+import { NOW, USERS_REGISTRY } from "@/lib/api/constants";
 import {
   groupFlaggedAnswersByCategory,
   SAFETY_CATEGORY_META,
@@ -405,6 +405,16 @@ function ClinicalCheckRow({
                   <PxUploadReminderPill status={reminderStatus} />
                 ) : null;
               })()}
+              {(() => {
+                const log = order.reversal_log ?? [];
+                if (order.status !== "clinical_check" || log.length === 0) return null;
+                const latest = log.reduce((a, b) =>
+                  new Date(b.reversed_at).getTime() > new Date(a.reversed_at).getTime() ? b : a,
+                );
+                const submittedAt = new Date(order.created_at).getTime();
+                if (new Date(latest.reversed_at).getTime() <= submittedAt) return null;
+                return <ReversalPill entry={latest} />;
+              })()}
               {weightWarningState && weightWarningState.hasUnacknowledged ? (
                 <span
                   className="inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none"
@@ -699,6 +709,129 @@ export function ReviewNeededBadge({
               Click the badge to jump to the first flagged answer.
             </div>
           )}
+        </div>
+      )}
+    </span>
+  );
+}
+
+// ── Reversal pill (Task-238) ──────────────────────────────────────────────────
+/**
+ * Surfaces, on the Clinical Check queue row, that an order has come back to
+ * the queue because a previous clinical decision was reversed. Without this
+ * cue the row looks identical to a brand-new order and a clinician picking it
+ * up could miss the prior decision context.
+ *
+ * The pill shows the prior decision and the reverser; hover / focus reveals
+ * the written reason (or notes that the quick-undo path was used). Esc and
+ * click-outside dismiss the popover, matching the other queue pills.
+ */
+type ReversalLogEntry = NonNullable<Order["reversal_log"]>[number];
+
+const PRIOR_DECISION_LABEL: Record<ReversalLogEntry["prior_decision"], string> = {
+  approved: "approved",
+  declined: "declined",
+  queried:  "queried",
+};
+
+export function ReversalPill({ entry }: { entry: ReversalLogEntry }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
+
+  const reverserName =
+    USERS_REGISTRY[entry.reversed_by_user_id]?.full_name ?? entry.reversed_by_user_id;
+  const priorLabel = PRIOR_DECISION_LABEL[entry.prior_decision];
+  const reasonText = entry.reason
+    ? entry.reason
+    : "Quick-undo within 5-second window — no written reason captured.";
+  const tooltipTitle = `Reversed from ${priorLabel} by ${reverserName}`;
+
+  return (
+    <span
+      ref={wrapRef}
+      className="relative inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <span
+        ref={triggerRef}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        aria-label={tooltipTitle}
+        title={tooltipTitle}
+        onFocus={() => setOpen(true)}
+        onBlur={(e) => {
+          if (!wrapRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }
+        }}
+        className="inline-flex items-center gap-1 text-[10px] font-bold text-info bg-info-bg border border-info-bdr rounded-full px-1.5 py-px leading-none cursor-pointer max-w-[18rem]"
+      >
+        <Undo2 className="w-2.5 h-2.5 shrink-0" />
+        <span className="truncate">
+          Reversed from {priorLabel} by {reverserName}
+        </span>
+      </span>
+      {open && (
+        <div
+          role="tooltip"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full mt-1 z-50 w-72 max-w-[18rem] rounded-md border border-bdr bg-surface shadow-lg p-2.5 text-left"
+        >
+          <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-1">
+            Previously {priorLabel}
+          </div>
+          <div className="text-[11px] text-t1 leading-snug">
+            Reversed by{" "}
+            <span className="font-semibold">{reverserName}</span> on{" "}
+            <span className="tabular-nums">{formatRelativeTime(entry.reversed_at)}</span>.
+          </div>
+          <div className="mt-2 pt-1.5 border-t border-bdr">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-t3 mb-0.5">
+              Reason
+            </div>
+            <div
+              className={cn(
+                "text-[11px] leading-snug whitespace-pre-wrap",
+                entry.reason ? "text-t1" : "text-t3 italic",
+              )}
+            >
+              {reasonText}
+            </div>
+          </div>
         </div>
       )}
     </span>

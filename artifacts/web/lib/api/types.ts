@@ -438,16 +438,30 @@ export type Order = {
     uploaded_by_user_id?: string | null; // Task-85 — populated when staff uploads on patient's behalf
   } | null;
 
-  // Task-171 — Replacement history for the px upload. Task-119 captures
-  // replacements in the [AUDIT] log; we also persist a slim per-order list
-  // here so the Order Detail UI can render a "Replacement history" without
-  // having to query the audit pipeline. One entry per swap, appended in
-  // chronological order. Survives multiple successive replacements.
+  // Task-171 / Task-252 — Running history of every prescription uploaded for
+  // this order. Task-119 captures replacements in the [AUDIT] log; we also
+  // persist a slim per-order list here so the Order Detail UI can render
+  // "Previous uploads" (filename, uploader, timestamp, source, Open link)
+  // without having to query the audit pipeline. One entry per superseded
+  // file, appended in chronological order.
+  //
+  // `replaced_*` fields describe the swap event (who/what replaced it).
+  // `prior_*` fields (Task-252) describe the superseded file itself so the
+  // UI can show its uploader/source/timestamp and link back to the archived
+  // object. They're optional for backward-compatibility with older entries
+  // captured before Task-252.
   px_upload_history?: Array<{
     replaced_at: string;        // ISO — when the swap happened
     replaced_filename: string;  // filename of the file that was swapped out
     replaced_by_user_id: string | null; // user who uploaded the new file
     replaced_by_source: 'success_screen' | 'email_link' | 'staff_upload';
+    // Task-252 — prior file metadata so staff can open the archived object.
+    prior_uploaded_at?: string;
+    prior_uploaded_by_user_id?: string | null;
+    prior_source?: 'success_screen' | 'email_link' | 'staff_upload';
+    prior_object_path?: string;
+    prior_content_type?: string;
+    prior_size?: number;
   }>;
 
   // Task-80 — Tokenised email-link upload (Px upload "complete later")

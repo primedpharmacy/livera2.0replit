@@ -13,6 +13,12 @@ import type { ClinicId, Patient } from '../types';
 import { delay, APIError, CURRENT_USER, NOW, USERS_REGISTRY } from '../constants';
 import { can } from '@/lib/permissions';
 import { recordAudit } from '../audit'; // Task-167 — durable spine
+import {
+  isValidUkMobile,
+  isValidUkPostcode,
+  normalisePostcode,
+  normaliseUkMobile,
+} from '@/lib/validation/intake';
 
 // ── Task-103 — preferred-channel change log ──────────────────────────────────
 // In-memory projection of the [AUDIT] stream already emitted by
@@ -1192,6 +1198,161 @@ export async function updatePatientCoach(
     actor_id: actor.id,
     actor_name: registryActor?.full_name ?? actor.full_name ?? actor.id,
     changed_at: NOW,
+  });
+
+  return patient;
+}
+
+// ── Task-250 — updatePatientPhone / updatePatientPostcode ───────────────────
+// Admins routinely correct typos on the patient profile (e.g. ops takes a
+// phone update over chat). Task-115 added intake-time validation and Task-165
+// backfilled the legacy bad data, but the in-app edit path went unguarded —
+// so a careless save could re-introduce the exact "m12ab" / "07700900222"
+// shapes the backfill was built to fix.
+//
+// These mutations are the canonical write entry points for phone & postcode.
+// They re-use the intake validators (`isValidUkMobile` / `isValidUkPostcode`)
+// and store values in canonical form (`+44…` E.164 phone, spaced/uppercase
+// postcode) via `normaliseUkMobile` / `normalisePostcode`. Invalid input is
+// rejected with APIError('VALIDATION', …) so the calling UI can surface a
+// friendly inline error.
+//
+// 3-layer safety chain mirrors updatePatientPreferredChannel:
+//   Layer 1 (UI gate): editor only renders if can(actor, 'write','patients').
+//   Layer 2 (server gate): can() + validator checks here.
+//   Layer 3 (audit log): [AUDIT] entry per mutation (success + denial + validation_failed).
+export async function updatePatientPhone(
+  clinic_id: ClinicId,
+  patient_id: string,
+  raw_phone: string,
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'write', 'patients')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_phone_updated',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      timestamp: NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Insufficient permissions to update patient phone');
+  }
+
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  if (!isValidUkMobile(raw_phone)) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_phone_updated',
+      outcome: 'validation_failed',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      attempted_value: raw_phone,
+      timestamp: NOW,
+    });
+    throw new APIError(
+      'VALIDATION',
+      'Enter a valid UK mobile number (e.g. 07700 900123).',
+    );
+  }
+
+  const normalised = normaliseUkMobile(raw_phone)!;
+  const previous_phone = patient.contact.phone;
+  patient.contact = { ...patient.contact, phone: normalised };
+  patient.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_phone_updated',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_phone,
+    new_phone: normalised,
+    timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_phone_updated',
+    summary: `Phone for ${patient_id} updated.`,
+    before: { phone: previous_phone },
+    after: { phone: normalised },
+  });
+
+  return patient;
+}
+
+export async function updatePatientPostcode(
+  clinic_id: ClinicId,
+  patient_id: string,
+  raw_postcode: string,
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'write', 'patients')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_postcode_updated',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      timestamp: NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Insufficient permissions to update patient address');
+  }
+
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  if (!isValidUkPostcode(raw_postcode)) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_postcode_updated',
+      outcome: 'validation_failed',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      attempted_value: raw_postcode,
+      timestamp: NOW,
+    });
+    throw new APIError(
+      'VALIDATION',
+      'Enter a valid UK postcode (e.g. M1 2AB).',
+    );
+  }
+
+  const normalised = normalisePostcode(raw_postcode);
+  const previous_postcode = patient.demographic.address?.postcode ?? '';
+  patient.demographic = {
+    ...patient.demographic,
+    address: { ...patient.demographic.address, postcode: normalised },
+  };
+  patient.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_postcode_updated',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_postcode,
+    new_postcode: normalised,
+    timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_postcode_updated',
+    summary: `Postcode for ${patient_id} updated.`,
+    before: { postcode: previous_postcode },
+    after: { postcode: normalised },
   });
 
   return patient;

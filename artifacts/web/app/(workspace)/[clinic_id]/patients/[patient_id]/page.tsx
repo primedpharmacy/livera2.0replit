@@ -23,6 +23,7 @@ import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCa
 import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
 import { VipFlagEditor, StatusFlagEditor, CoachFlagEditor } from "@/components/patients/PatientFlagsEditor";
+import { PatientPhoneEditor, PatientPostcodeEditor } from "@/components/patients/PatientContactFieldEditor";
 import { LogWeightForm } from "@/components/patients/LogWeightForm";
 import { WeightTrendChart } from "@/components/patients/WeightTrendChart";
 import { PatientWeightCheckIns } from "@/components/patients/PatientWeightCheckIns";
@@ -454,7 +455,13 @@ function LeftColumn({
         <DR k="Date of birth" v={`${formatDate(d.dob)} (${age} yrs)`} />
         <DR k="Sex at birth" v={d.sex_at_birth} />
         <DR k="Ethnicity"   v={d.ethnicity.replace(/_/g, " ")} />
-        <DR k="Address"     v={[d.address.line1, d.address.line2, d.address.city, d.address.postcode].filter(Boolean).join(", ")} />
+        <DR k="Address"     v={[d.address.line1, d.address.line2, d.address.city].filter(Boolean).join(", ")} />
+        <PatientPostcodeEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={d.address.postcode ?? ""}
+          canEdit={canEditContact}
+        />
       </PSec>
 
       {/* Flags — Task-225 inline editors (audited via PATIENT_FLAG_CHANGES) */}
@@ -483,7 +490,12 @@ function LeftColumn({
       {/* Contact */}
       <PSec title="Contact" icon={Phone}>
         <DR k="Email"   v={patient.contact.email} mono />
-        <DR k="Phone"   v={patient.contact.phone} mono />
+        <PatientPhoneEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.contact.phone ?? ""}
+          canEdit={canEditContact}
+        />
         <PreferredChannelEditor
           clinicId={clinicId}
           patientId={patient.id}

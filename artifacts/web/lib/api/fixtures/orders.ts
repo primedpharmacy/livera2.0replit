@@ -2362,6 +2362,15 @@ export async function attachPxUpload(
         replaced_filename: priorUpload.filename,
         replaced_by_user_id: actorUserId,
         replaced_by_source: actorSource,
+        // Task-252 — persist the superseded file's full metadata so the
+        // Order Detail "Previous uploads" disclosure can show its
+        // uploader/source/timestamp and link back to the archived object.
+        prior_uploaded_at: priorUpload.uploaded_at,
+        prior_uploaded_by_user_id: priorUpload.uploaded_by_user_id ?? null,
+        prior_source: priorUpload.source ?? 'success_screen',
+        prior_object_path: priorUpload.object_path,
+        prior_content_type: priorUpload.content_type,
+        prior_size: priorUpload.size,
       },
     ];
   }

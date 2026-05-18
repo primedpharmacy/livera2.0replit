@@ -55,6 +55,7 @@ import { OrderDoseEscalationGateCard } from "./OrderDoseEscalationGateCard";
 import { OrderWeightTrajectoryCard } from "./OrderWeightTrajectoryCard";
 import { OrderBMIValidationCard } from "./OrderBMIValidationCard";
 import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
+import { filterSelfReportedBmiFlag } from "@/lib/clinical/selfReportedBmi";
 
 // Task-163 — Contextual-flag chip palette for the header. Mirrors the maps in
 // OrderListTable / ClinicalCheckSlideOver so the same chip styling appears on
@@ -274,6 +275,13 @@ export function OrderDetailClient({
   const [replacePxOpen, setReplacePxOpen]     = useState(false);
   // Task-171 — Collapsible "Replacement history" on the prescription card.
   const [pxHistoryOpen, setPxHistoryOpen]     = useState(false);
+  // Task-251 — Pre-attach confirmation for the "Upload on patient's behalf"
+  // empty-state card. After staff pick a file we hold it here and surface a
+  // confirm modal with the patient's name + DOB, the filename and an inline
+  // preview so wrong-patient mix-ups are caught before the audit log records
+  // an upload. Only confirmed selections flow into handleStaffPxUpload.
+  const [pendingPxFile, setPendingPxFile]           = useState<File | null>(null);
+  const [pendingPxPreviewUrl, setPendingPxPreviewUrl] = useState<string | null>(null);
 
   // Task-38 — Cancel Order flow
   const [cancelOpen, setCancelOpen]           = useState(false);
@@ -939,7 +947,10 @@ export function OrderDetailClient({
                     on the order detail header, not only in the queue. The flag
                     auto-clears once the linked patient's bmi_verified_at is set,
                     via normalizeSelfReportedBmiFlag in the orders fixture. */}
-                {(order.contextual_flags ?? []).map((f) => (
+                {filterSelfReportedBmiFlag(
+                  order.contextual_flags,
+                  patient.verification?.bmi_verified_at ?? null,
+                ).map((f) => (
                   <span
                     key={f}
                     className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${ORDER_DETAIL_FLAG_COLORS[f] ?? ORDER_DETAIL_DEFAULT_FLAG_CLS}`}
@@ -1494,13 +1505,16 @@ export function OrderDetailClient({
                             {pxUploadError && (
                               <p className="text-[11px] text-err">{pxUploadError}</p>
                             )}
-                            {/* Task-171 — Replacement history. Sourced from
-                                Order.px_upload_history which mirrors the
-                                Task-119 audit entries (is_replacement=true).
-                                Collapsed by default; survives multiple
-                                successive replacements. */}
+                            {/* Task-171 / Task-252 — Previous uploads. A
+                                running history of every prescription file
+                                staff/patient have uploaded for this order,
+                                sourced from Order.px_upload_history (mirrors
+                                the Task-119 audit entries). Each entry shows
+                                the superseded file's uploader, source and
+                                timestamp plus an Open link to the archived
+                                object. Collapsed by default. */}
                             {(order.px_upload_history?.length ?? 0) > 0 && (
-                              <div className="pt-2 border-t border-bdr">
+                              <div className="pt-2 border-t border-bdr" data-testid="px-previous-uploads">
                                 <button
                                   type="button"
                                   onClick={() => setPxHistoryOpen((v) => !v)}
@@ -1512,7 +1526,7 @@ export function OrderDetailClient({
                                   ) : (
                                     <ChevronRightIcon className="w-3.5 h-3.5" />
                                   )}
-                                  Replacement history ({order.px_upload_history!.length})
+                                  Previous uploads ({order.px_upload_history!.length})
                                 </button>
                                 {pxHistoryOpen && (
                                   <ul className="mt-2 space-y-2">
@@ -1520,11 +1534,39 @@ export function OrderDetailClient({
                                       .slice()
                                       .reverse()
                                       .map((h, i) => {
-                                        const uploaderName = h.replaced_by_user_id
+                                        // Prior file's own uploader/source/timestamp +
+                                        // archived object path (Task-252). Older entries
+                                        // captured before Task-252 lack these fields — for
+                                        // those, the prior-file line and Open link are
+                                        // hidden and only the swap-event line renders.
+                                        const priorSource = h.prior_source ?? null;
+                                        const priorUploaderId = h.prior_uploaded_by_user_id ?? null;
+                                        const priorSourceLabel = priorSource === "staff_upload"
+                                          ? "staff upload"
+                                          : priorSource === "email_link"
+                                          ? "email link"
+                                          : priorSource === "success_screen"
+                                          ? "patient"
+                                          : null;
+                                        const priorUploaderName = priorSource === "staff_upload"
+                                          ? (priorUploaderId
+                                              ? USERS_REGISTRY[priorUploaderId]?.full_name || priorUploaderId
+                                              : "staff")
+                                          : priorSource === "email_link"
+                                          ? "patient (email link)"
+                                          : priorSource === "success_screen"
+                                          ? "patient"
+                                          : null;
+                                        const priorUploadedAt = h.prior_uploaded_at ?? null;
+                                        const priorObjectPath = h.prior_object_path ?? null;
+                                        const priorStreamUrl = priorObjectPath
+                                          ? `/api/storage${priorObjectPath}`
+                                          : null;
+                                        const replacerName = h.replaced_by_user_id
                                           ? USERS_REGISTRY[h.replaced_by_user_id]?.full_name
                                               || h.replaced_by_user_id
                                           : "patient";
-                                        const sourceLabel =
+                                        const replacerSourceLabel =
                                           h.replaced_by_source === "staff_upload"
                                             ? "staff upload"
                                             : h.replaced_by_source === "email_link"
@@ -1535,14 +1577,38 @@ export function OrderDetailClient({
                                             key={`${h.replaced_at}-${i}`}
                                             className="text-[11px] text-t2 p-2 rounded-md bg-bg2 border border-bdr"
                                           >
-                                            <p className="text-t1">
-                                              <span className="font-semibold">Replaced:</span>{" "}
-                                              <span className="font-mono">{h.replaced_filename}</span>
-                                            </p>
-                                            <p className="mt-0.5 text-t3">
-                                              Swapped out {formatDateTime(h.replaced_at)} · new
-                                              file uploaded by {uploaderName} via {sourceLabel}
-                                            </p>
+                                            <div className="flex items-start justify-between gap-2">
+                                              <div className="min-w-0">
+                                                <p className="text-t1 truncate">
+                                                  <span className="font-mono">{h.replaced_filename}</span>
+                                                </p>
+                                                {(priorUploaderName || priorUploadedAt) && (
+                                                  <p className="mt-0.5 text-t3">
+                                                    Uploaded
+                                                    {priorUploaderName ? ` by ${priorUploaderName}` : ""}
+                                                    {priorSourceLabel && priorSource !== "success_screen"
+                                                      ? ` via ${priorSourceLabel}`
+                                                      : ""}
+                                                    {priorUploadedAt ? ` · ${formatDateTime(priorUploadedAt)}` : ""}
+                                                  </p>
+                                                )}
+                                                <p className="mt-0.5 text-t3">
+                                                  Replaced {formatDateTime(h.replaced_at)} by{" "}
+                                                  {replacerName} via {replacerSourceLabel}
+                                                </p>
+                                              </div>
+                                              {priorStreamUrl && (
+                                                <a
+                                                  href={priorStreamUrl}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  download={h.replaced_filename}
+                                                  className="text-[11px] font-semibold text-brand hover:underline shrink-0"
+                                                >
+                                                  Open
+                                                </a>
+                                              )}
+                                            </div>
                                           </li>
                                         );
                                       })}
@@ -1895,7 +1961,25 @@ export function OrderDetailClient({
                                     onChange={(e) => {
                                       const f = e.target.files?.[0];
                                       e.target.value = ""; // allow re-selecting same file
-                                      if (f) void handleStaffPxUpload(f);
+                                      if (!f) return;
+                                      // Task-251 — stash the selection and open a
+                                      // confirm modal so staff verify the patient
+                                      // before the file is uploaded.
+                                      setPxUploadError(null);
+                                      if (f.size > 10 * 1024 * 1024) {
+                                        setPxUploadError("File is larger than 10 MB.");
+                                        return;
+                                      }
+                                      if (pendingPxPreviewUrl) {
+                                        URL.revokeObjectURL(pendingPxPreviewUrl);
+                                      }
+                                      const previewable =
+                                        f.type.startsWith("image/") ||
+                                        f.type === "application/pdf";
+                                      setPendingPxFile(f);
+                                      setPendingPxPreviewUrl(
+                                        previewable ? URL.createObjectURL(f) : null,
+                                      );
                                     }}
                                   />
                                 </label>
@@ -2369,6 +2453,125 @@ export function OrderDetailClient({
                 : cancelBranch === "release_auth"
                   ? "Confirm — Release auth"
                   : "Confirm — Create refund"}
+            </Button>
+          </ConfirmDialogFooter>
+        </ConfirmDialogContent>
+      </ConfirmDialog>
+
+      {/* Task-251 — Pre-attach confirmation for the empty-state staff upload
+          card. Surfaces the patient's name + DOB alongside the chosen file
+          (filename, type, size and an inline image/PDF preview) so staff can
+          catch wrong-patient/wrong-tab mix-ups before the upload pipeline
+          fires. Cancelling discards the selection and leaves the audit trail
+          untouched; confirming hands off to handleStaffPxUpload unchanged. */}
+      <ConfirmDialog
+        open={pendingPxFile !== null}
+        onOpenChange={(o) => {
+          if (o || isUploadingPx) return;
+          if (pendingPxPreviewUrl) URL.revokeObjectURL(pendingPxPreviewUrl);
+          setPendingPxFile(null);
+          setPendingPxPreviewUrl(null);
+        }}
+      >
+        <ConfirmDialogContent className="max-w-md">
+          <ConfirmDialogHeader>
+            <ConfirmDialogTitle className="text-base flex items-center gap-2">
+              <Upload className="w-4 h-4 text-warn" />
+              Confirm patient before upload
+            </ConfirmDialogTitle>
+          </ConfirmDialogHeader>
+          {pendingPxFile && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2 text-[12px] rounded-md px-3 py-2 border border-warn-bdr bg-warn-bg text-warn">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  Double-check this file belongs to the patient below. Once
+                  confirmed it is attached to this order and recorded in the
+                  audit log.
+                </div>
+              </div>
+              <div className="rounded-md border border-bdr bg-page-bg px-3 py-2 space-y-1 text-[12px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">Patient</span>
+                  <span className="text-t1 font-semibold text-right truncate max-w-[16rem]">
+                    {d.full_name}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">Date of birth</span>
+                  <span className="text-t1 text-right">
+                    {formatDate(d.dob)} · {age} yrs
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">File</span>
+                  <span className="text-t1 font-semibold text-right truncate max-w-[16rem]">
+                    {pendingPxFile.name}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">Type / size</span>
+                  <span className="text-t1 text-right">
+                    {pendingPxFile.type || "unknown"} ·{" "}
+                    {pendingPxFile.size < 1024 * 1024
+                      ? `${(pendingPxFile.size / 1024).toFixed(1)} KB`
+                      : `${(pendingPxFile.size / 1024 / 1024).toFixed(1)} MB`}
+                  </span>
+                </div>
+              </div>
+              {pendingPxPreviewUrl && pendingPxFile.type.startsWith("image/") ? (
+                <img
+                  src={pendingPxPreviewUrl}
+                  alt={`Preview of ${pendingPxFile.name}`}
+                  className="max-h-64 w-auto rounded-md border border-bdr mx-auto"
+                />
+              ) : pendingPxPreviewUrl && pendingPxFile.type === "application/pdf" ? (
+                <object
+                  data={pendingPxPreviewUrl}
+                  type="application/pdf"
+                  aria-label={`PDF preview of ${pendingPxFile.name}`}
+                  className="w-full h-64 rounded-md border border-bdr bg-bg2"
+                >
+                  <p className="text-[11px] text-t2 p-3">
+                    Inline PDF preview isn’t supported in this browser — confirm
+                    by filename above.
+                  </p>
+                </object>
+              ) : (
+                <p className="text-[11px] text-t2">
+                  No inline preview available for this file type — confirm by
+                  filename above.
+                </p>
+              )}
+            </div>
+          )}
+          <ConfirmDialogFooter className="gap-2 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (pendingPxPreviewUrl) URL.revokeObjectURL(pendingPxPreviewUrl);
+                setPendingPxFile(null);
+                setPendingPxPreviewUrl(null);
+              }}
+              disabled={isUploadingPx}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                const file = pendingPxFile;
+                if (!file) return;
+                if (pendingPxPreviewUrl) URL.revokeObjectURL(pendingPxPreviewUrl);
+                setPendingPxFile(null);
+                setPendingPxPreviewUrl(null);
+                void handleStaffPxUpload(file);
+              }}
+              disabled={isUploadingPx || !pendingPxFile}
+            >
+              <Upload className="w-3.5 h-3.5 mr-1" />
+              Confirm &amp; upload
             </Button>
           </ConfirmDialogFooter>
         </ConfirmDialogContent>

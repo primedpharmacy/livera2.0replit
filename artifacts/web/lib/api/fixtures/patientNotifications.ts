@@ -116,6 +116,74 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
         'The FeelTru team',
     },
   },
+  // Task-128 — Failed row with retry budget remaining so reviewers can see and
+  // click the "Resend now" button in the per-patient Notification log tab.
+  // The retry job runs against this exact shape: status='Failed',
+  // attempt_count < max_attempts, and a populated email_envelope so the
+  // resend has everything it needs without reconstructing from the order.
+  {
+    id: 'NOTIF-002',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00451',
+    type: 'order_approved',
+    channel: 'Email',
+    template: 'order_approved',
+    status: 'Failed',
+    sent_at: '2026-05-18T09:12:00Z',
+    payload: {
+      order_id: 'ORD-00451',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      'Postmark 504: upstream timeout while accepting message',
+    last_attempt_at: '2026-05-18T09:12:00Z',
+    next_retry_at:   '2026-05-18T09:17:00Z',
+    email_envelope:  {
+      to_email: 'patient+pt00198@example.com',
+      subject:  'Your order ORD-00451 has been approved',
+      template: 'order_approved',
+      text_body:
+        'Hi Alex,\n\n' +
+        'Good news — your order ORD-00451 has been approved by our clinical team and is being prepared for dispatch.\n\n' +
+        'We will email you again as soon as it has been handed to the courier.\n\n' +
+        'Thanks,\n' +
+        'The FeelTru team',
+    },
+  },
+  // Task-128 — Bounced row to prove that the "Resend now" button does NOT
+  // appear for hard bounces (the address is invalid, so retrying would be
+  // pointless and could harm sender reputation).
+  {
+    id: 'NOTIF-003',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00452',
+    type: 'order_dispatched',
+    channel: 'Email',
+    template: 'order_dispatched',
+    status: 'Bounced',
+    sent_at: '2026-05-17T16:04:00Z',
+    payload: {
+      order_id: 'ORD-00452',
+      tracking_number: 'AB123456789GB',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      'Hard bounce: mailbox does not exist (550 5.1.1)',
+    last_attempt_at: '2026-05-17T16:04:00Z',
+    next_retry_at:   null,
+    email_envelope:  {
+      to_email: 'patient+pt00198@example.com',
+      subject:  'Your order ORD-00452 is on its way',
+      template: 'order_dispatched',
+      text_body:
+        'Hi Alex,\n\n' +
+        'Your order ORD-00452 has been dispatched. Tracking number: AB123456789GB.\n\n' +
+        'Thanks,\n' +
+        'The FeelTru team',
+    },
+  },
 ];
 
 // Task-49 — append a notification record after a real Postmark send. Returns

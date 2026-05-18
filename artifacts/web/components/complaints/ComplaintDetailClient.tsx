@@ -14,6 +14,7 @@ import {
 } from "@/lib/api/mock";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { useQueueNavigation } from "@/lib/queueNavigation";
+import { QueuePositionIndicator } from "@/components/shared/QueuePositionIndicator";
 import type { Complaint, ComplaintStatus, Clinic, ClinicId } from "@/types";
 
 const CLOSED_STATUSES: ComplaintStatus[] = ["resolved", "closed"];
@@ -158,6 +159,11 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
         <Link href={`/${clinicId}/complaints`} className="text-t3 hover:text-t1 transition-colors">
           <ArrowLeft className="w-4 h-4" />
         </Link>
+        <QueuePositionIndicator
+          kind="complaints"
+          currentId={complaint.id}
+          clinicId={clinicId}
+        />
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Megaphone className="w-4 h-4 text-brand shrink-0" />
           <span className="font-mono text-[13px] font-bold text-t1">{complaint.id}</span>

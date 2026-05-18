@@ -54,6 +54,7 @@ import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPan
 import { DispatchDateCard } from "./DispatchDateCard";
 import { addWorkingHours } from "@/lib/utils/workingHours";
 import { useQueueNavigation } from "@/lib/queueNavigation";
+import { QueuePositionIndicator } from "@/components/shared/QueuePositionIndicator";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -666,6 +667,12 @@ export function OrderDetailClient({
           <Link href={`/${clinicId}/orders`} className="flex items-center gap-1 hover:text-brand transition-colors">
             <ArrowLeft className="w-3 h-3" /> Orders
           </Link>
+          <QueuePositionIndicator
+            kind="orders"
+            currentId={order.id}
+            clinicId={clinicId}
+            className="ml-1"
+          />
           <ChevronRight className="w-3 h-3" />
           <span className="font-mono text-t1 font-medium">{order.id}</span>
         </nav>

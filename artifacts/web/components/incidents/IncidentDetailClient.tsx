@@ -21,6 +21,7 @@ import { USERS_REGISTRY } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { useQueueNavigation } from "@/lib/queueNavigation";
+import { QueuePositionIndicator } from "@/components/shared/QueuePositionIndicator";
 import type { Incident, IncidentComment, Clinic, ClinicId } from "@/types";
 
 interface Props {
@@ -440,6 +441,11 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
         <Link href={`/${clinicId}/incidents`} className="text-t3 hover:text-t1 transition-colors">
           <ArrowLeft className="w-4 h-4" />
         </Link>
+        <QueuePositionIndicator
+          kind="incidents"
+          currentId={incident.id}
+          clinicId={clinicId}
+        />
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <AlertTriangle className="w-4 h-4 text-brand shrink-0" />
           <span className="font-mono text-[13px] font-bold text-t1">{incident.id}</span>

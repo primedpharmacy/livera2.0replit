@@ -8,7 +8,7 @@
  * Value: JSON array of item IDs in current filter order.
  */
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export type QueueKind = "orders" | "complaints" | "incidents";
@@ -89,4 +89,63 @@ export function useQueueNavigation({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [kind, currentId, clinicId, router]);
+}
+
+/**
+ * Read-side hook used by the detail header indicator. Returns the current
+ * item's position within the saved queue plus prev/next navigators. Returns
+ * null when no saved queue exists (e.g. opened from a deep link) or when the
+ * current item is not part of the saved queue.
+ *
+ * The lookup runs in an effect so SSR returns null and the indicator stays
+ * hidden until the queue is read from sessionStorage on the client.
+ */
+export function useQueuePosition({
+  kind,
+  currentId,
+  clinicId,
+}: {
+  kind: QueueKind;
+  currentId: string;
+  clinicId: string;
+}): {
+  index: number;
+  total: number;
+  hasPrev: boolean;
+  hasNext: boolean;
+  goPrev: () => void;
+  goNext: () => void;
+} | null {
+  const router = useRouter();
+  const [state, setState] = useState<{ queue: string[]; idx: number } | null>(null);
+
+  useEffect(() => {
+    const queue = loadQueue(kind);
+    const idx = queue.indexOf(currentId);
+    if (idx === -1) {
+      setState(null);
+      return;
+    }
+    setState({ queue, idx });
+  }, [kind, currentId]);
+
+  const goPrev = useCallback(() => {
+    if (!state || state.idx <= 0) return;
+    router.push(`/${clinicId}/${kind}/${state.queue[state.idx - 1]}`);
+  }, [state, router, clinicId, kind]);
+
+  const goNext = useCallback(() => {
+    if (!state || state.idx >= state.queue.length - 1) return;
+    router.push(`/${clinicId}/${kind}/${state.queue[state.idx + 1]}`);
+  }, [state, router, clinicId, kind]);
+
+  if (!state) return null;
+  return {
+    index: state.idx + 1,
+    total: state.queue.length,
+    hasPrev: state.idx > 0,
+    hasNext: state.idx < state.queue.length - 1,
+    goPrev,
+    goNext,
+  };
 }

@@ -22,12 +22,29 @@ PLAYWRIGHT_BASE_URL=http://localhost \
   pnpm --filter @workspace/web exec playwright test tests/e2e/intercomWebhookLive.spec.ts
 ```
 
-## Visual baselines (cancel + refund flow)
+## Visual baselines
 
-`cancelRefundFlow.visual.spec.ts` snapshots three locator-scoped regions of
-the cancel + refund flow (see the header comment in the spec). It is wired
-into the project's validation pipeline as the `web-test-visual` check, so
-every change runs:
+Two specs make up the visual safety net, both wired into the project's
+validation pipeline as the `web-test-visual` check (which runs
+`pnpm --filter @workspace/web run test:visual`):
+
+1. **`cancelRefundFlow.visual.spec.ts`** — three locator-scoped regions of
+   the cancel + refund flow (cancelled-order banner, unlocked refund
+   panel, locked refund panel). See the spec header for details.
+2. **`highTrafficScreens.visual.spec.ts`** — eight regions covering the
+   rest of the staff app's high-traffic surfaces so design drift doesn't
+   slip in outside cancel + refund (Task-308):
+     - Dashboard 7-stat ops strip and "Quick actions" card.
+     - Patient detail hero header (PT-00378).
+     - Amendments queue filter chips bar.
+     - Incident detail severity banner (INC-001) and "Log incident" modal.
+     - GP letter detail "Letter body" card (GPL-001).
+     - **Sign-in Clerk card shell** (anonymous route — slightly higher
+       diff tolerance because Clerk pulls webfonts / icons from its CDN).
+     - **Complaints inbox KPI strip** (Owner persona — Coach is gated out
+       of `/complaints` at the page level).
+
+Every change runs:
 
 ```bash
 pnpm --filter @workspace/web run test:visual
@@ -41,7 +58,8 @@ the baselines and commit the updated PNGs:
 
 ```bash
 pnpm --filter @workspace/web run test:visual:update
-git add artifacts/web/tests/e2e/cancelRefundFlow.visual.spec.ts-snapshots/
+git add artifacts/web/tests/e2e/cancelRefundFlow.visual.spec.ts-snapshots/ \
+        artifacts/web/tests/e2e/highTrafficScreens.visual.spec.ts-snapshots/
 ```
 
 `playwright.config.ts` will boot its own `next dev` on `$PORT` when no

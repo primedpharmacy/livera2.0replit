@@ -13,6 +13,11 @@
  *   4. Amendments queue filter chips bar.
  *   5. Incident detail severity banner — INC-001.
  *   6. GP letter detail "Letter body" card — GPL-001.
+ *   7. Sign-in page Clerk card shell (Task-308 — catches drift on the
+ *      auth entrypoint; tolerates Clerk's own minor pixel noise).
+ *   8. Complaints inbox KPI strip (Task-308 — the complaints inbox is a
+ *      high-traffic CQC surface and the five KPI tiles are deterministic
+ *      given seeded fixtures + the pinned NOW).
  *
  * Refreshing baselines (after intentional design changes):
  *   pnpm --filter @workspace/web run test:visual:update
@@ -146,6 +151,52 @@ test.describe('Visual baselines — high-traffic admin screens', () => {
     );
 
     await expect(modal).toHaveScreenshot('incident-log-modal.png', {
+      animations: 'disabled',
+      maxDiffPixelRatio: 0.02,
+    });
+  });
+
+  test('sign-in — Clerk card shell', async ({ page }) => {
+    // Sign-in is anonymous, so no ?as= persona. The Clerk <SignIn>
+    // component renders client-side; wait on its "Sign in" heading
+    // before snapshotting so we don't race the widget mount. We scope
+    // to the centered <main> wrapper rather than the full viewport so
+    // browser-chrome / scrollbar differences don't leak into the diff.
+    await page.goto('/sign-in');
+
+    const heading = page.getByRole('heading', { name: /Sign in/i });
+    await expect(heading).toBeVisible();
+    // Clerk lazy-renders its provider buttons after the form; waiting on
+    // the email input keeps the snapshot stable across runs.
+    await expect(page.getByLabel(/email/i).first()).toBeVisible();
+
+    const main = page.locator('main');
+
+    await expect(main).toHaveScreenshot('sign-in-clerk-card.png', {
+      animations: 'disabled',
+      // Clerk's widget pulls webfonts and renders provider icons from its
+      // CDN, so we leave more headroom than the in-app baselines. Any
+      // genuine layout/branding regression still blows past this.
+      maxDiffPixelRatio: 0.05,
+    });
+  });
+
+  test('complaints inbox — KPI strip', async ({ page }) => {
+    // Owner persona (Qadir) — the page-level Coach gate would 307 a
+    // Coach back to the dashboard.
+    await page.goto(asUrl(`/${CLINIC}/complaints`));
+
+    // The five KPI tiles render after fixtures load. Anchor on the first
+    // tile's label, then walk up to the grid row that wraps all five.
+    const breachedTile = page.getByText(/OPEN\s*·\s*BREACHED/i);
+    await expect(breachedTile).toBeVisible();
+    const kpiStrip = breachedTile.locator(
+      'xpath=ancestor::div[contains(@class, "grid-cols-5")][1]'
+    );
+    // Sanity: the last tile should be present too, so the row is fully painted.
+    await expect(kpiStrip.getByText(/ESCALATED TO REGULATOR/i)).toBeVisible();
+
+    await expect(kpiStrip).toHaveScreenshot('complaints-kpi-strip.png', {
       animations: 'disabled',
       maxDiffPixelRatio: 0.02,
     });

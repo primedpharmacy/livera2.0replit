@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CheckSquare, Square, ShieldCheck, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { can } from "@/lib/permissions";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import type { Order } from "@/types";
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 }
 
 export function OrderNICEChecklistCard({ orderStatus, initialChecklist }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const [items, setItems] = useState(initialChecklist);
 
   const canToggle =

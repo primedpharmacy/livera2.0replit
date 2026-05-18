@@ -1,3 +1,5 @@
+"use client";
+
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import {
   Phone,
@@ -12,7 +14,7 @@ import {
 } from "lucide-react";
 import type { CoachingLog, Patient, ClinicId, CalendlyBooking } from "@/types";
 import { CoachingLogEntryModal } from "@/components/coaching/CoachingLogEntryModal";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { canCoachAccessPatient } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +53,7 @@ const ENTRY_TYPE_BADGE: Record<string, string> = {
 };
 
 export function CoachingLogTab({ patient, clinicId, logs, bookings = [] }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const isCoach = CURRENT_USER.roles.includes("Coach");
   const canLog = isCoach && canCoachAccessPatient(CURRENT_USER, patient);
 

@@ -19,7 +19,8 @@ import {
   Plus, X, CheckSquare, AlertTriangle, Megaphone, Phone, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createTask, CURRENT_USER } from "@/lib/api/mock";
+import { createTask } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { MOCK_PATIENTS } from "@/lib/api/fixtures/patients";
 import { MOCK_ORDERS } from "@/lib/api/fixtures/orders";
 import { LogIncidentModal } from "@/components/incidents/LogIncidentModal";
@@ -54,6 +55,7 @@ function FABContent({
   clinicId: ClinicId;
   router: ReturnType<typeof useRouter>;
 }) {
+  const CURRENT_USER = useCurrentUser();
   const [dialOpen,    setDialOpen]    = useState(false);
   const [taskOpen,    setTaskOpen]    = useState(false);
   const [incidentOpen, setIncidentOpen] = useState(false);

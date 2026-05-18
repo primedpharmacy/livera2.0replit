@@ -16,7 +16,8 @@
 import { useState } from "react";
 import { StickyNote, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createAdminNote, CURRENT_USER } from "@/lib/api/mock";
+import { createAdminNote } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { ClinicId, AdminNote } from "@/types";
@@ -37,6 +38,7 @@ const TAG_OPTIONS: { value: AdminNote["tag"]; label: string }[] = [
 interface Toast { message: string; type: "ok" | "err" }
 
 export function AdminNoteFABModal({ clinicId, patientId, onCreated = () => {} }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const [open, setOpen]       = useState(false);
   const [body, setBody]       = useState("");
   const [tag, setTag]         = useState<AdminNote["tag"]>("general");

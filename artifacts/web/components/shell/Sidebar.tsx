@@ -40,8 +40,8 @@ import {
   listWelcomeCalls,
   listClinicalEscalationFlags,
   listDiscontinuations,
-  CURRENT_USER,
 } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import type { ClinicId } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import { QUEUE_COUNT_EVENT, type QueueCountChangeDetail, type QueueKey } from "@/lib/queue-counts";
@@ -363,6 +363,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ clinicId }: SidebarProps) {
+  const CURRENT_USER = useCurrentUser();
   const pathname = usePathname();
   const isCoach = CURRENT_USER.roles.includes("Coach");
 

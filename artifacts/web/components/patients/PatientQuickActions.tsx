@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Package, FilePlus2, Flag, AlertTriangle, CheckCircle } from "lucide-react";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { can } from "@/lib/permissions";
 
 interface PatientQuickActionsProps {
@@ -31,6 +31,7 @@ const STUB_MSG: Record<StubKey, string> = {
 };
 
 export function PatientQuickActions({ clinicId, latestOrderId }: PatientQuickActionsProps) {
+  const CURRENT_USER = useCurrentUser();
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {

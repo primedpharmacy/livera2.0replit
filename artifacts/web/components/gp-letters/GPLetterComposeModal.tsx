@@ -17,7 +17,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, FileText, AlertCircle, CheckCircle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { createGPLetterAction } from "@/lib/actions/gpLetterActions";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
@@ -44,6 +44,7 @@ function fillEmailTemplate(template: string, patient: Patient, clinic: Clinic): 
 }
 
 export function GPLetterComposeModal({ clinicId, patients, templates, clinic, onClose }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const router = useRouter();
 
   const canCompose = can(CURRENT_USER, "write", "gp_letters");

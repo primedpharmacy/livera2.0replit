@@ -17,7 +17,8 @@ import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLege
 import { saveQueue } from "@/lib/queueNavigation";
 import { Package, Clock, ArrowRight, CheckCircle, AlertTriangle, Undo2 } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
-import { decideOrder, reverseDecision, CURRENT_USER } from "@/lib/api/mock";
+import { decideOrder, reverseDecision } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { createClinicalNoteAction } from "@/lib/actions/clinicalNoteActions";
 import { can } from "@/lib/permissions";
 import { openOrderUndoWindow, clearOrderUndoWindow, ORDER_UNDO_WINDOW_MS } from "@/lib/orderUndo";
@@ -37,6 +38,7 @@ interface OrdersViewProps {
 type ViewTab = "active" | "expired";
 
 export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} }: OrdersViewProps) {
+  const CURRENT_USER = useCurrentUser();
   const router = useRouter();
   const [viewTab, setViewTab] = useState<ViewTab>("active");
   const [orders, setOrders] = useState<Order[]>(initialOrders);
@@ -184,7 +186,7 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
         setIsSubmitting(false);
       }
     },
-    [clinicId],
+    [clinicId, CURRENT_USER.id],
   );
 
   const handleFilter = useCallback((results: Order[]) => {

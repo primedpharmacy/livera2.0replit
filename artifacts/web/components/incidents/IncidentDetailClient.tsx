@@ -12,13 +12,13 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLegend";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { CURRENT_USER } from "@/lib/api/mock";
 import {
   updateIncidentStatusAction, notifyCQCAction,
   syncIncidentFromMondayAction, recordYellowCardDecisionAction,
   addIncidentCommentAction,
 } from "@/lib/actions/incidentActions";
 import { USERS_REGISTRY } from "@/lib/api/constants";
+import { useCurrentUser } from "@/lib/context";
 import { can } from "@/lib/permissions";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { useQueueNavigation } from "@/lib/queueNavigation";
@@ -172,6 +172,7 @@ function CommentsPanel({
   clinicId: ClinicId;
   initialComments: IncidentComment[];
 }) {
+  const CURRENT_USER = useCurrentUser();
   const [comments, setComments] = useState<IncidentComment[]>(initialComments);
   const [body,     setBody]     = useState("");
   const [posting,  setPosting]  = useState(false);
@@ -266,6 +267,7 @@ function CommentsPanel({
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function IncidentDetailClient({ initialIncident, clinic, clinicId, initialComments }: Props) {
+  const CURRENT_USER = useCurrentUser();
   useQueueNavigation({ kind: "incidents", currentId: initialIncident.id, clinicId });
   const [incident, setIncident] = useState<Incident>(initialIncident);
   const [isSyncing, setIsSyncing] = useState(false);

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { NOW } from "@/lib/api/constants";
 import type { Patient } from "@/lib/api/types";
 
@@ -93,6 +93,7 @@ const EVIDENCE_TYPES = [
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function IntercomPhotoTab({ patient }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const [openConv, setOpenConv] = useState<Conversation | null>(null);
   const [photoIdx, setPhotoIdx] = useState(0);
   const [evidenceType, setEvidenceType] = useState(EVIDENCE_TYPES[0]);

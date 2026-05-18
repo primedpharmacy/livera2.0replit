@@ -34,9 +34,9 @@ import {
   acknowledgeWeightWarning,
   editWeightWarningAcknowledgement,
   undoWeightWarningAcknowledgement,
-  CURRENT_USER,
   USERS_REGISTRY,
 } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import type { Order, ClinicId } from "@/types";
 
 interface Props {
@@ -108,6 +108,7 @@ function WeightWarningChip({
   thresholds?: ClinicConfig["weight_warning_thresholds"];
   onAcknowledged?: (updated: Order) => void;
 }) {
+  const CURRENT_USER = useCurrentUser();
   const ack = findAcknowledgement(order, warning.kind);
   // Task-211 — when this chip has been acknowledged, build a tooltip that
   // contrasts the snapshot the warning fired under with the clinic's current

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { GPLetterComposeModal } from "@/components/gp-letters/GPLetterComposeModal";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { cancelGPLetterAction } from "@/lib/actions/gpLetterActions";
 import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
@@ -70,6 +70,7 @@ interface GPLettersViewProps {
 export function GPLettersView({
   initialLetters, patients, templates, clinicId, clinic,
 }: GPLettersViewProps) {
+  const CURRENT_USER = useCurrentUser();
   const router = useRouter();
 
   const [letters,         setLetters]         = useState<GPLetter[]>(initialLetters);

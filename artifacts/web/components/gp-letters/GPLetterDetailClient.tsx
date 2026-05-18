@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { sendGPLetterAction } from "@/lib/actions/gpLetterActions";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { can } from "@/lib/permissions";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { SlaTimerWidget } from "@/components/sla/SlaTimerWidget";
@@ -24,6 +24,7 @@ interface Props {
 interface Toast { message: string; type: "ok" | "err" }
 
 export function GPLetterDetailClient({ initialLetter, patient, clinic, clinicId }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const [letter, setLetter] = useState<GPLetter>(initialLetter);
   const [isSending, setIsSending] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);

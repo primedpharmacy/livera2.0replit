@@ -15,7 +15,7 @@ import { Calendar, Plus, Trash2, AlertTriangle, CheckCircle } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { can } from "@/lib/permissions";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import type { ClinicId } from "@/types";
 
 interface HolidayEntry {
@@ -36,6 +36,7 @@ export function HolidayCalendarEditor({
   initialHolidays,
   onUpdate,
 }: HolidayCalendarEditorProps) {
+  const CURRENT_USER = useCurrentUser();
   const [holidays, setHolidays]   = useState<HolidayEntry[]>(
     [...initialHolidays].sort((a, b) => a.date.localeCompare(b.date))
   );

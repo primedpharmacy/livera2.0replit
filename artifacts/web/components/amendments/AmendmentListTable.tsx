@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatRelativeTime } from "@/lib/format";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import type { Amendment } from "@/types";
 
 const TYPE_LABELS: Record<Amendment["type"], string> = {
@@ -44,6 +44,7 @@ interface AmendmentListTableProps {
 }
 
 export function AmendmentListTable({ amendments, clinicId }: AmendmentListTableProps) {
+  const CURRENT_USER = useCurrentUser();
   const router = useRouter();
   const canRefund = !!CURRENT_USER.can_refund;
 

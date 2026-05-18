@@ -15,7 +15,8 @@ import {
   Plus, X, StickyNote, Flag, AlertTriangle, ClipboardPen, Package, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createAdminNote, CURRENT_USER } from "@/lib/api/mock";
+import { createAdminNote } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { MOCK_PATIENTS } from "@/lib/api/fixtures/patients";
 import { MOCK_ORDERS } from "@/lib/api/fixtures/orders";
 import { LogIncidentModal } from "@/components/incidents/LogIncidentModal";
@@ -41,6 +42,7 @@ const TAG_OPTIONS: { value: AdminNote["tag"]; label: string }[] = [
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function PatientFABSpeedDial({ clinicId, patientId, latestOrderId }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const router = useRouter();
 
   const [dialOpen,       setDialOpen]       = useState(false);

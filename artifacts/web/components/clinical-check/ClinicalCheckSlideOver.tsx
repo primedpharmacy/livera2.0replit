@@ -7,7 +7,8 @@ import {
   FileText, AlertTriangle, TrendingDown, TrendingUp, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { decideOrder, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { decideOrder, NOW } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { createClinicalNoteAction } from "@/lib/actions/clinicalNoteActions";
 import { can } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/format";
@@ -87,6 +88,7 @@ export function ClinicalCheckSlideOver({
   onNavigate,
   jumpToFlaggedNonce,
 }: ClinicalCheckSlideOverProps) {
+  const CURRENT_USER = useCurrentUser();
   // Task-99 — mirror the order locally so optimistic updates (e.g. weight
   // warning acknowledgements) survive until the parent refetches the queue.
   const [order, setOrder] = useState<Order>(orderProp);

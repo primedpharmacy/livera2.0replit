@@ -12,12 +12,14 @@
 
 import { useState } from "react";
 import { Download, FileText, AlertTriangle, CheckCircle } from "lucide-react";
-import { listClinicalNotes, CURRENT_USER, getClinicSync } from "@/lib/api/mock";
+import { listClinicalNotes, getClinicSync } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { exportClinicalNotesAud04 } from "@/lib/exports/clinicalNotesAud04";
 import type { ClinicId } from "@/types";
 import { useParams } from "next/navigation";
 
 export default function ExportsPage() {
+  const CURRENT_USER  = useCurrentUser();
   const params        = useParams<{ clinic_id: string }>();
   const clinicId      = params.clinic_id as ClinicId;
 

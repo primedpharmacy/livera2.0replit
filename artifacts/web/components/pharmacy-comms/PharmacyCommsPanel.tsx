@@ -21,7 +21,7 @@ import {
   replyToPharmacyCommThreadAction,
   createPharmacyCommThreadAction,
 } from "@/lib/actions/pharmacyCommActions";
-import { CURRENT_USER } from "@/lib/api/constants";
+import { useCurrentUser } from "@/lib/context";
 import { can } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/format";
 import type { PharmacyCommThread, ClinicId, PharmacyCommAnchorType } from "@/types";
@@ -67,6 +67,7 @@ function ThreadStatusBadge({ status }: { status: PharmacyCommThread["status"] })
 }
 
 export function PharmacyCommsPanel({ clinicId, anchorType, anchorId }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const canWrite = can(CURRENT_USER, "write", "pharmacy_comms");
 
   const [threads,     setThreads]     = useState<PharmacyCommThread[]>([]);

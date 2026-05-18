@@ -20,7 +20,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Mail, RefreshCw, AlertTriangle, Send, Phone, PhoneCall } from "lucide-react";
-import { CURRENT_USER, resendPxUploadLink } from "@/lib/api/mock";
+import { resendPxUploadLink } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { can } from "@/lib/permissions";
 import { NOW } from "@/lib/api/constants";
 import type { ClinicId, Order } from "@/types";
@@ -41,6 +42,7 @@ function daysBetween(fromIso: string, toIso: string): number {
 }
 
 export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const [rows, setRows]                     = useState<Order[]>(orders);
   const [pendingId, setPendingId]           = useState<string | null>(null);
   const [reminderPendingId, setReminderPendingId] = useState<string | null>(null);

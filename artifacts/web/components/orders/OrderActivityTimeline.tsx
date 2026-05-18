@@ -15,7 +15,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { USERS_REGISTRY, CURRENT_USER } from "@/lib/api/mock";
+import { USERS_REGISTRY } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { can } from "@/lib/permissions";
 import { MOCK_CLINICAL_NOTES } from "@/lib/api/fixtures/clinicalNotes";
 import type { Order } from "@/types";
@@ -84,6 +85,7 @@ interface Props {
 }
 
 export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const [retryFor, setRetryFor]   = useState<ReminderRetryAction | null>(null);
   const [retryEmail, setRetryEmail] = useState("");
   const [retryBusy, setRetryBusy] = useState(false);

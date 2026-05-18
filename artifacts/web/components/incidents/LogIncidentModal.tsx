@@ -10,7 +10,7 @@
 
 import { useState, useMemo } from "react";
 import { X, Search, AlertTriangle } from "lucide-react";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { cn } from "@/lib/utils";
 import type {
   Incident, IncidentType, IncidentSeverity,
@@ -107,6 +107,7 @@ export function LogIncidentModal({
   onSave,
   onClose,
 }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const [incidentType, setIncidentType] = useState<IncidentType>("adverse_event");
   const [severity,     setSeverity]     = useState<IncidentSeverity>("mild");
   const [description,  setDescription]  = useState("");

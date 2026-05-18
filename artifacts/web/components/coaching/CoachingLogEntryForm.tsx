@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { raiseClinicalEscalation } from "@/lib/api/mock";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { addCoachingLogAction } from "@/lib/actions/coachingActions";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
@@ -42,6 +42,7 @@ const SEVERITIES: { value: ClinicalEscalationFlag["severity"]; label: string }[]
 ];
 
 export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const today = NOW.slice(0, 16); // "YYYY-MM-DDTHH:MM"
 
   const [entryType, setEntryType]                 = useState<CoachingLog["entry_type"]>("check_in");

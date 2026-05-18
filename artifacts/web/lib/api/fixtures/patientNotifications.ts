@@ -205,6 +205,61 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
         'The FeelTru team',
     },
   },
+  // Task-137 — SMS row marked Bounced by the Twilio async status callback.
+  // `payload.sms_error_message` and `last_error` carry the carrier reason so
+  // the per-patient notification log can show clinicians WHY the SMS failed
+  // (e.g. "Unreachable destination handset") instead of a bare 'Bounced' chip.
+  // No email_envelope — SMS rows are not retried; the carrier-final status
+  // is terminal and the staff action is to switch channel or fix the number.
+  {
+    id: 'NOTIF-004',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00453',
+    type: 'order_approved',
+    channel: 'SMS',
+    template: 'order_approved',
+    status: 'Bounced',
+    sent_at: '2026-05-18T08:01:00Z',
+    payload: {
+      order_id: 'ORD-00453',
+      sms_message_id: 'SM7c5d2e8a1b9f4e6a8d2c1f3e9b7a6d2c',
+      sms_to_phone: '+447700900123',
+      sms_error_message: 'Unreachable destination handset (Twilio 30003)',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      'Unreachable destination handset (Twilio 30003)',
+    last_attempt_at: '2026-05-18T08:01:00Z',
+    next_retry_at:   null,
+    email_envelope:  null,
+  },
+  // Task-137 — SMS marked Failed by the carrier (landline / unroutable). Same
+  // shape as above; UI must surface the carrier reason so clinicians know to
+  // collect a mobile number rather than retry the same one.
+  {
+    id: 'NOTIF-005',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00454',
+    type: 'order_dispatched',
+    channel: 'SMS',
+    template: 'order_dispatched',
+    status: 'Failed',
+    sent_at: '2026-05-18T07:42:00Z',
+    payload: {
+      order_id: 'ORD-00454',
+      sms_message_id: 'SM3a1b2c4d5e6f7a8b9c0d1e2f3a4b5c6d',
+      sms_to_phone: '+441234567890',
+      sms_error_message: 'Landline or unreachable carrier (Twilio 30006)',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      'Landline or unreachable carrier (Twilio 30006)',
+    last_attempt_at: '2026-05-18T07:42:00Z',
+    next_retry_at:   null,
+    email_envelope:  null,
+  },
 ];
 
 // Task-49 — append a notification record after a real Postmark send. Returns

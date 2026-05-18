@@ -11,6 +11,10 @@ import { NOW } from "@/lib/api/constants";
 import { reverseDecision } from "@/lib/api/mock";
 import { openOrderUndoWindow, clearOrderUndoWindow, ORDER_UNDO_WINDOW_MS } from "@/lib/orderUndo";
 import { countReviewNeeded, listFlaggedAnswers, type FlaggedAnswer } from "@/lib/questionnaire";
+import {
+  summariseOrderWeightWarnings,
+  type OrderWeightWarningState,
+} from "@/lib/clinical/weightWarnings";
 import { cn } from "@/lib/utils";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { Order, Clinic, CoachingLog, ClinicId } from "@/types";
@@ -114,6 +118,9 @@ export function ClinicalCheckClient({
   const [activeChip,       setActiveChip]       = useState<FilterChip>("all");
   const [selectedOrderId,  setSelectedOrderId]  = useState<string | null>(null);
   const [orders,           setOrders]           = useState<Order[]>(initialOrders);
+  // Task-136 — Toggle to hide orders where every concerning weight warning has
+  // already been acknowledged, so reviewers can focus on truly fresh cases.
+  const [hideAckedWeightWarnings, setHideAckedWeightWarnings] = useState(false);
   const [undoToast,        setUndoToast]        = useState<UndoToast | null>(null);
   const [undoRemainingMs,  setUndoRemainingMs]  = useState(0);
   const [isUndoing,        setIsUndoing]        = useState(false);
@@ -254,6 +261,20 @@ export function ClinicalCheckClient({
     return { reviewNeededByOrderId: counts, flaggedAnswersByOrderId: lists };
   }, [orders, clinic]);
 
+  // Task-136 — Per-order weight-warning state. Used by the queue to:
+  //   • show a subtle "weight reviewed" indicator on rows where every concerning
+  //     warning has already been acknowledged,
+  //   • optionally hide those orders entirely via the queue toggle,
+  //   • boost urgency for orders that still have an unacknowledged warning.
+  const weightWarningStateByOrderId = useMemo<Record<string, OrderWeightWarningState>>(() => {
+    const out: Record<string, OrderWeightWarningState> = {};
+    for (const o of orders) {
+      const state = summariseOrderWeightWarnings(o, clinic.config.weight_warning_thresholds);
+      if (state.total > 0) out[o.id] = state;
+    }
+    return out;
+  }, [orders, clinic]);
+
   // ── KPI tiles (always over the full queue) ────────────────────────────────
   const { under4, btw4to8, over8, flaggedCount, reviewNeededTotal } = useMemo(() => {
     let u4 = 0, b48 = 0, o8 = 0, fl = 0, rn = 0;
@@ -285,9 +306,27 @@ export function ClinicalCheckClient({
   // ── Step 1: sub-queue filter ──────────────────────────────────────────────
   const subFiltered = useMemo(() => {
     const sq = SUB_QUEUES.find((s) => s.value === subQueue)!;
-    if (!sq.flag) return orders;
-    return orders.filter((o) => (o.contextual_flags ?? []).includes(sq.flag!));
-  }, [orders, subQueue]);
+    const base = sq.flag
+      ? orders.filter((o) => (o.contextual_flags ?? []).includes(sq.flag!))
+      : orders;
+    // Task-136 — optional toggle to hide orders whose weight warnings have all
+    // been acknowledged. Orders with no weight warnings at all are unaffected.
+    if (!hideAckedWeightWarnings) return base;
+    return base.filter((o) => {
+      const state = weightWarningStateByOrderId[o.id];
+      return !state || !state.allAcknowledged;
+    });
+  }, [orders, subQueue, hideAckedWeightWarnings, weightWarningStateByOrderId]);
+
+  // Task-136 — Count of orders the "hide acknowledged" toggle would remove,
+  // surfaced next to the toggle so reviewers know it's worth flipping on.
+  const ackedWeightWarningCount = useMemo(() => {
+    let n = 0;
+    for (const o of orders) {
+      if (weightWarningStateByOrderId[o.id]?.allAcknowledged) n++;
+    }
+    return n;
+  }, [orders, weightWarningStateByOrderId]);
 
   // ── Step 2: chip filter (within sub-queue) ────────────────────────────────
   // Orders with safety-flagged "yes" answers are surfaced to the top of the
@@ -317,12 +356,18 @@ export function ClinicalCheckClient({
         list = subFiltered;
     }
     return [...list].sort((a, b) => {
+      // Task-136 — Urgency: orders with still-unacknowledged weight warnings
+      // bubble above orders whose warnings have all been reviewed. Then by
+      // questionnaire review-needed count, then oldest first.
+      const wa = weightWarningStateByOrderId[a.id]?.unacknowledged ?? 0;
+      const wb = weightWarningStateByOrderId[b.id]?.unacknowledged ?? 0;
+      if (wa !== wb) return wb - wa;
       const ra = reviewNeededByOrderId[a.id] ?? 0;
       const rb = reviewNeededByOrderId[b.id] ?? 0;
       if (ra !== rb) return rb - ra;
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
-  }, [subFiltered, activeChip, reviewNeededByOrderId]);
+  }, [subFiltered, activeChip, reviewNeededByOrderId, weightWarningStateByOrderId]);
 
   // Keep ref in sync with filtered order ids for keyboard navigation
   useEffect(() => {
@@ -477,9 +522,33 @@ export function ClinicalCheckClient({
             );
           })}
         </div>
-        <span className="text-[11px] text-t3 whitespace-nowrap">
-          {filtered.length} order{filtered.length !== 1 ? "s" : ""} · Sort: Review needed, then oldest first
-        </span>
+        <div className="flex items-center gap-3 flex-wrap">
+          {(ackedWeightWarningCount > 0 || hideAckedWeightWarnings) && (
+            <label
+              className={cn(
+                "inline-flex items-center gap-1.5 text-[11px] font-medium cursor-pointer select-none",
+                hideAckedWeightWarnings ? "text-brand" : "text-t2 hover:text-t1",
+              )}
+              title="Hide orders where every concerning weight warning has been acknowledged"
+            >
+              <input
+                type="checkbox"
+                checked={hideAckedWeightWarnings}
+                onChange={(e) => setHideAckedWeightWarnings(e.target.checked)}
+                className="w-3 h-3 accent-brand"
+              />
+              Hide weight-warning reviewed
+              {ackedWeightWarningCount > 0 && (
+                <span className="text-[10px] text-t3 tabular-nums">
+                  ({ackedWeightWarningCount})
+                </span>
+              )}
+            </label>
+          )}
+          <span className="text-[11px] text-t3 whitespace-nowrap">
+            {filtered.length} order{filtered.length !== 1 ? "s" : ""} · Sort: Unack&apos;d warnings, review needed, oldest first
+          </span>
+        </div>
       </div>
 
       {/* ── Queue + slide-over flex row ────────────────────────────────────── */}
@@ -531,6 +600,7 @@ export function ClinicalCheckClient({
                 reviewNeededByOrderId={reviewNeededByOrderId}
                 flaggedAnswersByOrderId={flaggedAnswersByOrderId}
                 onJumpToFlagged={handleJumpToFlagged}
+                weightWarningStateByOrderId={weightWarningStateByOrderId}
               />
             )}
           </div>

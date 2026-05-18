@@ -1076,7 +1076,13 @@ function NotificationRow({
     <div className="px-4 py-3">
       <div className="flex items-center gap-3 flex-wrap">
         <span className="font-mono text-[11px] font-semibold text-t2 shrink-0">{n.id}</span>
-        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-px rounded-full border shrink-0 ${statusMeta.cls}`}>
+        <span
+          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-px rounded-full border shrink-0 ${statusMeta.cls}`}
+          // Task-137 — surface the carrier reason as a tooltip on the status
+          // chip itself so clinicians scanning the log see WHY an SMS failed
+          // without expanding the row.
+          title={n.last_error ?? undefined}
+        >
           <StatusIcon className="w-3 h-3" /> {n.status}
         </span>
         <span className="text-[11px] font-semibold text-t2 shrink-0">{n.channel}</span>

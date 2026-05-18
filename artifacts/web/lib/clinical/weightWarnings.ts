@@ -134,3 +134,40 @@ export function findAcknowledgement(
   }
   return undefined;
 }
+
+// Task-136 — Aggregate per-order weight-warning state so the clinical check
+// queue can show a "reviewed" indicator, filter out fully-acknowledged orders,
+// and bump still-unacknowledged ones up the urgency sort.
+export interface OrderWeightWarningState {
+  total: number;
+  unacknowledged: number;
+  acknowledged: number;
+  allAcknowledged: boolean;
+  hasUnacknowledged: boolean;
+}
+
+export function summariseOrderWeightWarnings(
+  order: Pick<
+    Order,
+    "type" | "weight_history" | "weight_warning_acknowledgements"
+  >,
+  thresholds?: ClinicConfig["weight_warning_thresholds"],
+): OrderWeightWarningState {
+  const warnings = analyseWeightHistory(order.weight_history, {
+    isContinuation: order.type === "reorder",
+    thresholds,
+  });
+  let acknowledged = 0;
+  for (const w of warnings) {
+    if (findAcknowledgement(order, w.kind)) acknowledged++;
+  }
+  const total = warnings.length;
+  const unacknowledged = total - acknowledged;
+  return {
+    total,
+    unacknowledged,
+    acknowledged,
+    allAcknowledged: total > 0 && unacknowledged === 0,
+    hasUnacknowledged: unacknowledged > 0,
+  };
+}

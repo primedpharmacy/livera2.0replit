@@ -9,9 +9,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
 import type { FlaggedAnswer } from "@/lib/questionnaire";
+import type { OrderWeightWarningState } from "@/lib/clinical/weightWarnings";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -90,6 +91,13 @@ export interface OrderListTableProps {
    * flagged questionnaire answer.
    */
   onJumpToFlagged?: (orderId: string) => void;
+  /**
+   * Task-136 — Per-order weight-warning summary keyed by order id. Used to
+   * render a subtle "reviewed" indicator when all concerning weight warnings
+   * on an order have been acknowledged, and to surface remaining unack'd
+   * warnings on the row.
+   */
+  weightWarningStateByOrderId?: Record<string, OrderWeightWarningState>;
 }
 
 export function OrderListTable({
@@ -104,6 +112,7 @@ export function OrderListTable({
   reviewNeededByOrderId,
   flaggedAnswersByOrderId,
   onJumpToFlagged,
+  weightWarningStateByOrderId,
 }: OrderListTableProps) {
   const router = useRouter();
   const now = new Date(NOW).getTime();
@@ -213,6 +222,7 @@ export function OrderListTable({
                     reviewNeededCount={reviewNeededByOrderId?.[order.id] ?? 0}
                     flaggedAnswers={flaggedAnswersByOrderId?.[order.id]}
                     onJumpToFlagged={onJumpToFlagged}
+                    weightWarningState={weightWarningStateByOrderId?.[order.id]}
                   />
                 ) : (
                   <OrdersRow order={order} name={name} ctxFlags={ctxFlags} now={new Date(NOW).getTime()} clinicId={clinicId} />
@@ -315,6 +325,7 @@ function ClinicalCheckRow({
   reviewNeededCount,
   flaggedAnswers,
   onJumpToFlagged,
+  weightWarningState,
 }: {
   order: Order;
   name: string;
@@ -329,6 +340,7 @@ function ClinicalCheckRow({
   reviewNeededCount?: number;
   flaggedAnswers?: FlaggedAnswer[];
   onJumpToFlagged?: (orderId: string) => void;
+  weightWarningState?: OrderWeightWarningState;
 }) {
   const router = useRouter();
   const ageCls =
@@ -353,6 +365,23 @@ function ClinicalCheckRow({
                   flaggedAnswers={flaggedAnswers}
                   onJump={onJumpToFlagged ? () => onJumpToFlagged(order.id) : undefined}
                 />
+              ) : null}
+              {weightWarningState && weightWarningState.hasUnacknowledged ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-warn bg-warn-bg border border-warn-bdr rounded-full px-1.5 py-px leading-none"
+                  title={`${weightWarningState.unacknowledged} concerning weight warning${weightWarningState.unacknowledged === 1 ? "" : "s"} pending review`}
+                >
+                  <AlertTriangle className="w-2.5 h-2.5" />
+                  {weightWarningState.unacknowledged} weight
+                </span>
+              ) : weightWarningState && weightWarningState.allAcknowledged ? (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-medium text-t3 bg-page-bg border border-bdr rounded-full px-1.5 py-px leading-none"
+                  title={`All ${weightWarningState.total} weight warning${weightWarningState.total === 1 ? "" : "s"} acknowledged`}
+                >
+                  <CheckCircle2 className="w-2.5 h-2.5" />
+                  Weight reviewed
+                </span>
               ) : null}
             </div>
             <div className="text-[11px] text-t3 font-mono">{order.patient_id} · {order.id}</div>

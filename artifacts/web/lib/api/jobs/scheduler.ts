@@ -23,6 +23,7 @@ import {
 } from './retryPatientNotifications';
 import { sendPxUploadReminders } from './sendPxUploadReminders';
 import { autoChaseExpiringPxUploadLinks } from './autoChaseExpiringPxUploadLinks';
+import { autoSwitchBouncedSmsChannel } from './autoSwitchBouncedSmsChannel';
 import { evaluateSweepForOnCall } from './oncallAlerts';
 import type { ClinicId } from '../types';
 
@@ -67,6 +68,13 @@ const PX_UPLOAD_REMINDER_INTERVAL_MS = 60 * 60 * 1000; // every 60 minutes
 // lands within an hour of the link going stale; the job's own retry cap
 // (MAX_AUTO_RESENDS) stops it from spamming patients.
 const PX_UPLOAD_AUTO_CHASE_INTERVAL_MS = 60 * 60 * 1000; // every 60 minutes
+
+// Task-286 — auto-switch dead-phone patients to email after consecutive SMS
+// bounces. Hourly cadence is plenty: each Twilio bounce takes a real send to
+// accrue, so even at a high notification volume the threshold won't be hit
+// more than a few times per hour per clinic. The job itself is idempotent —
+// patients already migrated this run will not be candidates next tick.
+const AUTO_SWITCH_BOUNCED_SMS_INTERVAL_MS = 60 * 60 * 1000; // every 60 minutes
 
 declare global {
   // eslint-disable-next-line no-var
@@ -303,6 +311,72 @@ export async function runPxUploadAutoChaseSweep(): Promise<PxUploadAutoChaseClin
   return summaries;
 }
 
+// Task-286 — per-clinic sweep that auto-flips preferred_channel to email for
+// patients whose phone is clearly dead (consecutive Bounced/Failed SMS). Same
+// audit-line shape as the other scheduled jobs so operators can confirm the
+// loop is alive even when no patient was eligible.
+export type AutoSwitchBouncedSmsClinicSummary = {
+  clinic_id:     ClinicId;
+  outcome:       'success' | 'error';
+  considered:    number;
+  switched:      number;
+  not_yet:       number;
+  error_message: string | null;
+};
+
+export async function runAutoSwitchBouncedSmsChannelSweep(): Promise<AutoSwitchBouncedSmsClinicSummary[]> {
+  const clinics = await listClinics();
+  const summaries: AutoSwitchBouncedSmsClinicSummary[] = [];
+
+  for (const clinic of clinics) {
+    try {
+      const result = await autoSwitchBouncedSmsChannel(clinic.id);
+      const summary: AutoSwitchBouncedSmsClinicSummary = {
+        clinic_id:     clinic.id,
+        outcome:       'success',
+        considered:    result.considered,
+        switched:      result.switched.length,
+        not_yet:       result.not_yet.length,
+        error_message: null,
+      };
+      summaries.push(summary);
+      console.log('[AUDIT]', {
+        event_type:    'scheduled_auto_switch_bounced_sms_run',
+        outcome:       'success',
+        actor_id:      'system',
+        job:           'autoSwitchBouncedSmsChannel',
+        clinic_id:     clinic.id,
+        considered:    summary.considered,
+        switched:      summary.switched,
+        not_yet:       summary.not_yet,
+        switched_patient_ids: result.switched,
+        timestamp:     NOW,
+      });
+    } catch (err) {
+      const error_message = err instanceof Error ? err.message : String(err);
+      summaries.push({
+        clinic_id:     clinic.id,
+        outcome:       'error',
+        considered:    0,
+        switched:      0,
+        not_yet:       0,
+        error_message,
+      });
+      console.error('[AUDIT]', {
+        event_type:    'scheduled_auto_switch_bounced_sms_run',
+        outcome:       'error',
+        actor_id:      'system',
+        job:           'autoSwitchBouncedSmsChannel',
+        clinic_id:     clinic.id,
+        error_message,
+        timestamp:     NOW,
+      });
+    }
+  }
+
+  return summaries;
+}
+
 export function startJobScheduler(): void {
   if (globalThis.__LIVERA_SCHEDULER_STARTED__) return;
   globalThis.__LIVERA_SCHEDULER_STARTED__ = true;
@@ -331,6 +405,14 @@ export function startJobScheduler(): void {
     interval_ms: PX_UPLOAD_AUTO_CHASE_INTERVAL_MS,
     timestamp:  NOW,
   });
+  console.log('[AUDIT]', {
+    event_type: 'scheduler_started',
+    outcome:    'success',
+    actor_id:   'system',
+    job:        'autoSwitchBouncedSmsChannel',
+    interval_ms: AUTO_SWITCH_BOUNCED_SMS_INTERVAL_MS,
+    timestamp:  NOW,
+  });
 
   // Kick off an initial sweep shortly after boot so audit logs appear without
   // waiting a full interval, then continue on the recurring schedule.
@@ -343,6 +425,9 @@ export function startJobScheduler(): void {
   setTimeout(() => {
     void runPxUploadAutoChaseSweep();
   }, 20 * 1000);
+  setTimeout(() => {
+    void runAutoSwitchBouncedSmsChannelSweep();
+  }, 25 * 1000);
 
   const retryTimer = setInterval(() => {
     void runPatientNotificationRetrySweep();
@@ -353,10 +438,14 @@ export function startJobScheduler(): void {
   const autoChaseTimer = setInterval(() => {
     void runPxUploadAutoChaseSweep();
   }, PX_UPLOAD_AUTO_CHASE_INTERVAL_MS);
+  const autoSwitchTimer = setInterval(() => {
+    void runAutoSwitchBouncedSmsChannelSweep();
+  }, AUTO_SWITCH_BOUNCED_SMS_INTERVAL_MS);
 
   // Avoid keeping the Node.js event loop alive solely for these timers (so
   // graceful shutdowns aren't blocked).
-  if (typeof retryTimer.unref === 'function')     retryTimer.unref();
-  if (typeof reminderTimer.unref === 'function')  reminderTimer.unref();
-  if (typeof autoChaseTimer.unref === 'function') autoChaseTimer.unref();
+  if (typeof retryTimer.unref === 'function')      retryTimer.unref();
+  if (typeof reminderTimer.unref === 'function')   reminderTimer.unref();
+  if (typeof autoChaseTimer.unref === 'function')  autoChaseTimer.unref();
+  if (typeof autoSwitchTimer.unref === 'function') autoSwitchTimer.unref();
 }

@@ -16,11 +16,11 @@ import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
   MessageSquare, ShieldAlert, Scale, ShieldCheck, AlertTriangle,
   Stethoscope, Pencil, Activity, Clock, Send, Mail, CreditCard,
-  FileText, Camera, Ban, Paperclip, FileCheck2, Upload,
+  FileText, Camera, Ban, Paperclip, FileCheck2,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, CURRENT_USER, NOW } from "@/lib/api/mock";
 import {
   Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent,
   DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle,
@@ -39,6 +39,7 @@ import { OrderActivityTimeline } from "./OrderActivityTimeline";
 import { SlaTimerWidget } from "@/components/sla/SlaTimerWidget";
 import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
 import { RecentNotesCard } from "@/components/timeline/RecentNotesCard";
+import { OrderIntercomTab } from "./OrderIntercomTab";
 import { DeclineConfirmModal } from "./DeclineConfirmModal";
 import { InterventionConfirmModal } from "./InterventionConfirmModal";
 import { ApproveConfirmModal } from "./ApproveConfirmModal";
@@ -63,6 +64,53 @@ interface OrderDetailClientProps {
 }
 
 type RightTab = "questionnaire" | "clinical_evidence" | "prescription" | "amendments" | "activity" | "notes" | "pharmacy_comms" | "intercom";
+
+/**
+ * Intercom unread-count hook — fetches the patient's open-unread conversations
+ * once on mount and refreshes on any inbound SSE event so the tab strip badge
+ * stays accurate even when the user isn't on the Intercom tab.
+ */
+function useIntercomUnreadCount(clinicId: ClinicId, patientId: string): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let aborted = false;
+    async function fetchCount() {
+      try {
+        const res = await fetch(
+          `/api/intercom/${clinicId}/contacts/${patientId}/conversations`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          conversations: Array<{ state: string; read: boolean }>;
+        };
+        if (!aborted) {
+          setCount(
+            json.conversations.filter((c) => c.state === "open" && !c.read).length,
+          );
+        }
+      } catch {
+        /* leave previous value */
+      }
+    }
+    void fetchCount();
+    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+      return () => { aborted = true; };
+    }
+    const source = new EventSource(`/api/intercom/${clinicId}/events`);
+    const refresh = () => { void fetchCount(); };
+    source.addEventListener("conversation.user.created", refresh);
+    source.addEventListener("conversation.user.replied", refresh);
+    source.addEventListener("conversation.admin.replied", refresh);
+    source.addEventListener("conversation.admin.closed", refresh);
+    source.onerror = () => { /* EventSource auto-retries */ };
+    return () => {
+      aborted = true;
+      source.close();
+    };
+  }, [clinicId, patientId]);
+  return count;
+}
 
 const RIGHT_TABS: { key: RightTab; label: string }[] = [
   { key: "questionnaire",     label: "Questionnaire"     },
@@ -123,6 +171,12 @@ export function OrderDetailClient({
   const [toast, setToast]             = useState<ToastState | null>(null);
   const [activeTab, setActiveTab]     = useState<RightTab>("clinical_evidence");
   const [notes, setNotes]             = useState<ClinicalNote[]>(initialClinicalNotes);
+  // Intercom tab unread badge — refreshes via SSE so the count stays accurate
+  // even while the user is on a different tab. setIntercomUnread is passed
+  // into OrderIntercomTab so a direct tab-driven refresh updates it too.
+  const [intercomUnread, setIntercomUnread] = useState(0);
+  const intercomBgUnread = useIntercomUnreadCount(clinicId, patient.id);
+  useEffect(() => { setIntercomUnread(intercomBgUnread); }, [intercomBgUnread]);
 
   // BLD-6.3 — new modal state (replaces modal='decline' / modal='query')
   // BLD-6.2 / Fix Cycle 1 BLOCKER 2 — approveOpen replaces modal='approve'
@@ -171,11 +225,6 @@ export function OrderDetailClient({
   const [showAmendForm, setShowAmendForm]     = useState(false);
   const [amendLoaded, setAmendLoaded]         = useState(false);
 
-  // Task-85 — Staff-side GLP-1 prescription upload (uploads on patient's behalf
-  // when they email/post a copy instead of using the intake success screen).
-  const [isUploadingPx, setIsUploadingPx]     = useState(false);
-  const [pxUploadError, setPxUploadError]     = useState<string | null>(null);
-
   // Task-38 — Cancel Order flow
   const [cancelOpen, setCancelOpen]           = useState(false);
   const [cancelReason, setCancelReason]       = useState("");
@@ -192,81 +241,6 @@ export function OrderDetailClient({
       .then((a) => setRefundAmendment(a))
       .catch(() => setRefundAmendment(null));
   }, [clinicId, order.refund_amendment_id, amendments]);
-
-  // Task-85 — Staff uploads the GLP-1 prescription on the patient's behalf.
-  // Follows the same presigned-URL flow as the patient intake page (Task-82):
-  //   Step 1: ask the server for a presigned PUT URL (intake request-url route).
-  //   Step 2: PUT the file bytes directly to object storage.
-  //   Step 3: finalize via the staff route, which tags the audit log with
-  //           source='staff_upload' and CURRENT_USER.id as the uploader.
-  // The fixture's attachPxUpload re-validates GLP-1 path, type, and size, and
-  // emits [AUDIT] entries (Layer 3).
-  async function handleStaffPxUpload(file: File) {
-    setPxUploadError(null);
-    if (file.size > 10 * 1024 * 1024) {
-      setPxUploadError("File is larger than 10 MB.");
-      return;
-    }
-    setIsUploadingPx(true);
-    try {
-      // Step 1 — request presigned URL (reuses the patient intake route).
-      const urlRes = await fetch(
-        `/api/intake/${clinicId}/orders/${order.id}/px-upload/request-url`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename: file.name,
-            size: file.size,
-            content_type: file.type,
-          }),
-        },
-      );
-      if (!urlRes.ok) {
-        const b = await urlRes.json().catch(() => ({}));
-        throw new Error(b?.message || `Could not start upload (${urlRes.status}).`);
-      }
-      const { uploadURL, object_path } = (await urlRes.json()) as {
-        uploadURL: string;
-        object_path: string;
-      };
-
-      // Step 2 — PUT bytes directly to object storage.
-      const putRes = await fetch(uploadURL, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!putRes.ok) throw new Error(`File transfer failed (${putRes.status}).`);
-
-      // Step 3 — finalize via the staff route (tags audit with staff actor).
-      const finalRes = await fetch(
-        `/api/orders/${clinicId}/${order.id}/px-upload`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ object_path, filename: file.name }),
-        },
-      );
-      if (!finalRes.ok) {
-        const b = await finalRes.json().catch(() => ({}));
-        throw new Error(b?.message || `Upload failed (${finalRes.status}).`);
-      }
-      // Re-read the order so the UI reflects the new px_upload + cleared flag.
-      const updated = await getOrder(clinicId, order.id);
-      setOrder(updated);
-      setToast({
-        message: `Prescription uploaded on patient's behalf — ${file.name}.`,
-        type: "ok",
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Prescription upload failed.";
-      setPxUploadError(msg);
-      setToast({ message: msg, type: "err" });
-    } finally {
-      setIsUploadingPx(false);
-    }
-  }
 
   async function handleCancelOrder() {
     if (cancelReason.trim().length < 20) return;
@@ -856,6 +830,11 @@ export function OrderDetailClient({
                   {key === "notes" && notes.length > 0 && (
                     <span className="ml-1 text-[10px] opacity-60">{notes.length}</span>
                   )}
+                  {key === "intercom" && intercomUnread > 0 && (
+                    <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 text-[9.5px] font-bold bg-brand text-white rounded-full">
+                      {intercomUnread}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -941,53 +920,12 @@ export function OrderDetailClient({
                         );
                       })()
                     ) : (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-warn-bg border border-warn-bdr">
-                          <AlertTriangle className="w-4 h-4 text-warn shrink-0" />
-                          <p className="text-[12px] text-warn">
-                            Patient requested a higher GLP-1 starting dose — awaiting prescription
-                            upload from the intake success screen.
-                          </p>
-                        </div>
-                        {/* Task-85 — Staff-side upload on patient's behalf.
-                            Visible only while px_upload is null and the order still
-                            carries the "Px upload pending" contextual flag, and only
-                            for users with write access to orders. */}
-                        {can(CURRENT_USER, "write", "orders") && (
-                          <div className="p-3 rounded-lg border border-bdr bg-surface">
-                            <p className="text-[12px] font-semibold text-t1">
-                              Upload on patient&apos;s behalf
-                            </p>
-                            <p className="text-[11px] text-t2 mt-0.5">
-                              If the patient emailed or posted a copy, attach it here.
-                              JPG, PNG, WebP, HEIC or PDF, up to 10&nbsp;MB.
-                            </p>
-                            <label
-                              className={`mt-3 inline-flex items-center gap-2 px-3 py-2 text-[12px] font-semibold rounded-md border cursor-pointer transition-colors ${
-                                isUploadingPx
-                                  ? "border-bdr text-t3 bg-surface cursor-not-allowed"
-                                  : "border-brand text-brand bg-surface hover:bg-brand hover:text-white"
-                              }`}
-                            >
-                              <Upload className="w-4 h-4" />
-                              {isUploadingPx ? "Uploading…" : "Choose file"}
-                              <input
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
-                                className="hidden"
-                                disabled={isUploadingPx}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  e.target.value = ""; // allow re-selecting same file
-                                  if (f) void handleStaffPxUpload(f);
-                                }}
-                              />
-                            </label>
-                            {pxUploadError && (
-                              <p className="mt-2 text-[11px] text-err">{pxUploadError}</p>
-                            )}
-                          </div>
-                        )}
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-warn-bg border border-warn-bdr">
+                        <AlertTriangle className="w-4 h-4 text-warn shrink-0" />
+                        <p className="text-[12px] text-warn">
+                          Patient requested a higher GLP-1 starting dose — awaiting prescription
+                          upload from the intake success screen.
+                        </p>
                       </div>
                     )}
                   </DCard>
@@ -1287,101 +1225,15 @@ export function OrderDetailClient({
               />
             )}
 
-            {/* Intercom tab — conversation thread + compose */}
+            {/* Intercom tab — Phase 1 (read-only) real conversation thread */}
             {activeTab === "intercom" && (
-              <div className="flex flex-col" style={{ minHeight: "520px" }}>
-                {/* Context strip */}
-                <div className="flex items-center gap-3 px-4 py-3 mb-4 bg-page-bg border border-bdr rounded-lg">
-                  <Mail className="w-4 h-4 text-brand shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[12.5px] font-semibold text-t1">
-                      {patient.demographic.full_name}
-                    </p>
-                    <p className="text-[11px] text-t3">
-                      Intercom conversation · order {order.id} · {clinic.config.intercom_workspace_id ? `workspace ${clinic.config.intercom_workspace_id}` : "no workspace configured"}
-                    </p>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-1 bg-ok-bg text-ok border border-ok-bdr rounded">
-                    Active
-                  </span>
-                </div>
-
-                {/* Thread */}
-                <div className="flex-1 space-y-4 mb-4 overflow-y-auto">
-                  {/* System message */}
-                  <div className="text-center">
-                    <span className="text-[10px] font-semibold text-t3 bg-page-bg border border-bdr px-3 py-1 rounded-full">
-                      Conversation started · {formatDate(order.created_at)}
-                    </span>
-                  </div>
-                  {/* Incoming (patient) */}
-                  <div className="flex gap-2">
-                    <div className="w-7 h-7 rounded-full bg-brand/20 border border-brand/30 flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-[10px] font-bold text-brand">
-                        {patient.demographic.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                      </span>
-                    </div>
-                    <div className="bg-page-bg border border-bdr rounded-xl rounded-tl-none px-3 py-2 max-w-[320px]">
-                      <p className="text-[12px] text-t1 leading-relaxed">
-                        Hi, I wanted to check — should I continue with the same dose or wait for my next appointment?
-                      </p>
-                      <p className="text-[10px] text-t3 mt-1">{formatDateTime(order.created_at)}</p>
-                    </div>
-                  </div>
-                  {/* Outgoing (clinic) */}
-                  <div className="flex gap-2 justify-end">
-                    <div className="bg-brand text-white rounded-xl rounded-tr-none px-3 py-2 max-w-[320px]">
-                      <p className="text-[12px] leading-relaxed">
-                        Hi {patient.demographic.full_name.split(" ")[0]}, thanks for reaching out. We&apos;re reviewing your order now — we may need a few more details.
-                      </p>
-                      <p className="text-[10px] text-white/70 mt-1">Livera Care Team · {formatDate(order.created_at)}</p>
-                    </div>
-                  </div>
-                  {/* Sent confirmation */}
-                  {requestInfoSent && (
-                    <div className="flex gap-2 justify-end">
-                      <div className="bg-brand text-white rounded-xl rounded-tr-none px-3 py-2 max-w-[320px]">
-                        <p className="text-[12px] leading-relaxed">{requestInfoMsg}</p>
-                        <p className="text-[10px] text-white/70 mt-1 flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" /> Sent just now
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Compose */}
-                {!requestInfoSent ? (
-                  <div className="border border-bdr rounded-lg px-4 py-3 space-y-2 bg-surface">
-                    <p className="text-[11px] font-semibold text-t3 uppercase tracking-wider">Send via Intercom</p>
-                    <textarea
-                      rows={3}
-                      placeholder={`Ask ${patient.demographic.full_name.split(" ")[0]} for more information…`}
-                      value={requestInfoMsg}
-                      onChange={(e) => setRequestInfoMsg(e.target.value)}
-                      className="w-full text-[13px] border border-bdr rounded-lg px-3 py-2 bg-page-bg text-t1 placeholder:text-t3 resize-none focus:outline-none focus:border-brand"
-                    />
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] text-t3">Patient will be notified by email</p>
-                      <button
-                        disabled={!requestInfoMsg.trim()}
-                        onClick={() => { if (requestInfoMsg.trim()) setRequestInfoSent(true); }}
-                        className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <Send className="w-3.5 h-3.5" /> Send
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="border border-ok-bdr rounded-lg px-4 py-3 bg-ok-bg">
-                    <p className="text-[12px] font-semibold text-ok text-center flex items-center justify-center gap-1.5">
-                      <CheckCircle className="w-4 h-4" /> Message sent to {patient.demographic.full_name.split(" ")[0]}
-                    </p>
-                  </div>
-                )}
-              </div>
+              <OrderIntercomTab
+                clinicId={clinicId}
+                clinic={clinic}
+                patient={patient}
+                onUnreadChange={setIntercomUnread}
+              />
             )}
-
             {activeTab === "activity" && (
               <OrderActivityTimeline order={order} />
             )}

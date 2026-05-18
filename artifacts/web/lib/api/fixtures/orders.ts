@@ -15,7 +15,7 @@ import { createPharmacyCommThread } from './pharmacyComms';
 import { createGPLetter } from './gpLetters'; // CLARIFY-1 (Wave 5) — auto-trigger on approval
 import { releaseAuth } from '@/lib/integrations/ryft'; // Task-38 — auth-release branch
 import { notifyPatient } from '@/lib/integrations/patientNotify'; // Task-49 + Task-65
-import { sendPatientEmail } from '@/lib/integrations/postmark'; // Task-80 — px-upload email link
+import { sendPatientEmail, sendStaffEmail } from '@/lib/integrations/postmark'; // Task-80 / Task-78
 import { randomBytes } from 'crypto';
 
 // ---------------------------------------------------------------------------
@@ -635,8 +635,15 @@ export async function reverseDecision(
 
 export async function createIntakeOrder(
   clinic_id: ClinicId,
-  patient: { firstName: string; lastName: string; email: string; dob: string },
-  address: string,
+  patient: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    dob: string;
+    phone: string;
+    sex_at_birth: 'female' | 'male' | 'other';
+  },
+  address: { formatted?: string; line1: string; line2?: string; city: string; postcode: string },
   responses: Record<string, unknown>,
 ): Promise<Order> {
   await delay(300);
@@ -660,19 +667,27 @@ export async function createIntakeOrder(
 
   // Task-60 — register a minimal Patient record so the order detail page
   // (which calls getPatient) resolves a real patient with a display name.
-  // Address is stored as line1 only — the intake form sends a single
-  // formatted address string, and we don't parse it back into components.
+  // Task-77 — intake now collects sex at birth, phone, and structured
+  // address fields, so persist them into the Patient record directly
+  // instead of using placeholder defaults.
+  const structuredAddress: { line1: string; line2?: string; city: string; postcode: string } = {
+    line1: address.line1 || address.formatted || 'Not provided',
+    city: address.city,
+    postcode: address.postcode,
+  };
+  if (address.line2) structuredAddress.line2 = address.line2;
+
   const newPatient = {
     id: patientId,
     clinic_id,
     demographic: {
       full_name: `${patient.firstName} ${patient.lastName}`.trim(),
       dob: patient.dob,
-      sex_at_birth: 'female' as const,
+      sex_at_birth: patient.sex_at_birth,
       ethnicity: 'Not stated',
-      address: { line1: address || 'Not provided', city: '', postcode: '' },
+      address: structuredAddress,
     },
-    contact: { email: patient.email, phone: '', preferred_channel: 'email' as const },
+    contact: { email: patient.email, phone: patient.phone, preferred_channel: 'email' as const },
     gp: null,
     baseline: { height_cm: 0, baseline_weight_kg: 0, baseline_bmi: 0 },
     latest:   { weight_kg: 0, bmi: 0, recorded_at: NOW },
@@ -724,9 +739,25 @@ export async function createIntakeOrder(
     patient_id: patientId,
     patient_name: `${patient.firstName} ${patient.lastName}`,
     patient_email: patient.email,
-    address,
+    patient_phone: patient.phone,
+    sex_at_birth: patient.sex_at_birth,
+    address: structuredAddress,
     timestamp: NOW,
   });
+
+  // Task-78 — notify the clinic's clinical-check inbox so staff don't have to
+  // poll the queue. Non-blocking: a failed send must not block intake creation.
+  try {
+    await sendNewIntakeStaffEmail(order, patient);
+  } catch (err) {
+    console.log('[AUDIT]', {
+      event_type: 'new_intake_staff_email_failed',
+      clinic_id,
+      order_id: id,
+      error: err instanceof Error ? err.message : String(err),
+      timestamp: NOW,
+    });
+  }
 
   // Task-80 — email a tokenised upload link for GLP-1 higher-dose patients so
   // they can finish the prescription upload later (even if they close the tab).
@@ -770,6 +801,56 @@ function appBaseUrl(): string {
   const replit = process.env.REPLIT_DEV_DOMAIN;
   if (replit) return `https://${replit}`;
   return '';
+}
+
+// ---------------------------------------------------------------------------
+// Task-78 — Staff "new intake" notification
+// Fires when createIntakeOrder runs. Sends a short transactional email to
+// the clinic's clinical-check inbox linking straight to the order detail page
+// so reviewers can act without polling the queue.
+// Suppressed in dev/test: postmark.ts mock mode (default LIVERA_POSTMARK_LIVE
+// unset) console-logs the call but performs no real HTTP request.
+// ---------------------------------------------------------------------------
+
+async function sendNewIntakeStaffEmail(
+  order: Order,
+  patient: { firstName: string; lastName: string; email: string },
+): Promise<void> {
+  const clinic = getClinicSync(order.clinic_id);
+  const toEmail = clinic.config.clinical_check_inbox;
+  if (!toEmail) return;
+
+  const link = `${appBaseUrl()}/${order.clinic_id}/orders/${order.id}`;
+  const patientName = `${patient.firstName} ${patient.lastName}`.trim();
+  const subject = `New patient intake — ${patientName} (${order.id})`;
+  const body =
+    `A new patient intake has been submitted for clinical check.\n\n` +
+    `Patient: ${patientName}\n` +
+    `Patient email: ${patient.email}\n` +
+    `Order: ${order.id}\n` +
+    `Submitted: ${order.created_at}\n\n` +
+    `Open the order to review:\n${link}\n`;
+
+  const result = await sendStaffEmail({
+    to_email: toEmail,
+    subject,
+    text_body: body,
+    template: 'new_intake_staff',
+  });
+
+  console.log('[AUDIT]', {
+    event_type:
+      result.status === 'Delivered'
+        ? 'new_intake_staff_email_sent'
+        : 'new_intake_staff_email_failed',
+    outcome: result.status,
+    clinic_id: order.clinic_id,
+    order_id: order.id,
+    to_email: toEmail,
+    message_id: result.message_id,
+    error_message: result.error_message ?? null,
+    timestamp: NOW,
+  });
 }
 
 async function sendPxUploadLinkEmail(

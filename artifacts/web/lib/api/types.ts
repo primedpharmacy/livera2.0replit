@@ -99,6 +99,8 @@ export type ClinicConfig = {
 
   // Comms (BLD-1.3)
   reply_email: string;
+  // Task-78 — staff inbox notified when a new patient intake is submitted.
+  clinical_check_inbox: string;
   // BLD-3.6 — object per DEC-35 (replaces flat string from Wave 1)
   patient_sla_copy: {
     clinical_review_message: string;  // "Clinical review usually takes up to 4 hours"
@@ -159,6 +161,17 @@ export type ClinicConfig = {
 
   // Intercom workspace
   intercom_workspace_id: string;
+
+  // Intercom integration (Phase 1 — read-only). Tokens and webhook secrets are
+  // held server-side only (api-server/src/lib/intercom-store.ts) and must never
+  // appear in this client-visible type. We only expose a public workspace id
+  // and a "configured" indicator that the settings UI fetches at runtime.
+  integrations?: {
+    intercom?: {
+      workspace_id: string;
+      configured: boolean;
+    };
+  };
 
   // Feature flags
   features: {
@@ -242,6 +255,10 @@ export type Patient = {
   // Used by app/api/webhooks/intercom/route.ts to look up patient from webhook payload.
   // Optional — null for patients not yet linked to an Intercom contact.
   intercom_user_id?: string | null;
+  // Phase 1 Intercom integration — Intercom's internal contact id. The Order
+  // Detail Intercom tab uses this to scope conversation reads to the patient.
+  // null until a clinician runs the "Link Intercom contact" admin action.
+  intercom_contact_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -335,8 +352,7 @@ export type Order = {
     content_type: string;  // image/* or application/pdf
     uploaded_at: string;   // ISO timestamp
     object_path: string;   // e.g. '/objects/uploads/<uuid>' — served by /api/storage/objects/...
-    source?: 'success_screen' | 'email_link' | 'staff_upload'; // Task-80 + Task-85 — provenance for the audit log
-    uploaded_by_user_id?: string | null; // Task-85 — populated when staff uploads on patient's behalf
+    source?: 'success_screen' | 'email_link'; // Task-80 — provenance for the audit log
   } | null;
 
   // Task-80 — Tokenised email-link upload (Px upload "complete later")

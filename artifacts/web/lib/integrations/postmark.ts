@@ -171,6 +171,15 @@ export async function sendViaPostmark(
 // notification log mirrors real delivery state.
 // ---------------------------------------------------------------------------
 
+// Task-78 — staff transactional email (same shape as sendPatientEmail).
+// Used to notify a clinic's clinical-check inbox when a new intake order is
+// submitted, so reviewers don't have to poll the queue.
+export async function sendStaffEmail(
+  input: PatientEmailInput,
+): Promise<PatientEmailResult> {
+  return sendPatientEmail(input);
+}
+
 export async function sendPatientEmail(
   input: PatientEmailInput,
 ): Promise<PatientEmailResult> {

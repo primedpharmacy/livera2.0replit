@@ -197,6 +197,7 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Comms (BLD-1.3 / BLD-3.6)
       reply_email: 'hello@vsc.health',
+      clinical_check_inbox: 'clinical-check@vsc.health',
       patient_sla_copy: {
         clinical_review_message: 'Clinical review usually takes up to 4 hours',
         delivery_message: 'Delivery within 2 working days',
@@ -249,6 +250,15 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Intercom
       intercom_workspace_id: 'a86dr8yl',
+      // Phase 1 integration metadata — public bits only. The Intercom access
+      // token and webhook signing secret live server-side in the api-server
+      // store and are saved via POST /api/intercom/:clinic_id/credentials.
+      integrations: {
+        intercom: {
+          workspace_id: 'a86dr8yl',
+          configured: false, // demo-mode token until an Admin pastes a real one
+        },
+      },
 
       // Feature flags
       features: {
@@ -333,6 +343,7 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Comms (BLD-1.3 / BLD-3.6)
       reply_email: 'hello@feeltru.health',
+      clinical_check_inbox: 'clinical-check@feeltru.health',
       patient_sla_copy: {
         clinical_review_message: 'Clinical review usually takes up to 4 hours',
         delivery_message: 'Delivery within 2 working days',
@@ -395,6 +406,13 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Intercom
       intercom_workspace_id: 'b91ks9zm',
+      // Phase 1 integration metadata — see VSC config above for the pattern.
+      integrations: {
+        intercom: {
+          workspace_id: 'b91ks9zm',
+          configured: false,
+        },
+      },
 
       // Feature flags
       features: {

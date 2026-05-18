@@ -70,17 +70,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       visibility: 'private',
     });
 
-    const order = await attachPxUpload(
-      clinic_id as ClinicId,
-      order_id,
-      {
-        filename,
-        size: stored.size,
-        content_type: stored.contentType,
-        object_path,
-      },
-      { user_id: null, source: 'success_screen' },
-    );
+    const order = await attachPxUpload(clinic_id as ClinicId, order_id, {
+      filename,
+      size: stored.size,
+      content_type: stored.contentType,
+      object_path,
+    });
 
     return NextResponse.json(
       {

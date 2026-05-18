@@ -37,11 +37,15 @@ interface AddressData {
   postcode: string;
 }
 
+type SexAtBirth = "female" | "male" | "other";
+
 interface PersonalData {
   firstName: string;
   lastName: string;
   dob: string;
   email: string;
+  phone: string;
+  sexAtBirth: SexAtBirth | "";
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -807,12 +811,28 @@ function SuccessScreen({
                     {patient.dob}
                   </span>
                 </div>
+                {patient.sexAtBirth && (
+                  <div className="flex justify-between py-2 border-b border-[#f1f5f9]">
+                    <span className="text-[12px] text-[#64748b]">Sex at birth</span>
+                    <span className="text-[12px] font-medium text-[#1e293b] capitalize">
+                      {patient.sexAtBirth}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-b border-[#f1f5f9]">
                   <span className="text-[12px] text-[#64748b]">Email</span>
                   <span className="text-[12px] font-medium text-[#1e293b]">
                     {patient.email}
                   </span>
                 </div>
+                {patient.phone && (
+                  <div className="flex justify-between py-2 border-b border-[#f1f5f9]">
+                    <span className="text-[12px] text-[#64748b]">Phone</span>
+                    <span className="text-[12px] font-medium text-[#1e293b]">
+                      {patient.phone}
+                    </span>
+                  </div>
+                )}
                 {displayAddress && (
                   <div className="flex justify-between py-2 border-b border-[#f1f5f9]">
                     <span className="text-[12px] text-[#64748b]">Address</span>
@@ -950,7 +970,9 @@ function ReviewStep({
         {[
           { label: "Name", value: `${personal.firstName} ${personal.lastName}` },
           { label: "Date of birth", value: personal.dob },
+          { label: "Sex at birth", value: personal.sexAtBirth ? personal.sexAtBirth.charAt(0).toUpperCase() + personal.sexAtBirth.slice(1) : "—" },
           { label: "Email", value: personal.email },
+          { label: "Phone", value: personal.phone || "—" },
           { label: "Address", value: displayAddress || "—" },
         ].map(({ label, value }) => (
           <div key={label} className="flex justify-between px-4 py-2.5 border-b border-[#f1f5f9] last:border-0">
@@ -1007,6 +1029,8 @@ export function IntakeForm({
     lastName: "",
     dob: "",
     email: "",
+    phone: "",
+    sexAtBirth: "",
   });
   const [address, setAddress] = useState<AddressData>({
     formatted: "",
@@ -1050,7 +1074,14 @@ export function IntakeForm({
 
   function isCurrentStepValid(): boolean {
     if (step === STEP_PERSONAL) {
-      return !!(personal.firstName.trim() && personal.lastName.trim() && personal.dob && personal.email.trim());
+      return !!(
+        personal.firstName.trim() &&
+        personal.lastName.trim() &&
+        personal.dob &&
+        personal.email.trim() &&
+        personal.phone.trim() &&
+        personal.sexAtBirth
+      );
     }
     if (step === STEP_ADDRESS) {
       return !!(address.line1.trim() && address.city.trim() && address.postcode.trim());
@@ -1227,6 +1258,33 @@ export function IntakeForm({
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-[#64748b] uppercase tracking-wide mb-1.5">
+                        Sex at birth <span className="text-[#ef4444]">*</span>
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["female", "male", "other"] as const).map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setPersonal({ ...personal, sexAtBirth: opt })}
+                            className={`py-2.5 rounded-xl border-[1.5px] text-[13px] font-medium capitalize transition-all ${
+                              personal.sexAtBirth === opt
+                                ? "border-[#6366f1] bg-[#eef2ff] text-[#4338ca]"
+                                : "border-[#e2e8f0] bg-white text-[#475569] hover:border-[#a5b4fc]"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-[#94a3b8] mt-1">
+                        Required for safe prescribing.
+                      </p>
+                      {showErrors && !personal.sexAtBirth && (
+                        <p className="text-[11px] text-[#ef4444] mt-1">Required</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#64748b] uppercase tracking-wide mb-1.5">
                         Email address <span className="text-[#ef4444]">*</span>
                       </label>
                       <input
@@ -1240,6 +1298,24 @@ export function IntakeForm({
                         We&rsquo;ll send your verification instructions here.
                       </p>
                       {showErrors && !personal.email.trim() && (
+                        <p className="text-[11px] text-[#ef4444] mt-1">Required</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#64748b] uppercase tracking-wide mb-1.5">
+                        Mobile phone <span className="text-[#ef4444]">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        className={inputCls}
+                        placeholder="07700 900123"
+                        value={personal.phone}
+                        onChange={(e) => setPersonal({ ...personal, phone: e.target.value })}
+                      />
+                      <p className="text-[11px] text-[#94a3b8] mt-1">
+                        Used for urgent updates about your order.
+                      </p>
+                      {showErrors && !personal.phone.trim() && (
                         <p className="text-[11px] text-[#ef4444] mt-1">Required</p>
                       )}
                     </div>

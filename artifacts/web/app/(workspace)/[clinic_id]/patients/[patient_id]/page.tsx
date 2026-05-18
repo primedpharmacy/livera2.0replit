@@ -21,6 +21,7 @@ import { PatientFABSpeedDial } from "@/components/patients/PatientFABSpeedDial";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
 import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
+import { PreferredChannelHistory } from "@/components/patients/PreferredChannelHistory";
 import { ResendNotificationButton } from "@/components/patients/ResendNotificationButton";
 import { resendFailedPatientNotification } from "@/lib/api/jobs/retryPatientNotifications";
 import { revalidatePath } from "next/cache";
@@ -187,6 +188,7 @@ async function ProfileContent({
             clinicId={clinicId}
             age={age}
             canEditContact={canEditContact}
+            channelChanges={channelChanges}
           />
 
           {/* Right column */}
@@ -326,12 +328,14 @@ function LeftColumn({
   clinicId,
   age,
   canEditContact,
+  channelChanges,
 }: {
   patient: Patient;
   latestOrder: Order | null;
   clinicId: ClinicId;
   age: string;
   canEditContact: boolean;
+  channelChanges: PatientPreferredChannelChange[];
 }) {
   const d       = patient.demographic;
   const hasB4   = patient.flags.some((f) => f.code === "B4");
@@ -419,6 +423,7 @@ function LeftColumn({
           hasPhone={!!patient.contact.phone}
           canEdit={canEditContact}
         />
+        <PreferredChannelHistory changes={channelChanges} />
       </PSec>
 
       {/* GP */}

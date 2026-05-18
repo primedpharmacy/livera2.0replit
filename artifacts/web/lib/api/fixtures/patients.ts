@@ -518,12 +518,75 @@ const RYAN_FEELTRU: Patient = {
   updated_at: '2026-05-10T14:00:00Z',
 };
 
+// ── Task-165 — legacy records with malformed phone/postcode ─────────────────
+// Two seed patients that existed before Task-115 added intake validation, used
+// by the cleanupPatientContactData backfill job and its tests. They mirror
+// the two real-world classes of broken data ops have found in MOCK_PATIENTS:
+//   - LEGACY_FIXABLE_VSC: phone + postcode are auto-normalisable
+//     (no spaces / wrong case). Backfill rewrites them in place.
+//   - LEGACY_UNFIXABLE_VSC: phone is too short to interpret and postcode is
+//     not a UK postcode at all. Backfill flags both for ops follow-up.
+const LEGACY_FIXABLE_VSC: Patient = {
+  id: 'PT-00701',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Harold Bryant',
+    dob: '1962-05-09',
+    sex_at_birth: 'male',
+    ethnicity: 'White British',
+    address: { line1: '4 Pinewood Crescent', city: 'Manchester', postcode: 'm12ab' },
+  },
+  contact: { email: 'harold.bryant@example.com', phone: '07700900222', preferred_channel: 'sms' },
+  gp: null,
+  baseline: { height_cm: 175, baseline_weight_kg: 110.0, baseline_bmi: 35.9 },
+  latest: { weight_kg: 110.0, bmi: 35.9, recorded_at: '2025-12-01T09:00:00Z' },
+  verification: { sumsub_id: 'sumsub_hb701', identity_verified_at: '2025-12-01T09:00:00Z', bmi_verified_at: '2025-12-01T09:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2025-12-01T09:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: null,
+  created_at: '2025-12-01T09:00:00Z',
+  updated_at: '2025-12-01T09:00:00Z',
+};
+
+const LEGACY_UNFIXABLE_VSC: Patient = {
+  id: 'PT-00702',
+  clinic_id: 'vsc',
+  demographic: {
+    full_name: 'Doris Whittaker',
+    dob: '1955-09-18',
+    sex_at_birth: 'female',
+    ethnicity: 'White British',
+    address: { line1: '21 Foxglove Way', city: 'Leeds', postcode: 'XX999' },
+  },
+  // "07700" is too short to be a UK mobile — only 5 digits — and cannot be
+  // safely auto-fixed; ops must phone the patient to get the real number.
+  contact: { email: 'doris.whittaker@example.com', phone: '07700', preferred_channel: 'phone' },
+  gp: null,
+  baseline: { height_cm: 160, baseline_weight_kg: 92.0, baseline_bmi: 35.9 },
+  latest: { weight_kg: 92.0, bmi: 35.9, recorded_at: '2025-11-20T11:00:00Z' },
+  verification: { sumsub_id: 'sumsub_dw702', identity_verified_at: '2025-11-20T11:00:00Z', bmi_verified_at: '2025-11-20T11:05:00Z' },
+  consents_given: [
+    { consent_id: 'consent_treatment', version: 'v1', given_at: '2025-11-20T11:00:00Z' },
+  ],
+  flags: [],
+  status: 'active',
+  vip: false,
+  coach_id: null,
+  created_at: '2025-11-20T11:00:00Z',
+  updated_at: '2025-11-20T11:00:00Z',
+};
+
 export const MOCK_PATIENTS: Patient[] = [
   SARAH_FEELTRU, SARAH_VSC,
   JAMES_VSC, MIRIAM_VSC, TOM_VSC, PRIYA_VSC,
   EMMA_FEELTRU, ZARA_FEELTRU, FIONA_FEELTRU,
   MICHELLE_FEELTRU, SARAH_CHEN_FEELTRU, BETH_FEELTRU,
   RYAN_FEELTRU,
+  LEGACY_FIXABLE_VSC, LEGACY_UNFIXABLE_VSC,
 ];
 
 export async function listPatients(

@@ -139,6 +139,19 @@ export async function sendPxUploadReminders(
       else                  link.final_reminder_sent_at = NOW;
       result.sent.push(outcome);
     } else {
+      // Task-129 — Record the failure on the link so the Order Detail
+      // activity timeline can render it (with the Postmark error message)
+      // next to the original send and any subsequent successful retry.
+      // We deliberately do NOT flip the idempotency flag, so the daily
+      // sweep will try again until it succeeds or the link expires.
+      if (!link.reminder_failures) link.reminder_failures = [];
+      link.reminder_failures.push({
+        kind,
+        attempted_at:  NOW,
+        to_email:      toEmail,
+        status:        sendResult.status,
+        error_message: sendResult.error_message ?? null,
+      });
       result.failed.push(outcome);
     }
   }

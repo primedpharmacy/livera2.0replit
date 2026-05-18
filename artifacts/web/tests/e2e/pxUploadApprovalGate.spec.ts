@@ -21,7 +21,10 @@ const ORDER_ID = 'ORD-00451';
 
 test.describe('Px-upload approval gate', () => {
   test('Approve button is disabled with the upload-required copy when px_upload is missing', async ({ page }) => {
-    await page.goto(`/${CLINIC}/orders/${ORDER_ID}`);
+    // Default demo persona (Qadir, Owner) has decide-orders permission, so
+    // the Approve block renders and the disabled-due-to-missing-upload
+    // branch is exercised. The non-prescriber branch is covered below.
+    await page.goto(`/${CLINIC}/orders/${ORDER_ID}?as=user_qadir`);
 
     // Order detail header confirms we landed on the right seed.
     await expect(page.locator('h1', { hasText: ORDER_ID })).toBeVisible();
@@ -39,5 +42,25 @@ test.describe('Px-upload approval gate', () => {
     await expect(
       page.getByText(/GLP-1 prescription upload required from patient before approval/i),
     ).toBeVisible();
+  });
+
+  test('Approve action is unavailable when the viewer is not a prescriber (Coach persona)', async ({ page }) => {
+    // Task-120 — the `?as=` demo override re-mints the session as Olwyn
+    // (Coach on FeelTru). Coaches have no `decide:orders` permission, so
+    // the OrderDetailClient hides the Approve/Decline/Query button block
+    // entirely. The order detail page itself still renders for read-only
+    // viewing — this asserts the locked-permission negative path the
+    // hardcoded Owner session previously made unreachable.
+    await page.goto(`/${CLINIC}/orders/${ORDER_ID}?as=user_olwyn`);
+
+    // Page still renders for the Coach (read-only).
+    await expect(page.locator('h1', { hasText: ORDER_ID })).toBeVisible();
+    await expect(page.getByText('Px upload pending').first()).toBeVisible();
+
+    // No Approve / Decline / Query controls are rendered for a Coach —
+    // the entire decision block is hidden behind the `canDecide` gate.
+    await expect(page.getByRole('button', { name: /^approve$/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^decline$/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^query$/i })).toHaveCount(0);
   });
 });

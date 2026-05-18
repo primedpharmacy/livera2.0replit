@@ -22,6 +22,7 @@ vi.mock('../../constants', async () => {
 });
 
 import { sendPxUploadReminders } from '../sendPxUploadReminders';
+import * as ordersFixture from '../../fixtures/orders';
 import { MOCK_ORDERS } from '../../fixtures/orders';
 import { MOCK_PATIENTS } from '../../fixtures/patients';
 
@@ -158,5 +159,36 @@ describe('sendPxUploadReminders', () => {
     seedOrder({ id: 'ORD-H', sentHoursAgo: null, expiresInHours: 13 * 24 });
     const result = await sendPxUploadReminders(CLINIC);
     expect(result.considered).toBe(0);
+  });
+
+  // Task-129 — When Postmark reports a Bounced or Failed delivery, the job
+  // records the attempt on `px_upload_link.reminder_failures` (with the
+  // Postmark error message) and leaves the idempotency flag unset so the
+  // next sweep retries.
+  it('records failed reminder attempts on the link and does not flip the idempotency flag', async () => {
+    const spy = vi
+      .spyOn(ordersFixture, 'sendPxUploadReminderEmail')
+      .mockResolvedValue({
+        status: 'Failed',
+        message_id: null,
+        error_message: 'Postmark 422: InactiveRecipient',
+      });
+    try {
+      seedOrder({ id: 'ORD-I', sentHoursAgo: 49, expiresInHours: 13 * 24 });
+      const result = await sendPxUploadReminders(CLINIC);
+      expect(result.sent).toHaveLength(0);
+      expect(result.failed).toHaveLength(1);
+      const link = MOCK_ORDERS[0]!.px_upload_link!;
+      expect(link.reminder_sent_at ?? null).toBeNull();
+      expect(link.reminder_failures).toHaveLength(1);
+      expect(link.reminder_failures![0]).toMatchObject({
+        kind: 'first',
+        status: 'Failed',
+        error_message: 'Postmark 422: InactiveRecipient',
+        attempted_at: '2026-05-11T08:00:00Z',
+      });
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -99,6 +99,17 @@ async function DashboardContent({ clinicId }: { clinicId: ClinicId }) {
       (w) => w.status === "awaiting" || w.status === "attempted"
     );
 
+    // Task-125 — Orders that still need the patient to upload their current
+    // GLP-1 prescription. Mirrors the gate used in decideOrder / resendPxUploadLink.
+    const pxUploadPendingOrders = (allOrders as Order[]).filter(
+      (o) =>
+        (o.contextual_flags?.includes("Px upload pending") ?? false) &&
+        o.px_upload == null &&
+        o.status !== "cancelled" &&
+        o.status !== "expired" &&
+        o.status !== "declined",
+    );
+
     return (
       <DashboardView
         clinicId={clinicId}
@@ -113,6 +124,7 @@ async function DashboardContent({ clinicId }: { clinicId: ClinicId }) {
         myTasks={myTasks as Task[]}
         welcomeCallsDue={welcomeCallsDue as WelcomeCall[]}
         deliveryExceptions={deliveryExceptions as CourierEvent[]}
+        pxUploadPendingOrders={pxUploadPendingOrders}
         patientMap={patientMap}
       />
     );

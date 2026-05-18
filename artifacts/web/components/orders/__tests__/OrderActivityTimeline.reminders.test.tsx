@@ -81,4 +81,48 @@ describe('OrderActivityTimeline — Task-92 reminders', () => {
     expect(screen.queryByText('Px upload reminder emailed to patient')).not.toBeInTheDocument();
     expect(screen.queryByText('Final Px upload reminder emailed to patient')).not.toBeInTheDocument();
   });
+
+  // Task-129 — Failed reminder attempts (Bounced / Failed Postmark sends) are
+  // recorded on `px_upload_link.reminder_failures` and shown on the timeline
+  // with the Postmark error message so reviewers can see why the nudge never
+  // landed.
+  it('renders a failed reminder entry with the Postmark error message', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_failures: [
+            {
+              kind: 'first',
+              attempted_at: '2026-05-11T08:00:00Z',
+              to_email: 'patient@example.com',
+              status: 'Failed',
+              error_message: 'Postmark 422: InactiveRecipient',
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText('Px upload reminder failed to deliver')).toBeInTheDocument();
+    expect(screen.getByText('Postmark 422: InactiveRecipient')).toBeInTheDocument();
+  });
+
+  it('renders a failed final reminder entry with the Postmark error message', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_failures: [
+            {
+              kind: 'final',
+              attempted_at: '2026-05-24T10:00:00Z',
+              to_email: 'patient@example.com',
+              status: 'Bounced',
+              error_message: 'Postmark 406: Hard bounce',
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText('Final Px upload reminder failed to deliver')).toBeInTheDocument();
+    expect(screen.getByText('Postmark 406: Hard bounce')).toBeInTheDocument();
+  });
 });

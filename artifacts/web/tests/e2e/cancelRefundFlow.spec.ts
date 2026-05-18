@@ -72,12 +72,27 @@ test.describe('Cancel + refund flow', () => {
     await expect(page.getByText(/decided at/i)).toBeVisible();
   });
 
-  // NOTE: the locked refund-authority badge (rendered when can_refund=false)
-  // cannot be exercised end-to-end because CURRENT_USER is hardcoded to a
-  // user with can_refund=true and there is no in-app role switcher yet.
-  // The locked branch is covered by the unit test in
-  // lib/api/fixtures/__tests__/processRefundAmendment.test.ts ("refund
-  // authority gate > throws FORBIDDEN when the user does not have
-  // can_refund"). Follow-up #68 tracks adding an in-app switcher so this
-  // gap can be closed at the UI layer.
+  test('refund amendment AMEND-003 renders the locked refund-authority badge for a non-refund persona', async ({ page }) => {
+    // Task-120 — the `?as=` demo override re-mints the session as Claire
+    // (Prescriber on FeelTru, can_refund=false). Prescribers retain
+    // decide-amendments access so the Refund Authority card still renders,
+    // but the inner authority panel flips to the locked / "ask an Owner"
+    // copy that the hardcoded Owner session previously hid from the UI.
+    await page.goto(`/${CLINIC}/amendments/${REFUND_AMENDMENT_ID}?as=user_claire`);
+
+    // Header still resolves on the amendment page for a Prescriber.
+    await expect(page.locator('h1', { hasText: REFUND_AMENDMENT_ID })).toBeVisible();
+
+    // Locked badge copy + the explanatory "ask an Owner" sentence are
+    // visible — these are only rendered when `!CURRENT_USER.can_refund`.
+    await expect(page.getByText(/refund authority required/i)).toBeVisible();
+    await expect(
+      page.getByText(/Only admins with refund authority can action this amendment/i),
+    ).toBeVisible();
+
+    // Unlocked-panel controls must not exist for this persona — guards
+    // against regressing the gate back to "everyone sees the form".
+    await expect(page.getByRole('button', { name: /^partial$/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /confirm refund/i })).toHaveCount(0);
+  });
 });

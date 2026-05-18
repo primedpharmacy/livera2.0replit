@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
 import { formatDate } from "@/lib/format";
+import { PxUploadPendingCard } from "./PxUploadPendingCard";
 import type {
   ClinicId, ClinicalEscalationFlag, SlaBreach, Role,
   Order, Complaint, Incident, Task, WelcomeCall, CourierEvent,
@@ -41,6 +42,7 @@ interface DashboardViewProps {
   myTasks:               Task[];
   welcomeCallsDue:       WelcomeCall[];
   deliveryExceptions:    CourierEvent[];
+  pxUploadPendingOrders: Order[];
   patientMap:            Record<string, string>;
 }
 
@@ -163,6 +165,7 @@ export function DashboardView({
   myTasks,
   welcomeCallsDue,
   deliveryExceptions,
+  pxUploadPendingOrders,
   patientMap,
 }: DashboardViewProps) {
   const isCoach = currentUserRoles.includes("Coach") &&
@@ -189,6 +192,12 @@ export function DashboardView({
   const intakeOrders = clinicalCheckOrders.filter((o) => o.id.startsWith("ORD-INTAKE-"));
   if (intakeOrders.length > 0) {
     attentionItems.push(`${intakeOrders.length} new patient intake${intakeOrders.length > 1 ? "s" : ""} to review`);
+  }
+
+  // Task-125 — surface px-upload waiting orders so staff notice stale links.
+  if (pxUploadPendingOrders.length > 0) {
+    const n = pxUploadPendingOrders.length;
+    attentionItems.push(`${n} order${n > 1 ? "s" : ""} awaiting Px upload`);
   }
 
   // Stat strip values
@@ -470,8 +479,15 @@ export function DashboardView({
 
         </div>
 
-        {/* COL 2 ── Complaints · Welcome calls · Incidents · Rx expiry · MHRA */}
+        {/* COL 2 ── Px upload pending · Complaints · Welcome calls · Incidents · Rx expiry · MHRA */}
         <div className="space-y-4">
+
+          {/* Task-125 — Orders waiting on a patient Px upload */}
+          <PxUploadPendingCard
+            clinicId={clinicId}
+            orders={pxUploadPendingOrders}
+            patientMap={patientMap}
+          />
 
           {/* Open complaints */}
           <div className="bg-surface border border-bdr rounded-lg overflow-hidden">

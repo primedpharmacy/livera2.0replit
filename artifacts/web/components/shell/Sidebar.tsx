@@ -34,13 +34,14 @@ import {
   listGPLetters,
   listPatients,
   listOrders,
-  listConsultations,
+  listWelcomeCalls,
   listClinicalEscalationFlags,
   listDiscontinuations,
   CURRENT_USER,
 } from "@/lib/api/mock";
 import type { ClinicId } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
+import { QUEUE_COUNT_EVENT, type QueueCountChangeDetail, type QueueKey } from "@/lib/queue-counts";
 
 type BadgeVariant = "muted" | "warn" | "err" | "default";
 
@@ -368,12 +369,20 @@ export function Sidebar({ clinicId }: SidebarProps) {
       .then((orders) => setClinicalCheckCount(orders.length))
       .catch(() => {});
 
-    listAmendments(cid, { status: "requested" })
-      .then((amendments) => setAmendmentsCount(amendments.length))
+    listAmendments(cid)
+      .then((amendments) =>
+        setAmendmentsCount(
+          amendments.filter((a) => a.status === "requested" || a.status === "reviewing").length
+        )
+      )
       .catch(() => {});
 
-    listConsultations(cid, { type: "welcome_call" })
-      .then((c) => setWelcomeCallsCount(c.filter((x) => x.status === "scheduled").length))
+    listWelcomeCalls(cid)
+      .then((calls) =>
+        setWelcomeCallsCount(
+          calls.filter((c) => c.status === "awaiting" || c.status === "attempted").length
+        )
+      )
       .catch(() => {});
 
     listComplaints(cid)
@@ -385,7 +394,7 @@ export function Sidebar({ clinicId }: SidebarProps) {
       .catch(() => {});
 
     listGPLetters(cid)
-      .then((g) => setGPLettersCount(g.length))
+      .then((g) => setGPLettersCount(g.filter((x) => x.lifecycle_status === "owed").length))
       .catch(() => {});
 
     listDiscontinuations(cid)
@@ -393,20 +402,32 @@ export function Sidebar({ clinicId }: SidebarProps) {
       .catch(() => {});
   }, [clinicId, isCoach]);
 
-  // Live-update Clinical Check badge when a decision is made elsewhere
+  // Live-update queue badges when an item is resolved elsewhere in-app.
+  // Detail components dispatch `queue-count-changed` via `dispatchQueueCountChange`.
   useEffect(() => {
-    function onClinicalCheckCountChanged(e: Event) {
-      const detail = (e as CustomEvent<{ delta?: number; count?: number }>).detail;
+    const setters: Record<QueueKey, (updater: (prev: number) => number) => void> = {
+      clinical_check:   (u) => setClinicalCheckCount((p) => Math.max(0, u(p))),
+      amendments:       (u) => setAmendmentsCount((p) => Math.max(0, u(p))),
+      welcome_calls:    (u) => setWelcomeCallsCount((p) => Math.max(0, u(p))),
+      complaints:       (u) => setComplaintsCount((p) => Math.max(0, u(p))),
+      incidents:        (u) => setIncidentsCount((p) => Math.max(0, u(p))),
+      gp_letters:       (u) => setGPLettersCount((p) => Math.max(0, u(p))),
+      discontinuations: (u) => setDiscontinuationsCount((p) => Math.max(0, u(p))),
+    };
+    function onQueueCountChanged(e: Event) {
+      const detail = (e as CustomEvent<QueueCountChangeDetail>).detail;
       if (!detail) return;
+      const set = setters[detail.queue];
+      if (!set) return;
       if (typeof detail.count === "number") {
-        setClinicalCheckCount(Math.max(0, detail.count));
+        set(() => detail.count!);
       } else if (typeof detail.delta === "number") {
-        setClinicalCheckCount((prev) => Math.max(0, prev + detail.delta!));
+        set((prev) => prev + detail.delta!);
       }
     }
-    window.addEventListener("clinical-check-count-changed", onClinicalCheckCountChanged);
+    window.addEventListener(QUEUE_COUNT_EVENT, onQueueCountChanged);
     return () => {
-      window.removeEventListener("clinical-check-count-changed", onClinicalCheckCountChanged);
+      window.removeEventListener(QUEUE_COUNT_EVENT, onQueueCountChanged);
     };
   }, []);
 

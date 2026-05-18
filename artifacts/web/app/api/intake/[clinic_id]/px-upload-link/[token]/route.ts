@@ -15,16 +15,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   attachPxUploadByToken,
   getOrderByPxUploadToken,
-  PX_UPLOAD_ALLOWED_TYPES,
-  PX_UPLOAD_MAX_BYTES,
 } from '@/lib/api/fixtures/orders';
-import {
-  objectStorageService,
-  serverSideUpload,
-} from '@/lib/storage/objectStorage';
 import type { ClinicId } from '@/types';
 
 type Params = { params: Promise<{ clinic_id: string; token: string }> };
+
+const MAX_BYTES = 10 * 1024 * 1024;
 
 export async function GET(_req: NextRequest, { params }: Params) {
   const { clinic_id, token } = await params;
@@ -51,35 +47,19 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!(file instanceof File)) {
       return NextResponse.json({ message: 'Missing file field.' }, { status: 400 });
     }
-    if (file.size > PX_UPLOAD_MAX_BYTES) {
+    if (file.size > MAX_BYTES) {
       return NextResponse.json({ message: 'File is larger than 10 MB.' }, { status: 413 });
     }
-    if (!PX_UPLOAD_ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { message: 'File type not allowed — must be an image (JPG, PNG, WebP, HEIC) or PDF.' },
-        { status: 415 },
-      );
-    }
 
-    // Server-side upload to GCS (the patient-facing tokenised page POSTs the
-    // multipart file directly to us). After persistence we stamp the ACL so
-    // /api/storage/objects/... gates reads by clinic + clinical role.
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const { object_path } = await serverSideUpload({
-      bytes: buffer,
-      contentType: file.type,
-    });
-    await objectStorageService.setAclPolicy(object_path, {
-      clinic_id,
-      allowed_roles: ['Owner', 'Admin', 'Prescriber'],
-      visibility: 'private',
-    });
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const base64 = Buffer.from(bytes).toString('base64');
+    const dataUrl = `data:${file.type};base64,${base64}`;
 
     const order = await attachPxUploadByToken(clinic_id as ClinicId, token, {
       filename: file.name,
       size: file.size,
       content_type: file.type,
-      object_path,
+      data_url: dataUrl,
     });
 
     return NextResponse.json(

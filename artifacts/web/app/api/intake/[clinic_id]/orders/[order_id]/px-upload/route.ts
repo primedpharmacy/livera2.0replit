@@ -1,96 +1,58 @@
 /**
  * POST /api/intake/:clinic_id/orders/:order_id/px-upload
  *
- * Step 3 of the presigned-URL upload flow (Task-82). Called by the intake
- * success screen AFTER the browser has PUT the file directly to GCS. We:
- *   1. Confirm the object exists at the supplied path
- *   2. Set the ACL policy (clinic_id + order_id) on the object
- *   3. Attach the object_path to the order via attachPxUpload
+ * Receives a patient-uploaded prescription file (image or PDF) from the intake
+ * success screen and attaches it to the order. Triggered only for the GLP-1
+ * higher-dose path (ft_oq_9 === 'yes' AND ft_oq_10 === 'yes').
  *
- * Accepts JSON: { object_path, filename, size, content_type }. No file bytes.
+ * Accepts multipart/form-data with a single `file` field.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  attachPxUpload,
-  PX_UPLOAD_ALLOWED_TYPES,
-  PX_UPLOAD_MAX_BYTES,
-} from '@/lib/api/fixtures/orders';
-import {
-  objectStorageService,
-  getObjectStoredMetadata,
-  ObjectNotFoundError,
-} from '@/lib/storage/objectStorage';
+import { attachPxUpload } from '@/lib/api/fixtures/orders';
 import type { ClinicId } from '@/types';
 
 type Params = { params: Promise<{ clinic_id: string; order_id: string }> };
 
+const MAX_BYTES = 10 * 1024 * 1024; // mirror fixture guard
+
 export async function POST(req: NextRequest, { params }: Params) {
   const { clinic_id, order_id } = await params;
   try {
-    const body = (await req.json().catch(() => ({}))) as {
-      object_path?: string;
-      filename?: string;
-    };
-    const { object_path, filename } = body;
-
-    if (!object_path || !filename) {
-      return NextResponse.json(
-        { message: 'object_path and filename are required' },
-        { status: 400 },
-      );
+    const form = await req.formData();
+    const file = form.get('file');
+    if (!(file instanceof File)) {
+      return NextResponse.json({ message: 'Missing file field.' }, { status: 400 });
+    }
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json({ message: 'File is larger than 10 MB.' }, { status: 413 });
     }
 
-    // Source of truth for size + content_type is GCS itself, not the client.
-    // This stops a client from PUTting arbitrary bytes (e.g. a 50 MB .exe)
-    // and then forging acceptable metadata in this finalize call.
-    const stored = await getObjectStoredMetadata(object_path);
-
-    if (!PX_UPLOAD_ALLOWED_TYPES.includes(stored.contentType)) {
-      return NextResponse.json(
-        {
-          message:
-            'Uploaded file type is not allowed — must be an image (JPG, PNG, WebP, HEIC) or PDF.',
-        },
-        { status: 415 },
-      );
-    }
-    if (stored.size <= 0 || stored.size > PX_UPLOAD_MAX_BYTES) {
-      return NextResponse.json(
-        { message: 'Uploaded file size is out of range (must be 1 byte – 10 MB).' },
-        { status: 413 },
-      );
-    }
-
-    // Stamp the ACL so /api/storage/objects/... can gate access by clinic
-    // AND by clinical role (Coach is excluded — non-clinical surface).
-    await objectStorageService.setAclPolicy(object_path, {
-      clinic_id,
-      order_id,
-      allowed_roles: ['Owner', 'Admin', 'Prescriber'],
-      visibility: 'private',
-    });
+    // Encode the file as a data URL so the mock fixture can preview it later.
+    // Real production storage would push to object storage and persist the URL.
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const base64 = Buffer.from(bytes).toString('base64');
+    const dataUrl = `data:${file.type};base64,${base64}`;
 
     const order = await attachPxUpload(clinic_id as ClinicId, order_id, {
-      filename,
-      size: stored.size,
-      content_type: stored.contentType,
-      object_path,
+      filename: file.name,
+      size: file.size,
+      content_type: file.type,
+      data_url: dataUrl,
     });
 
     return NextResponse.json(
       {
         order_id: order.id,
-        px_upload: order.px_upload,
+        px_upload: {
+          filename: order.px_upload?.filename,
+          size: order.px_upload?.size,
+          content_type: order.px_upload?.content_type,
+          uploaded_at: order.px_upload?.uploaded_at,
+        },
       },
       { status: 201 },
     );
   } catch (err) {
-    if (err instanceof ObjectNotFoundError) {
-      return NextResponse.json(
-        { message: 'Upload did not complete — object not found in storage.' },
-        { status: 404 },
-      );
-    }
     const msg = err instanceof Error ? err.message : 'Prescription upload failed';
     const status = msg.includes('not found') ? 404 : 400;
     return NextResponse.json({ message: msg }, { status });

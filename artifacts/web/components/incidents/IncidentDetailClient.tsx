@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/mock";
 import { USERS_REGISTRY } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
+import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { Incident, IncidentComment, Clinic, ClinicId } from "@/types";
 
 interface Props {
@@ -289,8 +290,13 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
   async function handleStatusUpdate(status: Incident["status"]) {
     setIsActing(true);
     try {
+      const wasOpen = !["resolved", "closed"].includes(incident.status);
       const updated = await updateIncidentStatus(clinicId, incident.id, status);
       setIncident(updated);
+      const nowOpen = !["resolved", "closed"].includes(updated.status);
+      if (wasOpen !== nowOpen) {
+        dispatchQueueCountChange({ queue: "incidents", delta: nowOpen ? 1 : -1 });
+      }
       setToast({ message: `Status updated to ${status.replace(/_/g, " ")}`, type: "ok" });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : "Failed", type: "err" });

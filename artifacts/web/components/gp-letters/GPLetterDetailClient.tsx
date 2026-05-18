@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { sendGPLetterAction } from "@/lib/actions/gpLetterActions";
 import { CURRENT_USER } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
+import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { SlaTimerWidget } from "@/components/sla/SlaTimerWidget";
 import type { GPLetter, Patient, Clinic, ClinicId } from "@/types";
 
@@ -43,8 +44,12 @@ export function GPLetterDetailClient({ initialLetter, patient, clinic, clinicId 
     try {
       // BLD-7.3/7.4: server action orchestrates PDF generation (pdfkit) →
       // Postmark send → sendGPLetter fixture (audit payload + Layer 3 log).
+      const wasOwed = letter.lifecycle_status === "owed";
       const updated = await sendGPLetterAction(clinicId, letter.id);
       setLetter(updated);
+      if (wasOwed && updated.lifecycle_status !== "owed") {
+        dispatchQueueCountChange({ queue: "gp_letters", delta: -1 });
+      }
       setToast({ message: "Letter sent successfully", type: "ok" });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : "Failed to send", type: "err" });

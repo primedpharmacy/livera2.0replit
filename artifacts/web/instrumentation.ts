@@ -41,5 +41,10 @@ export async function register() {
       ByteLengthQueuingStrategy,
       CountQueuingStrategy,
     });
+
+    // Task-74: boot the in-process job scheduler so the failed-email retry job
+    // runs automatically (per clinic, every few minutes) without manual triggers.
+    const { startJobScheduler } = await import('./lib/api/jobs/scheduler');
+    startJobScheduler();
   }
 }

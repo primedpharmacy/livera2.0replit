@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Keyboard } from "lucide-react";
+import { openKeyboardShortcuts } from "@/components/shell/KeyboardShortcutsHelp";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +68,15 @@ export function TopNav() {
       </DropdownMenu>
 
       <div className="ml-auto flex items-center gap-2 text-xs">
+        <button
+          type="button"
+          onClick={openKeyboardShortcuts}
+          aria-label="Keyboard shortcuts (?)"
+          title="Keyboard shortcuts (?)"
+          className="flex items-center justify-center w-6 h-6 rounded text-white/70 hover:text-white hover:bg-white/[0.08] transition-colors outline-none"
+        >
+          <Keyboard className="w-3.5 h-3.5" aria-hidden={true} />
+        </button>
         <span className="text-white/60">Signed in as</span>
         <span className="bg-white/10 text-white font-semibold rounded-full px-2.5 py-0.5 text-[11px] tracking-wide">
           {user.full_name} · {user.roles[0]}

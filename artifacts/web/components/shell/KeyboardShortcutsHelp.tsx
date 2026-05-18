@@ -22,6 +22,16 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Orders queue",
+    items: [
+      { keys: ["↑"], label: "Previous order in the list" },
+      { keys: ["↓"], label: "Next order in the list" },
+      { keys: ["J"], label: "Next order (vim-style)" },
+      { keys: ["K"], label: "Previous order (vim-style)" },
+      { keys: ["↵"], label: "Open the highlighted order" },
+    ],
+  },
+  {
     title: "Clinical Check queue",
     items: [
       { keys: ["↑"], label: "Previous order in the queue" },
@@ -45,6 +55,13 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
+export const KEYBOARD_SHORTCUTS_OPEN_EVENT = "livera:open-keyboard-shortcuts";
+
+export function openKeyboardShortcuts() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(KEYBOARD_SHORTCUTS_OPEN_EVENT));
+}
+
 export function KeyboardShortcutsHelp() {
   const [open, setOpen] = useState(false);
 
@@ -58,8 +75,15 @@ export function KeyboardShortcutsHelp() {
         setOpen((prev) => !prev);
       }
     }
+    function onOpenEvent() {
+      setOpen(true);
+    }
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener(KEYBOARD_SHORTCUTS_OPEN_EVENT, onOpenEvent);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener(KEYBOARD_SHORTCUTS_OPEN_EVENT, onOpenEvent);
+    };
   }, []);
 
   // While the help modal is open, swallow shortcut keys (arrow nav, A/D/I)
@@ -73,13 +97,17 @@ export function KeyboardShortcutsHelp() {
       const k = e.key;
       if (
         k === "ArrowUp" || k === "ArrowDown" ||
-        k === "ArrowLeft" || k === "ArrowRight"
+        k === "ArrowLeft" || k === "ArrowRight" ||
+        k === "Enter"
       ) {
         e.stopPropagation();
         return;
       }
       const lower = k.toLowerCase();
-      if (lower === "a" || lower === "d" || lower === "i") {
+      if (
+        lower === "a" || lower === "d" || lower === "i" ||
+        lower === "j" || lower === "k"
+      ) {
         e.stopPropagation();
       }
     }

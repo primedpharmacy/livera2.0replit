@@ -73,10 +73,10 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (visibleOrders.length === 0) return;
-      if (e.key === "ArrowDown") {
+      if (e.key === "ArrowDown" || e.key === "j" || e.key === "J") {
         e.preventDefault();
         setFocusedIdx((i) => Math.min(visibleOrders.length - 1, i < 0 ? 0 : i + 1));
-      } else if (e.key === "ArrowUp") {
+      } else if (e.key === "ArrowUp" || e.key === "k" || e.key === "K") {
         e.preventDefault();
         setFocusedIdx((i) => Math.max(0, i < 0 ? 0 : i - 1));
       } else if (e.key === "Enter") {

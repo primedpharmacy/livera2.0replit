@@ -11,7 +11,8 @@ import {
   canStaffAccessObject,
   ObjectNotFoundError,
 } from '@/lib/storage/objectStorage';
-import { CURRENT_USER, NOW } from '@/lib/api/constants';
+import { NOW } from '@/lib/api/constants';
+import { getSessionUser } from '@/lib/auth/session';
 
 type Params = { params: Promise<{ path: string[] }> };
 
@@ -19,16 +20,32 @@ type Params = { params: Promise<{ path: string[] }> };
 // intentionally excluded — they have no clinical surface (see lib/permissions.ts).
 const CLINICAL_ROLES = ['Owner', 'Admin', 'Prescriber'];
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   const { path } = await params;
   const objectPath = `/objects/${(path ?? []).join('/')}`;
+
+  // Resolve the requesting staff member from the session. No fallback to
+  // CURRENT_USER — anonymous / patient / signed-out traffic must 401 so
+  // it can't fetch another clinic's prescription files by guessing paths.
+  const user = getSessionUser(req);
+  if (!user) {
+    console.log('[AUDIT]', {
+      event_type: 'object_access_denied',
+      reason: 'unauthenticated',
+      object_path: objectPath,
+      user_id: null,
+      timestamp: NOW,
+    });
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const file = await objectStorageService.getObjectEntityFile(objectPath);
     const policy = await objectStorageService.getAclPolicy(file);
 
     const staff = {
-      active_clinic_id: CURRENT_USER.active_clinic_id,
-      roles: CURRENT_USER.roles as string[],
+      active_clinic_id: user.active_clinic_id,
+      roles: user.roles as string[],
     };
 
     // Role gate first — staff must be clinical regardless of clinic match.
@@ -38,7 +55,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         event_type: 'object_access_denied',
         reason: !isClinical ? 'non_clinical_role' : 'cross_clinic_or_role_mismatch',
         object_path: objectPath,
-        user_id: CURRENT_USER.id,
+        user_id: user.id,
         user_roles: staff.roles,
         active_clinic_id: staff.active_clinic_id,
         object_clinic_id: policy?.clinic_id ?? null,
@@ -50,7 +67,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     console.log('[AUDIT]', {
       event_type: 'object_access_granted',
       object_path: objectPath,
-      user_id: CURRENT_USER.id,
+      user_id: user.id,
       clinic_id: policy?.clinic_id,
       order_id: policy?.order_id ?? null,
       timestamp: NOW,

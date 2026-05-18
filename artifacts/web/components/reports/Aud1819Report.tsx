@@ -25,51 +25,178 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClinicId } from "@/types";
+import { MOCK_ORDERS, MOCK_PATIENTS } from "@/lib/api/mock";
+import { USERS_REGISTRY } from "@/lib/users/registry";
+
+// ── Derived metrics from MOCK_ORDERS / MOCK_PATIENTS ─────────────────────────
+// Headline figures (decision counts, SumSub pass rate, per-patient ages) are
+// recomputed from the seeded fixture arrays so any fixture change flows in.
+
+const NOW_MS_1819 = Date.UTC(2026, 4, 13);  // 13 May 2026 — report "as-of" date
+function patientAge(dob: string): number {
+  const birth = Date.parse(dob);
+  if (Number.isNaN(birth)) return 0;
+  // Floor of years between dob and the report "as-of" date.
+  return Math.max(0, Math.floor((NOW_MS_1819 - birth) / (365.25 * 86_400_000)));
+}
+function fmtUkDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+  });
+}
+// Tiny deterministic hash → stable mock turnaround hours per patient,
+// derived from the seed `sumsub_id` so the same fixture always yields
+// the same value across renders.
+function stableHours(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return +(0.5 + (h % 80) / 10).toFixed(1);  // 0.5h – 8.5h
+}
+
+// ── Derived AUD-18 (Remote Prescribing) data from MOCK_ORDERS ────────────────
+const DERIVED_DECIDED_ORDERS = MOCK_ORDERS.filter(
+  (o) => o.clinical_decision && o.clinical_decision.decided_at,
+);
+const DERIVED_DECISION_TOTAL = DERIVED_DECIDED_ORDERS.length;
+const DERIVED_SLA_BREACHED = MOCK_ORDERS.filter(
+  (o) => o.clinical_decision?.decided_at && o.sla_breach_at
+    && Date.parse(o.clinical_decision.decided_at) > Date.parse(o.sla_breach_at),
+).length;
+const DERIVED_SLA_MET = Math.max(0, DERIVED_DECISION_TOTAL - DERIVED_SLA_BREACHED);
+const DERIVED_SLA_PCT = DERIVED_DECISION_TOTAL > 0
+  ? Math.round((DERIVED_SLA_MET / DERIVED_DECISION_TOTAL) * 100)
+  : 100;
+const DERIVED_VSC_DECISIONS     = DERIVED_DECIDED_ORDERS.filter((o) => o.clinic_id === "vsc").length;
+const DERIVED_FEELTRU_DECISIONS = DERIVED_DECIDED_ORDERS.filter((o) => o.clinic_id === "feeltru").length;
+const DERIVED_AVG_TURNAROUND_H = (() => {
+  const withSubmit = DERIVED_DECIDED_ORDERS.filter((o) => o.created_at && o.clinical_decision?.decided_at);
+  if (!withSubmit.length) return 0;
+  const total = withSubmit.reduce((s, o) => {
+    const dt = (Date.parse(o.clinical_decision!.decided_at!) - Date.parse(o.created_at)) / 3_600_000;
+    return s + Math.max(0, dt);
+  }, 0);
+  return +(total / withSubmit.length).toFixed(1);
+})();
+
+// Map prescriber_user_id → display name from the central users registry.
+function prescriberName(userId: string | null | undefined): string {
+  if (!userId) return "Unknown";
+  return USERS_REGISTRY[userId]?.full_name ?? userId;
+}
+function patientFullName(id: string): string {
+  return MOCK_PATIENTS.find((p) => p.id === id)?.demographic.full_name ?? id;
+}
+function decisionTurnaroundHours(o: typeof MOCK_ORDERS[number]): number {
+  if (!o.clinical_decision?.decided_at || !o.created_at) return 0;
+  return +(Math.max(0, (Date.parse(o.clinical_decision.decided_at) - Date.parse(o.created_at)) / 3_600_000)).toFixed(1);
+}
+function decisionMetSla(o: typeof MOCK_ORDERS[number]): boolean {
+  if (!o.clinical_decision?.decided_at) return false;
+  if (!o.sla_breach_at) return true;
+  return Date.parse(o.clinical_decision.decided_at) <= Date.parse(o.sla_breach_at);
+}
+
+// Recent-decisions table for AUD-18, derived from MOCK_ORDERS.
+const DERIVED_REMOTE_ORDER_ROWS = DERIVED_DECIDED_ORDERS.map((o) => ({
+  orderId:          o.id,
+  patient:          patientFullName(o.patient_id),
+  patientId:        o.patient_id,
+  medication:       `${o.product.medication} ${o.product.dose}`,
+  prescriber:       prescriberName(o.clinical_decision?.prescriber_user_id ?? null),
+  decidedAt:        new Date(o.clinical_decision!.decided_at!).toLocaleString("en-GB", {
+                      day: "2-digit", month: "short", year: "numeric",
+                      hour: "2-digit", minute: "2-digit", timeZone: "UTC",
+                    }).replace(",", " ·"),
+  decidedAtIso:     o.clinical_decision!.decided_at!,
+  hoursFromSubmit:  decisionTurnaroundHours(o),
+  sla:              decisionMetSla(o),
+}));
+
+// Prescriber compliance, aggregated from MOCK_ORDERS by prescriber_user_id.
+const DERIVED_PRESCRIBER_ROWS = (() => {
+  const groups = new Map<string, typeof MOCK_ORDERS>();
+  for (const o of DERIVED_DECIDED_ORDERS) {
+    const pid = o.clinical_decision?.prescriber_user_id ?? "unknown";
+    const arr = (groups.get(pid) ?? []) as typeof MOCK_ORDERS;
+    arr.push(o);
+    groups.set(pid, arr);
+  }
+  return Array.from(groups.entries()).map(([pid, orders]) => {
+    const decisions = orders.length;
+    const withinSla = orders.filter(decisionMetSla).length;
+    const avgHours  = +(orders.reduce((s, o) => s + decisionTurnaroundHours(o), 0) / Math.max(1, decisions)).toFixed(1);
+    const last      = orders
+      .map((o) => o.clinical_decision!.decided_at!)
+      .sort()
+      .reverse()[0];
+    const user      = USERS_REGISTRY[pid];
+    return {
+      name:         user?.full_name ?? pid,
+      role:         (user?.roles as readonly string[] | undefined)?.includes("Owner") ? "Owner / Prescriber" : "Prescriber",
+      decisions,
+      withinSla,
+      avgHours,
+      coverage:     Math.round((withinSla / Math.max(1, decisions)) * 100),
+      lastDecision: last ? new Date(last).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—",
+      remote:       true,
+    };
+  });
+})();
+
+// ── Derived AUD-19 (Identity Verification) data from MOCK_PATIENTS ───────────
+type IdentityStatus = "passed" | "review" | "failed";
+type DerivedIdentityRow = {
+  patientId:       string;
+  patient:         string;
+  sumsubId:        string;
+  verifiedAt:      string;
+  verifiedAtIso:   string | null;
+  turnaroundHours: number;
+  status:          IdentityStatus;
+  failReason:      string | null;
+  dob:             string;
+};
+const FAIL_REASON_TEXT: Record<"review" | "rejected", string> = {
+  review:   "Document quality",
+  rejected: "Identity mismatch",
+};
+const DERIVED_IDENTITY_ROWS: DerivedIdentityRow[] = MOCK_PATIENTS
+  .filter((p) => p.verification?.sumsub_id)
+  .map((p) => {
+    const v = p.verification;
+    let status: IdentityStatus = "passed";
+    let failReason: string | null = null;
+    if (v.sumsub_status === "review")        { status = "review"; failReason = FAIL_REASON_TEXT.review; }
+    else if (v.sumsub_status === "rejected") { status = "failed"; failReason = FAIL_REASON_TEXT.rejected; }
+    else if (!v.identity_verified_at)        { status = "review"; failReason = "Awaiting submission"; }
+    return {
+      patientId:       p.id,
+      patient:         p.demographic.full_name,
+      sumsubId:        v.sumsub_id,
+      verifiedAt:      v.identity_verified_at ? fmtUkDate(v.identity_verified_at) : "—",
+      verifiedAtIso:   v.identity_verified_at ?? null,
+      turnaroundHours: stableHours(v.sumsub_id),
+      status,
+      failReason,
+      dob:             p.demographic.dob,
+    };
+  });
+const DERIVED_SUMSUB_TOTAL = DERIVED_IDENTITY_ROWS.length;
+const DERIVED_VERIFIED     = DERIVED_IDENTITY_ROWS.filter((r) => r.status === "passed").length;
+const DERIVED_REVIEW       = DERIVED_IDENTITY_ROWS.filter((r) => r.status === "review").length;
+const DERIVED_REJECTED     = DERIVED_IDENTITY_ROWS.filter((r) => r.status === "failed").length;
+const DERIVED_SUMSUB_PASS_PCT = DERIVED_SUMSUB_TOTAL > 0
+  ? Math.round((DERIVED_VERIFIED / DERIVED_SUMSUB_TOTAL) * 100)
+  : 0;
+const DERIVED_AVG_VERIFY_HOURS = DERIVED_SUMSUB_TOTAL > 0
+  ? +(DERIVED_IDENTITY_ROWS.reduce((s, r) => s + r.turnaroundHours, 0) / DERIVED_SUMSUB_TOTAL).toFixed(1)
+  : 0;
 
 // ── AUD-18 mock data — Remote Prescribing ─────────────────────────────────────
 
-const PRESCRIBER_COMPLIANCE_ROWS = [
-  {
-    name:        "Qadir Hussain",
-    role:        "Owner / Prescriber",
-    decisions:   3,
-    withinSla:   3,
-    avgHours:    5.2,
-    lastDecision:"11 May 2026",
-    coverage:    100,
-    remote:      true,
-  },
-  {
-    name:        "Claire Ashworth",
-    role:        "Prescriber",
-    decisions:   8,
-    withinSla:   7,
-    avgHours:    9.4,
-    lastDecision:"08 May 2026",
-    coverage:    88,
-    remote:      true,
-  },
-  {
-    name:        "Mobeen Alam",
-    role:        "Prescriber / RM",
-    decisions:   5,
-    withinSla:   5,
-    avgHours:    3.8,
-    lastDecision:"05 May 2026",
-    coverage:    100,
-    remote:      true,
-  },
-  {
-    name:        "Dr. Priya Singh",
-    role:        "Prescriber",
-    decisions:   2,
-    withinSla:   1,
-    avgHours:    28.5,
-    lastDecision:"01 May 2026",
-    coverage:    50,
-    remote:      true,
-  },
-];
+// Prescriber compliance now comes from DERIVED_PRESCRIBER_ROWS (computed
+// from MOCK_ORDERS at the top of the file).
+const PRESCRIBER_COMPLIANCE_ROWS = DERIVED_PRESCRIBER_ROWS;
 
 // 12-week remote prescribing SLA trend
 const PRESCRIBING_SLA_TREND = [
@@ -87,41 +214,43 @@ const PRESCRIBING_SLA_TREND = [
   { week: "06 May", pct: 94 },
 ];
 
-const REMOTE_ORDER_ROWS = [
-  { orderId: "ORD-00438", patient: "James Hartley",   patientId: "PT-00234", medication: "Mounjaro 5mg",   prescriber: "Qadir Hussain",  decidedAt: "06 May 2026 · 11:00", hoursFromSubmit: 4.2,  sla: true  },
-  { orderId: "ORD-00441", patient: "Sarah Cookland",  patientId: "PT-00012", medication: "Mounjaro 7.5mg", prescriber: "Qadir Hussain",  decidedAt: "03 May 2026 · 14:00", hoursFromSubmit: 6.1,  sla: true  },
-  { orderId: "ORD-00422", patient: "Miriam Osei",     patientId: "PT-00156", medication: "Mounjaro 2.5mg", prescriber: "Qadir Hussain",  decidedAt: "08 May 2026 · 09:00", hoursFromSubmit: 5.7,  sla: true  },
-  { orderId: "ORD-00415", patient: "Tom Fletcher",    patientId: "PT-00089", medication: "Wegovy 0.5mg",   prescriber: "Claire Ashworth", decidedAt: "05 May 2026 · 16:30", hoursFromSubmit: 11.2, sla: true  },
-  { orderId: "ORD-00408", patient: "Fiona MacLeod",   patientId: "PT-00445", medication: "Mounjaro 5mg",   prescriber: "Dr. Priya Singh", decidedAt: "01 May 2026 · 09:00", hoursFromSubmit: 31.0, sla: false },
-];
+// Recent remote-decision rows now come from DERIVED_REMOTE_ORDER_ROWS
+// (computed from MOCK_ORDERS at the top of the file).
+const REMOTE_ORDER_ROWS = DERIVED_REMOTE_ORDER_ROWS;
 
 // ── AUD-19 mock data — Identity Verification ──────────────────────────────────
 
-const IDENTITY_ROWS = [
-  { patientId:"PT-00012", patient:"Sarah Cookland",  sumsubId:"sumsub_abc123", verifiedAt:"15 Jan 2026", turnaroundHours:1.2, status:"passed" as const, failReason:null },
-  { patientId:"PT-00234", patient:"James Hartley",   sumsubId:"sumsub_jh234",  verifiedAt:"01 Feb 2026", turnaroundHours:2.5, status:"passed" as const, failReason:null },
-  { patientId:"PT-00156", patient:"Miriam Osei",     sumsubId:"sumsub_mo156",  verifiedAt:"20 Jan 2026", turnaroundHours:0.8, status:"passed" as const, failReason:null },
-  { patientId:"PT-00089", patient:"Tom Fletcher",    sumsubId:"sumsub_tf089",  verifiedAt:"08 May 2026", turnaroundHours:3.1, status:"passed" as const, failReason:null },
-  { patientId:"PT-00301", patient:"Priya Shah",      sumsubId:"sumsub_ps301",  verifiedAt:"10 Jan 2026", turnaroundHours:1.5, status:"passed" as const, failReason:null },
-  { patientId:"PT-00412", patient:"Eleanor Wright",  sumsubId:"sumsub_ew412",  verifiedAt:"05 Jan 2026", turnaroundHours:1.0, status:"passed" as const, failReason:null },
-  { patientId:"PT-00378", patient:"Zara Ahmed",      sumsubId:"sumsub_za378",  verifiedAt:"07 May 2026", turnaroundHours:2.2, status:"passed" as const, failReason:null },
-  { patientId:"PT-00445", patient:"Fiona MacLeod",   sumsubId:"sumsub_fm445",  verifiedAt:"25 Jan 2026", turnaroundHours:4.7, status:"passed" as const, failReason:null },
-  { patientId:"PT-00210", patient:"Marcus Chen",     sumsubId:"sumsub_mc210",  verifiedAt:"28 Apr 2026", turnaroundHours:1.3, status:"passed" as const, failReason:null },
-  { patientId:"PT-00214", patient:"Sean Collins",    sumsubId:"sumsub_sc214",  verifiedAt:"01 May 2026", turnaroundHours:0.9, status:"passed" as const, failReason:null },
-  { patientId:"PT-00199", patient:"Beth Nguyen",     sumsubId:"sumsub_bn199",  verifiedAt:"25 Apr 2026", turnaroundHours:2.0, status:"passed" as const, failReason:null },
-  { patientId:"PT-00556", patient:"Ryan Mitchell",   sumsubId:"sumsub_rm556",  verifiedAt:"10 May 2026", turnaroundHours:5.5, status:"review"  as const, failReason:"Document quality" },
-  { patientId:"PT-00612", patient:"Dana Okafor",     sumsubId:"sumsub_do612",  verifiedAt:"02 May 2026", turnaroundHours:8.2, status:"failed"  as const, failReason:"Identity mismatch" },
-  { patientId:"PT-00631", patient:"Laura Keane",     sumsubId:"sumsub_lk631",  verifiedAt:"28 Apr 2026", turnaroundHours:6.1, status:"failed"  as const, failReason:"Expired document" },
-];
+// Table source for AUD-19: derived directly from MOCK_PATIENTS above.
+const IDENTITY_ROWS = DERIVED_IDENTITY_ROWS;
 
-const FAIL_REASONS = [
-  { label: "Document quality", count: 2, pct: 50, color: "bg-warn" },
-  { label: "Identity mismatch", count: 1, pct: 25, color: "bg-err" },
-  { label: "Expired document",  count: 1, pct: 25, color: "bg-err" },
-];
+// Fail / review reason counts derived from the identity rows. Reason text
+// comes from FAIL_REASON_TEXT (review vs. rejected) plus an explicit bucket
+// for patients still awaiting submission.
+const FAIL_REASONS = (() => {
+  const buckets = new Map<string, { count: number; color: string }>();
+  const palette: Record<string, string> = {
+    "Document quality":   "bg-warn",
+    "Identity mismatch":  "bg-err",
+    "Awaiting submission":"bg-info",
+  };
+  for (const r of DERIVED_IDENTITY_ROWS) {
+    if (!r.failReason) continue;
+    const cur = buckets.get(r.failReason) ?? { count: 0, color: palette[r.failReason] ?? "bg-err" };
+    cur.count += 1;
+    buckets.set(r.failReason, cur);
+  }
+  const total = Array.from(buckets.values()).reduce((s, b) => s + b.count, 0) || 1;
+  return Array.from(buckets.entries()).map(([label, b]) => ({
+    label,
+    count: b.count,
+    pct:   Math.round((b.count / total) * 100),
+    color: b.color,
+  }));
+})();
 
 type PrescriberSortKey = "name" | "decisions" | "withinSla" | "avgHours";
-type IdentitySortKey   = "patient" | "status" | "turnaroundHours" | "verifiedAt";
+type IdentitySortKey   = "patient" | "age" | "status" | "turnaroundHours" | "verifiedAt";
+type RemoteOrderSortKey = "orderId" | "patient" | "prescriber" | "decidedAt" | "hoursFromSubmit" | "sla";
 type SortDir           = "asc" | "desc";
 
 const STATUS_BADGE: Record<"passed" | "review" | "failed", string> = {
@@ -191,7 +320,9 @@ function SlaTrendChart() {
           </p>
           <p className="text-[11px] text-t2 mt-0.5">% decisions within 24h working-day SLA</p>
         </div>
-        <span className="text-[22px] font-bold text-ok">94%</span>
+        <span className={cn("text-[22px] font-bold", DERIVED_SLA_PCT >= 90 ? "text-ok" : "text-warn")}>
+          {DERIVED_SLA_PCT}%
+        </span>
       </div>
       <div className="h-[72px] relative">
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
@@ -285,22 +416,88 @@ function PrescriberTable() {
   );
 }
 
+function SlaMetMissedBar() {
+  const total  = REMOTE_ORDER_ROWS.length;
+  const met    = REMOTE_ORDER_ROWS.filter((r) => r.sla).length;
+  const missed = total - met;
+  const metPct    = Math.round((met    / Math.max(1, total)) * 100);
+  const missedPct = 100 - metPct;
+  return (
+    <div className="bg-surface border border-bdr rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-[11px] font-bold text-t3 uppercase tracking-wider">SLA met vs. missed</p>
+          <p className="text-[11px] text-t2 mt-0.5">Decisions completed within 24h working-day SLA</p>
+        </div>
+        <span className="text-[22px] font-bold text-ok">
+          {met}<span className="text-t3 text-[14px] font-normal">/{total}</span>
+        </span>
+      </div>
+      <div className="flex h-6 w-full overflow-hidden rounded-md border border-bdr" role="img"
+           aria-label={`SLA met ${met} of ${total}, missed ${missed}`}>
+        <div className="bg-ok h-full flex items-center justify-center text-[10px] font-bold text-white"
+             style={{ width: `${metPct}%` }}>
+          {metPct >= 12 ? `Met ${metPct}%` : ""}
+        </div>
+        <div className="bg-err h-full flex items-center justify-center text-[10px] font-bold text-white"
+             style={{ width: `${missedPct}%` }}>
+          {missedPct >= 12 ? `Missed ${missedPct}%` : ""}
+        </div>
+      </div>
+      <div className="flex items-center justify-between mt-2 text-[10.5px] text-t2">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm bg-ok inline-block" /> Met: {met}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm bg-err inline-block" /> Missed: {missed}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function RemoteOrderTable() {
+  const [sortKey, setSortKey] = useState<RemoteOrderSortKey>("decidedAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const toggle = (k: RemoteOrderSortKey) => {
+    if (k === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("desc"); }
+  };
+  const rows = [...REMOTE_ORDER_ROWS].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === "orderId")         cmp = a.orderId.localeCompare(b.orderId);
+    if (sortKey === "patient")         cmp = a.patient.localeCompare(b.patient);
+    if (sortKey === "prescriber")      cmp = a.prescriber.localeCompare(b.prescriber);
+    if (sortKey === "decidedAt")       cmp = Date.parse(a.decidedAtIso) - Date.parse(b.decidedAtIso);
+    if (sortKey === "hoursFromSubmit") cmp = a.hoursFromSubmit - b.hoursFromSubmit;
+    if (sortKey === "sla")             cmp = Number(a.sla) - Number(b.sla);
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+  const TH = ({ label, k }: { label: string; k: RemoteOrderSortKey }) => (
+    <th className="text-left text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3 cursor-pointer select-none hover:text-t1"
+        onClick={() => toggle(k)}>
+      <span className="inline-flex items-center gap-1">{label}<SortIcon active={sortKey===k} dir={sortDir} /></span>
+    </th>
+  );
   return (
     <div className="bg-surface border border-bdr rounded-xl overflow-hidden">
       <div className="px-4 py-2.5 bg-page-bg border-b border-bdr">
-        <p className="text-[11px] font-bold text-t2 uppercase tracking-wider">Recent remote decisions · last 30 days</p>
+        <p className="text-[11px] font-bold text-t2 uppercase tracking-wider">Recent remote decisions · last 30 days · click headers to sort</p>
       </div>
       <table className="w-full text-[12px]">
         <thead className="bg-page-bg/50 border-b border-bdr">
           <tr>
-            {["Order", "Patient", "Medication", "Prescriber", "Decided at", "Turnaround", "SLA"].map((h) => (
-              <th key={h} className="text-left text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3">{h}</th>
-            ))}
+            <TH label="Order"      k="orderId" />
+            <TH label="Patient"    k="patient" />
+            <th className="text-left text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3">Medication</th>
+            <TH label="Prescriber" k="prescriber" />
+            <TH label="Decided at" k="decidedAt" />
+            <TH label="Turnaround" k="hoursFromSubmit" />
+            <TH label="SLA"        k="sla" />
           </tr>
         </thead>
         <tbody className="divide-y divide-bdr">
-          {REMOTE_ORDER_ROWS.map((r) => (
+          {rows.map((r) => (
             <tr key={r.orderId} className="hover:bg-page-bg/60 transition-colors">
               <td className="py-2.5 px-3 font-mono text-[11px] text-brand font-semibold">{r.orderId}</td>
               <td className="py-2.5 px-3">
@@ -331,12 +528,41 @@ function Aud18Tab() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-4 gap-3">
-        <StatCard icon={Stethoscope}  label="Total remote decisions (30d)" value="18"   sub="VSC: 10 · FeelTru: 8"               color="brand" />
-        <StatCard icon={CheckCircle2} label="SLA compliance"               value="94%"  sub="17 of 18 within 24h working SLA"    color="ok"    />
-        <StatCard icon={Clock}        label="Avg turnaround"                value="7.4h" sub="Target: ≤ 24 working hours"         color="brand" />
-        <StatCard icon={AlertTriangle}label="SLA breaches"                  value="1"    sub="Dr. Priya Singh · ORD-00408 · 31h"  color="warn"  />
+        <StatCard
+          icon={Stethoscope}
+          label="Total remote decisions (30d)"
+          value={String(DERIVED_DECISION_TOTAL)}
+          sub={`VSC: ${DERIVED_VSC_DECISIONS} \u00b7 FeelTru: ${DERIVED_FEELTRU_DECISIONS}`}
+          color="brand"
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="SLA compliance"
+          value={`${DERIVED_SLA_PCT}%`}
+          sub={`${DERIVED_SLA_MET} of ${DERIVED_DECISION_TOTAL} within 24h working SLA`}
+          color={DERIVED_SLA_PCT >= 90 ? "ok" : "warn"}
+        />
+        <StatCard
+          icon={Clock}
+          label="Avg turnaround"
+          value={`${DERIVED_AVG_TURNAROUND_H}h`}
+          sub={"Target: \u2264 24 working hours"}
+          color={DERIVED_AVG_TURNAROUND_H > 24 ? "err" : "brand"}
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="SLA breaches"
+          value={String(DERIVED_SLA_BREACHED)}
+          sub={DERIVED_SLA_BREACHED === 0
+            ? "No breaches in the seeded decision pool"
+            : `${DERIVED_SLA_BREACHED} decision(s) recorded after sla_breach_at`}
+          color={DERIVED_SLA_BREACHED === 0 ? "ok" : "warn"}
+        />
       </div>
-      <SlaTrendChart />
+      <div className="grid grid-cols-2 gap-4">
+        <SlaTrendChart />
+        <SlaMetMissedBar />
+      </div>
       <div>
         <SectionHeader title="Prescriber compliance breakdown" sub="All active prescribers · last 30 days" />
         <PrescriberTable />
@@ -351,24 +577,102 @@ function Aud18Tab() {
 
 // ── AUD-19 tab ────────────────────────────────────────────────────────────────
 
+function ReVerificationPanel() {
+  // Patients still needing follow-up: anything not "passed" in the derived
+  // identity rows (failed / under review). Sourced from MOCK_PATIENTS so the
+  // panel always matches the IdentityTable below it.
+  const outstanding = DERIVED_IDENTITY_ROWS
+    .filter((r) => r.status !== "passed")
+    .slice(0, 6);
+  return (
+    <div className="bg-surface border border-bdr rounded-xl p-4">
+      <p className="text-[11px] font-bold text-t3 uppercase tracking-wider mb-3">Re-verification outcomes</p>
+      <div className="space-y-2.5">
+        {outstanding.length === 0 && (
+          <p className="text-[11px] text-t3 italic">
+            No outstanding identity cases — all patients in the fixture set passed SumSub.
+          </p>
+        )}
+        {outstanding.map((r) => {
+          const isFail = r.status === "failed";
+          return (
+            <div
+              key={r.patientId}
+              className={cn(
+                "flex items-center gap-3 p-2.5 rounded-lg border",
+                isFail ? "bg-err-bg border-err-bdr" : "bg-warn-bg border-warn-bdr",
+              )}
+            >
+              {isFail
+                ? <XCircle       className="w-4 h-4 text-err shrink-0" />
+                : <AlertTriangle className="w-4 h-4 text-warn shrink-0" />}
+              <div className="min-w-0">
+                <p className="text-[12px] font-semibold text-t1 truncate">{r.patient} ({r.patientId})</p>
+                <p className="text-[10.5px] text-t3 truncate">
+                  {isFail ? "Failed" : "Under review"} · {r.failReason ?? "Awaiting decision"} · last update {r.verifiedAt}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-t3 mt-3 pt-2 border-t border-bdr">
+        UK GDPR Article 9 · patient records cannot proceed to clinical check without confirmed identity.
+      </p>
+    </div>
+  );
+}
+
 function FailReasonBreakdown() {
+  // CSS conic-gradient doughnut — no charting library, deterministic output.
+  const total = FAIL_REASONS.reduce((s, f) => s + f.count, 0) || 1;
+  const SWATCH: Record<string, string> = {
+    "bg-warn": "#f59e0b",
+    "bg-err":  "#dc2626",
+    "bg-info": "#3b82f6",
+  };
+  let cursor = 0;
+  const stops = FAIL_REASONS.map((f) => {
+    const start = cursor;
+    const end   = cursor + (f.count / total) * 360;
+    cursor = end;
+    return `${SWATCH[f.color] ?? "#94a3b8"} ${start}deg ${end}deg`;
+  }).join(", ");
+  const gradient = `conic-gradient(${stops})`;
   return (
     <div className="bg-surface border border-bdr rounded-xl p-4">
       <p className="text-[11px] font-bold text-t3 uppercase tracking-wider mb-3">
         Fail / review reasons
       </p>
-      <div className="space-y-3">
-        {FAIL_REASONS.map((f) => (
-          <div key={f.label}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[12px] font-semibold text-t1">{f.label}</span>
-              <span className="text-[12px] font-bold text-err">{f.count}</span>
-            </div>
-            <div className="h-2 bg-page-bg rounded-full overflow-hidden">
-              <div className={cn("h-full rounded-full", f.color)} style={{ width: `${f.pct}%` }} />
-            </div>
+      <div className="flex items-center gap-4">
+        <div
+          className="relative shrink-0 rounded-full"
+          style={{ width: 96, height: 96, background: gradient }}
+          role="img"
+          aria-label={`Doughnut chart of ${total} fail or review outcomes by reason`}
+        >
+          <div
+            className="absolute inset-0 m-auto rounded-full bg-surface flex flex-col items-center justify-center"
+            style={{ width: 56, height: 56 }}
+          >
+            <span className="text-[16px] font-bold text-t1 leading-none">{total}</span>
+            <span className="text-[9px] text-t3 uppercase tracking-wider">cases</span>
           </div>
-        ))}
+        </div>
+        <ul className="flex-1 space-y-1.5">
+          {FAIL_REASONS.map((f) => (
+            <li key={f.label} className="flex items-center justify-between text-[11.5px]">
+              <span className="inline-flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-sm inline-block"
+                      style={{ background: SWATCH[f.color] ?? "#94a3b8" }} />
+                <span className="text-t1 font-semibold">{f.label}</span>
+              </span>
+              <span className="text-t2 tabular-nums">
+                {f.count} <span className="text-t3">({f.pct}%)</span>
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
       <p className="text-[10px] text-t3 mt-3 pt-2 border-t border-bdr">
         Patients with failed verification cannot proceed to clinical check. Re-verification required within 7 calendar days.
@@ -385,12 +689,15 @@ function IdentityTable() {
     if (k === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(k); setSortDir("asc"); }
   };
-  const rows = [...IDENTITY_ROWS].sort((a, b) => {
+  // Patient age comes from MOCK_PATIENTS.dob captured on DERIVED_IDENTITY_ROWS.
+  const enriched = IDENTITY_ROWS.map((r) => ({ ...r, age: patientAge(r.dob) }));
+  const rows = [...enriched].sort((a, b) => {
     let cmp = 0;
     if (sortKey === "patient")         cmp = a.patient.localeCompare(b.patient);
+    if (sortKey === "age")             cmp = a.age - b.age;
     if (sortKey === "status")          cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
     if (sortKey === "turnaroundHours") cmp = a.turnaroundHours - b.turnaroundHours;
-    if (sortKey === "verifiedAt")      cmp = a.verifiedAt.localeCompare(b.verifiedAt);
+    if (sortKey === "verifiedAt")      cmp = (a.verifiedAtIso ? Date.parse(a.verifiedAtIso) : 0) - (b.verifiedAtIso ? Date.parse(b.verifiedAtIso) : 0);
     return sortDir === "asc" ? cmp : -cmp;
   });
   const TH = ({ label, k }: { label: string; k: IdentitySortKey }) => (
@@ -405,6 +712,7 @@ function IdentityTable() {
         <thead className="bg-page-bg border-b border-bdr">
           <tr>
             <TH label="Patient"     k="patient" />
+            <TH label="Age"         k="age" />
             <th className="text-left text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3">SumSub ID</th>
             <TH label="Status"      k="status" />
             <TH label="Turnaround"  k="turnaroundHours" />
@@ -419,6 +727,7 @@ function IdentityTable() {
                 <p className="font-semibold text-t1">{r.patient}</p>
                 <p className="text-[10px] text-t3 font-mono">{r.patientId}</p>
               </td>
+              <td className="py-2.5 px-3 tabular-nums text-t2">{r.age}</td>
               <td className="py-2.5 px-3 text-[10px] font-mono text-t3">{r.sumsubId}</td>
               <td className="py-2.5 px-3">
                 <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border capitalize", STATUS_BADGE[r.status])}>
@@ -437,20 +746,20 @@ function IdentityTable() {
 }
 
 function Aud19Tab() {
-  const passed = IDENTITY_ROWS.filter((r) => r.status === "passed").length;
-  const total  = IDENTITY_ROWS.length;
-  const passRate = Math.round((passed / total) * 100);
-  const avgTurnaround = (
-    IDENTITY_ROWS.reduce((s, r) => s + r.turnaroundHours, 0) / total
-  ).toFixed(1);
+  const passed   = DERIVED_VERIFIED;
+  const review   = DERIVED_REVIEW;
+  const failed   = DERIVED_REJECTED;
+  const total    = DERIVED_SUMSUB_TOTAL;
+  const passRate = DERIVED_SUMSUB_PASS_PCT;
+  const avgTurnaround = DERIVED_AVG_VERIFY_HOURS.toFixed(1);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-4 gap-3">
-        <StatCard icon={ShieldCheck}  label="Identity pass rate"     value={`${passRate}%`}  sub={`${passed} of ${total} verifications passed`}   color="ok"   />
-        <StatCard icon={Users}        label="Total verifications"    value={`${total}`}       sub="VSC + FeelTru · last 90 days"                    color="brand"/>
+        <StatCard icon={ShieldCheck}  label="Identity pass rate"     value={`${passRate}%`}  sub={`${passed} of ${total} verifications passed`}   color={passRate >= 90 ? "ok" : "warn"} />
+        <StatCard icon={Users}        label="Total verifications"    value={`${total}`}       sub="VSC + FeelTru · derived from MOCK_PATIENTS"     color="brand"/>
         <StatCard icon={Clock}        label="Avg turnaround"         value={`${avgTurnaround}h`} sub="Time from submission to SumSub decision"      color="brand"/>
-        <StatCard icon={XCircle}      label="Failed / under review"  value={`${total - passed}`} sub="Pending re-verification within 7 days"        color="err"  />
+        <StatCard icon={XCircle}      label="Failed / under review"  value={`${failed + review}`} sub={`${failed} failed \u00b7 ${review} under review`} color={failed + review > 0 ? "err" : "ok"} />
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -459,9 +768,9 @@ function Aud19Tab() {
           <p className="text-[11px] font-bold text-t3 uppercase tracking-wider mb-3">Outcome distribution</p>
           <div className="space-y-3">
             {[
-              { label: "Passed",       count: passed,          pct: passRate,                          color: "bg-ok",   text: "text-ok"   },
-              { label: "Under review", count: 1,               pct: Math.round(1/total*100),           color: "bg-warn", text: "text-warn" },
-              { label: "Failed",       count: total-passed-1,  pct: Math.round((total-passed-1)/total*100), color: "bg-err",  text: "text-err"  },
+              { label: "Passed",       count: passed, pct: total > 0 ? Math.round((passed / total) * 100) : 0, color: "bg-ok",   text: "text-ok"   },
+              { label: "Under review", count: review, pct: total > 0 ? Math.round((review / total) * 100) : 0, color: "bg-warn", text: "text-warn" },
+              { label: "Failed",       count: failed, pct: total > 0 ? Math.round((failed / total) * 100) : 0, color: "bg-err",  text: "text-err"  },
             ].map((s) => (
               <div key={s.label}>
                 <div className="flex items-center justify-between mb-1">
@@ -476,35 +785,8 @@ function Aud19Tab() {
           </div>
         </div>
         <FailReasonBreakdown />
-        <div className="bg-surface border border-bdr rounded-xl p-4">
-          <p className="text-[11px] font-bold text-t3 uppercase tracking-wider mb-3">Re-verification outcomes</p>
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-3 p-2.5 rounded-lg bg-warn-bg border border-warn-bdr">
-              <AlertTriangle className="w-4 h-4 text-warn shrink-0" />
-              <div>
-                <p className="text-[12px] font-semibold text-t1">Ryan Mitchell (PT-00556)</p>
-                <p className="text-[10.5px] text-t3">Under review · Document quality · Day 4 of 7</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-2.5 rounded-lg bg-err-bg border border-err-bdr">
-              <XCircle className="w-4 h-4 text-err shrink-0" />
-              <div>
-                <p className="text-[12px] font-semibold text-t1">Dana Okafor (PT-00612)</p>
-                <p className="text-[10.5px] text-t3">Failed · Identity mismatch · Manual review required</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-2.5 rounded-lg bg-err-bg border border-err-bdr">
-              <XCircle className="w-4 h-4 text-err shrink-0" />
-              <div>
-                <p className="text-[12px] font-semibold text-t1">Laura Keane (PT-00631)</p>
-                <p className="text-[10.5px] text-t3">Failed · Expired document · Patient re-notified 30 Apr</p>
-              </div>
-            </div>
-          </div>
-          <p className="text-[10px] text-t3 mt-3 pt-2 border-t border-bdr">
-            UK GDPR Article 9 · patient records cannot proceed to clinical check without confirmed identity.
-          </p>
-        </div>
+        <ReVerificationPanel />
+
       </div>
 
       <div>

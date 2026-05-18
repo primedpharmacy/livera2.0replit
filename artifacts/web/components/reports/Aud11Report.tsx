@@ -21,6 +21,70 @@ import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/context";
 import type { Role } from "@/lib/api/types";
 import type { ClinicId } from "@/types";
+import { MOCK_INCIDENTS, MOCK_INCIDENT_COMMENTS, MOCK_PATIENTS } from "@/lib/api/mock";
+
+// ── Derived metrics from MOCK_INCIDENTS / MOCK_INCIDENT_COMMENTS ──────────────
+// All headline stats and table rows below are recomputed from the seeded
+// fixture arrays so that any change to the fixtures flows into the report.
+
+const NOW_MS = Date.UTC(2026, 4, 13);  // 13 May 2026 — report "as-of" date
+function daysSince(iso: string): number {
+  return Math.max(0, Math.floor((NOW_MS - Date.parse(iso)) / 86_400_000));
+}
+function clinicLabel(c: string): "VSC" | "FeelTru" {
+  return c === "vsc" ? "VSC" : "FeelTru";
+}
+function severityKey(s: string): "severe" | "moderate" | "mild" {
+  return s === "severe" || s === "moderate" || s === "mild" ? s : "mild";
+}
+function statusKey(s: string): "open" | "investigating" | "on_hold" | "resolved" {
+  if (s === "open" || s === "investigating" || s === "on_hold" || s === "resolved") return s;
+  return "open";
+}
+function patientName(id: string | null): string {
+  if (!id) return "—";
+  const p = MOCK_PATIENTS.find((x) => x.id === id);
+  return p?.demographic.full_name ?? id;
+}
+const DERIVED_INCIDENT_ROWS = MOCK_INCIDENTS.map((i) => ({
+  id:          i.id,
+  clinic:      clinicLabel(i.clinic_id),
+  patient:     patientName(i.patient_id),
+  patientId:   i.patient_id ?? "",
+  type:        i.incident_type.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
+  severity:    severityKey(i.severity),
+  status:      statusKey(i.status),
+  agedays:     daysSince(i.reported_at),
+  ycRequired:  i.yellow_card_required,
+  ycSubmitted: i.yellow_card_submitted,
+  ycRef:       i.yellow_card_reference,
+  reportedAt:  new Date(i.reported_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+}));
+
+const DERIVED_TOTAL    = MOCK_INCIDENTS.length;
+const DERIVED_VSC      = MOCK_INCIDENTS.filter((i) => i.clinic_id === "vsc").length;
+const DERIVED_FEELTRU  = MOCK_INCIDENTS.filter((i) => i.clinic_id === "feeltru").length;
+const DERIVED_SEVERE   = MOCK_INCIDENTS.filter((i) => i.severity === "severe").length;
+const DERIVED_MODERATE = MOCK_INCIDENTS.filter((i) => i.severity === "moderate").length;
+const DERIVED_MILD     = MOCK_INCIDENTS.filter((i) => i.severity === "mild").length;
+const DERIVED_YC_REQ   = MOCK_INCIDENTS.filter((i) => i.yellow_card_required).length;
+const DERIVED_YC_SENT  = MOCK_INCIDENTS.filter((i) => i.yellow_card_submitted).length;
+const DERIVED_OPEN     = MOCK_INCIDENTS.filter((i) => i.status !== "resolved" && i.status !== "closed").length;
+const DERIVED_OPEN_PCT = Math.round((DERIVED_OPEN / Math.max(1, DERIVED_TOTAL)) * 100);
+const DERIVED_COMMENT_COUNT = MOCK_INCIDENT_COMMENTS.length;
+const DERIVED_AVG_CLOSE_DAYS = (() => {
+  const resolved = MOCK_INCIDENTS.filter((i) => i.status === "resolved");
+  if (!resolved.length) return 0;
+  return +(resolved.reduce((s, i) => s + daysSince(i.reported_at), 0) / resolved.length).toFixed(1);
+})();
+const DERIVED_SEVERITY_DIST = (() => {
+  const total = Math.max(1, DERIVED_TOTAL);
+  return [
+    { label: "Severe",   count: DERIVED_SEVERE,   pct: Math.round((DERIVED_SEVERE   / total) * 100), color: "bg-err",  textColor: "text-err"  },
+    { label: "Moderate", count: DERIVED_MODERATE, pct: Math.round((DERIVED_MODERATE / total) * 100), color: "bg-warn", textColor: "text-warn" },
+    { label: "Mild",     count: DERIVED_MILD,     pct: Math.round((DERIVED_MILD     / total) * 100), color: "bg-info", textColor: "text-info" },
+  ];
+})();
 
 // Mirror of OrderIntercomTab's role mapping: the api-server's clinician
 // guard allow-lists owner/admin/clinician, so we collapse the web's richer
@@ -49,13 +113,9 @@ const VOLUME_TREND = [
   { week: "06 May", count: 3 },
 ];
 
-const SEVERITY_DIST = [
-  { label: "Severe",   count: 2, color: "bg-err",     textColor: "text-err",  pct: 40 },
-  { label: "Moderate", count: 1, color: "bg-warn",    textColor: "text-warn", pct: 20 },
-  { label: "Mild",     count: 2, color: "bg-info",    textColor: "text-info", pct: 40 },
-];
+const SEVERITY_DIST = DERIVED_SEVERITY_DIST;
 
-const INCIDENT_ROWS = [
+const INCIDENT_ROWS = DERIVED_INCIDENT_ROWS.length > 0 ? DERIVED_INCIDENT_ROWS : [
   {
     id:       "INC-005",
     clinic:   "VSC",
@@ -264,31 +324,62 @@ function SeverityDistribution() {
 }
 
 function YellowCardPanel() {
+  // Derived from DERIVED_INCIDENT_ROWS — shows every incident where a Yellow
+  // Card is required; outstanding submissions are marked OVERDUE once the
+  // 15-calendar-day MHRA window has elapsed.
+  const ycRows = DERIVED_INCIDENT_ROWS.filter((r) => r.ycRequired);
+  const YC_WINDOW_DAYS = 15;
   return (
     <div className="bg-surface border border-bdr rounded-xl p-4">
       <p className="text-[11px] font-bold text-t3 uppercase tracking-wider mb-3">
         MHRA Yellow Card status
       </p>
       <div className="space-y-2.5">
-        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-ok-bg border border-ok-bdr">
-          <CheckCircle2 className="w-4 h-4 text-ok shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-t1">INC-005 · Allergic reaction</p>
-            <p className="text-[10.5px] text-t3">MHRA-2026-005891 · Submitted 01 May 2026</p>
-          </div>
-          <span className="text-[9px] font-bold bg-ok text-white px-1.5 py-0.5 rounded shrink-0">FILED</span>
-        </div>
-        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-err-bg border border-err-bdr">
-          <XCircle className="w-4 h-4 text-err shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-t1">INC-002 · Adverse event</p>
-            <p className="text-[10.5px] text-t3">Yellow Card required — not yet submitted · 5 days overdue</p>
-          </div>
-          <span className="text-[9px] font-bold bg-err text-white px-1.5 py-0.5 rounded shrink-0">OVERDUE</span>
-        </div>
+        {ycRows.length === 0 && (
+          <p className="text-[11px] text-t3 italic">
+            No Yellow Card submissions required in the seeded incident set.
+          </p>
+        )}
+        {ycRows.map((r) => {
+          const filed   = r.ycSubmitted && r.ycRef;
+          const overdue = !filed && r.agedays > YC_WINDOW_DAYS;
+          return (
+            <div
+              key={r.id}
+              className={cn(
+                "flex items-center gap-3 p-2.5 rounded-lg border",
+                filed   && "bg-ok-bg border-ok-bdr",
+                overdue && "bg-err-bg border-err-bdr",
+                !filed && !overdue && "bg-warn-bg border-warn-bdr",
+              )}
+            >
+              {filed
+                ? <CheckCircle2 className="w-4 h-4 text-ok shrink-0" />
+                : <XCircle      className="w-4 h-4 text-err shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold text-t1">{r.id} · {r.type}</p>
+                <p className="text-[10.5px] text-t3">
+                  {filed
+                    ? `${r.ycRef} \u00b7 Submitted (incident reported ${r.reportedAt})`
+                    : overdue
+                      ? `Yellow Card required \u2014 not yet submitted \u00b7 ${r.agedays - YC_WINDOW_DAYS} day(s) overdue`
+                      : `Yellow Card required \u2014 ${YC_WINDOW_DAYS - r.agedays} day(s) of submission window remaining`}
+                </p>
+              </div>
+              <span className={cn(
+                "text-[9px] font-bold text-white px-1.5 py-0.5 rounded shrink-0",
+                filed   && "bg-ok",
+                overdue && "bg-err",
+                !filed && !overdue && "bg-warn",
+              )}>
+                {filed ? "FILED" : overdue ? "OVERDUE" : "PENDING"}
+              </span>
+            </div>
+          );
+        })}
       </div>
       <p className="text-[10px] text-t3 mt-3 pt-2 border-t border-bdr">
-        GPhC Standard 1 · MHRA Yellow Card submission required within 15 calendar days of ADR identification
+        GPhC Standard 1 · MHRA Yellow Card submission required within {YC_WINDOW_DAYS} calendar days of ADR identification
       </p>
     </div>
   );
@@ -462,6 +553,9 @@ function OutboundIntercomAuditPanel({ clinicId }: { clinicId: ClinicId }) {
     }
   }
 
+  const userId = user.id;
+  const userName = user.full_name;
+  const userRoles = user.roles;
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/intercom/${clinicId}/audit/outbound?limit=25`, {
@@ -470,9 +564,9 @@ function OutboundIntercomAuditPanel({ clinicId }: { clinicId: ClinicId }) {
         // Same trusted-header contract the outbound write paths use; the
         // api-server's audit/outbound endpoint requires a clinician context
         // before returning any rows.
-        "X-Livera-Role": mapRoleToApi(user.roles),
-        "X-Livera-User-Id": user.id,
-        "X-Livera-User-Name": user.full_name,
+        "X-Livera-Role": mapRoleToApi(userRoles),
+        "X-Livera-User-Id": userId,
+        "X-Livera-User-Name": userName,
       },
     })
       .then(async (res) => {
@@ -486,7 +580,7 @@ function OutboundIntercomAuditPanel({ clinicId }: { clinicId: ClinicId }) {
         if (!cancelled) setError(err instanceof Error ? err.message : "audit_fetch_failed");
       });
     return () => { cancelled = true; };
-  }, [clinicId]);
+  }, [clinicId, userId, userName, userRoles]);
 
   return (
     <div className="bg-surface border border-bdr rounded-xl overflow-hidden">
@@ -598,41 +692,41 @@ export function Aud11Report({ clinicId }: Props) {
         </button>
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards — derived from MOCK_INCIDENTS */}
       <div className="grid grid-cols-5 gap-3">
         <StatCard
           icon={AlertTriangle}
           label="Total incidents (30d)"
-          value="5"
-          sub="VSC: 2 · FeelTru: 3"
+          value={String(DERIVED_TOTAL)}
+          sub={`VSC: ${DERIVED_VSC} · FeelTru: ${DERIVED_FEELTRU}`}
           color="err"
         />
         <StatCard
           icon={ShieldAlert}
           label="Severe"
-          value="2"
-          sub="40% of total · CQC Reg 18 applicable"
+          value={String(DERIVED_SEVERE)}
+          sub={`${Math.round((DERIVED_SEVERE / Math.max(1, DERIVED_TOTAL)) * 100)}% of total · CQC Reg 18 applicable`}
           color="err"
         />
         <StatCard
           icon={Clock}
           label="Avg time-to-close"
-          value="14.2d"
-          sub="Resolved incidents only · target ≤ 10d"
+          value={`${DERIVED_AVG_CLOSE_DAYS}d`}
+          sub={`Resolved incidents only · target \u2264 10d · ${DERIVED_COMMENT_COUNT} comments logged`}
           color="warn"
         />
         <StatCard
           icon={FileText}
           label="Yellow Cards filed"
-          value="1 / 2"
-          sub="1 overdue · GPhC Standard 1"
+          value={`${DERIVED_YC_SENT} / ${DERIVED_YC_REQ}`}
+          sub={`${Math.max(0, DERIVED_YC_REQ - DERIVED_YC_SENT)} outstanding · GPhC Standard 1`}
           color="warn"
         />
         <StatCard
           icon={CheckCircle2}
           label="Open rate"
-          value="80%"
-          sub="4 of 5 incidents still open or in progress"
+          value={`${DERIVED_OPEN_PCT}%`}
+          sub={`${DERIVED_OPEN} of ${DERIVED_TOTAL} incidents still open or in progress`}
           color="brand"
         />
       </div>

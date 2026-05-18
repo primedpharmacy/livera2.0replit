@@ -18,6 +18,15 @@
  *   8. Complaints inbox KPI strip (Task-308 — the complaints inbox is a
  *      high-traffic CQC surface and the five KPI tiles are deterministic
  *      given seeded fixtures + the pinned NOW).
+ *   9. Clinical Check slide-over header (Task-317 — patient + order id
+ *      badge + "Full detail" link; opened by clicking the first queue row).
+ *  10. Orders list table header row (Task-317 — column labels for the
+ *      ORDER | PATIENT | TREATMENT | TYPE | STATUS | LAST UPDATE | ACTION
+ *      grid; anchored on the unique "Last update" column heading).
+ *  11. Welcome calls queue tab bar (Task-317 — five status filter chips
+ *      with their seeded counts).
+ *  12. Complaint detail header strip (Task-317 — CMP-001 id badge,
+ *      status pill, severity pill and Monday/resolve actions).
  *
  * Refreshing baselines (after intentional design changes):
  *   pnpm --filter @workspace/web run test:visual:update
@@ -42,6 +51,7 @@ const CLINIC = 'feeltru';
 const PATIENT_ID = 'PT-00378';
 const INCIDENT_ID = 'INC-001';
 const GP_LETTER_ID = 'GPL-001';
+const COMPLAINT_ID = 'CMP-001';
 const DEMO_USER = 'user_qadir';
 
 function asUrl(path: string): string {
@@ -211,6 +221,98 @@ test.describe('Visual baselines — high-traffic admin screens', () => {
     const bodyCard = bodyHeading.locator('xpath=ancestor::div[contains(@class, "rounded-lg")][1]');
 
     await expect(bodyCard).toHaveScreenshot('gp-letter-body-card.png', {
+      animations: 'disabled',
+      maxDiffPixelRatio: 0.02,
+    });
+  });
+
+  test('clinical check — slide-over header', async ({ page }) => {
+    // Open the Clinical Check queue and click the first row to mount the
+    // 420px slide-over. The slide-over header carries patient name +
+    // order id badge + "Full detail" link + close button — a small,
+    // stable region that surfaces design drift on the busiest review
+    // surface in the app.
+    await page.goto(asUrl(`/${CLINIC}/clinical-check`));
+
+    // Each clinical-check row renders the patient's "PT-NNNNN · ORD-NNNNN"
+    // mono caption. Wait for the first one before clicking.
+    const firstRowCaption = page.locator('text=/PT-\\d{5}\\s*·\\s*ORD-\\d{5}/').first();
+    await expect(firstRowCaption).toBeVisible();
+    await firstRowCaption.click();
+
+    // Slide-over mounts with a "Close panel" aria-label; walk up to the
+    // bordered header strip that wraps the avatar/name/id/full-detail row.
+    const closeBtn = page.getByRole('button', { name: 'Close panel' });
+    await expect(closeBtn).toBeVisible();
+    const slideOverHeader = closeBtn.locator(
+      'xpath=ancestor::div[contains(@class, "border-b")][1]'
+    );
+    // Sanity: the "Full detail" link is part of this header row.
+    await expect(slideOverHeader.getByRole('link', { name: /Full detail/ })).toBeVisible();
+
+    await expect(slideOverHeader).toHaveScreenshot('clinical-check-slideover-header.png', {
+      animations: 'disabled',
+      maxDiffPixelRatio: 0.02,
+    });
+  });
+
+  test('orders list — table header row', async ({ page }) => {
+    await page.goto(asUrl(`/${CLINIC}/orders`));
+
+    // "Last update" is unique to the orders-context column set (the
+    // clinical-check context uses "Waiting" instead), so anchoring on
+    // it scopes us to the right table and ignores any clinical-check
+    // queue rendered elsewhere.
+    const lastUpdateHead = page.getByRole('columnheader', { name: 'Last update' });
+    await expect(lastUpdateHead).toBeVisible();
+    const headerRow = lastUpdateHead.locator('xpath=ancestor::tr[1]');
+    // Sanity: all seven column labels should be present in the row.
+    await expect(headerRow.getByRole('columnheader', { name: 'Order' })).toBeVisible();
+    await expect(headerRow.getByRole('columnheader', { name: 'Action' })).toBeVisible();
+
+    // Slight headroom (0.05) absorbs sub-pixel column-width jitter from
+    // <table> auto-sizing — the body rows below influence the thead's
+    // column widths, so any one-pixel reflow shows up in the diff.
+    await expect(headerRow).toHaveScreenshot('orders-list-table-header.png', {
+      animations: 'disabled',
+      maxDiffPixelRatio: 0.05,
+    });
+  });
+
+  test('welcome calls — queue tab bar', async ({ page }) => {
+    await page.goto(asUrl(`/${CLINIC}/welcome-calls`));
+
+    // The "All" pill is always rendered and uniquely identifies the tab
+    // bar; walk up to its rounded container that wraps all five chips.
+    const allTab = page.getByRole('button', { name: /^All/ });
+    await expect(allTab).toBeVisible();
+    const tabBar = allTab.locator(
+      'xpath=ancestor::div[contains(@class, "rounded-xl")][1]'
+    );
+    // Sanity: the "Unreachable" chip closes out the row.
+    await expect(tabBar.getByRole('button', { name: /Unreachable/ })).toBeVisible();
+
+    await expect(tabBar).toHaveScreenshot('welcome-calls-tab-bar.png', {
+      animations: 'disabled',
+      maxDiffPixelRatio: 0.02,
+    });
+  });
+
+  test('complaint detail — header strip', async ({ page }) => {
+    await page.goto(asUrl(`/${CLINIC}/complaints/${COMPLAINT_ID}`));
+
+    // The header carries the complaint id, status badge, severity pill
+    // and Resync / Resolve / "Open in Monday" controls. Anchor on the
+    // CMP id mono text and walk up to the bordered header strip.
+    const idText = page.getByText(COMPLAINT_ID, { exact: true });
+    await expect(idText).toBeVisible();
+    const header = idText.locator(
+      'xpath=ancestor::div[contains(@class, "border-b")][1]'
+    );
+    // Sanity: the primary "Open in Monday" CTA should be in this row.
+    await expect(header.getByRole('link', { name: /Open in Monday/ })).toBeVisible();
+
+    await expect(header).toHaveScreenshot('complaint-detail-header.png', {
       animations: 'disabled',
       maxDiffPixelRatio: 0.02,
     });

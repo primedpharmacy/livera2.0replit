@@ -12,11 +12,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MOCK_ORDERS, getOrder } from '../orders';
 import {
   MOCK_PATIENTS,
-} from '../patients';
-import {
   confirmBmiEvidence,
   rejectBmiEvidence,
-} from '../patientMutations';
+} from '../patients';
 import { SELF_REPORTED_BMI_FLAG } from '@/lib/clinical/selfReportedBmi';
 import { USERS_REGISTRY, APIError } from '../../constants';
 import type { Order, Patient } from '../../types';

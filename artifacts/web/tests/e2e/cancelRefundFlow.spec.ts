@@ -36,6 +36,11 @@ let server: DevServerHandle;
 
 test.describe('Cancel + refund flow', () => {
   test.beforeAll(async () => {
+    // `next dev` cold-starts can take ~40s on Replit, which exceeds the
+    // default 30s hook timeout. Give the harness room to wait out its own
+    // 120s readiness window so the suite doesn't flake before the first
+    // assertion runs.
+    test.setTimeout(180_000);
     server = await startDevServer();
   });
 
@@ -47,7 +52,7 @@ test.describe('Cancel + refund flow', () => {
     const context = await browser.newContext({ baseURL: server.baseURL });
     const page = await context.newPage();
     try {
-      await page.goto(`${server.baseURL}/${CLINIC}/orders/${CANCELLED_ORDER_ID}`);
+      await page.goto(`${server.baseURL}/${CLINIC}/orders/${CANCELLED_ORDER_ID}?as=user_qadir`);
 
       // Header shows the order id and a Cancelled status badge
       await expect(page.locator('h1', { hasText: CANCELLED_ORDER_ID })).toBeVisible({ timeout: 60_000 });
@@ -69,7 +74,7 @@ test.describe('Cancel + refund flow', () => {
     const context = await browser.newContext({ baseURL: server.baseURL });
     const page = await context.newPage();
     try {
-      await page.goto(`${server.baseURL}/${CLINIC}/amendments/${REFUND_AMENDMENT_ID}`);
+      await page.goto(`${server.baseURL}/${CLINIC}/amendments/${REFUND_AMENDMENT_ID}?as=user_qadir`);
 
       // Header shows the amendment id + the Refund type pill
       await expect(page.locator('h1', { hasText: REFUND_AMENDMENT_ID })).toBeVisible({ timeout: 60_000 });

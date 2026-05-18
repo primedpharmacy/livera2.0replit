@@ -11,11 +11,11 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { MOCK_PATIENTS } from '../patients';
 import {
+  MOCK_PATIENTS,
   updatePatientPhone,
   updatePatientPostcode,
-} from '../patientMutations';
+} from '../patients';
 import { APIError, USERS_REGISTRY } from '../../constants';
 import type { Patient } from '../../types';
 

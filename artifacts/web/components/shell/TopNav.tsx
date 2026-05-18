@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ChevronDown, Keyboard } from "lucide-react";
+import { ChevronDown, Keyboard, LogOut } from "lucide-react";
+import { signOutAction } from "@/lib/auth/actions";
 import { openKeyboardShortcuts } from "@/components/shell/KeyboardShortcutsHelp";
 import {
   DropdownMenu,
@@ -90,6 +91,18 @@ export function TopNav() {
             </span>
           </>
         )}
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            aria-label="Sign out"
+            title="Sign out"
+            data-testid="sign-out"
+            className="flex items-center gap-1 rounded px-2 py-1 text-white/70 hover:text-white hover:bg-white/[0.08] transition-colors outline-none text-[11px] font-medium"
+          >
+            <LogOut className="w-3.5 h-3.5" aria-hidden={true} />
+            <span>Sign out</span>
+          </button>
+        </form>
       </div>
     </header>
   );

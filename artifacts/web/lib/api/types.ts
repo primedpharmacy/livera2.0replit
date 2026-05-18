@@ -518,17 +518,29 @@ export type Order = {
     //   final_reminder_sent_at  — last-chance nudge, ~24h before expires_at
     reminder_sent_at?: string | null;
     final_reminder_sent_at?: string | null;
+    // Task-261 — Attribution for each scheduled-reminder send. `null` means
+    // the daily scheduled job (sendPxUploadReminders) fired the email; a
+    // string is the staff member's user id when a human triggered it via
+    // sendPxUploadReminderNow / retryFailedPxUploadReminder. Undefined on
+    // legacy fixture entries — callers should treat undefined as `null`
+    // (i.e. system-sent) for back-compat.
+    reminder_sent_by_user_id?: string | null;
+    final_reminder_sent_by_user_id?: string | null;
     // Task-129 — Audit trail of failed reminder attempts (Bounced / Failed
     // sends from Postmark). The job pushes one entry per failed attempt so
     // the Order Detail activity timeline can render them with the Postmark
     // error message alongside the successful sends. Successes still flip
     // the dedicated _sent_at idempotency flags above.
+    // Task-261 — `by_user_id` follows the same convention as the per-kind
+    // attribution above: `null` for the scheduled job, a staff user id when
+    // a human triggered the failing attempt.
     reminder_failures?: Array<{
       kind: 'first' | 'final';
       attempted_at: string;   // ISO
       to_email: string;
       status: 'Bounced' | 'Failed';
       error_message: string | null;
+      by_user_id?: string | null;
     }>;
     // Task-175 — Auto-chase bookkeeping for the scheduled job that re-issues
     // an expired (or about-to-expire) upload link without staff effort.

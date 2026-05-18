@@ -425,6 +425,8 @@ const ZARA_ORDER_FEELTRU_PX_PENDING: Order = {
         to_email: 'zara.k@example.com',
         status: 'Bounced',
         error_message: 'Hard bounce — mailbox does not exist (550)',
+        // Task-261 — null = fired by the scheduled reminder job.
+        by_user_id: null,
       },
     ],
   },
@@ -2041,8 +2043,15 @@ export async function sendPxUploadReminderNow(
 
   if (sendResult.status === 'Delivered') {
     // Same idempotency flag the cron flips, so the next sweep skips this order.
-    if (kind === 'first') link.reminder_sent_at = NOW;
-    else                  link.final_reminder_sent_at = NOW;
+    // Task-261 — Record the staff actor so the activity timeline can show
+    // who triggered this nudge instead of attributing it to the system.
+    if (kind === 'first') {
+      link.reminder_sent_at = NOW;
+      link.reminder_sent_by_user_id = actorUserId;
+    } else {
+      link.final_reminder_sent_at = NOW;
+      link.final_reminder_sent_by_user_id = actorUserId;
+    }
     order.updated_at = NOW;
   }
 
@@ -2200,8 +2209,15 @@ export async function retryFailedPxUploadReminder(
   if (sendResult.status === 'Delivered') {
     // Flip the idempotency flag the cron uses so future sweeps skip
     // this order for this reminder kind.
-    if (args.kind === 'first') link.reminder_sent_at = NOW;
-    else                       link.final_reminder_sent_at = NOW;
+    // Task-261 — Stamp the retrying staff member so the activity timeline
+    // attributes the eventual delivery to them rather than the cron.
+    if (args.kind === 'first') {
+      link.reminder_sent_at = NOW;
+      link.reminder_sent_by_user_id = actorUserId;
+    } else {
+      link.final_reminder_sent_at = NOW;
+      link.final_reminder_sent_by_user_id = actorUserId;
+    }
     order.updated_at = NOW;
   } else {
     // Append a fresh failure entry so the timeline shows the new attempt
@@ -2213,6 +2229,8 @@ export async function retryFailedPxUploadReminder(
       to_email:      toEmail,
       status:        sendResult.status,
       error_message: sendResult.error_message ?? null,
+      // Task-261 — Attribution to the staff member who fired this retry.
+      by_user_id:    actorUserId,
     });
     order.updated_at = NOW;
   }

@@ -142,8 +142,15 @@ export async function sendPxUploadReminders(
 
     if (sendResult.status === 'Delivered') {
       // Flip the matching idempotency flag so the next sweep skips this order.
-      if (kind === 'first') link.reminder_sent_at = NOW;
-      else                  link.final_reminder_sent_at = NOW;
+      // Task-261 — Stamp `null` attribution so the activity timeline can show
+      // "by FeelTru reminder job" instead of leaving the actor blank.
+      if (kind === 'first') {
+        link.reminder_sent_at = NOW;
+        link.reminder_sent_by_user_id = null;
+      } else {
+        link.final_reminder_sent_at = NOW;
+        link.final_reminder_sent_by_user_id = null;
+      }
       result.sent.push(outcome);
     } else {
       // Task-129 — Record the failure on the link so the Order Detail
@@ -158,6 +165,8 @@ export async function sendPxUploadReminders(
         to_email:      toEmail,
         status:        sendResult.status,
         error_message: sendResult.error_message ?? null,
+        // Task-261 — `null` = triggered by the scheduled sweep.
+        by_user_id:    null,
       });
       result.failed.push(outcome);
     }

@@ -10,7 +10,14 @@ import { ClinicalCheckSlideOver } from "@/components/clinical-check/ClinicalChec
 import { NOW } from "@/lib/api/constants";
 import { reverseDecision } from "@/lib/api/mock";
 import { openOrderUndoWindow, clearOrderUndoWindow, ORDER_UNDO_WINDOW_MS } from "@/lib/orderUndo";
-import { countReviewNeeded, listFlaggedAnswers, type FlaggedAnswer } from "@/lib/questionnaire";
+import {
+  countReviewNeeded,
+  listFlaggedAnswers,
+  SAFETY_CATEGORIES,
+  SAFETY_CATEGORY_META,
+  type FlaggedAnswer,
+} from "@/lib/questionnaire";
+import type { SafetyCategory } from "@/types";
 import {
   summariseOrderWeightWarnings,
   type OrderWeightWarningState,
@@ -119,6 +126,12 @@ export function ClinicalCheckClient({
 }: ClinicalCheckClientProps) {
   const [subQueue,         setSubQueue]         = useState<SubQueue>("all");
   const [activeChip,       setActiveChip]       = useState<FilterChip>("all");
+  // Task-256 — Multi-select category filter. Empty set means "no filter
+  // applied" (all categories included). When non-empty, only orders with at
+  // least one flagged answer in one of the selected categories survive.
+  const [selectedCategories, setSelectedCategories] = useState<Set<SafetyCategory>>(
+    () => new Set(),
+  );
   const [selectedOrderId,  setSelectedOrderId]  = useState<string | null>(null);
   const [orders,           setOrders]           = useState<Order[]>(initialOrders);
   // Task-136 — Toggle to hide orders where every concerning weight warning has
@@ -331,6 +344,47 @@ export function ClinicalCheckClient({
     return n;
   }, [orders, weightWarningStateByOrderId]);
 
+  // ── Step 1b: safety-category filter ───────────────────────────────────────
+  // Task-256 — Prescribers triaging a busy queue can narrow to e.g. only
+  // cardiac or safeguarding flags. We compute per-category counts from the
+  // current sub-queue (post weight-warning toggle) so the chip numbers always
+  // match what clicking the chip will actually surface.
+  const categoryCountsInSub = useMemo<Record<SafetyCategory, number>>(() => {
+    const counts = SAFETY_CATEGORIES.reduce(
+      (acc, c) => ({ ...acc, [c]: 0 }),
+      {} as Record<SafetyCategory, number>,
+    );
+    for (const o of subFiltered) {
+      const flagged = flaggedAnswersByOrderId[o.id];
+      if (!flagged?.length) continue;
+      const seen = new Set<SafetyCategory>();
+      for (const f of flagged) {
+        if (seen.has(f.category)) continue;
+        seen.add(f.category);
+        counts[f.category]++;
+      }
+    }
+    return counts;
+  }, [subFiltered, flaggedAnswersByOrderId]);
+
+  const categoryFiltered = useMemo(() => {
+    if (selectedCategories.size === 0) return subFiltered;
+    return subFiltered.filter((o) => {
+      const flagged = flaggedAnswersByOrderId[o.id];
+      if (!flagged?.length) return false;
+      return flagged.some((f) => selectedCategories.has(f.category));
+    });
+  }, [subFiltered, selectedCategories, flaggedAnswersByOrderId]);
+
+  const toggleCategory = useCallback((c: SafetyCategory) => {
+    setSelectedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
+  }, []);
+
   // ── Step 2: chip filter (within sub-queue) ────────────────────────────────
   // Orders with safety-flagged "yes" answers are surfaced to the top of the
   // queue so prescribers triage real safety concerns first, then we fall back
@@ -339,32 +393,32 @@ export function ClinicalCheckClient({
     let list: Order[];
     switch (activeChip) {
       case "flagged":
-        list = subFiltered.filter(
+        list = categoryFiltered.filter(
           (o) => o.g6_flags.length > 0 || (o.contextual_flags ?? []).length > 0
         );
         break;
       case "review_needed":
-        list = subFiltered.filter((o) => (reviewNeededByOrderId[o.id] ?? 0) > 0);
+        list = categoryFiltered.filter((o) => (reviewNeededByOrderId[o.id] ?? 0) > 0);
         break;
       case "weight_warning":
-        list = subFiltered.filter(
+        list = categoryFiltered.filter(
           (o) => (weightWarningStateByOrderId[o.id]?.unacknowledged ?? 0) > 0,
         );
         break;
       case "reminder_bounced":
-        list = subFiltered.filter((o) => computeReminderStatus(o)?.state === "bounced");
+        list = categoryFiltered.filter((o) => computeReminderStatus(o)?.state === "bounced");
         break;
       case "mounjaro":
-        list = subFiltered.filter((o) => o.product.medication.toLowerCase() === "mounjaro");
+        list = categoryFiltered.filter((o) => o.product.medication.toLowerCase() === "mounjaro");
         break;
       case "wegovy":
-        list = subFiltered.filter((o) => o.product.medication.toLowerCase() === "wegovy");
+        list = categoryFiltered.filter((o) => o.product.medication.toLowerCase() === "wegovy");
         break;
       case "dose_increase":
-        list = subFiltered.filter((o) => o.contextual_flags?.includes("Dose increase"));
+        list = categoryFiltered.filter((o) => o.contextual_flags?.includes("Dose increase"));
         break;
       default:
-        list = subFiltered;
+        list = categoryFiltered;
     }
     return [...list].sort((a, b) => {
       // Task-136 — Urgency: orders with still-unacknowledged weight warnings
@@ -378,7 +432,7 @@ export function ClinicalCheckClient({
       if (ra !== rb) return rb - ra;
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
-  }, [subFiltered, activeChip, reviewNeededByOrderId, weightWarningStateByOrderId]);
+  }, [categoryFiltered, activeChip, reviewNeededByOrderId, weightWarningStateByOrderId]);
 
   // Keep ref in sync with filtered order ids for keyboard navigation
   useEffect(() => {
@@ -387,7 +441,7 @@ export function ClinicalCheckClient({
 
   // ── Coaching cards (only in "all" sub-queue) ──────────────────────────────
   const coachingCards = useMemo(() => {
-    if (subQueue !== "all" || activeChip !== "all" || !coachingLogsByPatientId) return [];
+    if (subQueue !== "all" || activeChip !== "all" || selectedCategories.size > 0 || !coachingLogsByPatientId) return [];
     const seen = new Set<string>();
     const rows: { patientId: string; patientName: string; logs: CoachingLog[] }[] = [];
     for (const order of filtered.filter((o) => o.type === "reorder")) {
@@ -400,7 +454,7 @@ export function ClinicalCheckClient({
       }
     }
     return rows;
-  }, [subQueue, activeChip, filtered, coachingLogsByPatientId, patientNames]);
+  }, [subQueue, activeChip, selectedCategories, filtered, coachingLogsByPatientId, patientNames]);
 
   const activeSQ = SUB_QUEUES.find((s) => s.value === subQueue)!;
 
@@ -490,6 +544,74 @@ export function ClinicalCheckClient({
         </div>
       )}
 
+      {/* ── Safety category filter (Task-256) ─────────────────────────────── */}
+      {/* Multi-select chips let prescribers slice the queue down to e.g. only
+          cardiac or safeguarding flags. Categories with zero matching orders
+          in the current sub-queue are disabled so the row stays scannable. */}
+      {(() => {
+        const availableCategories = SAFETY_CATEGORIES.filter(
+          (c) => categoryCountsInSub[c] > 0 || selectedCategories.has(c),
+        );
+        if (availableCategories.length === 0) return null;
+        return (
+          <div className="px-6 pt-3 pb-2 border-b border-bdr bg-surface flex items-center gap-2 flex-wrap shrink-0">
+            <span className="text-[11px] font-bold text-t3 uppercase tracking-wider mr-1">
+              Safety category
+            </span>
+            {availableCategories.map((c) => {
+              const meta = SAFETY_CATEGORY_META[c];
+              const count = categoryCountsInSub[c];
+              const active = selectedCategories.has(c);
+              const disabled = count === 0 && !active;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => !disabled && toggleCategory(c)}
+                  disabled={disabled}
+                  aria-pressed={active}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-semibold rounded-full border transition-colors",
+                    active
+                      ? "bg-brand text-white border-brand"
+                      : disabled
+                      ? "bg-surface text-t3 border-bdr opacity-50 cursor-not-allowed"
+                      : `${meta.pillCls} hover:opacity-80`,
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      active ? "bg-white" : meta.dotCls,
+                    )}
+                  />
+                  {meta.label}
+                  {count > 0 && (
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold tabular-nums px-1.5 py-px rounded-full",
+                        active ? "bg-white/20 text-white" : "bg-white/60 text-current",
+                      )}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {selectedCategories.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedCategories(new Set())}
+                className="ml-1 text-[11px] font-semibold text-t2 hover:text-brand underline-offset-2 hover:underline"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ── Filter chips ───────────────────────────────────────────────────── */}
       <div className="px-6 py-2.5 border-b border-bdr bg-surface flex items-center justify-between gap-3 flex-wrap mt-4 shrink-0">
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -499,23 +621,24 @@ export function ClinicalCheckClient({
             // number always matches what the user will see if they click it.
             const subReviewCount =
               chip.value === "review_needed"
-                ? subFiltered.reduce(
+                ? categoryFiltered.reduce(
                     (acc, o) => acc + ((reviewNeededByOrderId[o.id] ?? 0) > 0 ? 1 : 0),
                     0,
                   )
                 : 0;
             const subBouncedCount =
               chip.value === "reminder_bounced"
-                ? subFiltered.reduce(
+                ? categoryFiltered.reduce(
                     (acc, o) => acc + (computeReminderStatus(o)?.state === "bounced" ? 1 : 0),
                     0,
                   )
                 : 0;
             // Task-191 — Scope weight-warning chip count to the current sub-queue
             // so the number matches what the user will see if they click it.
+            // Task-256 — Further scoped to the category filter when active.
             const subWeightWarningCount =
               chip.value === "weight_warning"
-                ? subFiltered.reduce(
+                ? categoryFiltered.reduce(
                     (acc, o) =>
                       acc +
                       ((weightWarningStateByOrderId[o.id]?.unacknowledged ?? 0) > 0 ? 1 : 0),

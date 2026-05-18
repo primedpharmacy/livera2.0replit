@@ -157,22 +157,33 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
 
   // Task-92 — Scheduled Px upload reminders (first nudge ~48h after sent_at,
   // final nudge within 24h of expires_at). Each fires at most once.
+  // Task-261 — Surface whether the reminder came from the scheduled job
+  // (null actor) or a staff member (sendPxUploadReminderNow /
+  // retryFailedPxUploadReminder), mirroring how Task-177 attributes the
+  // manual resends. `undefined` is treated as system-sent for back-compat
+  // with fixture rows written before this field existed.
+  const reminderActorLabel = (userId: string | null | undefined): string => {
+    if (userId == null) return "FeelTru reminder job";
+    return USERS_REGISTRY[userId]?.full_name ?? userId;
+  };
   if (order.px_upload_link?.reminder_sent_at) {
+    const actor = reminderActorLabel(order.px_upload_link.reminder_sent_by_user_id);
     entries.push({
       key: "px_link_reminder",
       dot: "info",
       title: "Px upload reminder emailed to patient",
-      meta: `to ${order.px_upload_link.to_email} · ${formatDateTime(order.px_upload_link.reminder_sent_at)}`,
+      meta: `to ${order.px_upload_link.to_email} · ${formatDateTime(order.px_upload_link.reminder_sent_at)} · by ${actor}`,
       ts: new Date(order.px_upload_link.reminder_sent_at).getTime(),
       subtext: `Reuses the original link · expires ${order.px_upload_link.expires_at.slice(0, 10)}`,
     });
   }
   if (order.px_upload_link?.final_reminder_sent_at) {
+    const actor = reminderActorLabel(order.px_upload_link.final_reminder_sent_by_user_id);
     entries.push({
       key: "px_link_final_reminder",
       dot: "info",
       title: "Final Px upload reminder emailed to patient",
-      meta: `to ${order.px_upload_link.to_email} · ${formatDateTime(order.px_upload_link.final_reminder_sent_at)}`,
+      meta: `to ${order.px_upload_link.to_email} · ${formatDateTime(order.px_upload_link.final_reminder_sent_at)} · by ${actor}`,
       ts: new Date(order.px_upload_link.final_reminder_sent_at).getTime(),
       subtext: `Last chance · link expires ${order.px_upload_link.expires_at.slice(0, 10)}`,
     });
@@ -255,13 +266,18 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
       const showRetry =
         canRetryNow && isLatestForKind && !kindAlreadySent;
 
+      // Task-261 — Attribute each failed attempt to the scheduled job or
+      // the staff member who triggered it (via retryFailedPxUploadReminder
+      // / sendPxUploadReminderNow). Treat undefined as system-sent for
+      // back-compat with fixture rows written before this field existed.
+      const failureActor = reminderActorLabel(failure.by_user_id);
       entries.push({
         key: `px_link_reminder_failed_${idx}`,
         dot: "err",
         title: isFinal
           ? "Final Px upload reminder failed to deliver"
           : "Px upload reminder failed to deliver",
-        meta: `to ${failure.to_email} · ${formatDateTime(failure.attempted_at)} · ${failure.status}`,
+        meta: `to ${failure.to_email} · ${formatDateTime(failure.attempted_at)} · ${failure.status} · by ${failureActor}`,
         ts: new Date(failure.attempted_at).getTime(),
         rationale: failure.error_message ?? "Postmark did not return an error message.",
         reminderRetry: showRetry

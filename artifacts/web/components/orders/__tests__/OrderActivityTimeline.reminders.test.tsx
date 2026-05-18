@@ -106,6 +106,82 @@ describe('OrderActivityTimeline — Task-92 reminders', () => {
     expect(screen.getByText('Postmark 422: InactiveRecipient')).toBeInTheDocument();
   });
 
+  // Task-261 — Reminder rows should make it obvious whether the cron or a
+  // staff member fired the email so the audit trail matches the staff-resend
+  // rows added in Task-177.
+  it('attributes a system-sent reminder to the FeelTru reminder job', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_sent_at: '2026-05-11T08:00:00Z',
+          reminder_sent_by_user_id: null,
+        })}
+      />,
+    );
+    expect(screen.getByText(/by FeelTru reminder job/)).toBeInTheDocument();
+  });
+
+  it('attributes a staff-triggered reminder to the staff member', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_sent_at: '2026-05-11T08:00:00Z',
+          reminder_sent_by_user_id: 'user_claire',
+          final_reminder_sent_at: '2026-05-24T10:00:00Z',
+          final_reminder_sent_by_user_id: null,
+        })}
+      />,
+    );
+    // First reminder (manual) names the staff member (or falls back to the
+    // raw id if USERS_REGISTRY doesn't know them); final reminder (cron)
+    // names the scheduled job.
+    expect(screen.getByText('Px upload reminder emailed to patient')).toBeInTheDocument();
+    expect(screen.getByText('Final Px upload reminder emailed to patient')).toBeInTheDocument();
+    expect(screen.getByText(/by FeelTru reminder job/)).toBeInTheDocument();
+    // The first-reminder row must carry a non-cron actor — either the
+    // resolved full name or the raw id, but not "FeelTru reminder job".
+    const firstReminderRow = screen
+      .getByText('Px upload reminder emailed to patient')
+      .closest('li');
+    expect(firstReminderRow).not.toBeNull();
+    expect(firstReminderRow!.textContent).toMatch(/by (?!FeelTru reminder job)/);
+  });
+
+  it('treats undefined attribution as a system-sent reminder for back-compat', () => {
+    // Legacy fixture rows pre-Task-261 don't carry reminder_sent_by_user_id;
+    // they should still render as "by FeelTru reminder job" rather than
+    // leaking an undefined actor into the meta line.
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({ reminder_sent_at: '2026-05-11T08:00:00Z' })}
+      />,
+    );
+    expect(screen.getByText(/by FeelTru reminder job/)).toBeInTheDocument();
+  });
+
+  it('attributes a failed reminder retry to the staff member who fired it', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_failures: [
+            {
+              kind: 'first',
+              attempted_at: '2026-05-11T08:00:00Z',
+              to_email: 'patient@example.com',
+              status: 'Failed',
+              error_message: 'Postmark 422: InactiveRecipient',
+              by_user_id: 'user_claire',
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText('Px upload reminder failed to deliver')).toBeInTheDocument();
+    // Whether or not USERS_REGISTRY knows the id, the meta line should
+    // include a `by …` suffix referring to that user (not the cron).
+    expect(screen.getByText(/by (?!FeelTru reminder job)/)).toBeInTheDocument();
+  });
+
   it('renders a failed final reminder entry with the Postmark error message', () => {
     render(
       <OrderActivityTimeline

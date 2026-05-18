@@ -40,61 +40,6 @@ export type RetryPatientNotificationsResult = {
   exhausted:        PatientNotification[]; // last attempt and still Failed
 };
 
-/**
- * Task-97 — staff-initiated single-row resend.
- *
- * Resends one Failed notification immediately (bypassing the next_retry_at
- * backoff window) and applies the outcome via the same `applyRetryOutcome`
- * path as the scheduled job, so attempt_count / next_retry_at bookkeeping
- * stays consistent.
- *
- * Refuses to resend rows that are not eligible (wrong clinic, not Failed,
- * already exhausted, missing email_envelope, or Bounced — hard bounces are
- * never retried per retry policy).
- */
-export type ResendOutcome =
-  | { ok: true;  notification: PatientNotification }
-  | { ok: false; reason: 'not_found' | 'not_failed' | 'bounced' | 'exhausted' | 'no_envelope' };
-
-export async function resendFailedPatientNotification(
-  clinicId: ClinicId,
-  notificationId: string,
-): Promise<ResendOutcome> {
-  const notif = MOCK_PATIENT_NOTIFICATIONS.find(
-    (n) => n.id === notificationId && n.clinic_id === clinicId,
-  );
-  if (!notif)                                  return { ok: false, reason: 'not_found' };
-  if (notif.status === 'Bounced')              return { ok: false, reason: 'bounced' };
-  if (notif.status !== 'Failed')               return { ok: false, reason: 'not_failed' };
-  if (notif.attempt_count >= notif.max_attempts) return { ok: false, reason: 'exhausted' };
-  if (!notif.email_envelope)                   return { ok: false, reason: 'no_envelope' };
-
-  const send = await sendPatientEmail(notif.email_envelope);
-
-  applyRetryOutcome(notif, {
-    status:        send.status,
-    error_message: send.error_message ?? null,
-    message_id:    send.message_id,
-  }, NOW);
-
-  console.log('[AUDIT]', {
-    event_type:       'patient_notification_manual_resend',
-    outcome:          send.status,
-    notification_id:  notif.id,
-    patient_id:       notif.patient_id,
-    order_id:         notif.order_id,
-    template:         notif.template,
-    attempt_count:    notif.attempt_count,
-    max_attempts:     notif.max_attempts,
-    message_id:       send.message_id,
-    error_message:    send.error_message ?? null,
-    next_retry_at:    notif.next_retry_at,
-    timestamp:        NOW,
-  });
-
-  return { ok: true, notification: notif };
-}
-
 export async function retryFailedPatientNotifications(
   clinicId: ClinicId,
 ): Promise<RetryPatientNotificationsResult> {

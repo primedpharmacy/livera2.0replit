@@ -323,11 +323,15 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
     (ack.edits ?? []).forEach((edit, editIdx) => {
       const editor = USERS_REGISTRY[edit.edited_by_user_id]?.full_name
         ?? edit.edited_by_user_id;
+      // Task-189 — when the editor isn't the original acknowledger, surface
+      // the override explicitly so the wider team can see who overrode whom.
+      const isOverride = edit.edited_by_user_id !== ack.acknowledged_by_user_id;
+      const titleSuffix = isOverride ? ` — override of ${actor}` : "";
       entries.push({
         key: `weight_warning_ack_${ack.kind}_${ackIdx}_edit_${editIdx}`,
         dot: "info",
-        title: `Weight warning rationale edited — ${label}`,
-        meta: `by ${editor} · ${formatDateTime(edit.edited_at)}`,
+        title: `Weight warning rationale edited — ${label}${titleSuffix}`,
+        meta: `by ${editor}${isOverride ? ` · overriding ${actor}` : ""} · ${formatDateTime(edit.edited_at)}`,
         ts: new Date(edit.edited_at).getTime(),
         rationale: `Updated to: “${edit.new_rationale}” · Previously: “${edit.previous_rationale}”`,
       });
@@ -336,11 +340,16 @@ export function OrderActivityTimeline({ order, onOrderUpdated }: Props) {
     if (ack.reversed_at && ack.reversed_by_user_id) {
       const reverser = USERS_REGISTRY[ack.reversed_by_user_id]?.full_name
         ?? ack.reversed_by_user_id;
+      // Task-189 — same here: a reversal recorded by someone other than the
+      // original acknowledger is an override, and the timeline should name
+      // both the actor and the colleague whose ack was overridden.
+      const isOverride = ack.reversed_by_user_id !== ack.acknowledged_by_user_id;
+      const titleSuffix = isOverride ? ` — override of ${actor}` : "";
       entries.push({
         key: `weight_warning_ack_${ack.kind}_${ackIdx}_undone`,
         dot: "neutral",
-        title: `Weight warning acknowledgement undone — ${label}`,
-        meta: `by ${reverser} · ${formatDateTime(ack.reversed_at)}`,
+        title: `Weight warning acknowledgement undone — ${label}${titleSuffix}`,
+        meta: `by ${reverser}${isOverride ? ` · overriding ${actor}` : ""} · ${formatDateTime(ack.reversed_at)}`,
         ts: new Date(ack.reversed_at).getTime(),
         rationale: ack.reversal_reason ?? null,
       });

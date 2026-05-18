@@ -32,6 +32,7 @@ import {
   acknowledgeWeightWarning,
   editWeightWarningAcknowledgement,
   undoWeightWarningAcknowledgement,
+  CURRENT_USER,
   USERS_REGISTRY,
 } from "@/lib/api/mock";
 import type { Order, ClinicId } from "@/types";
@@ -79,7 +80,14 @@ export function WeightWarningChips({
   );
 }
 
-type FormMode = "none" | "acknowledge" | "edit" | "undo";
+type FormMode =
+  | "none"
+  // Task-189 — a clinician who didn't record the original ack must explicitly
+  // confirm the override before the Edit/Undo affordances unlock.
+  | "override_confirm"
+  | "acknowledge"
+  | "edit"
+  | "undo";
 
 function WeightWarningChip({
   order,
@@ -116,6 +124,13 @@ function WeightWarningChip({
   if (ack) {
     const who = USERS_REGISTRY[ack.acknowledged_by_user_id]?.full_name
       ?? ack.acknowledged_by_user_id;
+    // Task-189 — only the clinician who recorded the acknowledgement gets the
+    // Edit/Undo buttons by default. Everyone else with `decide` permission has
+    // to step through an "override teammate's acknowledgement" confirmation,
+    // and the resulting API call carries `override: true` so the audit
+    // timeline can capture that the chip was flipped by a different reviewer.
+    const isOwnAck = ack.acknowledged_by_user_id === CURRENT_USER.id;
+    const isOverride = !isOwnAck;
     return (
       <div className="inline-flex flex-wrap items-start gap-1.5">
         <span
@@ -139,7 +154,7 @@ function WeightWarningChip({
             <span className="ml-1 italic">(edited)</span>
           ) : null}
         </span>
-        {canAcknowledge && mode === "none" && (
+        {canAcknowledge && mode === "none" && isOwnAck && (
           <div className="inline-flex items-center gap-2 pt-0.5">
             <button
               type="button"
@@ -165,12 +180,72 @@ function WeightWarningChip({
             </button>
           </div>
         )}
+        {canAcknowledge && mode === "none" && !isOwnAck && (
+          <button
+            type="button"
+            onClick={() => {
+              setMode("override_confirm");
+              setText("");
+              setError(null);
+            }}
+            className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-warn hover:underline pt-0.5"
+          >
+            <AlertTriangle className="w-3 h-3" /> Override teammate&rsquo;s acknowledgement
+          </button>
+        )}
+        {mode === "override_confirm" && (
+          <div className="w-full mt-1 rounded-md border border-warn-bdr bg-warn-bg p-2">
+            <p className="text-[11px] font-semibold text-t1 mb-1">
+              This acknowledgement was recorded by {who}.
+            </p>
+            <p className="text-[10.5px] text-t2 leading-snug">
+              Overriding will flip the chip back to unreviewed for the whole
+              team (or replace their rationale) and the audit timeline will
+              show that you overrode {who}. Continue?
+            </p>
+            <div className="mt-1.5 flex items-center justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={reset}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-t2 px-2 py-1 rounded hover:bg-page-bg"
+              >
+                <X className="w-3 h-3" /> Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("edit");
+                  setText(ack.rationale);
+                  setError(null);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand border border-brand/40 px-2 py-1 rounded hover:bg-brand/5"
+              >
+                <Pencil className="w-3 h-3" /> Override &amp; edit rationale
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("undo");
+                  setText("");
+                  setError(null);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-warn hover:bg-warn/90 px-2.5 py-1 rounded"
+              >
+                <Undo2 className="w-3 h-3" /> Override &amp; undo
+              </button>
+            </div>
+          </div>
+        )}
         {(mode === "edit" || mode === "undo") && (
           <InlineForm
             label={
               mode === "edit"
-                ? "Update the rationale for this acknowledgement"
-                : "Why are you undoing this acknowledgement?"
+                ? isOverride
+                  ? `Override ${who}'s rationale — capture why you're changing it`
+                  : "Update the rationale for this acknowledgement"
+                : isOverride
+                  ? `Override ${who}'s acknowledgement — why are you undoing it?`
+                  : "Why are you undoing this acknowledgement?"
             }
             placeholder={
               mode === "edit"
@@ -182,12 +257,17 @@ function WeightWarningChip({
             submitting={submitting}
             error={error}
             onCancel={reset}
-            submitLabel={mode === "edit" ? "Save changes" : "Undo acknowledgement"}
+            submitLabel={
+              mode === "edit"
+                ? isOverride ? "Save override" : "Save changes"
+                : isOverride ? "Override & undo" : "Undo acknowledgement"
+            }
             submitIcon={mode === "edit" ? "save" : "undo"}
             onSubmit={async () => {
               setSubmitting(true);
               setError(null);
               try {
+                const overrideOpts = isOverride ? { override: true } : undefined;
                 const updated =
                   mode === "edit"
                     ? await editWeightWarningAcknowledgement(
@@ -195,12 +275,14 @@ function WeightWarningChip({
                         order.id,
                         warning.kind,
                         text,
+                        overrideOpts,
                       )
                     : await undoWeightWarningAcknowledgement(
                         clinicId,
                         order.id,
                         warning.kind,
                         text,
+                        overrideOpts,
                       );
                 reset();
                 onAcknowledged?.(updated);

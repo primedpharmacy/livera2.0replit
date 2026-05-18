@@ -11,25 +11,14 @@
  * All numbers are realistic and consistent with the seeded fixture data.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   AlertTriangle, ShieldAlert, Clock, FileText,
   TrendingUp, Download, CheckCircle2, XCircle,
-  ChevronUp, ChevronDown, MessageSquare,
+  ChevronUp, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCurrentUser } from "@/lib/context";
-import type { Role } from "@/lib/api/types";
 import type { ClinicId } from "@/types";
-
-// Mirror of OrderIntercomTab's role mapping: the api-server's clinician
-// guard allow-lists owner/admin/clinician, so we collapse the web's richer
-// Role union to one of those three values for the trusted-header contract.
-function mapRoleToApi(roles: Role[]): "owner" | "admin" | "clinician" {
-  if (roles.includes("Owner")) return "owner";
-  if (roles.includes("Admin")) return "admin";
-  return "clinician";
-}
 
 // ── Static mock data ──────────────────────────────────────────────────────────
 
@@ -392,138 +381,11 @@ function IncidentTable() {
   );
 }
 
-// ── Outbound Intercom audit panel ─────────────────────────────────────────────
-// Reads the durable `intercom_audit` rows surfaced by the api-server at
-// /api/intercom/:clinic_id/audit/outbound. This is the audit-report side of
-// task #142 — outbound clinician messages now show up alongside the other
-// audited actions in this report (and survive api-server restarts, unlike
-// the structured "intercom_outbound" pino log line that fed the previous
-// short-term view).
-
-type OutboundAuditRow = {
-  id: number;
-  event: "intercom.reply" | "intercom.create";
-  clinic_id: string;
-  patient_id: string;
-  conversation_id: string | null;
-  actor_id: string;
-  actor_name: string;
-  actor_role: string;
-  body_byte_length: number;
-  subject_length: number | null;
-  occurred_at: number;
-};
-
-function OutboundIntercomAuditPanel({ clinicId }: { clinicId: ClinicId }) {
-  const user = useCurrentUser();
-  const [rows, setRows]   = useState<OutboundAuditRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/intercom/${clinicId}/audit/outbound?limit=25`, {
-      cache: "no-store",
-      headers: {
-        // Same trusted-header contract the outbound write paths use; the
-        // api-server's audit/outbound endpoint requires a clinician context
-        // before returning any rows.
-        "X-Livera-Role": mapRoleToApi(user.roles),
-        "X-Livera-User-Id": user.id,
-        "X-Livera-User-Name": user.full_name,
-      },
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`audit_fetch_failed_${res.status}`);
-        return (await res.json()) as { rows: OutboundAuditRow[] };
-      })
-      .then((body) => {
-        if (!cancelled) setRows(body.rows);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "audit_fetch_failed");
-      });
-    return () => { cancelled = true; };
-  }, [clinicId]);
-
-  return (
-    <div className="bg-surface border border-bdr rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-bdr">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="w-3.5 h-3.5 text-brand" />
-          <p className="text-[11px] font-bold text-t3 uppercase tracking-wider">
-            Outbound clinician messages (Intercom)
-          </p>
-        </div>
-        <span className="text-[10px] text-t3">
-          Durable audit · most recent 25 · survives server restarts
-        </span>
-      </div>
-      {error ? (
-        <p className="p-4 text-[11px] text-err">
-          Failed to load outbound audit ({error}). The audit row is still in the database.
-        </p>
-      ) : rows === null ? (
-        <p className="p-4 text-[11px] text-t3">Loading outbound audit…</p>
-      ) : rows.length === 0 ? (
-        <p className="p-4 text-[11px] text-t3">
-          No outbound clinician messages recorded for this clinic yet.
-        </p>
-      ) : (
-        <table className="w-full text-[12px]">
-          <thead className="bg-page-bg border-b border-bdr">
-            <tr>
-              <th className="text-left text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3">When</th>
-              <th className="text-left text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3">Action</th>
-              <th className="text-left text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3">Patient</th>
-              <th className="text-left text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3">Conversation</th>
-              <th className="text-left text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3">Actor</th>
-              <th className="text-right text-[10px] font-bold text-t3 uppercase tracking-wider py-2 px-3">Bytes</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-bdr">
-            {rows.map((r) => {
-              const when = new Date(r.occurred_at * 1000);
-              return (
-                <tr key={r.id} className="hover:bg-page-bg/60 transition-colors">
-                  <td className="py-2 px-3 text-t2 tabular-nums">
-                    {when.toLocaleString("en-GB", {
-                      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-                    })}
-                  </td>
-                  <td className="py-2 px-3">
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-info-bg text-info border-info-bdr">
-                      {r.event === "intercom.reply" ? "Reply" : "New conversation"}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3 font-mono text-[11px] text-t2">{r.patient_id}</td>
-                  <td className="py-2 px-3 font-mono text-[11px] text-t3">
-                    {r.conversation_id ?? "—"}
-                  </td>
-                  <td className="py-2 px-3">
-                    <p className="text-t1 font-semibold">{r.actor_name}</p>
-                    <p className="text-[10px] text-t3 capitalize">{r.actor_role}</p>
-                  </td>
-                  <td className="py-2 px-3 text-right text-t2 tabular-nums">
-                    {r.body_byte_length}
-                    {r.subject_length !== null && (
-                      <span className="text-t3"> · subj {r.subject_length}</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface Props { clinicId: ClinicId }
 
-export function Aud11Report({ clinicId }: Props) {
+export function Aud11Report({ clinicId: _clinicId }: Props) {
   return (
     <div className="p-6 space-y-6">
 
@@ -591,15 +453,6 @@ export function Aud11Report({ clinicId }: Props) {
           sub="All incidents · last 30 days · sortable by severity, status, age"
         />
         <IncidentTable />
-      </div>
-
-      {/* Outbound Intercom audit — live from api-server */}
-      <div>
-        <SectionHeader
-          title="Outbound clinician messages"
-          sub="Replies and new conversations sent from this clinic · durable Intercom audit"
-        />
-        <OutboundIntercomAuditPanel clinicId={clinicId} />
       </div>
 
       {/* Escalation outcomes */}

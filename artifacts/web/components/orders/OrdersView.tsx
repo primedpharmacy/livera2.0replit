@@ -10,12 +10,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { OrderListFilters } from "./OrderListFilters";
 import { OrderListTable } from "./OrderListTable";
+import { ApproveConfirmModal } from "./ApproveConfirmModal";
+import { DeclineConfirmModal } from "./DeclineConfirmModal";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLegend";
 import { saveQueue } from "@/lib/queueNavigation";
-import { Package, Clock, ArrowRight } from "lucide-react";
+import { Package, Clock, ArrowRight, CheckCircle, AlertTriangle } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
-import type { Order, Clinic } from "@/types";
+import { decideOrder, createClinicalNote, CURRENT_USER } from "@/lib/api/mock";
+import { can } from "@/lib/permissions";
+import type { AIDraftResult } from "@/components/clinical-notes/AINoteDraftingModal";
+import type { Order, Clinic, ClinicId } from "@/types";
+
+type Decision = "approved" | "declined";
 
 interface OrdersViewProps {
   initialOrders: Order[];
@@ -29,13 +36,83 @@ type ViewTab = "active" | "expired";
 export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} }: OrdersViewProps) {
   const router = useRouter();
   const [viewTab, setViewTab] = useState<ViewTab>("active");
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [filtered, setFiltered] = useState<Order[]>(() =>
     initialOrders.filter((o) => o.status !== "expired")
   );
   const [focusedIdx, setFocusedIdx] = useState(-1);
 
-  const activeOrders  = useMemo(() => initialOrders.filter((o) => o.status !== "expired"), [initialOrders]);
-  const expiredOrders = useMemo(() => initialOrders.filter((o) => o.status === "expired"), [initialOrders]);
+  // Keep local orders state in sync if the server-provided list changes.
+  useEffect(() => {
+    setOrders(initialOrders);
+  }, [initialOrders]);
+
+  const activeOrders  = useMemo(() => orders.filter((o) => o.status !== "expired"), [orders]);
+  const expiredOrders = useMemo(() => orders.filter((o) => o.status === "expired"), [orders]);
+
+  // ── Inline approve/decline (Task-152) ─────────────────────────────────────
+  // Power-users can press A/D on a highlighted order in the queue to open the
+  // same confirmation modals used by the Clinical Check slide-over, without
+  // leaving the list.
+  const [approveOrder, setApproveOrder] = useState<Order | null>(null);
+  const [declineOrder, setDeclineOrder] = useState<Order | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [decisionToast, setDecisionToast] = useState<
+    { type: "ok" | "err"; message: string } | null
+  >(null);
+
+  useEffect(() => {
+    if (!decisionToast) return;
+    const t = setTimeout(() => setDecisionToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [decisionToast]);
+
+  const canDecideOrders = can(CURRENT_USER, "decide", "orders");
+
+  // Mirrors the 3-layer chain used by ClinicalCheckSlideOver: create the
+  // clinical note (with AI audit fields when applicable), then call decideOrder.
+  const handleDecideWithNote = useCallback(
+    async (
+      target: Order,
+      decision: Decision,
+      body: string,
+      aiData?: Omit<AIDraftResult, "body">,
+    ) => {
+      setIsSubmitting(true);
+      try {
+        await createClinicalNote(clinicId as ClinicId, {
+          patient_id:                 target.patient_id,
+          order_id:                   target.id,
+          body,
+          approval_gate_for_order_id: decision === "approved" ? target.id : null,
+          ai_drafted:                 aiData?.ai_drafted ?? false,
+          ai_draft_original:          aiData?.ai_draft_original ?? null,
+          ai_prompt_version_id:       aiData?.prompt_version_id ?? null,
+          ai_draft_accepted_at:       aiData?.ai_drafted ? NOW : null,
+          ai_draft_edited_by:         aiData?.ai_drafted ? CURRENT_USER.id : null,
+        });
+        const updated = await decideOrder(clinicId as ClinicId, target.id, decision, body);
+        setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+        setApproveOrder(null);
+        setDeclineOrder(null);
+        setDecisionToast({
+          type: decision === "approved" ? "ok" : "err",
+          message:
+            decision === "approved"
+              ? `Order ${target.id} approved.`
+              : `Order ${target.id} declined — patient notified.`,
+        });
+      } catch (err) {
+        setDecisionToast({
+          type: "err",
+          message: err instanceof Error ? err.message : "Action failed. Please retry.",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [clinicId],
+  );
 
   const handleFilter = useCallback((results: Order[]) => {
     setFiltered(results);
@@ -72,6 +149,8 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Don't intercept while a decision modal is open — the modal owns the keys.
+      if (approveOrder || declineOrder) return;
       if (visibleOrders.length === 0) return;
       if (e.key === "ArrowDown" || e.key === "j" || e.key === "J") {
         e.preventDefault();
@@ -84,11 +163,23 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
           e.preventDefault();
           router.push(`/${clinicId}/orders/${visibleOrders[focusedIdx].id}`);
         }
+      } else if (e.key === "a" || e.key === "A" || e.key === "d" || e.key === "D") {
+        // Task-152 — inline approve/decline for highlighted order.
+        if (!canDecideOrders || isSubmitting) return;
+        if (focusedIdx < 0 || focusedIdx >= visibleOrders.length) return;
+        const order = visibleOrders[focusedIdx];
+        if (order.status !== "clinical_check") return;
+        e.preventDefault();
+        if (e.key === "a" || e.key === "A") {
+          setApproveOrder(order);
+        } else {
+          setDeclineOrder(order);
+        }
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [visibleOrders, focusedIdx, router, clinicId]);
+  }, [visibleOrders, focusedIdx, router, clinicId, canDecideOrders, isSubmitting, approveOrder, declineOrder]);
 
   const focusedOrderId =
     focusedIdx >= 0 && focusedIdx < visibleOrders.length
@@ -100,17 +191,17 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
   const oneDayMs = 86_400_000;
 
   const kpis = {
-    all:           initialOrders.length,
-    clinicalCheck: initialOrders.filter((o) => o.status === "clinical_check").length,
-    newIntakes:    initialOrders.filter((o) => o.id.startsWith("ORD-INTAKE-") && o.status === "clinical_check").length,
-    awaitingRx:    initialOrders.filter((o) => o.status === "received").length,
-    approvedToday: initialOrders.filter((o) => {
+    all:           orders.length,
+    clinicalCheck: orders.filter((o) => o.status === "clinical_check").length,
+    newIntakes:    orders.filter((o) => o.id.startsWith("ORD-INTAKE-") && o.status === "clinical_check").length,
+    awaitingRx:    orders.filter((o) => o.status === "received").length,
+    approvedToday: orders.filter((o) => {
       if (!o.clinical_decision) return false;
       const dt = new Date(o.clinical_decision.decided_at).getTime();
       return now - dt < oneDayMs;
     }).length,
-    inTransit:     initialOrders.filter((o) => o.status === "dispatched").length,
-    expired:       initialOrders.filter((o) => o.status === "expired").length,
+    inTransit:     orders.filter((o) => o.status === "dispatched").length,
+    expired:       orders.filter((o) => o.status === "expired").length,
   };
 
   return (
@@ -179,8 +270,10 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
                 <div className="mb-2 flex justify-end">
                   <KeyboardShortcutLegend
                     shortcuts={[
-                      { keys: ["↑", "↓"], label: "navigate" },
+                      { keys: ["↑", "↓", "j", "k"], label: "navigate" },
                       { keys: ["↵"],      label: "open order" },
+                      { keys: ["A"],      label: "approve" },
+                      { keys: ["D"],      label: "decline" },
                     ]}
                   />
                 </div>
@@ -196,6 +289,59 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
             )}
           </div>
         </>
+      )}
+
+      {/* ── Inline approve/decline modals (Task-152) ───────────────────────── */}
+      {approveOrder && (
+        <ApproveConfirmModal
+          open={true}
+          onClose={() => setApproveOrder(null)}
+          orderId={approveOrder.id}
+          patientName={patientNames[approveOrder.patient_id] ?? approveOrder.patient_id}
+          clinic={clinic}
+          clinicId={clinicId as ClinicId}
+          isSubmitting={isSubmitting}
+          blockedReason={
+            (approveOrder.contextual_flags?.includes("Px upload pending") ?? false) &&
+            approveOrder.px_upload == null
+              ? "GLP-1 prescription upload required from patient before approval"
+              : null
+          }
+          onApprove={(note, aiData) =>
+            handleDecideWithNote(approveOrder, "approved", note, aiData)
+          }
+        />
+      )}
+      {declineOrder && (
+        <DeclineConfirmModal
+          open={true}
+          onClose={() => setDeclineOrder(null)}
+          orderId={declineOrder.id}
+          patientName={patientNames[declineOrder.patient_id] ?? declineOrder.patient_id}
+          clinic={clinic}
+          clinicId={clinicId as ClinicId}
+          isSubmitting={isSubmitting}
+          onDecline={(note, aiData) =>
+            handleDecideWithNote(declineOrder, "declined", note, aiData)
+          }
+        />
+      )}
+
+      {decisionToast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border text-[13px] font-medium ${
+            decisionToast.type === "ok"
+              ? "bg-ok-bg border-ok-bdr text-ok"
+              : "bg-err-bg border-err-bdr text-err"
+          }`}
+        >
+          {decisionToast.type === "ok" ? (
+            <CheckCircle className="w-4 h-4 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+          )}
+          {decisionToast.message}
+        </div>
       )}
 
       {/* ── Expired tab (BLD-4.6.4) ────────────────────────────────────────── */}
@@ -226,7 +372,7 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
                 <div className="flex justify-end">
                   <KeyboardShortcutLegend
                     shortcuts={[
-                      { keys: ["↑", "↓"], label: "navigate" },
+                      { keys: ["↑", "↓", "j", "k"], label: "navigate" },
                       { keys: ["↵"],      label: "open order" },
                     ]}
                   />

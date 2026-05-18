@@ -29,6 +29,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["J"], label: "Next order (vim-style)" },
       { keys: ["K"], label: "Previous order (vim-style)" },
       { keys: ["↵"], label: "Open the highlighted order" },
+      { keys: ["A"], label: "Approve the highlighted order" },
+      { keys: ["D"], label: "Decline the highlighted order" },
     ],
   },
   {

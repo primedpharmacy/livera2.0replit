@@ -24,8 +24,20 @@ import { test, expect } from '@playwright/test';
 const CLINIC = 'feeltru';
 const CANCELLED_ORDER_ID = 'ORD-00450';
 const REFUND_AMENDMENT_ID = 'AMEND-003';
+const UNLOCKED_DEMO_USER = 'user_qadir'; // Admin — can_refund=true
 const LOCKED_DEMO_USER = 'user_olwyn'; // Coach — no can_refund flag
 const DEMO_USER_STORAGE_KEY = 'livera:demo-current-user-id';
+
+// The dev-mode middleware (`artifacts/web/middleware.ts`) redirects
+// unauthenticated traffic to `/sign-in`. The `?as=<persona>` query param
+// short-circuits that: the middleware mints a session cookie for the named
+// persona, then 307-redirects to the same URL with the param stripped. So
+// these helpers keep the rendered URL (and therefore the visual baseline)
+// identical to a manually-signed-in browser, while making the spec runnable
+// from a fresh CI browser context with no pre-existing cookies.
+function urlAs(path: string, persona: string): string {
+  return `${path}?as=${persona}`;
+}
 
 test.describe('Visual baselines — cancel + refund flow', () => {
   test.use({
@@ -34,7 +46,7 @@ test.describe('Visual baselines — cancel + refund flow', () => {
   });
 
   test('cancelled order banner — ORD-00450', async ({ page }) => {
-    await page.goto(`/${CLINIC}/orders/${CANCELLED_ORDER_ID}`);
+    await page.goto(urlAs(`/${CLINIC}/orders/${CANCELLED_ORDER_ID}`, UNLOCKED_DEMO_USER));
 
     // Anchor on the banner copy so we don't race the page render.
     const banner = page
@@ -53,7 +65,7 @@ test.describe('Visual baselines — cancel + refund flow', () => {
   });
 
   test('refund authority — unlocked (AMEND-003 as Qadir)', async ({ page }) => {
-    await page.goto(`/${CLINIC}/amendments/${REFUND_AMENDMENT_ID}`);
+    await page.goto(urlAs(`/${CLINIC}/amendments/${REFUND_AMENDMENT_ID}`, UNLOCKED_DEMO_USER));
 
     // The Refund Authority DCard contains the title text; scope to that card.
     const refundCard = page
@@ -74,13 +86,15 @@ test.describe('Visual baselines — cancel + refund flow', () => {
   test('refund authority — locked (AMEND-003 as a non-authority user)', async ({ page, context }) => {
     // Seed the demo-user localStorage key before the app boots so the
     // CurrentUserProvider picks up the locked-state user on first render.
+    // We also use `?as=user_olwyn` to mint a matching session cookie so the
+    // dev-mode auth middleware doesn't bounce the request to /sign-in.
     await context.addInitScript(
       ([key, id]) => {
         try { window.localStorage.setItem(key, id); } catch { /* ignore */ }
       },
       [DEMO_USER_STORAGE_KEY, LOCKED_DEMO_USER]
     );
-    await page.goto(`/${CLINIC}/amendments/${REFUND_AMENDMENT_ID}`);
+    await page.goto(urlAs(`/${CLINIC}/amendments/${REFUND_AMENDMENT_ID}`, LOCKED_DEMO_USER));
 
     const lockedCard = page
       .locator('section, div')

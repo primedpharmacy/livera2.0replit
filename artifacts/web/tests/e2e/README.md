@@ -22,6 +22,33 @@ PLAYWRIGHT_BASE_URL=http://localhost \
   pnpm --filter @workspace/web exec playwright test tests/e2e/intercomWebhookLive.spec.ts
 ```
 
+## Visual baselines (cancel + refund flow)
+
+`cancelRefundFlow.visual.spec.ts` snapshots three locator-scoped regions of
+the cancel + refund flow (see the header comment in the spec). It is wired
+into the project's validation pipeline as the `web-test-visual` check, so
+every change runs:
+
+```bash
+pnpm --filter @workspace/web run test:visual
+```
+
+A non-zero exit fails the validation run and blocks merge. The wrapper
+command prints a pointer to the update recipe when that happens.
+
+If a diff is intentional (deliberate copy / layout / icon change), refresh
+the baselines and commit the updated PNGs:
+
+```bash
+pnpm --filter @workspace/web run test:visual:update
+git add artifacts/web/tests/e2e/cancelRefundFlow.visual.spec.ts-snapshots/
+```
+
+`playwright.config.ts` will boot its own `next dev` on `$PORT` when no
+existing server is listening (`reuseExistingServer: true`), so the visual
+check works both from a fresh CI container and against an already-running
+`web` workflow.
+
 ## Environment / system libraries
 
 Playwright's bundled Chromium needs a long tail of Linux libraries

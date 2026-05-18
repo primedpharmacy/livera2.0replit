@@ -15,11 +15,12 @@ import { DeclineConfirmModal } from "./DeclineConfirmModal";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLegend";
 import { saveQueue } from "@/lib/queueNavigation";
-import { Package, Clock, ArrowRight, CheckCircle, AlertTriangle } from "lucide-react";
+import { Package, Clock, ArrowRight, CheckCircle, AlertTriangle, Undo2 } from "lucide-react";
 import { NOW } from "@/lib/api/constants";
-import { decideOrder, CURRENT_USER } from "@/lib/api/mock";
+import { decideOrder, reverseDecision, CURRENT_USER } from "@/lib/api/mock";
 import { createClinicalNoteAction } from "@/lib/actions/clinicalNoteActions";
 import { can } from "@/lib/permissions";
+import { openOrderUndoWindow, clearOrderUndoWindow, ORDER_UNDO_WINDOW_MS } from "@/lib/orderUndo";
 import type { AIDraftResult } from "@/components/clinical-notes/AINoteDraftingModal";
 import type { Order, Clinic, ClinicId } from "@/types";
 
@@ -58,15 +59,65 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
   const [approveOrder, setApproveOrder] = useState<Order | null>(null);
   const [declineOrder, setDeclineOrder] = useState<Order | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [decisionToast, setDecisionToast] = useState<
-    { type: "ok" | "err"; message: string } | null
-  >(null);
+  // Task-227 — Mirror the ClinicalCheckClient Undo pattern so misclicks from
+  // the Orders list inline A/D shortcuts can be reversed within a short window.
+  const [undoToast, setUndoToast] = useState<{
+    orderId: string;
+    decision: Decision;
+    snapshot: Order;
+    expiresAt: number;
+  } | null>(null);
+  const [undoRemainingMs, setUndoRemainingMs] = useState(0);
+  const [isUndoing, setIsUndoing] = useState(false);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!decisionToast) return;
-    const t = setTimeout(() => setDecisionToast(null), 4000);
+    if (!errorToast) return;
+    const t = setTimeout(() => setErrorToast(null), 4000);
     return () => clearTimeout(t);
-  }, [decisionToast]);
+  }, [errorToast]);
+
+  // Countdown + auto-dismiss for the Undo toast.
+  useEffect(() => {
+    if (!undoToast) return;
+    const tick = () => {
+      const left = undoToast.expiresAt - Date.now();
+      if (left <= 0) {
+        clearOrderUndoWindow(undoToast.orderId);
+        setUndoToast(null);
+        setUndoRemainingMs(0);
+      } else {
+        setUndoRemainingMs(left);
+      }
+    };
+    const interval = setInterval(tick, 100);
+    return () => clearInterval(interval);
+  }, [undoToast]);
+
+  const handleUndo = useCallback(async () => {
+    if (!undoToast || isUndoing) return;
+    setIsUndoing(true);
+    const { snapshot } = undoToast;
+    try {
+      await reverseDecision(clinicId as ClinicId, snapshot.id);
+      setOrders((prev) => {
+        const restored: Order = {
+          ...snapshot,
+          status: "clinical_check",
+          clinical_decision: null,
+          intervention_raised_at: null,
+        };
+        return prev.map((o) => (o.id === restored.id ? restored : o));
+      });
+      clearOrderUndoWindow(snapshot.id);
+      setUndoToast(null);
+      setUndoRemainingMs(0);
+    } catch (err) {
+      setErrorToast(err instanceof Error ? err.message : "Undo failed. Please retry.");
+    } finally {
+      setIsUndoing(false);
+    }
+  }, [undoToast, isUndoing, clinicId]);
 
   const canDecideOrders = can(CURRENT_USER, "decide", "orders");
 
@@ -92,22 +143,21 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
           ai_draft_accepted_at:       aiData?.ai_drafted ? NOW : null,
           ai_draft_edited_by:         aiData?.ai_drafted ? CURRENT_USER.id : null,
         });
+        const snapshot = target;
         const updated = await decideOrder(clinicId as ClinicId, target.id, decision, body);
         setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
         setApproveOrder(null);
         setDeclineOrder(null);
-        setDecisionToast({
-          type: decision === "approved" ? "ok" : "err",
-          message:
-            decision === "approved"
-              ? `Order ${target.id} approved.`
-              : `Order ${target.id} declined — patient notified.`,
+        const deadline = openOrderUndoWindow(updated.id);
+        setUndoToast({
+          orderId: updated.id,
+          decision,
+          snapshot,
+          expiresAt: deadline,
         });
+        setUndoRemainingMs(ORDER_UNDO_WINDOW_MS);
       } catch (err) {
-        setDecisionToast({
-          type: "err",
-          message: err instanceof Error ? err.message : "Action failed. Please retry.",
-        });
+        setErrorToast(err instanceof Error ? err.message : "Action failed. Please retry.");
       } finally {
         setIsSubmitting(false);
       }
@@ -328,20 +378,37 @@ export function OrdersView({ initialOrders, clinicId, clinic, patientNames = {} 
         />
       )}
 
-      {decisionToast && (
+      {undoToast && (
         <div
-          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border text-[13px] font-medium ${
-            decisionToast.type === "ok"
-              ? "bg-ok-bg border-ok-bdr text-ok"
-              : "bg-err-bg border-err-bdr text-err"
-          }`}
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border bg-ok-bg border-ok-bdr text-ok text-[13px] font-medium"
         >
-          {decisionToast.type === "ok" ? (
-            <CheckCircle className="w-4 h-4 shrink-0" />
-          ) : (
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-          )}
-          {decisionToast.message}
+          <CheckCircle className="w-4 h-4 shrink-0" />
+          <span>
+            {undoToast.decision === "approved"
+              ? "Order approved successfully."
+              : "Order declined — patient notified."}
+          </span>
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={isUndoing}
+            className="ml-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-ok-bdr bg-surface text-ok hover:bg-ok hover:text-white transition-colors text-[12px] font-semibold disabled:opacity-50"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+            {isUndoing ? "Undoing…" : `Undo (${Math.max(1, Math.ceil(undoRemainingMs / 1000))}s)`}
+          </button>
+        </div>
+      )}
+
+      {errorToast && (
+        <div
+          role="alert"
+          className="fixed bottom-6 right-6 z-[60] flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border bg-err-bg border-err-bdr text-err text-[13px] font-medium"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          {errorToast}
         </div>
       )}
 

@@ -22,6 +22,7 @@ import {
   type RetryPatientNotificationsResult,
 } from './retryPatientNotifications';
 import { sendPxUploadReminders } from './sendPxUploadReminders';
+import { autoChaseExpiringPxUploadLinks } from './autoChaseExpiringPxUploadLinks';
 import type { ClinicId } from '../types';
 
 export type SweepClinicSummary = {
@@ -48,6 +49,11 @@ const SWEEP_HISTORY_MAX = 100;
 // / within 24h of expires_at), but we re-tick hourly so reminders land within
 // an hour of becoming due even if the server has only been up briefly.
 const PX_UPLOAD_REMINDER_INTERVAL_MS = 60 * 60 * 1000; // every 60 minutes
+
+// Task-175 — auto-chase expired upload links. Hourly cadence so the rotation
+// lands within an hour of the link going stale; the job's own retry cap
+// (MAX_AUTO_RESENDS) stops it from spamming patients.
+const PX_UPLOAD_AUTO_CHASE_INTERVAL_MS = 60 * 60 * 1000; // every 60 minutes
 
 declare global {
   // eslint-disable-next-line no-var
@@ -208,6 +214,74 @@ export async function runPxUploadReminderSweep(): Promise<PxUploadReminderClinic
   return summaries;
 }
 
+// Task-175 — per-clinic auto-chase sweep that rotates expired upload tokens
+// without staff effort. Mirrors the reminder sweep's shape so operators can
+// audit both jobs the same way.
+export type PxUploadAutoChaseClinicSummary = {
+  clinic_id:     ClinicId;
+  outcome:       'success' | 'error';
+  considered:    number;
+  resent:        number;
+  failed:        number;
+  escalated:     number;
+  error_message: string | null;
+};
+
+export async function runPxUploadAutoChaseSweep(): Promise<PxUploadAutoChaseClinicSummary[]> {
+  const clinics = await listClinics();
+  const summaries: PxUploadAutoChaseClinicSummary[] = [];
+
+  for (const clinic of clinics) {
+    try {
+      const result = await autoChaseExpiringPxUploadLinks(clinic.id);
+      const summary: PxUploadAutoChaseClinicSummary = {
+        clinic_id:     clinic.id,
+        outcome:       'success',
+        considered:    result.considered,
+        resent:        result.resent.length,
+        failed:        result.failed.length,
+        escalated:     result.escalated.length,
+        error_message: null,
+      };
+      summaries.push(summary);
+      console.log('[AUDIT]', {
+        event_type:    'scheduled_px_upload_auto_chase_run',
+        outcome:       'success',
+        actor_id:      'system',
+        job:           'autoChaseExpiringPxUploadLinks',
+        clinic_id:     clinic.id,
+        considered:    summary.considered,
+        resent:        summary.resent,
+        failed:        summary.failed,
+        escalated:     summary.escalated,
+        timestamp:     NOW,
+      });
+    } catch (err) {
+      const error_message = err instanceof Error ? err.message : String(err);
+      summaries.push({
+        clinic_id:     clinic.id,
+        outcome:       'error',
+        considered:    0,
+        resent:        0,
+        failed:        0,
+        escalated:     0,
+        error_message,
+      });
+      console.error('[AUDIT]', {
+        event_type:    'scheduled_px_upload_auto_chase_run',
+        outcome:       'error',
+        actor_id:      'system',
+        job:           'autoChaseExpiringPxUploadLinks',
+        clinic_id:     clinic.id,
+        error_message,
+        timestamp:     NOW,
+      });
+    }
+  }
+
+  return summaries;
+}
+
 export function startJobScheduler(): void {
   if (globalThis.__LIVERA_SCHEDULER_STARTED__) return;
   globalThis.__LIVERA_SCHEDULER_STARTED__ = true;
@@ -228,6 +302,14 @@ export function startJobScheduler(): void {
     interval_ms: PX_UPLOAD_REMINDER_INTERVAL_MS,
     timestamp:  NOW,
   });
+  console.log('[AUDIT]', {
+    event_type: 'scheduler_started',
+    outcome:    'success',
+    actor_id:   'system',
+    job:        'autoChaseExpiringPxUploadLinks',
+    interval_ms: PX_UPLOAD_AUTO_CHASE_INTERVAL_MS,
+    timestamp:  NOW,
+  });
 
   // Kick off an initial sweep shortly after boot so audit logs appear without
   // waiting a full interval, then continue on the recurring schedule.
@@ -237,6 +319,9 @@ export function startJobScheduler(): void {
   setTimeout(() => {
     void runPxUploadReminderSweep();
   }, 15 * 1000);
+  setTimeout(() => {
+    void runPxUploadAutoChaseSweep();
+  }, 20 * 1000);
 
   const retryTimer = setInterval(() => {
     void runPatientNotificationRetrySweep();
@@ -244,9 +329,13 @@ export function startJobScheduler(): void {
   const reminderTimer = setInterval(() => {
     void runPxUploadReminderSweep();
   }, PX_UPLOAD_REMINDER_INTERVAL_MS);
+  const autoChaseTimer = setInterval(() => {
+    void runPxUploadAutoChaseSweep();
+  }, PX_UPLOAD_AUTO_CHASE_INTERVAL_MS);
 
   // Avoid keeping the Node.js event loop alive solely for these timers (so
   // graceful shutdowns aren't blocked).
-  if (typeof retryTimer.unref === 'function')    retryTimer.unref();
-  if (typeof reminderTimer.unref === 'function') reminderTimer.unref();
+  if (typeof retryTimer.unref === 'function')     retryTimer.unref();
+  if (typeof reminderTimer.unref === 'function')  reminderTimer.unref();
+  if (typeof autoChaseTimer.unref === 'function') autoChaseTimer.unref();
 }

@@ -991,6 +991,11 @@ export async function undoWeightWarningAcknowledgement(
   order_id: string,
   kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold',
   reason: string,
+  // Task-189 — when the caller is not the original acknowledger, the UI must
+  // route through an explicit "override teammate's acknowledgement" confirm
+  // step. The fixture mirrors that on the server: without `override: true`,
+  // a different clinician cannot silently flip the chip back to unreviewed.
+  options?: { override?: boolean },
 ): Promise<Order> {
   await delay(200);
   const trimmed = reason.trim();
@@ -1011,6 +1016,14 @@ export async function undoWeightWarningAcknowledgement(
   if (activeIdx === -1) {
     throw new APIError('VALIDATION', 'There is no active acknowledgement to undo');
   }
+  const target = entries[activeIdx];
+  const isOverride = target.acknowledged_by_user_id !== CURRENT_USER.id;
+  if (isOverride && !options?.override) {
+    throw new APIError(
+      'VALIDATION',
+      'This acknowledgement was recorded by a teammate — confirm the override before undoing it',
+    );
+  }
   o.weight_warning_acknowledgements = entries.map((e, i) =>
     i === activeIdx
       ? {
@@ -1030,6 +1043,8 @@ export async function undoWeightWarningAcknowledgement(
     warning_kind: kind,
     reason: trimmed,
     actor_id: CURRENT_USER.id,
+    override: isOverride,
+    original_acknowledger_id: isOverride ? target.acknowledged_by_user_id : null,
     timestamp: NOW,
   });
 
@@ -1049,6 +1064,9 @@ export async function editWeightWarningAcknowledgement(
   order_id: string,
   kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold',
   new_rationale: string,
+  // Task-189 — see `undoWeightWarningAcknowledgement`. Editing a teammate's
+  // rationale requires the caller to confirm via `override: true`.
+  options?: { override?: boolean },
 ): Promise<Order> {
   await delay(200);
   const trimmed = new_rationale.trim();
@@ -1072,6 +1090,13 @@ export async function editWeightWarningAcknowledgement(
   const target = entries[activeIdx];
   if (target.rationale.trim() === trimmed) {
     throw new APIError('VALIDATION', 'The rationale is unchanged');
+  }
+  const isOverride = target.acknowledged_by_user_id !== CURRENT_USER.id;
+  if (isOverride && !options?.override) {
+    throw new APIError(
+      'VALIDATION',
+      "This acknowledgement was recorded by a teammate — confirm the override before editing their rationale",
+    );
   }
   const previous_rationale = target.rationale;
   o.weight_warning_acknowledgements = entries.map((e, i) =>
@@ -1101,6 +1126,8 @@ export async function editWeightWarningAcknowledgement(
     previous_rationale,
     new_rationale: trimmed,
     actor_id: CURRENT_USER.id,
+    override: isOverride,
+    original_acknowledger_id: isOverride ? target.acknowledged_by_user_id : null,
     timestamp: NOW,
   });
 

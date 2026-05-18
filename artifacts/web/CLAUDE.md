@@ -289,6 +289,12 @@ artifacts/web/
 | Wave 5 | GP letters (compose + auto-trigger + PDF), admin notes, GP letter templates | `gp-letters/`, `gpLetters.ts`, `gpLetterTemplates.ts`, `adminNotes.ts` |
 | Wave 6 | Incidents, complaints, Intercom webhook → auto-incident, Monday.com integration | `incidents/`, `complaints/`, `webhooks/intercom/route.ts`, `monday.ts` |
 | Wave 6.5 | Patient profile — 9-tab rewrite | `patients/[patient_id]/page.tsx` and tab components |
+| Wave 7 | MHRA Yellow Card, Owner Dashboard rollups, Calendly mirror, Intercom photo preview | `incidents/`, `dashboard/`, `patients/[patient_id]/` |
+| Wave 8 | Tasks (BLD-13.2), Welcome Calls (BLD-13.3), NICE checklist, dose escalation gate, weight trajectory | `tasks/`, `welcome-calls/`, `orders/[order_id]/` |
+| Wave 9 | Owner Dashboard surfaces + reconciliation foundations | `dashboard/` |
+| Wave 10 | Clinical tightening — queue age badge (BLD-15.1), three-gate approval (BLD-14.2), ED safeguarding (BLD-15.2), Yellow Card confirm (BLD-YC-01) | `clinical-check/`, `orders/[order_id]/`, `incidents/` |
+| Wave 11 | Pharmacy Comms — order- and patient-anchored threads (BLD-16.1/16.9/16.10) | `components/pharmacy-comms/`, `orders/[order_id]/`, `patients/[patient_id]/` |
+| Wave 12 | KPI Dashboard, Clinical Flag Dashboard, Reports Landing (BLD-12.1–12.8, 16.6–16.7) | `kpi-dashboard/`, `clinical-flags/`, `reports/` |
 
 ---
 
@@ -314,8 +320,8 @@ artifacts/web/
 | KPI Dashboard | 5% | Entire surface |
 | G6 Flag Dashboard | 5% | Entire surface |
 | Reports Landing | 5% | Entire surface |
-| Tasks | 0% | Entire surface — not built |
-| **OVERALL** | **~46%** | |
+| Tasks | 85% | List + detail built (BLD-13.2); minor polish remaining |
+| **OVERALL** | **~56%** | |
 
 ---
 

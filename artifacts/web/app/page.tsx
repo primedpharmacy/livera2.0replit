@@ -1,8 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { ArrowRight, ShieldCheck, Stethoscope, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,19 +8,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { listClinics } from "@/lib/api/mock";
 
-export default function RootPage() {
-  const router = useRouter();
-  const [clinicId, setClinicId] = useState("feeltru");
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const id = clinicId.trim();
-    if (!id) return;
-    router.push(`/${id}/dashboard`);
-  }
+export default async function RootPage() {
+  const clinics = await listClinics();
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -40,17 +27,6 @@ export default function RootPage() {
             One workspace for orders, clinical checks, complaints, incidents and
             GP letters — built for safer, faster clinic operations.
           </p>
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Button asChild size="lg">
-              <Link href="/feeltru/dashboard">
-                Open dashboard
-                <ArrowRight />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="/feeltru/intake">Patient intake</Link>
-            </Button>
-          </div>
         </header>
 
         <section className="grid gap-6 md:grid-cols-3">
@@ -84,35 +60,36 @@ export default function RootPage() {
           </Card>
         </section>
 
-        <Card className="max-w-xl">
-          <CardHeader>
-            <CardTitle>Jump into a clinic workspace</CardTitle>
-            <CardDescription>
-              Enter a clinic ID to go straight to its dashboard.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={handleSubmit}
-              className="flex flex-col gap-4 sm:flex-row sm:items-end"
-            >
-              <div className="flex flex-1 flex-col gap-2">
-                <Label htmlFor="clinic_id">Clinic ID</Label>
-                <Input
-                  id="clinic_id"
-                  name="clinic_id"
-                  placeholder="feeltru"
-                  value={clinicId}
-                  onChange={(e) => setClinicId(e.target.value)}
-                />
-              </div>
-              <Button type="submit">
-                Continue
-                <ArrowRight />
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight">
+              Choose a clinic workspace
+            </h2>
+            <p className="text-muted-foreground">
+              Jump straight into the dashboard for any clinic in the system.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {clinics.map((clinic) => (
+              <Card key={clinic.id} className="flex flex-col">
+                <CardHeader className="flex-1">
+                  <CardTitle>{clinic.config.clinic_name}</CardTitle>
+                  <CardDescription>
+                    {clinic.config.legal_entity_name}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex justify-end">
+                  <Button asChild>
+                    <Link href={`/${clinic.id}/dashboard`}>
+                      Open dashboard
+                      <ArrowRight />
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
       </div>
     </main>
   );

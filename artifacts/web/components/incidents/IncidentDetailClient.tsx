@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLegend";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -19,6 +20,7 @@ import {
 import { USERS_REGISTRY } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
+import { useQueueNavigation } from "@/lib/queueNavigation";
 import type { Incident, IncidentComment, Clinic, ClinicId } from "@/types";
 
 interface Props {
@@ -111,15 +113,22 @@ function StatusStepControl({
   current,
   isActing,
   onUpdate,
+  legendShortcuts,
 }: {
   current: Incident["status"];
   isActing: boolean;
   onUpdate: (s: Incident["status"]) => void;
+  legendShortcuts: { keys: string[]; label: string }[];
 }) {
   const activeStep = STATUS_STEPS.find((s) => s.value === current);
   return (
     <div className="bg-surface border border-bdr rounded-lg p-4">
-      <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-3">Incident status</h3>
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3">Incident status</h3>
+        {legendShortcuts.length > 0 && (
+          <KeyboardShortcutLegend shortcuts={legendShortcuts} />
+        )}
+      </div>
       <div className="flex gap-2">
         {STATUS_STEPS.map((step, i) => {
           const isActive = step.value === current || (!activeStep && i === 0);
@@ -255,6 +264,7 @@ function CommentsPanel({
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function IncidentDetailClient({ initialIncident, clinic, clinicId, initialComments }: Props) {
+  useQueueNavigation({ kind: "incidents", currentId: initialIncident.id, clinicId });
   const [incident, setIncident] = useState<Incident>(initialIncident);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isActing,  setIsActing]  = useState(false);
@@ -269,6 +279,8 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
     const t = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  const ycRefInputRef = useRef<HTMLInputElement>(null);
 
   const canManage = can(CURRENT_USER, "write", "incidents");
   const sevStyle  = SEV_STYLES[incident.severity] ?? SEV_STYLES.moderate;
@@ -286,6 +298,63 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
 
   const creatorName     = resolveCreatorName(incident.created_by_user_id);
   const creatorInitials = resolveCreatorInitials(incident.created_by_user_id);
+
+  const ycPanelAwaiting =
+    showYellowCardPanel && incident.yellow_card_decision === null && canManage;
+  const cqcAwaiting =
+    incident.cqc_notification_required && !incident.cqc_notified_at && canManage;
+  const canChangeStatus = canManage && incident.status !== "closed";
+
+  const legendShortcuts: { keys: string[]; label: string }[] = [];
+  if (canChangeStatus && incident.status !== "investigating") {
+    legendShortcuts.push({ keys: ["I"], label: "investigating" });
+  }
+  if (canChangeStatus && incident.status !== "resolved") {
+    legendShortcuts.push({ keys: ["R"], label: "resolved" });
+  }
+  if (ycPanelAwaiting) legendShortcuts.push({ keys: ["Y"], label: "yellow card" });
+  if (cqcAwaiting)     legendShortcuts.push({ keys: ["C"], label: "notify CQC" });
+
+  // Keyboard shortcuts: I=investigating, R=resolved, Y=yellow-card, C=notify CQC.
+  // Mirrors the Clinical Check slide-over: ignore typing in inputs/textareas
+  // and skip when any modifier key or an open dialog is present.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Ignore when any modal/dialog is open elsewhere on the page.
+      if (typeof document !== "undefined" && document.querySelector('[role="dialog"], [aria-modal="true"]')) return;
+
+      const k = e.key.toLowerCase();
+      if (k === "i" && canChangeStatus && incident.status !== "investigating" && !isActing) {
+        e.preventDefault();
+        handleStatusUpdate("investigating");
+      } else if (k === "r" && canChangeStatus && incident.status !== "resolved" && !isActing) {
+        e.preventDefault();
+        handleStatusUpdate("resolved");
+      } else if (k === "y" && ycPanelAwaiting) {
+        e.preventDefault();
+        setYcLocalDecision("filed");
+        // Defer focus so the conditional input has mounted.
+        setTimeout(() => ycRefInputRef.current?.focus(), 0);
+      } else if (k === "c" && cqcAwaiting && !isActing) {
+        e.preventDefault();
+        handleNotifyCQC();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canChangeStatus, incident.status, isActing, ycPanelAwaiting, cqcAwaiting]);
 
   async function handleStatusUpdate(status: Incident["status"]) {
     setIsActing(true);
@@ -520,6 +589,7 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
                         <div>
                           <label className="block text-[11px] text-t3 mb-1">Yellow Card reference number</label>
                           <input
+                            ref={ycRefInputRef}
                             type="text"
                             placeholder="e.g. MHRA-2026-012345"
                             value={ycRef}
@@ -628,6 +698,7 @@ export function IncidentDetailClient({ initialIncident, clinic, clinicId, initia
             current={incident.status}
             isActing={isActing}
             onUpdate={handleStatusUpdate}
+            legendShortcuts={legendShortcuts}
           />
         </div>
 

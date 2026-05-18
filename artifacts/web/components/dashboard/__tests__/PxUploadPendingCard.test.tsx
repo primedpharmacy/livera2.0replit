@@ -291,6 +291,118 @@ describe('PxUploadPendingCard — Task-176 resend interaction', () => {
   });
 });
 
+// ── Task-263 — guard against double-clicking Resend ─────────────────────────
+describe('PxUploadPendingCard — Task-263 resend double-click guard', () => {
+  afterEach(() => {
+    cleanup();
+    mockedResend.mockReset();
+  });
+
+  it('only calls resendPxUploadLink once when the same row is clicked twice rapidly', async () => {
+    const order = makeOrder('ORD-FRESH', 'PT-FRESH', freshLink());
+    // Hold the first call in-flight so the second click happens before the
+    // pending state clears.
+    let resolveFirst: (value: Order) => void = () => {};
+    const inFlight = new Promise<Order>((resolve) => {
+      resolveFirst = resolve;
+    });
+    mockedResend.mockReturnValueOnce(inFlight);
+
+    render(
+      <PxUploadPendingCard clinicId="feeltru" orders={[order]} patientMap={PATIENT_MAP} />,
+    );
+
+    const button = screen.getByRole('button', { name: /resend link/i });
+    fireEvent.click(button);
+    // Rapid second click while the first request is still in flight.
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(mockedResend).toHaveBeenCalledTimes(1);
+
+    // Resolve the original call and ensure no additional invocations occur.
+    resolveFirst({
+      ...order,
+      px_upload_link: {
+        ...freshLink(),
+        resends: [
+          {
+            sent_at: '2026-05-11T08:00:00Z',
+            to_email: 'fresh@example.com',
+            expires_at: '2026-05-25T08:00:00Z',
+            previous_expired: false,
+            by_user_id: 'U-001',
+          },
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('2 sends')).toBeInTheDocument();
+    });
+    expect(mockedResend).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables every row\'s Resend button while one resend is in flight', async () => {
+    const orderA = makeOrder('ORD-A', 'PT-FRESH', freshLink());
+    const orderB = makeOrder('ORD-B', 'PT-STALE', staleLink());
+
+    let resolveFirst: (value: Order) => void = () => {};
+    mockedResend.mockReturnValueOnce(
+      new Promise<Order>((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+
+    render(
+      <PxUploadPendingCard
+        clinicId="feeltru"
+        orders={[orderA, orderB]}
+        patientMap={PATIENT_MAP}
+      />,
+    );
+
+    const buttons = screen.getAllByRole('button', { name: /resend link/i });
+    expect(buttons).toHaveLength(2);
+
+    fireEvent.click(buttons[0]);
+
+    // Both Resend buttons should be disabled while orderA's request is in flight.
+    await waitFor(() => {
+      expect(buttons[0]).toBeDisabled();
+      expect(buttons[1]).toBeDisabled();
+    });
+
+    // Clicking the second row while disabled must not trigger another call.
+    fireEvent.click(buttons[1]);
+    expect(mockedResend).toHaveBeenCalledTimes(1);
+    expect(mockedResend).toHaveBeenCalledWith('feeltru', 'ORD-A');
+
+    resolveFirst({
+      ...orderA,
+      px_upload_link: {
+        ...freshLink(),
+        resends: [
+          {
+            sent_at: '2026-05-11T08:00:00Z',
+            to_email: 'fresh@example.com',
+            expires_at: '2026-05-25T08:00:00Z',
+            previous_expired: false,
+            by_user_id: 'U-001',
+          },
+        ],
+      },
+    });
+
+    // Once the in-flight request resolves, both buttons are re-enabled.
+    await waitFor(() => {
+      const after = screen.getAllByRole('button', { name: /resend link/i });
+      expect(after[0]).not.toBeDisabled();
+      expect(after[1]).not.toBeDisabled();
+    });
+  });
+});
+
 // ── Task-183 — manual reminder action on queue rows ─────────────────────────
 describe('PxUploadPendingCard — Task-183 manual reminder', () => {
   afterEach(() => {

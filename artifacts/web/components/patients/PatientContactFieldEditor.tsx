@@ -14,7 +14,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Check, Pencil, X } from "lucide-react";
-import { updatePatientPhone, updatePatientPostcode } from "@/lib/api/mock";
+import { updatePatientEmail, updatePatientPhone, updatePatientPostcode } from "@/lib/api/mock";
 import type { ClinicId } from "@/lib/api/types";
 
 interface BaseProps {
@@ -179,6 +179,24 @@ export function PatientPostcodeEditor({ clinicId, patientId, current, canEdit }:
       placeholder="M1 2AB"
       ariaLabel="Patient postcode"
       save={(raw) => updatePatientPostcode(clinicId, patientId, raw)}
+    />
+  );
+}
+
+// Task-264 — inline patient email editor. Used on the patient profile (left
+// column Contact section) and on the order detail patient strip so staff can
+// fix a bouncing email in one click instead of editing the upload-link
+// recipient only (which leaves the patient record stale for the next
+// reminder / GP letter / courier email).
+export function PatientEmailEditor({ clinicId, patientId, current, canEdit }: BaseProps) {
+  return (
+    <FieldEditor
+      label="Email"
+      current={current}
+      canEdit={canEdit}
+      placeholder="name@example.com"
+      ariaLabel="Patient email address"
+      save={(raw) => updatePatientEmail(clinicId, patientId, raw)}
     />
   );
 }

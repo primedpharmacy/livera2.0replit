@@ -17,7 +17,7 @@
  *     can re-issue without opening the order.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Mail, RefreshCw, AlertTriangle, Send } from "lucide-react";
 import { CURRENT_USER, resendPxUploadLink } from "@/lib/api/mock";
@@ -46,6 +46,13 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
   const [reminderPendingId, setReminderPendingId] = useState<string | null>(null);
   const [toast, setToast]                   = useState<{ message: string; type: "ok" | "err" } | null>(null);
   const canWriteOrders = can(CURRENT_USER, "write", "orders");
+  // Task-263 — synchronous re-entrancy guard. The `pendingId` state above
+  // doesn't update until React commits, so two rapid clicks (same row OR
+  // different rows) on a slow network could both pass the disabled check
+  // and each fire a Postmark send + push a `resends[]` entry. This ref
+  // flips immediately inside handleResend so the second click bails before
+  // resendPxUploadLink is invoked.
+  const resendInFlightRef = useRef(false);
 
   // Keep in sync if the parent re-fetches (e.g. router refresh) — without this,
   // a brand-new pending order added after mount would never appear in the list.
@@ -54,6 +61,11 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
   }, [orders]);
 
   async function handleResend(orderId: string) {
+    // Task-263 — bail synchronously if a resend is already in flight, so
+    // double-clicks (same row or another row) before React re-renders can't
+    // fire `resendPxUploadLink` twice.
+    if (resendInFlightRef.current) return;
+    resendInFlightRef.current = true;
     setPendingId(orderId);
     try {
       const updated = await resendPxUploadLink(clinicId, orderId);
@@ -69,6 +81,7 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
         type: "err",
       });
     } finally {
+      resendInFlightRef.current = false;
       setPendingId(null);
     }
   }
@@ -154,6 +167,10 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
             const resendCount = (link?.resends?.length ?? 0) + (hasInitialSend ? 1 : 0);
             const isBusy    = pendingId === order.id;
             const isReminderBusy = reminderPendingId === order.id;
+            // Task-263 — any in-flight resend disables every row's Resend
+            // button so staff can't fire a second send on a different row
+            // while the first one is still mid-flight.
+            const anyResendInFlight = pendingId !== null;
 
             // Task-183 — Mirror the server-side eligibility from
             // sendPxUploadReminderNow so the "Send reminder" affordance only
@@ -249,7 +266,7 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
                   <button
                     type="button"
                     onClick={() => handleResend(order.id)}
-                    disabled={isBusy || isReminderBusy}
+                    disabled={anyResendInFlight || isReminderBusy}
                     className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded border border-brand/40 text-brand hover:bg-brand/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <RefreshCw className={`w-3 h-3 ${isBusy ? "animate-spin" : ""}`} />

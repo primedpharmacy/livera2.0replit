@@ -23,10 +23,11 @@ import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCa
 import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
 import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
 import { VipFlagEditor, StatusFlagEditor, CoachFlagEditor } from "@/components/patients/PatientFlagsEditor";
-import { PatientPhoneEditor, PatientPostcodeEditor } from "@/components/patients/PatientContactFieldEditor";
+import { PatientEmailEditor, PatientPhoneEditor, PatientPostcodeEditor } from "@/components/patients/PatientContactFieldEditor";
 import { LogWeightForm } from "@/components/patients/LogWeightForm";
 import { WeightTrendChart } from "@/components/patients/WeightTrendChart";
 import { PatientWeightCheckIns } from "@/components/patients/PatientWeightCheckIns";
+import { PatientUploadLinkEmails } from "@/components/patients/PatientUploadLinkEmails";
 import { PreferredChannelHistory } from "@/components/patients/PreferredChannelHistory";
 import { NotificationRow, type ResendActionResult } from "@/components/patients/NotificationRow";
 import { resendFailedPatientNotification } from "@/lib/api/jobs/retryPatientNotifications";
@@ -494,7 +495,12 @@ function LeftColumn({
 
       {/* Contact */}
       <PSec title="Contact" icon={Phone}>
-        <DR k="Email"   v={patient.contact.email} mono />
+        <PatientEmailEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.contact.email}
+          canEdit={canEditContact}
+        />
         <PatientPhoneEditor
           clinicId={clinicId}
           patientId={patient.id}
@@ -724,6 +730,12 @@ function OverviewTab({
           </div>
         </div>
       )}
+
+      {/* Task-266 — Aggregated upload-link email history across this
+          patient's orders. Mirrors the per-order Email-history view from
+          OrderDetailClient (Task-178), keyed by order so staff can answer
+          "I never got the email" without hopping between order pages. */}
+      <PatientUploadLinkEmails clinicId={clinicId} orders={orders} />
 
       {/* Linked incidents */}
       {incidents.length > 0 && (

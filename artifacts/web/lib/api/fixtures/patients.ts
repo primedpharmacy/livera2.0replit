@@ -14,8 +14,10 @@ import { delay, APIError, CURRENT_USER, NOW, USERS_REGISTRY } from '../constants
 import { can } from '@/lib/permissions';
 import { recordAudit } from '../audit'; // Task-167 — durable spine
 import {
+  isValidEmail,
   isValidUkMobile,
   isValidUkPostcode,
+  normaliseEmail,
   normalisePostcode,
   normaliseUkMobile,
 } from '@/lib/validation/intake';
@@ -1353,6 +1355,87 @@ export async function updatePatientPostcode(
     summary: `Postcode for ${patient_id} updated.`,
     before: { postcode: previous_postcode },
     after: { postcode: normalised },
+  });
+
+  return patient;
+}
+
+// ── Task-264 — updatePatientEmail ───────────────────────────────────────────
+// Task-179 added a "Send to a different email" affordance to the Px-upload
+// resend flow but only persisted the corrected address onto the upload link
+// itself — the patient record still carried the bouncing email, so the next
+// reminder, GP letter, courier notification, etc. went straight back to the
+// bad address. This canonical mutation lets staff fix the patient record so
+// every downstream automated send routes correctly.
+//
+// 3-layer safety chain mirrors updatePatientPhone:
+//   Layer 1 (UI gate): editor only renders if can(actor, 'write','patients').
+//   Layer 2 (server gate): can() + isValidEmail check here.
+//   Layer 3 (audit log): [AUDIT] entry per mutation (success + denial + validation_failed).
+export async function updatePatientEmail(
+  clinic_id: ClinicId,
+  patient_id: string,
+  raw_email: string,
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'write', 'patients')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_email_updated',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      timestamp: NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Insufficient permissions to update patient email');
+  }
+
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  if (!isValidEmail(raw_email)) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_email_updated',
+      outcome: 'validation_failed',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      attempted_value: raw_email,
+      timestamp: NOW,
+    });
+    throw new APIError(
+      'VALIDATION',
+      'Enter a valid email address (e.g. name@example.com).',
+    );
+  }
+
+  const normalised = normaliseEmail(raw_email);
+  const previous_email = patient.contact.email;
+  if (normalised === previous_email) return patient;
+
+  patient.contact = { ...patient.contact, email: normalised };
+  patient.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_email_updated',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_email,
+    new_email: normalised,
+    timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_email_updated',
+    summary: `Email for ${patient_id} updated from ${previous_email} to ${normalised}.`,
+    before: { email: previous_email },
+    after: { email: normalised },
   });
 
   return patient;

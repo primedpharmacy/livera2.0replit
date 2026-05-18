@@ -35,6 +35,7 @@ import { can } from "@/lib/permissions";
 import type { Order, Patient, Clinic, ClinicId, ClinicalNote, Amendment, CourierEvent } from "@/types";
 import type { PatientNotification } from "@/lib/api/mock";
 import { NotificationRow } from "@/components/patients/NotificationRow";
+import { PatientEmailEditor } from "@/components/patients/PatientContactFieldEditor";
 import { CourierTrackingCard } from "@/components/orders/CourierTrackingCard";
 import { DCard, Row, Metric, EmptyPane } from "./orderPrimitives";
 import { OrderDecisionDialogs, type Modal, type ToastState } from "./OrderDecisionDialogs";
@@ -1146,6 +1147,18 @@ export function OrderDetailClient({
                   </div>
                   <div className="text-[10.5px] text-t3 font-mono">{patient.id} · {age} yrs · {d.sex_at_birth}</div>
                 </div>
+              </div>
+              {/* Task-264 — inline email editor so staff can correct a bouncing
+                  recipient on the patient record itself (not just the upload
+                  link) directly from the order header. Routes through
+                  updatePatientEmail (validation + audit log). */}
+              <div className="mt-2.5 pt-2.5 border-t border-bdr">
+                <PatientEmailEditor
+                  clinicId={clinicId}
+                  patientId={patient.id}
+                  current={patient.contact.email}
+                  canEdit={can(currentUser, "write", "patients")}
+                />
               </div>
               <div className="mt-2.5 flex items-center gap-4">
                 <Link

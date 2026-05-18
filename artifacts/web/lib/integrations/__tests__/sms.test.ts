@@ -17,8 +17,9 @@
  *   - MessagingServiceSid vs From routing
  */
 
+import { createHmac } from 'crypto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { sendPatientSMS } from '../sms';
+import { sendPatientSMS, mapTwilioCallbackStatus, verifyTwilioSignature } from '../sms';
 
 type FetchMock = ReturnType<typeof vi.fn>;
 
@@ -300,5 +301,87 @@ describe('sendPatientSMS — live mode', () => {
       expect(res.message_id).toBeNull();
       expect(res.error_message).toMatch(/Twilio HTTP request failed: ECONNRESET/);
     });
+  });
+});
+
+// ─── Task-139: mapTwilioCallbackStatus ──────────────────────────────────────
+describe('mapTwilioCallbackStatus', () => {
+  it('maps delivered to Delivered regardless of error code', () => {
+    expect(mapTwilioCallbackStatus('delivered', null)).toBe('Delivered');
+    expect(mapTwilioCallbackStatus('Delivered', undefined)).toBe('Delivered');
+  });
+
+  it('maps undelivered to Bounced', () => {
+    expect(mapTwilioCallbackStatus('undelivered', null)).toBe('Bounced');
+    expect(mapTwilioCallbackStatus('UNDELIVERED', 30003)).toBe('Bounced');
+  });
+
+  it('maps failed without a bounce ErrorCode to Failed', () => {
+    expect(mapTwilioCallbackStatus('failed', null)).toBe('Failed');
+    expect(mapTwilioCallbackStatus('failed', 30007)).toBe('Failed');
+  });
+
+  it('maps failed with a bounce ErrorCode to Bounced', () => {
+    expect(mapTwilioCallbackStatus('failed', 21211)).toBe('Bounced');
+    expect(mapTwilioCallbackStatus('failed', 21610)).toBe('Bounced');
+    expect(mapTwilioCallbackStatus('failed', 30003)).toBe('Bounced');
+  });
+
+  it('returns null for intermediate / unknown statuses so the row is not mutated', () => {
+    expect(mapTwilioCallbackStatus('queued', null)).toBeNull();
+    expect(mapTwilioCallbackStatus('sending', null)).toBeNull();
+    expect(mapTwilioCallbackStatus('sent', null)).toBeNull();
+    expect(mapTwilioCallbackStatus('accepted', null)).toBeNull();
+    expect(mapTwilioCallbackStatus('', null)).toBeNull();
+    expect(mapTwilioCallbackStatus(null, null)).toBeNull();
+    expect(mapTwilioCallbackStatus(undefined, undefined)).toBeNull();
+  });
+});
+
+// ─── Task-139: verifyTwilioSignature ────────────────────────────────────────
+function signTwilio(authToken: string, url: string, params: Record<string, string>): string {
+  const sortedKeys = Object.keys(params).sort();
+  const data = url + sortedKeys.map((k) => k + params[k]).join('');
+  return createHmac('sha1', authToken).update(data).digest('base64');
+}
+
+describe('verifyTwilioSignature', () => {
+  const URL = 'https://example.test/api/webhooks/twilio/status';
+  const PARAMS = { MessageSid: 'SMabc', MessageStatus: 'delivered' };
+
+  it('returns true in stub mode (LIVERA_SMS_LIVE !== "true") without inspecting the header', () => {
+    delete process.env.LIVERA_SMS_LIVE;
+    expect(verifyTwilioSignature(URL, PARAMS, null)).toBe(true);
+    expect(verifyTwilioSignature(URL, PARAMS, 'nonsense')).toBe(true);
+  });
+
+  it('returns false in live mode when TWILIO_AUTH_TOKEN is missing', () => {
+    setEnv({ LIVERA_SMS_LIVE: 'true' });
+    delete process.env.TWILIO_AUTH_TOKEN;
+    const sig = signTwilio('whatever', URL, PARAMS);
+    expect(verifyTwilioSignature(URL, PARAMS, sig)).toBe(false);
+  });
+
+  it('returns false in live mode when the signature header is missing', () => {
+    setEnv({ LIVERA_SMS_LIVE: 'true', TWILIO_AUTH_TOKEN: 'token-shh' });
+    expect(verifyTwilioSignature(URL, PARAMS, null)).toBe(false);
+  });
+
+  it('returns true in live mode for a correctly computed signature', () => {
+    setEnv({ LIVERA_SMS_LIVE: 'true', TWILIO_AUTH_TOKEN: 'token-shh' });
+    const sig = signTwilio('token-shh', URL, PARAMS);
+    expect(verifyTwilioSignature(URL, PARAMS, sig)).toBe(true);
+  });
+
+  it('returns false in live mode when the body has been tampered with', () => {
+    setEnv({ LIVERA_SMS_LIVE: 'true', TWILIO_AUTH_TOKEN: 'token-shh' });
+    const sig = signTwilio('token-shh', URL, PARAMS);
+    const tampered = { ...PARAMS, MessageStatus: 'failed' };
+    expect(verifyTwilioSignature(URL, tampered, sig)).toBe(false);
+  });
+
+  it('returns false in live mode when the signature length differs (timing-safe guard)', () => {
+    setEnv({ LIVERA_SMS_LIVE: 'true', TWILIO_AUTH_TOKEN: 'token-shh' });
+    expect(verifyTwilioSignature(URL, PARAMS, 'short')).toBe(false);
   });
 });

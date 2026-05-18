@@ -25,22 +25,37 @@ import {
   X,
 } from "lucide-react";
 import type { Patient, Clinic, ClinicId } from "@/types";
+import { useCurrentUser } from "@/lib/context";
+import type { Role, User } from "@/lib/api/types";
 
 // Phase 2 — until the web→api auth proxy lands (follow-up #88) the browser
-// supplies its own clinician identity for the audit log. This mirrors the
-// existing X-Livera-Role admin stub used by the contact-link flow.
-const DEMO_CLINICIAN = {
-  id: "user_demo_clinician",
-  name: "Demo Clinician",
-  role: "admin" as const,
-};
+// supplies its own clinician identity for the audit log. We derive it from
+// the signed-in demo persona (cookie-resolved via useCurrentUser) so each
+// outbound message is attributed to the real clinician viewing the order.
+//
+// api-server's readClinicianContext allow-lists three role values: owner,
+// admin, clinician. Map the web app's richer Role union down to that.
+function mapRoleToApi(roles: Role[]): "owner" | "admin" | "clinician" {
+  if (roles.includes("Owner")) return "owner";
+  if (roles.includes("Admin")) return "admin";
+  // Prescriber, Coach, and the deprecated clinical roles all act as
+  // clinicians for the purposes of outbound Intercom writes.
+  return "clinician";
+}
 
-function clinicianHeaders(): Record<string, string> {
+function clinicianHeaders(user: User): Record<string, string> {
   return {
-    "X-Livera-Role": DEMO_CLINICIAN.role,
-    "X-Livera-User-Id": DEMO_CLINICIAN.id,
-    "X-Livera-User-Name": DEMO_CLINICIAN.name,
+    "X-Livera-Role": mapRoleToApi(user.roles),
+    "X-Livera-User-Id": user.id,
+    "X-Livera-User-Name": user.full_name,
   };
+}
+
+function primaryRoleLabel(roles: Role[]): string {
+  // Prefer the most senior/visible role for the compose footer.
+  const priority: Role[] = ["Owner", "Admin", "Prescriber", "Coach"];
+  for (const r of priority) if (roles.includes(r)) return r;
+  return roles[0] ?? "Clinician";
 }
 
 type IntercomAuthor = {
@@ -107,6 +122,7 @@ function formatAbsolute(unixSeconds: number): string {
 }
 
 export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: OrderIntercomTabProps) {
+  const currentUser = useCurrentUser();
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -244,8 +260,8 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
       created_at: nowSec,
       author: {
         type: "admin",
-        id: DEMO_CLINICIAN.id,
-        name: DEMO_CLINICIAN.name,
+        id: currentUser.id,
+        name: currentUser.full_name,
       },
       attachments: [],
     };
@@ -261,7 +277,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         `/api/intercom/${clinicId}/contacts/${patient.id}/conversations/${conv.id}/reply`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...clinicianHeaders() },
+          headers: { "Content-Type": "application/json", ...clinicianHeaders(currentUser) },
           body: JSON.stringify({ body: draft }),
         },
       );
@@ -319,8 +335,8 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
     const nowSec = Math.floor(Date.now() / 1000);
     const optimisticAuthor: IntercomAuthor = {
       type: "admin",
-      id: DEMO_CLINICIAN.id,
-      name: DEMO_CLINICIAN.name,
+      id: currentUser.id,
+      name: currentUser.full_name,
     };
     const optimisticConv: IntercomConversation = {
       id: tempConvId,
@@ -357,7 +373,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         `/api/intercom/${clinicId}/contacts/${patient.id}/conversations`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...clinicianHeaders() },
+          headers: { "Content-Type": "application/json", ...clinicianHeaders(currentUser) },
           body: JSON.stringify({ subject, body }),
         },
       );
@@ -431,8 +447,10 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
             "Content-Type": "application/json",
             // Phase 1 stub for the Owner/Admin authz guard on the api-server.
             // A proper server-side proxy will inject this from the session in
-            // a follow-up (#88) so the browser can't spoof it.
-            "X-Livera-Role": "admin",
+            // a follow-up (#88) so the browser can't spoof it. Until then we
+            // pass through the signed-in clinician so non-admins are correctly
+            // rejected by the api-server's requireAdminRole guard.
+            ...clinicianHeaders(currentUser),
           },
           body: JSON.stringify({ email: linkEmail.trim() }),
         },
@@ -702,7 +720,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
             )}
             <div className="mt-2 flex items-center justify-between">
               <p className="text-[10.5px] text-t3">
-                Sends as {DEMO_CLINICIAN.name} · ⌘/Ctrl + Enter to send
+                Sends as {currentUser.full_name} ({primaryRoleLabel(currentUser.roles)}) · ⌘/Ctrl + Enter to send
               </p>
               <button
                 type="button"

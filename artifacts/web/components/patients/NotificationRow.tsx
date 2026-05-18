@@ -19,19 +19,31 @@ import { NOW } from "@/lib/api/constants";
 import { formatDateTime } from "@/lib/format";
 import { EmailPreviewButton } from "@/components/patients/EmailPreviewButton";
 import { ResendNotificationButton } from "@/components/patients/ResendNotificationButton";
+import { SwitchToEmailButton } from "@/components/patients/SwitchToEmailButton";
 
 export type ResendActionResult = { ok: true } | { ok: false; reason: string };
 
 export function NotificationRow({
   notification: n,
   clinicId,
+  patientId,
   canResend,
   onResend,
+  currentChannel,
+  canSwitchChannel,
 }: {
   notification: PatientNotification;
   clinicId: ClinicId;
+  // Task-200 — patientId, currentChannel and canSwitchChannel are optional
+  // so non-patient-profile consumers of this shared row (e.g. order-level
+  // notification surfaces) don't have to wire them up. The Switch-to-email
+  // recovery action only mounts when all three are provided AND the row is
+  // a Bounced/Failed SMS for a patient not already on email.
+  patientId?: string;
   canResend: boolean;
   onResend: (notificationId: string) => Promise<ResendActionResult>;
+  currentChannel?: 'email' | 'sms' | 'phone';
+  canSwitchChannel?: boolean;
 }) {
   const statusMeta =
     n.status === "Delivered"
@@ -140,6 +152,23 @@ export function NotificationRow({
         && n.email_envelope
         && n.attempt_count < n.max_attempts && (
           <ResendNotificationButton notificationId={n.id} onResend={onResend} />
+        )}
+      {/* Task-200 — when an SMS keeps bouncing/failing, offer a one-click
+          recovery to flip the patient's preferred channel to email. Gated by
+          the same write:patients permission as the Contact-section editor,
+          and only shown when the patient isn't already on email. Reuses
+          updatePatientPreferredChannel so the existing change log + audit
+          trail is written exactly as if staff had used the editor. The
+          patientId / currentChannel / canSwitchChannel props are optional
+          on this shared row so non-patient-profile consumers don't have to
+          wire them up — the action simply hides when any are missing. */}
+      {canSwitchChannel
+        && patientId
+        && currentChannel
+        && n.channel === "SMS"
+        && (n.status === "Bounced" || n.status === "Failed")
+        && currentChannel !== "email" && (
+          <SwitchToEmailButton clinicId={clinicId} patientId={patientId} />
         )}
       {Object.keys(n.payload).length > 0 && (
         <details className="mt-2 group">

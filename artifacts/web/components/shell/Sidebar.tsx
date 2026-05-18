@@ -24,6 +24,7 @@ import {
   ShieldAlert,
   XCircle,
   RotateCw,
+  MailCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -315,6 +316,16 @@ function buildSections(
           ...(failedSweepCount > 0
             ? { badge: { value: failedSweepCount, variant: "err" as BadgeVariant } }
             : {}),
+        },
+        {
+          key: "email-envelope-backfill",
+          label: "Email Backfill",
+          icon: MailCheck,
+          href: `/${clinicId}/admin/email-envelope-backfill`,
+          // Admin/Owner only — Owner short-circuits to true in roleMatrix;
+          // Admin has write on admin_notes (Wave 5 BLD-4.5.1) and no other
+          // role does, which matches the page's own role gate exactly.
+          permission: { action: "write", resource: "admin_notes" },
         },
         {
           key: "patient-contact-cleanup",

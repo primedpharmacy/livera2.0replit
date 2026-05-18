@@ -17,10 +17,15 @@
  * envelope was captured before the live HTML snapshot landed (Task-131).
  * The HTML is rendered with the same markup the live notification paths
  * use (amendments.ts / orders.ts) so the "Preview email" modal shows the
- * styled email everywhere, not just on new sends. Templates that have no
- * known HTML renderer (e.g. order_approved, order_dispatched, order_declined
- * — currently only sent as plain text) are left text-only and logged so we
- * never invent markup the patient didn't see.
+ * styled email everywhere, not just on new sends.
+ *
+ * Task-275 — extends the HTML renderer to cover the remaining transactional
+ * templates (order_approved, order_dispatched, order_declined) that
+ * previously went out as plain text only. Every supported template now has
+ * an HTML renderer, so older text-only envelopes for these templates are
+ * picked up by the backfill on the next run. The defensive
+ * `html_unsupported` branch is retained for templates that may be added to
+ * the envelope-bearing set in the future without an accompanying renderer.
  *
  * Designed to be idempotent: re-running the job is a no-op for rows that
  * have either been backfilled or flagged. The shape it writes is identical
@@ -81,7 +86,14 @@ const SUPPORTED_TEMPLATES = new Set<string>([
 // (orders.ts / amendments.ts). Backfilling HTML for templates outside this
 // set would invent markup the patient never saw, so we leave them text-only
 // and log via `html_unsupported`.
+//
+// Task-275 — order_approved, order_dispatched, order_declined now have HTML
+// renderers too, so every supported template has parity with the
+// cancellation/refund email shell.
 const HTML_SUPPORTED_TEMPLATES = new Set<string>([
+  'order_approved',
+  'order_dispatched',
+  'order_declined',
   'order_cancelled_no_charge',
   'order_cancelled_refund',
 ]);
@@ -269,6 +281,9 @@ type SupportedTemplate =
   | 'order_cancelled_refund';
 
 type HtmlSupportedTemplate =
+  | 'order_approved'
+  | 'order_dispatched'
+  | 'order_declined'
   | 'order_cancelled_no_charge'
   | 'order_cancelled_refund';
 
@@ -367,6 +382,47 @@ function buildHtmlForTemplate(
   const { firstName, orderId, payload } = ctx;
 
   switch (template) {
+    case 'order_approved': {
+      return renderPatientEmail({
+        heading: `Hi ${firstName},`,
+        paragraphs: [
+          `Good news — your order <strong>${orderId}</strong> has been ` +
+            `approved by our clinical team and is being prepared for dispatch.`,
+          `We will email you again as soon as it has been handed to the courier.`,
+        ],
+      }).html;
+    }
+    case 'order_dispatched': {
+      const tracking =
+        typeof payload.tracking_number === 'string' ? payload.tracking_number : null;
+      const body =
+        `Your order <strong>${orderId}</strong> has been dispatched` +
+        (tracking ? `. Tracking number: <strong>${tracking}</strong>.` : '.');
+      return renderPatientEmail({
+        heading: `Hi ${firstName},`,
+        paragraphs: [body],
+      }).html;
+    }
+    case 'order_declined': {
+      const reason = typeof payload.reason === 'string' ? payload.reason : null;
+      const paragraphs: string[] = [
+        `After clinical review we are unable to approve order ` +
+          `<strong>${orderId}</strong> at this time.`,
+      ];
+      if (reason) {
+        paragraphs.push(
+          `<span style="color:#6b7280;">Reason recorded:</span> ${reason}`,
+        );
+      }
+      paragraphs.push(
+        `If you have any questions, just reply to this email and our team ` +
+          `will be in touch.`,
+      );
+      return renderPatientEmail({
+        heading: `Hi ${firstName},`,
+        paragraphs,
+      }).html;
+    }
     case 'order_cancelled_no_charge': {
       const reason = typeof payload.reason === 'string' ? payload.reason : null;
       // Mirrors the conditional copy used in orders.ts cancelOrder: when the

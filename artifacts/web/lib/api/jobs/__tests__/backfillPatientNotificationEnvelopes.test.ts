@@ -60,12 +60,14 @@ describe('backfillPatientNotificationEnvelopes', () => {
     }
     htmlBackfillable.email_envelope_unavailable_reason = null;
 
-    // Task-185 — text-only envelope, no HTML renderer for template.
-    const htmlUnsupported = findRow('NOTIF-LEGACY-004');
-    if (htmlUnsupported.email_envelope) {
-      htmlUnsupported.email_envelope.html_body = null;
+    // Task-185 / Task-275 — text-only envelope for order_dispatched. Task-275
+    // adds an HTML renderer for this template, so the backfill now populates
+    // html_body on this row instead of logging it as unsupported.
+    const htmlDispatched = findRow('NOTIF-LEGACY-004');
+    if (htmlDispatched.email_envelope) {
+      htmlDispatched.email_envelope.html_body = null;
     }
-    htmlUnsupported.email_envelope_unavailable_reason = null;
+    htmlDispatched.email_envelope_unavailable_reason = null;
   });
 
   it('reconstructs envelopes for older rows whose order still exists', async () => {
@@ -136,15 +138,22 @@ describe('backfillPatientNotificationEnvelopes', () => {
     expect(row.email_envelope?.text_body).toContain("We've cancelled order ORD-00450");
   });
 
-  it('leaves html_body untouched and logs unsupported when no renderer exists', async () => {
+  it('renders html_body for order_dispatched text-only envelopes (Task-275)', async () => {
     const result = await backfillPatientNotificationEnvelopes('feeltru');
 
     expect(
-      result.html_unsupported.map((h) => h.notification_id),
+      result.html_backfilled.map((h) => h.notification_id),
     ).toContain('NOTIF-LEGACY-004');
+    expect(
+      result.html_unsupported.map((h) => h.notification_id),
+    ).not.toContain('NOTIF-LEGACY-004');
 
     const row = findRow('NOTIF-LEGACY-004');
-    expect(row.email_envelope?.html_body).toBeNull();
+    const html = row.email_envelope?.html_body ?? '';
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain('ORD-00441');
+    // Tracking number from the payload must be surfaced in the branded body.
+    expect(html).toContain('AB987654321GB');
     // Text body must remain intact.
     expect(row.email_envelope?.text_body).toContain('ORD-00441');
   });

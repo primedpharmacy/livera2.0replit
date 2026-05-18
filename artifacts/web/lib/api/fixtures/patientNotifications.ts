@@ -356,10 +356,12 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
       html_body: null,
     },
   },
-  // Task-185 — Legacy row with a text-only envelope for a template whose
-  // live path has no HTML renderer (order_dispatched is sent as plain text
-  // today). Backfill should leave html_body null and log the row as
-  // html_unsupported, so we never invent markup the patient didn't see.
+  // Task-185 / Task-275 — Legacy row with a text-only envelope for an
+  // order_dispatched send that pre-dates the HTML snapshot field. Task-185
+  // could not backfill HTML here because no renderer existed for
+  // order_dispatched yet; Task-275 adds that renderer, so the next backfill
+  // run populates the branded html_body to match the cancellation/refund
+  // shell.
   {
     id: 'NOTIF-LEGACY-004',
     clinic_id: 'feeltru',

@@ -39,6 +39,9 @@ const SARAH_FEELTRU: Patient = {
   coach_id: 'user_olwyn',
   // BLD-8.3 (Wave 6) — Intercom external_id set when patient account created in Intercom.
   intercom_user_id: 'icom_pt00198_feeltru',
+  // Phase 1 read-only Intercom integration — Sarah is the canonical linked
+  // patient used for end-to-end verification (task-58).
+  intercom_contact_id: 'icontact_sarah_feeltru',
   created_at: '2026-01-15T14:30:00Z',
   updated_at: '2026-05-01T10:00:00Z',
 };

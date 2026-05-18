@@ -10,7 +10,7 @@
  *                  Intercom conversations.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2, AlertCircle, RefreshCw, Eye, EyeOff,
   Copy, Zap, Shield, Activity, ChevronRight
@@ -71,6 +71,151 @@ const SEV_STYLES: Record<string, string> = {
   moderate: "bg-warn-bg text-warn",
   severe:   "bg-err-bg text-err",
 };
+
+// ── Phase 1 workspace access token (server-only) ────────────────────────────
+// Saves to POST /api/intercom/:clinic_id/credentials. The api-server keeps
+// the token in-process; the response never echoes it back. State here only
+// tracks whether the clinic is configured + the last save outcome.
+
+type CredentialStatus = { configured: boolean; demo_mode?: boolean; workspace_id?: string };
+
+function WorkspaceAccessTokenSection({
+  clinicId,
+  onToast,
+}: { clinicId: string; onToast: (msg: string) => void }) {
+  const [status, setStatus] = useState<CredentialStatus | null>(null);
+  const [token, setToken] = useState("");
+  const [secret, setSecret] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let aborted = false;
+    fetch(`/api/intercom/${clinicId}/credentials/status`, { cache: "no-store" })
+      .then((r) => r.json() as Promise<CredentialStatus>)
+      .then((j) => { if (!aborted) setStatus(j); })
+      .catch(() => { if (!aborted) setStatus({ configured: false }); });
+    return () => { aborted = true; };
+  }, [clinicId]);
+
+  async function handleSave() {
+    if (token.trim().length < 8) {
+      setError("Token must be at least 8 characters");
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/intercom/${clinicId}/credentials`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Phase 1 stub for the api-server Owner/Admin guard — see follow-up
+          // #88 for moving this into a session-resolving server-side proxy.
+          "X-Livera-Role": "admin",
+        },
+        body: JSON.stringify({
+          access_token: token.trim(),
+          ...(secret.trim() ? { webhook_secret: secret.trim() } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
+        throw new Error(detail.error ?? `save_failed_${res.status}`);
+      }
+      const next = (await res.json()) as CredentialStatus & { workspace_id?: string };
+      setStatus({ configured: next.configured, demo_mode: next.demo_mode, workspace_id: next.workspace_id });
+      setToken("");
+      setSecret("");
+      onToast("Intercom token saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "save_failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="bg-surface border border-bdr rounded-lg p-4 space-y-3">
+      <div>
+        <div className="flex items-center gap-2 mb-0.5">
+          <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3">
+            Workspace access token
+          </h3>
+          <span className="text-[10px] bg-info-bg text-info px-1.5 py-0.5 rounded font-semibold">
+            PHASE 1 · READ-ONLY
+          </span>
+        </div>
+        <p className="text-[12px] text-t2">
+          Required for the Order Detail Intercom tab to pull real conversations from your
+          workspace. The token is stored server-side only — once saved, the value never
+          returns to the browser. Owner / Admin only.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-[11px] text-t3 mb-1.5">
+            Intercom access token
+          </label>
+          <input
+            type="password"
+            placeholder="dG9rOg=="
+            autoComplete="off"
+            spellCheck={false}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            className="w-full text-[12px] bg-page-bg border border-bdr rounded px-3 py-2 font-mono text-t1 focus:outline-none focus:border-brand"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] text-t3 mb-1.5">
+            Webhook signing secret (optional)
+          </label>
+          <input
+            type="password"
+            placeholder="whsec_…"
+            autoComplete="off"
+            spellCheck={false}
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            className="w-full text-[12px] bg-page-bg border border-bdr rounded px-3 py-2 font-mono text-t1 focus:outline-none focus:border-brand"
+          />
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[11.5px]">
+          {status === null ? (
+            <span className="text-t3">Checking status…</span>
+          ) : status.configured ? (
+            <span className="text-ok flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Live token configured · workspace {status.workspace_id ?? "—"}
+            </span>
+          ) : (
+            <span className="text-warn flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" />
+              Demo-mode token in use · paste a real access token to go live
+            </span>
+          )}
+        </div>
+        <Button
+          size="sm"
+          variant="default"
+          onClick={handleSave}
+          disabled={saving || token.trim().length === 0}
+          className="h-9 text-[12px] gap-1.5"
+        >
+          {saving ? "Saving…" : "Save token"}
+        </Button>
+      </div>
+      {error && (
+        <p className="text-[11.5px] text-err flex items-center gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5" /> {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function IntercomSettingsPage({ params }: { params: Params }) {
   const { clinic_id } = use(params);
@@ -160,6 +305,8 @@ export default function IntercomSettingsPage({ params }: { params: Params }) {
           </p>
         </div>
       </div>
+
+      <WorkspaceAccessTokenSection clinicId={clinic_id} onToast={showToast} />
 
       {/* Endpoint configuration */}
       <div className="bg-surface border border-bdr rounded-lg p-4 space-y-4">

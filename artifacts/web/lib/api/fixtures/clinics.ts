@@ -153,6 +153,18 @@ const INCIDENT_TRIAGE_TEXT: ClinicConfig['incident_triage_text'] = {
 // UK public holidays 2026 (partial — configurable per clinic per DEC-15)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Default weight-warning thresholds (Task-100) — used by analyseWeightHistory.
+// Clinics override via Settings → SLAs page.
+// ---------------------------------------------------------------------------
+
+const DEFAULT_WEIGHT_WARNING_THRESHOLDS: ClinicConfig['weight_warning_thresholds'] = {
+  bmi_continuation_floor: 27.5,
+  rapid_loss_kg_per_week: 2,
+  plateau_tolerance_kg: 0.3,
+  plateau_min_readings: 3,
+};
+
 const UK_HOLIDAYS_2026: ClinicConfig['holiday_calendar'] = [
   { date: '2026-01-01', name: "New Year's Day" },
   { date: '2026-04-03', name: 'Good Friday' },
@@ -312,6 +324,9 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
         { id: 'vsc_rq_5', label: 'Any new medical diagnoses since last order?',      type: 'yes_no', required: true,  order: 5, safety_flag: true },
         { id: 'vsc_rq_6', label: 'How would you rate your progress? (1 = poor, 10 = excellent)', type: 'scale', required: true, order: 6, scale_min: 1, scale_max: 10 },
       ],
+
+      // Weight-warning thresholds (Task-100) — seeded with platform defaults.
+      weight_warning_thresholds: { ...DEFAULT_WEIGHT_WARNING_THRESHOLDS },
     },
   },
 
@@ -470,6 +485,9 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
         { id: 'ft_rq_6', label: 'Any new medical diagnoses since last order?',         type: 'yes_no', required: true,  order: 6, safety_flag: true },
         { id: 'ft_rq_7', label: 'How would you rate your progress? (1 = poor, 10 = excellent)', type: 'scale', required: true, order: 7, scale_min: 1, scale_max: 10 },
       ],
+
+      // Weight-warning thresholds (Task-100) — seeded with platform defaults.
+      weight_warning_thresholds: { ...DEFAULT_WEIGHT_WARNING_THRESHOLDS },
     },
   },
 };
@@ -541,6 +559,75 @@ export async function updateClinicSlaThresholds(
       field_name: 'clinical_note_min_chars',
       old_value:  oldValue,
       new_value:  clinical_note_min_chars,
+      timestamp:  NOW,
+    });
+  }
+
+  return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
+// updateClinicWeightWarningThresholds — Task-100
+// Persists per-clinic overrides for the weight-trend analyser thresholds.
+// Owner/Admin only; values must be positive numbers (plateau_min_readings >= 2).
+// ---------------------------------------------------------------------------
+
+export async function updateClinicWeightWarningThresholds(
+  clinic_id: ClinicId,
+  updates: Partial<ClinicConfig['weight_warning_thresholds']>,
+  actor_id: string,
+): Promise<ClinicConfig> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2a — permission gate: Admin/Owner only.
+  const isAdminOrOwner = CURRENT_USER.roles.some((r) => r === 'Admin' || r === 'Owner');
+  if (!isAdminOrOwner) {
+    console.log('[AUDIT]', {
+      event_type: 'weight_warning_threshold_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Only Admins and Owners may update weight-warning thresholds',
+    );
+  }
+
+  // Layer 2b — server gate: every value must be a positive number.
+  // plateau_min_readings must additionally be an integer >= 2 (need at least
+  // two readings to compute a min/max spread).
+  for (const [field, value] of Object.entries(updates)) {
+    if (typeof value !== 'number' || !isFinite(value) || value <= 0) {
+      throw new APIError(
+        'SAFETY_VIOLATION',
+        `Invalid value for ${field}: must be a positive number`,
+      );
+    }
+    if (field === 'plateau_min_readings' && (!Number.isInteger(value) || value < 2)) {
+      throw new APIError(
+        'SAFETY_VIOLATION',
+        'plateau_min_readings must be a whole number ≥ 2',
+      );
+    }
+  }
+
+  for (const [field, newValue] of Object.entries(updates)) {
+    const key = field as keyof ClinicConfig['weight_warning_thresholds'];
+    const oldValue = clinic.config.weight_warning_thresholds[key];
+    (clinic.config.weight_warning_thresholds as Record<string, number>)[field] =
+      newValue as number;
+    console.log('[AUDIT]', {
+      event_type: 'weight_warning_threshold_updated',
+      outcome:    'success',
+      actor_id,
+      clinic_id,
+      field_name: field,
+      old_value:  oldValue,
+      new_value:  newValue,
       timestamp:  NOW,
     });
   }

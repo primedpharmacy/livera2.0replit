@@ -3,11 +3,13 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { analyseWeightHistory } from "@/lib/clinical/weightWarnings";
 import { WeightWarningChips } from "@/components/clinical/WeightWarningChips";
-import type { Order, ClinicId } from "@/types";
+import type { ClinicConfig, Order, ClinicId } from "@/types";
 
 interface Props {
   order: Order;
   clinicId: ClinicId;
+  /** Clinic-tuned thresholds for the weight-trend analyser (Task-100). */
+  weightWarningThresholds?: ClinicConfig["weight_warning_thresholds"];
   /** Whether the current viewer is allowed to acknowledge warnings. */
   canAcknowledgeWarnings?: boolean;
   /** Notify parent of the updated order after an acknowledgement is saved. */
@@ -17,6 +19,7 @@ interface Props {
 export function OrderWeightTrajectoryCard({
   order,
   clinicId,
+  weightWarningThresholds,
   canAcknowledgeWarnings = true,
   onWarningAcknowledged,
 }: Props) {
@@ -24,6 +27,7 @@ export function OrderWeightTrajectoryCard({
   if (history.length === 0) return null;
   const warnings = analyseWeightHistory(history, {
     isContinuation: order.type === "reorder",
+    thresholds: weightWarningThresholds,
   });
 
   const sorted    = [...history].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));

@@ -1149,6 +1149,7 @@ export function OrderDetailClient({
                   <OrderWeightTrajectoryCard
                     order={order}
                     clinicId={clinicId}
+                    weightWarningThresholds={clinic.config.weight_warning_thresholds}
                     canAcknowledgeWarnings={can(CURRENT_USER, "decide", "orders")}
                     onWarningAcknowledged={setOrder}
                   />

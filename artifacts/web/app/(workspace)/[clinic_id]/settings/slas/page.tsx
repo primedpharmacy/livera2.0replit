@@ -11,6 +11,7 @@ import { Clock } from "lucide-react";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { SlaThresholdEditor } from "@/components/settings/SlaThresholdEditor";
+import { WeightWarningThresholdsEditor } from "@/components/settings/WeightWarningThresholdsEditor";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/format";
 import { getClinic, listSlaBreaches } from "@/lib/api/mock";
@@ -46,6 +47,9 @@ async function SlaContent({ clinicId }: { clinicId: ClinicId }) {
       <div className="px-6 py-5 max-w-3xl space-y-6">
         {/* Threshold editor */}
         <SlaThresholdEditor config={clinic.config} clinicId={clinicId} actorId={CURRENT_USER.id} />
+
+        {/* Weight-warning thresholds (Task-100) */}
+        <WeightWarningThresholdsEditor config={clinic.config} clinicId={clinicId} actorId={CURRENT_USER.id} />
 
         {/* Open breaches table */}
         {openBreaches.length > 0 && (

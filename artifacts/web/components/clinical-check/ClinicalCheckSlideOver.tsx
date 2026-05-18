@@ -179,6 +179,7 @@ export function ClinicalCheckSlideOver({
   }).join(" ");
   const weightWarnings = analyseWeightHistory(weightHistory, {
     isContinuation: order.type === "reorder",
+    thresholds: clinic.config.weight_warning_thresholds,
   });
   const currentBmi = wLast?.bmi;
   const bmiBandLabel =

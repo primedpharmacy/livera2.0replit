@@ -49,8 +49,10 @@ const FLAG_COLORS: Record<string, string> = {
   "Safeguarding":              "bg-[#fef2f2] text-[#991b1b] border-[#fca5a5]",
   "Eating disorder disclosed": "bg-[#fdf4ff] text-[#7e22ce] border-[#e9d5ff]",
   "Duplicate address":         "bg-[#f9fafb] text-[#374151] border-[#d1d5db]",
+  // Task-163 — self-reported BMI sanity-check flag raised at intake.
+  "Self-reported BMI out of range": "bg-[#fff7ed] text-[#c2410c] border-[#fed7aa]",
 };
-const URGENT_FLAGS = new Set(["Safeguarding", "Eating disorder disclosed"]);
+const URGENT_FLAGS = new Set(["Safeguarding", "Eating disorder disclosed", "Self-reported BMI out of range"]);
 const defaultFlagCls = "bg-[#f9fafb] text-[#374151] border-[#d1d5db]";
 
 // ── Medication pill colours ───────────────────────────────────────────────────
@@ -500,7 +502,7 @@ function ClinicalCheckRow({
  * Esc dismisses the popover (and restores focus). Clicking the badge still
  * jumps the parent to the first flagged answer in the slide-over.
  */
-function ReviewNeededBadge({
+export function ReviewNeededBadge({
   count,
   flaggedAnswers,
   onJump,

@@ -51,6 +51,27 @@ import { OrderDoseEscalationGateCard } from "./OrderDoseEscalationGateCard";
 import { OrderWeightTrajectoryCard } from "./OrderWeightTrajectoryCard";
 import { OrderBMIValidationCard } from "./OrderBMIValidationCard";
 import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
+
+// Task-163 — Contextual-flag chip palette for the header. Mirrors the maps in
+// OrderListTable / ClinicalCheckSlideOver so the same chip styling appears on
+// the order detail header. Falls back to a neutral grey for unknown labels.
+const ORDER_DETAIL_FLAG_COLORS: Record<string, string> = {
+  "Dose increase":             "bg-[#eff6ff] text-[#1d4ed8] border-[#bfdbfe]",
+  "Cardiac history":           "bg-[#fef2f2] text-[#b91c1c] border-[#fecaca]",
+  "Safeguarding":              "bg-[#fef2f2] text-[#991b1b] border-[#fca5a5]",
+  "Eating disorder disclosed": "bg-[#fdf4ff] text-[#7e22ce] border-[#e9d5ff]",
+  "Duplicate address":         "bg-[#f9fafb] text-[#374151] border-[#d1d5db]",
+  "Awaiting ID":               "bg-[#fffbeb] text-[#b45309] border-[#fde68a]",
+  "Awaiting BMI":              "bg-[#fff7ed] text-[#c2410c] border-[#fed7aa]",
+  "Awaiting ID verification":  "bg-[#fffbeb] text-[#b45309] border-[#fde68a]",
+  "Awaiting BMI evidence":     "bg-[#fff7ed] text-[#c2410c] border-[#fed7aa]",
+  "Awaiting Rx evidence":      "bg-[#eff6ff] text-[#1d4ed8] border-[#bfdbfe]",
+  "Self-reported BMI out of range": "bg-[#fff7ed] text-[#c2410c] border-[#fed7aa]",
+  "New intake":                "bg-[#eef2ff] text-[#4338ca] border-[#c7d2fe]",
+  "Px upload pending":         "bg-[#fffbeb] text-[#b45309] border-[#fde68a]",
+  "Px upload received":        "bg-[#ecfdf5] text-[#047857] border-[#a7f3d0]",
+};
+const ORDER_DETAIL_DEFAULT_FLAG_CLS = "bg-[#f9fafb] text-[#374151] border-[#d1d5db]";
 import { DispatchDateCard } from "./DispatchDateCard";
 import { addWorkingHours } from "@/lib/utils/workingHours";
 import { useQueueNavigation } from "@/lib/queueNavigation";
@@ -892,6 +913,19 @@ export function OrderDetailClient({
                 {order.g6_flags.length > 0 && (
                   <span className="text-[9px] font-bold bg-ok-bg text-ok border border-ok-bdr px-2 py-px rounded">G6</span>
                 )}
+                {/* Task-163 — surface contextual flags (incl. "Self-reported BMI
+                    out of range") inline with the status so prescribers see them
+                    on the order detail header, not only in the queue. The flag
+                    auto-clears once the linked patient's bmi_verified_at is set,
+                    via normalizeSelfReportedBmiFlag in the orders fixture. */}
+                {(order.contextual_flags ?? []).map((f) => (
+                  <span
+                    key={f}
+                    className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${ORDER_DETAIL_FLAG_COLORS[f] ?? ORDER_DETAIL_DEFAULT_FLAG_CLS}`}
+                  >
+                    {f}
+                  </span>
+                ))}
               </div>
               <p className="text-[12px] text-t2 mt-0.5">
                 {order.product.medication} {order.product.dose} · <span className="capitalize">{order.type}</span> order · {formatDate(order.created_at)}

@@ -46,10 +46,10 @@ describe("filterSelfReportedBmiFlag", () => {
     expect(filterSelfReportedBmiFlag(flags, "")).toEqual(flags);
   });
 
-  it("drops only the BMI sanity flag once evidence is verified", () => {
+  it("drops both BMI evidence flags once evidence is verified (Task-247)", () => {
     expect(
       filterSelfReportedBmiFlag(flags, "2026-05-18T10:00:00Z"),
-    ).toEqual(["New intake", "Awaiting BMI evidence"]);
+    ).toEqual(["New intake"]);
   });
 
   it("tolerates missing input arrays", () => {

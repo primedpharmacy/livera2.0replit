@@ -14,8 +14,9 @@
  *      snapshot under replaced_from.
  *
  * The audit assertion needs server stdout, so this spec spawns its own
- * `next dev` instance on a fresh port and captures the dev server's output
- * into an in-memory buffer instead of piggy-backing on the shared workflow.
+ * `next dev` instance via the shared `startDevServer()` harness in
+ * `_support/devServer.ts` instead of piggy-backing on the workspace
+ * workflow (which swallows stdout from the test process).
  *
  * Seed: ORD-00451 (FeelTru, Zara Ahmed) — GLP-1 higher-dose path with the
  * "Px upload pending" flag. The test first attaches an initial file via the
@@ -24,86 +25,29 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { spawn, type ChildProcess } from 'node:child_process';
-import * as path from 'node:path';
+import { startDevServer, type DevServerHandle } from './_support/devServer';
 
 const CLINIC = 'feeltru';
 const ORDER_ID = 'ORD-00451';
-const READY_TIMEOUT_MS = 120_000;
-const WEB_ROOT = path.resolve(__dirname, '..', '..');
 
-let server: ChildProcess | null = null;
-let stdoutBuf = '';
-let baseURL = '';
-
-async function waitForServer(url: string): Promise<void> {
-  const deadline = Date.now() + READY_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url, { redirect: 'manual' });
-      // Any non-5xx means the server is up and serving routes. The middleware
-      // happily 200s/302s `/`, so we can stop waiting.
-      if (res.status < 500) return;
-    } catch {
-      // ECONNREFUSED while next is still booting — keep polling.
-    }
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error(
-    `Dev server at ${url} did not become ready within ${READY_TIMEOUT_MS}ms. ` +
-      `Last stdout:\n${stdoutBuf.slice(-2000)}`,
-  );
-}
+let server: DevServerHandle;
 
 test.describe('Px-upload replace flow', () => {
   test.beforeAll(async () => {
-    // Random high port to avoid colliding with the shared workspace workflow.
-    const port = String(30000 + Math.floor(Math.random() * 5000));
-    baseURL = `http://127.0.0.1:${port}`;
-
-    server = spawn(
-      'pnpm',
-      ['exec', 'next', 'dev', '--port', port, '--hostname', '127.0.0.1'],
-      {
-        cwd: WEB_ROOT,
-        env: {
-          ...process.env,
-          PORT: port,
-          // Force a non-TTY so console.log of objects stays uncoloured —
-          // makes the AUDIT regex assertions robust against ANSI codes.
-          FORCE_COLOR: '0',
-          NO_COLOR: '1',
-          NODE_ENV: 'development',
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    );
-
-    server.stdout?.on('data', (chunk: Buffer) => {
-      stdoutBuf += chunk.toString();
-    });
-    server.stderr?.on('data', (chunk: Buffer) => {
-      stdoutBuf += chunk.toString();
-    });
-
-    await waitForServer(baseURL);
+    server = await startDevServer();
   });
 
   test.afterAll(async () => {
-    if (server && !server.killed) {
-      server.kill('SIGTERM');
-      await new Promise((r) => setTimeout(r, 500));
-      if (!server.killed) server.kill('SIGKILL');
-    }
+    await server?.stop();
   });
 
   test('Replace swaps the file and audits the prior upload', async ({ browser }) => {
     test.setTimeout(180_000);
-    const context = await browser.newContext({ baseURL });
+    const context = await browser.newContext({ baseURL: server.baseURL });
     const page = await context.newPage();
 
     try {
-      await page.goto(`${baseURL}/${CLINIC}/orders/${ORDER_ID}?as=user_qadir`);
+      await page.goto(`${server.baseURL}/${CLINIC}/orders/${ORDER_ID}?as=user_qadir`);
       await expect(page.locator('h1', { hasText: ORDER_ID })).toBeVisible({
         timeout: 60_000,
       });
@@ -140,7 +84,7 @@ test.describe('Px-upload replace flow', () => {
 
       // Mark the boundary so the AUDIT regex below only looks at the
       // replace-time entries, not the initial upload's audit lines.
-      const stdoutBeforeReplace = stdoutBuf.length;
+      const stdoutBeforeReplace = server.stdoutLength();
 
       // ── 2. Click Replace → confirm modal opens with prior file summary ──
       await replaceButton.click();
@@ -181,7 +125,7 @@ test.describe('Px-upload replace flow', () => {
       // Give the dev server's stdout listener a beat to flush the audit lines
       // that fire inside attachPxUpload after the finalize route resolves.
       await page.waitForTimeout(500);
-      const replaceLogs = stdoutBuf.slice(stdoutBeforeReplace);
+      const replaceLogs = server.getStdout().slice(stdoutBeforeReplace);
 
       // Two AUDIT entries fire on success: px_upload_attempt and
       // px_upload_result. Both must record the replacement metadata so the

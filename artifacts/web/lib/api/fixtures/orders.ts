@@ -18,7 +18,7 @@ import { notifyPatient } from '@/lib/integrations/patientNotify'; // Task-49 + T
 import { sendPatientEmail, sendStaffEmail } from '@/lib/integrations/postmark'; // Task-80 / Task-78
 import { renderPatientEmail } from '@/lib/integrations/emailTemplates'; // Task-186
 import { randomBytes } from 'crypto';
-import { evaluateSelfReportedBmi, filterSelfReportedBmiFlag, SELF_REPORTED_BMI_FLAG } from '@/lib/clinical/selfReportedBmi'; // Task-163
+import { evaluateSelfReportedBmi, filterSelfReportedBmiFlag, SELF_REPORTED_BMI_FLAG, AWAITING_BMI_EVIDENCE_FLAG } from '@/lib/clinical/selfReportedBmi'; // Task-163 / Task-247
 import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 // ---------------------------------------------------------------------------
@@ -667,15 +667,27 @@ MOCK_ORDER_AUDIT_EVENTS.push(
 // linked patient's `verification.bmi_verified_at` has been set). Called at
 // every order read so the dashboard, queue, and order detail all see the
 // cleared state without each caller needing to reconcile it themselves.
-function normalizeSelfReportedBmiFlag(order: Order): void {
-  if (!order.contextual_flags?.includes(SELF_REPORTED_BMI_FLAG)) return;
+// Task-247 — derive (don't destructively mutate) the contextual_flags shown
+// to readers based on the linked patient's current BMI verification state.
+// The previous implementation mutated `order.contextual_flags` in place,
+// which permanently removed "Awaiting BMI evidence" / SELF_REPORTED_BMI_FLAG
+// from the underlying fixture row — so a subsequent reject (which only
+// clears `bmi_verified_at`) could never restore the gate flags on the next
+// read. By returning a shallow copy with the derived flags, both confirm
+// and reject become fully reversible at read time.
+function normalizeSelfReportedBmiFlag(order: Order): Order {
+  const flags = order.contextual_flags;
+  if (
+    !flags?.includes(SELF_REPORTED_BMI_FLAG) &&
+    !flags?.includes(AWAITING_BMI_EVIDENCE_FLAG)
+  ) return order;
   const patient = MOCK_PATIENTS.find((p) => p.id === order.patient_id);
   const verifiedAt = patient?.verification.bmi_verified_at ?? null;
-  if (!verifiedAt) return;
-  order.contextual_flags = filterSelfReportedBmiFlag(
-    order.contextual_flags,
-    verifiedAt,
-  );
+  if (!verifiedAt) return order;
+  return {
+    ...order,
+    contextual_flags: filterSelfReportedBmiFlag(flags, verifiedAt),
+  };
 }
 
 export async function listOrders(
@@ -686,16 +698,14 @@ export async function listOrders(
   let results = scopedToClinic(MOCK_ORDERS, clinic_id);
   if (opts?.status) results = results.filter((o) => o.status === opts.status);
   if (opts?.patient_id) results = results.filter((o) => o.patient_id === opts.patient_id);
-  results.forEach(normalizeSelfReportedBmiFlag);
-  return results;
+  return results.map(normalizeSelfReportedBmiFlag);
 }
 
 export async function getOrder(clinic_id: ClinicId, id: string): Promise<Order> {
   await delay();
   const o = MOCK_ORDERS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!o) throw new APIError('NOT_FOUND', 'Order not found');
-  normalizeSelfReportedBmiFlag(o);
-  return o;
+  return normalizeSelfReportedBmiFlag(o);
 }
 
 export async function getClinicalCheckQueue(clinic_id: ClinicId): Promise<Order[]> {

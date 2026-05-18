@@ -1365,3 +1365,110 @@ export function listCoachOptions(clinic_id: ClinicId): Array<{ id: string; full_
     .filter((u) => u.active && u.roles.includes('Coach') && u.active_clinic_id === clinic_id)
     .map((u) => ({ id: u.id, full_name: u.full_name }));
 }
+
+// ── Task-247 — BMI photo evidence review ─────────────────────────────────────
+// Prescribers review the BMI photo uploaded by the patient and either confirm
+// (sets verification.bmi_verified_at — clears the "Awaiting BMI evidence" and
+// "Self-reported BMI out of range" contextual flags via the existing
+// filterSelfReportedBmiFlag / normalizeSelfReportedBmiFlag plumbing in
+// fixtures/orders.ts) or reject (clears any prior verified_at so the flags
+// reappear and a fresh upload can be requested). Both outcomes are audited.
+//
+// Gated by the `decide`/`orders` permission since this is a prescriber
+// clinical decision — coaches and admin staff don't sign these off.
+export async function confirmBmiEvidence(
+  clinic_id: ClinicId,
+  patient_id: string,
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'decide', 'orders')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_bmi_evidence_confirmed',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      timestamp: NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Insufficient permissions to confirm BMI evidence');
+  }
+
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  const previous = patient.verification.bmi_verified_at;
+  patient.verification = { ...patient.verification, bmi_verified_at: NOW };
+  patient.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_bmi_evidence_confirmed',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_bmi_verified_at: previous,
+    new_bmi_verified_at: NOW,
+    timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_bmi_evidence_confirmed',
+    summary: `BMI photo evidence for ${patient_id} confirmed by ${actor.full_name}.`,
+    before: { bmi_verified_at: previous },
+    after: { bmi_verified_at: NOW },
+  });
+
+  return patient;
+}
+
+export async function rejectBmiEvidence(
+  clinic_id: ClinicId,
+  patient_id: string,
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'decide', 'orders')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_bmi_evidence_rejected',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      timestamp: NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Insufficient permissions to reject BMI evidence');
+  }
+
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  const previous = patient.verification.bmi_verified_at;
+  patient.verification = { ...patient.verification, bmi_verified_at: null };
+  patient.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_bmi_evidence_rejected',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_bmi_verified_at: previous,
+    timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'patient', id: patient_id },
+    event_type: 'patient_bmi_evidence_rejected',
+    summary: `BMI photo evidence for ${patient_id} rejected by ${actor.full_name}.`,
+    before: { bmi_verified_at: previous },
+    after: { bmi_verified_at: null },
+  });
+
+  return patient;
+}

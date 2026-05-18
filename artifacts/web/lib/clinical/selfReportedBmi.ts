@@ -38,11 +38,24 @@ export function evaluateSelfReportedBmi(bmi: number): string | null {
   return null;
 }
 
+// Task-247 — the intake "Awaiting BMI evidence" flag is the second BMI gate
+// that auto-clears once a prescriber confirms the photo evidence. Kept here
+// alongside SELF_REPORTED_BMI_FLAG so every read-side normaliser drops both
+// in lockstep (otherwise the order header still shows "Awaiting BMI evidence"
+// after a prescriber has signed it off).
+export const AWAITING_BMI_EVIDENCE_FLAG = "Awaiting BMI evidence";
+
+const BMI_EVIDENCE_FLAGS: readonly string[] = [
+  SELF_REPORTED_BMI_FLAG,
+  AWAITING_BMI_EVIDENCE_FLAG,
+];
+
 /**
- * Drop the self-reported BMI flag from a contextual_flags array once the
- * patient's BMI evidence has been reviewed (i.e. `bmi_verified_at` is set).
- * Display sites pass `bmiVerifiedAt` from the linked patient record so the
- * flag automatically disappears from the queue and the order detail once a
+ * Drop the BMI-evidence contextual flags from a contextual_flags array once
+ * the patient's BMI evidence has been reviewed (i.e. `bmi_verified_at` is
+ * set). Display sites pass `bmiVerifiedAt` from the linked patient record so
+ * both "Self-reported BMI out of range" and "Awaiting BMI evidence"
+ * automatically disappear from the queue and the order detail once a
  * prescriber has confirmed the photo evidence.
  */
 export function filterSelfReportedBmiFlag(
@@ -51,5 +64,5 @@ export function filterSelfReportedBmiFlag(
 ): string[] {
   const arr = flags ? [...flags] : [];
   if (!bmiVerifiedAt) return arr;
-  return arr.filter((f) => f !== SELF_REPORTED_BMI_FLAG);
+  return arr.filter((f) => !BMI_EVIDENCE_FLAGS.includes(f));
 }

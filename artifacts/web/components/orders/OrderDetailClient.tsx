@@ -194,7 +194,7 @@ const CONSENT_DEFS = [
 
 export function OrderDetailClient({
   initialOrder,
-  patient,
+  patient: initialPatient,
   clinic,
   clinicId,
   initialClinicalNotes,
@@ -205,6 +205,12 @@ export function OrderDetailClient({
   // matches what the server rendered (provider is seeded from the cookie).
   const currentUser = useCurrentUser();
   const [order, setOrder]             = useState<Order>(initialOrder);
+  // Task-247 — prescribers can confirm/reject BMI photo evidence from the
+  // BMI validation card, which mutates the patient's verification record.
+  // Track the patient locally so the order header re-renders with the
+  // refreshed contextual flags (Awaiting BMI evidence / Self-reported BMI
+  // out of range auto-clear once bmi_verified_at is set).
+  const [patient, setPatient]         = useState<Patient>(initialPatient);
   const [modal, setModal]             = useState<Modal>(null);
   const [rationale, setRationale]     = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1382,7 +1388,19 @@ export function OrderDetailClient({
 
                 {/* BLD-16.2 — BMI AI Validation (FeelTru only while flag is off for VSC) */}
                 {clinic.config.features.bmi_ai_validation_enabled && (
-                  <OrderBMIValidationCard patient={patient} order={order} />
+                  <OrderBMIValidationCard
+                    patient={patient}
+                    order={order}
+                    clinicId={clinicId}
+                    onPatientUpdated={(updated) => {
+                      // Task-247 — keep our local patient in sync, then re-fetch
+                      // the order so normalizeSelfReportedBmiFlag drops the
+                      // "Awaiting BMI evidence" / "Self-reported BMI out of
+                      // range" flags from the header.
+                      setPatient(updated);
+                      void getOrder(clinicId, order.id).then(setOrder).catch(() => {});
+                    }}
+                  />
                 )}
 
                 {/* BLD-14.4 — Dose escalation gate */}

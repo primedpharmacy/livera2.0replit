@@ -52,14 +52,14 @@ describe('normalizeSelfReportedBmiFlag', () => {
     expect(o.contextual_flags).toContain(SELF_REPORTED_BMI_FLAG);
   });
 
-  it('drops the flag on getOrder once BMI evidence is verified', async () => {
+  it('drops both BMI-evidence flags on getOrder once verified, but leaves unrelated flags', async () => {
     const { orderId } = seedFlaggedOrder('2026-05-18T10:00:00Z');
     const o = await getOrder(MOCK_ORDERS[0].clinic_id, orderId);
+    // Task-247 — both BMI gates auto-clear after a prescriber confirms.
     expect(o.contextual_flags).not.toContain(SELF_REPORTED_BMI_FLAG);
-    // Other flags survive
-    expect(o.contextual_flags).toEqual(
-      expect.arrayContaining(['New intake', 'Awaiting BMI evidence']),
-    );
+    expect(o.contextual_flags).not.toContain('Awaiting BMI evidence');
+    // Unrelated flags survive
+    expect(o.contextual_flags).toEqual(expect.arrayContaining(['New intake']));
   });
 
   it('drops the flag on listOrders for verified patients', async () => {

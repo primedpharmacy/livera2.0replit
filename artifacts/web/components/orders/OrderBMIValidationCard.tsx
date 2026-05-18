@@ -15,14 +15,25 @@
  * checklist item "BMI ≥27.5 with comorbidity" when present.
  */
 
-import { CheckCircle2, XCircle, Camera, ClipboardList, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, XCircle, Camera, ClipboardList, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime, formatBMI, formatWeight } from "@/lib/format";
-import type { Patient, Order } from "@/types";
+import { confirmBmiEvidence, rejectBmiEvidence } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
+import { can } from "@/lib/permissions";
+import type { Patient, Order, ClinicId } from "@/types";
 
 interface Props {
   patient: Patient;
   order: Pick<Order, "nice_checklist">;
+  clinicId: ClinicId;
+  // Task-247 — let the parent refresh its order/patient state once the
+  // prescriber confirms or rejects BMI evidence, so the order header's
+  // "Awaiting BMI evidence" / "Self-reported BMI out of range" flags
+  // re-render (they auto-clear via normalizeSelfReportedBmiFlag once
+  // verification.bmi_verified_at is set).
+  onPatientUpdated?: (patient: Patient) => void;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -121,11 +132,32 @@ function StatusBadge({
 
 // ── main component ───────────────────────────────────────────────────────────
 
-export function OrderBMIValidationCard({ patient, order }: Props) {
+export function OrderBMIValidationCard({ patient, order, clinicId, onPatientUpdated }: Props) {
   const { latest, baseline, verification } = patient;
+  const currentUser = useCurrentUser();
+  const canReview = can(currentUser, "decide", "orders");
+  const [pending, setPending] = useState<null | "confirm" | "reject">(null);
+  const [error, setError] = useState<string | null>(null);
 
   const bmiVerified = !!verification.bmi_verified_at;
   const eligibility = calcNiceEligibility(latest.bmi, order.nice_checklist);
+
+  async function handleReview(decision: "confirm" | "reject") {
+    if (pending) return;
+    setPending(decision);
+    setError(null);
+    try {
+      const updated =
+        decision === "confirm"
+          ? await confirmBmiEvidence(clinicId, patient.id, currentUser)
+          : await rejectBmiEvidence(clinicId, patient.id, currentUser);
+      onPatientUpdated?.(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to record BMI review.");
+    } finally {
+      setPending(null);
+    }
+  }
 
   const eligibilityStatus: "pass" | "fail" | "warn" | "unknown" =
     eligibility.status === "eligible"     ? "pass"    :
@@ -187,6 +219,47 @@ export function OrderBMIValidationCard({ patient, order }: Props) {
                   Request a weight photo from the patient before approving.
                 </p>
               </>
+            )}
+
+            {/* Task-247 — Prescriber review action */}
+            {canReview && (
+              <div className="mt-1 flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleReview("confirm")}
+                    disabled={pending !== null || bmiVerified}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10.5px] font-semibold bg-ok text-white hover:bg-ok/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title={bmiVerified ? "Already verified" : "Confirm BMI photo evidence"}
+                  >
+                    {pending === "confirm" ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-3 h-3" />
+                    )}
+                    {bmiVerified ? "Confirmed" : "Confirm evidence"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReview("reject")}
+                    disabled={pending !== null}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10.5px] font-semibold border border-err-bdr text-err bg-err-bg hover:bg-err hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title={
+                      bmiVerified
+                        ? "Reject and require a fresh upload"
+                        : "Mark the current photo as unacceptable and request a new one"
+                    }
+                  >
+                    {pending === "reject" ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <XCircle className="w-3 h-3" />
+                    )}
+                    Reject
+                  </button>
+                </div>
+                {error && <p className="text-[10px] text-err">{error}</p>}
+              </div>
             )}
           </div>
         </div>

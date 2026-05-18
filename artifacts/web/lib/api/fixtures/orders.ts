@@ -543,6 +543,42 @@ export async function decideOrder(
 }
 
 // ---------------------------------------------------------------------------
+// reverseDecision — Task-71: Undo a clinical decision within the toast window.
+// Restores the order to 'clinical_check' so it pops back into the queue.
+// Side-effects from the original decision (auto-triggered GP letter, clinical
+// note) are intentionally left in place — clinicians can address those via the
+// normal flows. The audit log captures the reversal for traceability.
+// ---------------------------------------------------------------------------
+
+export async function reverseDecision(
+  clinic_id: ClinicId,
+  id: string,
+): Promise<Order> {
+  await delay(200);
+  const o = MOCK_ORDERS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!o) throw new APIError('NOT_FOUND', 'Order not found');
+  if (!o.clinical_decision) {
+    throw new APIError('VALIDATION', 'No decision to reverse on this order');
+  }
+  const prior = o.clinical_decision.decision;
+  o.clinical_decision = null;
+  o.intervention_raised_at = null;
+  o.status = 'clinical_check';
+  o.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'clinical_decision_reversed',
+    clinic_id,
+    order_id: id,
+    prior_decision: prior,
+    user_id: CURRENT_USER.id,
+    timestamp: NOW,
+  });
+
+  return o;
+}
+
+// ---------------------------------------------------------------------------
 // expireOrder — BLD-4.6.3 internal helper (called by detectOrderExpiry)
 // Transitions a single order to 'expired'. Not exported directly —
 // detectOrderExpiry owns the loop + effects.

@@ -874,7 +874,7 @@ export function OrderDetailClient({
 
                 {/* BLD-14.5 — Weight trajectory */}
                 {order.weight_history && order.weight_history.length > 0 && (
-                  <OrderWeightTrajectoryCard history={order.weight_history} />
+                  <OrderWeightTrajectoryCard history={order.weight_history} orderType={order.type} />
                 )}
 
                 <DCard icon={Scale} title="Weight Journey">

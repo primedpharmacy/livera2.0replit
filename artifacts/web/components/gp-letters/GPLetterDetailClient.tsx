@@ -187,6 +187,58 @@ export function GPLetterDetailClient({ initialLetter, patient, clinic, clinicId 
             </dl>
           </div>
 
+          {/* BLD-7.4 — Activity log surfacing on the GP letter detail timeline.
+              Mirrors the [AUDIT] entry written by sendGPLetter in fixtures. */}
+          {letter.status === "sent" && letter.sent_at && (
+            <div className="bg-surface border border-bdr rounded-lg p-4">
+              <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-3">Activity</h3>
+              <ol className="relative border-l border-bdr pl-3 space-y-3">
+                <li className="relative">
+                  <span className="absolute -left-[19px] top-1 w-2 h-2 rounded-full bg-bdr" />
+                  <div className="text-[12px] font-semibold text-t1">Letter created</div>
+                  <div className="text-[11px] text-t3">{formatDateTime(letter.created_at)}</div>
+                </li>
+                <li className="relative">
+                  <span className="absolute -left-[19px] top-1 w-2 h-2 rounded-full bg-ok" />
+                  <div className="text-[12px] font-semibold text-t1">PDF generated &amp; emailed via Postmark</div>
+                  <div className="text-[11px] text-t3">{formatDateTime(letter.sent_at)}</div>
+                  <dl className="mt-1.5 space-y-1 text-[11px]">
+                    {letter.template_id && (
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-t3 shrink-0">Email body template</dt>
+                        <dd className="text-t1 font-mono truncate">{letter.template_id}</dd>
+                      </div>
+                    )}
+                    {letter.template_id && (
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-t3 shrink-0">PDF letter template</dt>
+                        <dd className="text-t1 font-mono truncate">{letter.template_id}</dd>
+                      </div>
+                    )}
+                    {letter.pdf_filename && (
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-t3 shrink-0">PDF filename</dt>
+                        <dd className="text-t1 font-mono truncate" title={letter.pdf_filename}>{letter.pdf_filename}</dd>
+                      </div>
+                    )}
+                    {letter.postmark_message_id && (
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-t3 shrink-0">Postmark MessageID</dt>
+                        <dd className="text-t1 font-mono truncate" title={letter.postmark_message_id}>{letter.postmark_message_id}</dd>
+                      </div>
+                    )}
+                    {letter.byte_size != null && (
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-t3 shrink-0">PDF size</dt>
+                        <dd className="text-t1 font-medium">{(letter.byte_size / 1024).toFixed(1)} KB</dd>
+                      </div>
+                    )}
+                  </dl>
+                </li>
+              </ol>
+            </div>
+          )}
+
           {letter.patient_consent_verified && (
             <div className="flex items-center gap-2 bg-ok-bg border border-ok-bdr rounded-lg px-3 py-2">
               <CheckCircle className="w-4 h-4 text-ok shrink-0" />

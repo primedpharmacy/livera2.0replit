@@ -9,14 +9,15 @@ import { LatestCoachingLogCard } from "@/components/clinical-check/LatestCoachin
 import { ClinicalCheckSlideOver } from "@/components/clinical-check/ClinicalCheckSlideOver";
 import { NOW } from "@/lib/api/constants";
 import { reverseDecision } from "@/lib/api/mock";
-import { listFlaggedAnswers, type FlaggedAnswer } from "@/lib/questionnaire";
+import { openOrderUndoWindow, clearOrderUndoWindow, ORDER_UNDO_WINDOW_MS } from "@/lib/orderUndo";
+import { countReviewNeeded, listFlaggedAnswers, type FlaggedAnswer } from "@/lib/questionnaire";
 import { cn } from "@/lib/utils";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { Order, Clinic, CoachingLog, ClinicId } from "@/types";
 
 type Decision = "approved" | "declined" | "queried";
 
-const UNDO_WINDOW_MS = 5000;
+const UNDO_WINDOW_MS = ORDER_UNDO_WINDOW_MS;
 
 interface UndoToast {
   orderId: string;
@@ -166,11 +167,12 @@ export function ClinicalCheckClient({
         return next;
       });
       setSelectedOrderId(null);
+      const deadline = openOrderUndoWindow(orderId);
       setUndoToast({
         orderId,
         decision,
         snapshot,
-        expiresAt: Date.now() + UNDO_WINDOW_MS,
+        expiresAt: deadline,
       });
       setUndoRemainingMs(UNDO_WINDOW_MS);
     },
@@ -183,6 +185,7 @@ export function ClinicalCheckClient({
     const tick = () => {
       const left = undoToast.expiresAt - Date.now();
       if (left <= 0) {
+        clearOrderUndoWindow(undoToast.orderId);
         setUndoToast(null);
         setUndoRemainingMs(0);
       } else {
@@ -218,6 +221,7 @@ export function ClinicalCheckClient({
         dispatchQueueCountChange({ queue: "clinical_check", delta: 1, count: next.length });
         return next;
       });
+      clearOrderUndoWindow(snapshot.id);
       setUndoToast(null);
       setUndoRemainingMs(0);
     } catch (err) {

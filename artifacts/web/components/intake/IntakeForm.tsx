@@ -17,7 +17,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronUp, CheckCircle2, Loader2, MapPin, AlertCircle, Upload, FileCheck2, X } from "lucide-react";
 import type { ClinicId, QuestionItem, QuestionType } from "@/types";
-import { isValidUkMobile, isValidUkPostcode } from "@/lib/validation/intake";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -425,10 +424,8 @@ function AddressStep({
   const inputCls =
     "w-full border border-[#e2e8f0] rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366f1]/30 focus:border-[#6366f1]";
 
-  const postcodeFilled = address.postcode.trim().length > 0;
-  const postcodeValid = postcodeFilled && isValidUkPostcode(address.postcode);
   const isValid =
-    address.line1.trim() && address.city.trim() && postcodeValid;
+    address.line1.trim() && address.city.trim() && address.postcode.trim();
 
   return (
     <div className="space-y-4">
@@ -537,9 +534,7 @@ function AddressStep({
       {showError && !isValid && (
         <p className="text-[12px] text-[#ef4444] flex items-center gap-1">
           <AlertCircle className="w-3.5 h-3.5" />
-          {postcodeFilled && !postcodeValid
-            ? "Please enter a valid UK postcode (e.g. OX4 2NE)"
-            : "Please provide your full address (line 1, town, and postcode)"}
+          Please provide your full address (line 1, town, and postcode)
         </p>
       )}
     </div>
@@ -1170,19 +1165,13 @@ export function IntakeForm({
         personal.dob &&
         personal.email.trim() &&
         personal.phone.trim() &&
-        isValidUkMobile(personal.phone) &&
         personal.sexAtBirth &&
         !bioErrs.height &&
         !bioErrs.weight
       );
     }
     if (step === STEP_ADDRESS) {
-      return !!(
-        address.line1.trim() &&
-        address.city.trim() &&
-        address.postcode.trim() &&
-        isValidUkPostcode(address.postcode)
-      );
+      return !!(address.line1.trim() && address.city.trim() && address.postcode.trim());
     }
     if (step >= STEP_QUESTIONS_START && step < STEP_REVIEW) {
       const page = questionPages[step - STEP_QUESTIONS_START];
@@ -1547,12 +1536,6 @@ export function IntakeForm({
                       </p>
                       {showErrors && !personal.phone.trim() && (
                         <p className="text-[11px] text-[#ef4444] mt-1">Required</p>
-                      )}
-                      {showErrors && personal.phone.trim() && !isValidUkMobile(personal.phone) && (
-                        <p className="text-[11px] text-[#ef4444] mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" />
-                          Enter a valid UK mobile (e.g. 07700 900123 or +44 7700 900123)
-                        </p>
                       )}
                     </div>
                   </div>

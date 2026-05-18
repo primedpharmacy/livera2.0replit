@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, CURRENT_USER, NOW, USERS_REGISTRY } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, reverseDecision, CURRENT_USER, NOW, USERS_REGISTRY } from "@/lib/api/mock";
+import { dispatchQueueCountChange } from "@/lib/queue-counts";
+import { openOrderUndoWindow, readOrderUndoDeadline, clearOrderUndoWindow } from "@/lib/orderUndo";
 import {
   Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent,
   DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle,
@@ -240,6 +242,69 @@ export function OrderDetailClient({
 
   // Task-91 — Resend Px upload link
   const [isResendingPxLink, setIsResendingPxLink] = useState(false);
+
+  // Task-110 — Undo last decision affordance.
+  // Mirrors the ~5s window from the Clinical Check queue's slide-over toast,
+  // but is anchored to the order detail page so a clinician who navigates
+  // away or refreshes (or who lands here straight from the queue) still has
+  // a quick recovery path. The deadline is shared with the queue page via
+  // sessionStorage (see lib/orderUndo.ts) so the window survives navigation,
+  // refresh, and works regardless of where the decision was originally made.
+  const [undoDeadline, setUndoDeadline] = useState<number | null>(() =>
+    readOrderUndoDeadline(initialOrder.id)
+  );
+  const [undoRemainingMs, setUndoRemainingMs] = useState<number>(0);
+  const [isUndoing, setIsUndoing] = useState(false);
+
+  useEffect(() => {
+    if (!undoDeadline) { setUndoRemainingMs(0); return; }
+    const tick = () => {
+      const left = undoDeadline - Date.now();
+      if (left <= 0) {
+        clearOrderUndoWindow(order.id);
+        setUndoDeadline(null);
+        setUndoRemainingMs(0);
+      } else {
+        setUndoRemainingMs(left);
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 200);
+    return () => clearInterval(interval);
+  }, [undoDeadline, order.id]);
+
+  const canUndoDecision =
+    order.clinical_decision != null &&
+    order.clinical_decision.prescriber_user_id === CURRENT_USER.id &&
+    undoDeadline != null &&
+    undoRemainingMs > 0;
+
+  async function handleUndoDecision() {
+    if (!canUndoDecision || isUndoing) return;
+    setIsUndoing(true);
+    try {
+      const updated = await reverseDecision(clinicId, order.id);
+      setOrder(updated);
+      clearOrderUndoWindow(order.id);
+      setUndoDeadline(null);
+      setUndoRemainingMs(0);
+      // Net-zero with the decide-side decrement: every clinical decision
+      // (whether made from the queue or from this detail page) emits a
+      // -1 to the clinical_check sidebar badge. The queue's own Undo path
+      // only fires when the user clicks the toast there, so undoing from
+      // the detail page can safely emit +1 unconditionally without risk
+      // of double-counting.
+      dispatchQueueCountChange({ queue: "clinical_check", delta: 1 });
+      setToast({ message: "Decision undone — order returned to the clinical check queue.", type: "ok" });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Could not undo the decision. Please retry.",
+        type: "err",
+      });
+    } finally {
+      setIsUndoing(false);
+    }
+  }
 
   async function handleResendPxUploadLink() {
     setIsResendingPxLink(true);
@@ -464,6 +529,16 @@ export function OrderDetailClient({
       setInterventionOpen(false);
       setApproveOpen(false);
       setRationale("");
+      // Task-110 — Mirror the queue page's decide-side count adjustment: the
+      // order is no longer in the clinical_check queue, so decrement the
+      // sidebar badge. The matching +1 is emitted from handleUndoDecision if
+      // the clinician hits Undo, keeping the count net-zero across surfaces.
+      if (order.status === "clinical_check") {
+        dispatchQueueCountChange({ queue: "clinical_check", delta: -1 });
+      }
+      // Open the shared Undo window so the clinician can recover a misclick
+      // even after they navigate away or refresh the order detail page.
+      setUndoDeadline(openOrderUndoWindow(order.id));
       setToast({
         message:
           decision === "approved"  ? "Order approved successfully."               :
@@ -611,6 +686,18 @@ export function OrderDetailClient({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Task-110 — Undo last decision (active for ~5s after deciding) */}
+            {canUndoDecision && (
+              <button
+                onClick={handleUndoDecision}
+                disabled={isUndoing}
+                className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-t1 border border-bdr bg-surface hover:border-brand hover:text-brand rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Reverse this decision and return the order to the clinical check queue"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                {isUndoing ? "Undoing…" : `Undo decision (${Math.ceil(undoRemainingMs / 1000)}s)`}
+              </button>
+            )}
             {/* Intercom — Request info: switches to Intercom tab */}
             <button
               onClick={() => { setActiveTab("intercom"); setRequestInfoSent(false); setRequestInfoMsg(""); }}

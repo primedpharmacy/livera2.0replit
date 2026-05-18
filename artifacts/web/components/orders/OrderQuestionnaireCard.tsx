@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, Check, AlertTriangle, Minus, ChevronUp, ChevronDown } from "lucide-react";
 import { DCard } from "./orderPrimitives";
-import { qFlag } from "@/lib/questionnaire";
+import { qFlag, resolveSafetyCategory, SAFETY_CATEGORY_META } from "@/lib/questionnaire";
 import { cn } from "@/lib/utils";
 import type { QuestionItem, QuestionType } from "@/types";
 
@@ -199,6 +199,8 @@ export function OrderQuestionnaireCard({
                 const answered = val !== undefined && val !== null && val !== "";
                 const flag = answered ? qFlag(q, val) : "neutral";
                 const displayVal = answered ? formatValue(q.type, val, q) : "Not answered";
+                const categoryMeta =
+                  flag === "warn" ? SAFETY_CATEGORY_META[resolveSafetyCategory(q)] : null;
 
                 const isHighlighted = highlightedQid === q.id;
                 const highlightClass =
@@ -220,6 +222,17 @@ export function OrderQuestionnaireCard({
                       Q{idx + 1}
                     </div>
                     <div>
+                      {categoryMeta && (
+                        <div
+                          className={cn(
+                            "inline-flex items-center gap-1 text-[10px] font-bold border rounded-full px-1.5 py-px leading-none mb-1.5",
+                            categoryMeta.pillCls,
+                          )}
+                        >
+                          <span className={cn("w-1.5 h-1.5 rounded-full", categoryMeta.dotCls)} />
+                          {categoryMeta.label}
+                        </div>
+                      )}
                       <div className="flex items-start gap-2 flex-wrap mb-1">
                         <span className="text-[12.5px] text-t1 font-semibold leading-snug flex-1 min-w-0">
                           {q.label}

@@ -453,7 +453,7 @@ export type OrderAuditEvent = {
   payload: Record<string, unknown>;
 };
 
-const MOCK_ORDER_AUDIT_EVENTS: OrderAuditEvent[] = [];
+export const MOCK_ORDER_AUDIT_EVENTS: OrderAuditEvent[] = [];
 
 export function recordOrderAuditEvent(evt: OrderAuditEvent): void {
   MOCK_ORDER_AUDIT_EVENTS.push(evt);
@@ -486,6 +486,60 @@ MOCK_ORDER_AUDIT_EVENTS.push({
   },
 });
 
+// Task-253 — Legacy px-replacement seed. Mirrors the state of an order
+// that was replaced one-or-more times BEFORE Task-171 shipped: the
+// current `px_upload` is the latest file, and the Task-119 audit log
+// captured every prior swap, but `px_upload_history` is empty. The
+// startup backfill (see backfillPxUploadReplacementHistory) reconstructs
+// the chain from the audit events seeded into MOCK_ORDER_AUDIT_EVENTS
+// below so the Order Detail UI can render a complete history.
+const LEILA_ORDER_FEELTRU_LEGACY_REPLACED: Order = {
+  id: 'ORD-00452',
+  clinic_id: 'feeltru',
+  patient_id: 'PT-00378',
+  type: 'new',
+  status: 'clinical_check',
+  product: { medication: 'Mounjaro', dose: '5mg', strength: 'pre-filled pen', plan: '4 weeks' },
+  questionnaire_responses: {
+    ft_oq_1: 92.0,
+    ft_oq_2: 78.0,
+    ft_oq_3: 'no',
+    ft_oq_4: 'no',
+    ft_oq_5: 'None',
+    ft_oq_6: 'no',
+    ft_oq_7: 'yes',
+    ft_oq_8: 'Currently on Mounjaro 2.5mg from a previous provider; stepping up.',
+    ft_oq_9: 'yes',
+    ft_oq_10: 'yes',
+  },
+  amendment_window: 'pre_approval',
+  primed_order_id: null,
+  primed_clinical_check_completed: false,
+  ryft_authorisation_id: 'ryft_auth_le1',
+  amount_charged: null,
+  amount_authorised: 179.0,
+  clinical_decision: null,
+  sla_warn_at: '2026-05-17T10:00:00Z',
+  sla_breach_at: '2026-05-18T10:00:00Z',
+  g6_flags: [],
+  contextual_flags: ['New intake', 'Px upload received'],
+  intervention_raised_at: null,
+  px_upload: {
+    filename: 'leila-rx-final.pdf',
+    size: 184_320,
+    content_type: 'application/pdf',
+    uploaded_at: '2026-05-06T15:42:00Z',
+    object_path: '/objects/uploads/leila-rx-final',
+    source: 'staff_upload',
+    uploaded_by_user_id: 'user_claire',
+  },
+  // px_upload_history intentionally omitted — populated by the
+  // Task-253 backfill from MOCK_ORDER_AUDIT_EVENTS at module load.
+  expired_at: null,
+  created_at: '2026-05-04T09:00:00Z',
+  updated_at: '2026-05-06T15:42:00Z',
+};
+
 export const MOCK_ORDERS: Order[] = [
   SARAH_ORDER_FEELTRU, SARAH_ORDER_VSC,
   JAMES_ORDER_VSC, MIRIAM_ORDER_VSC,
@@ -494,7 +548,115 @@ export const MOCK_ORDERS: Order[] = [
   NINA_ORDER_VSC_EXPIRED,
   PRIYA_ORDER_FEELTRU_CANCELLED,
   ZARA_ORDER_FEELTRU_PX_PENDING,
+  LEILA_ORDER_FEELTRU_LEGACY_REPLACED,
 ];
+
+// Task-253 — Legacy px_upload_result audit rows for ORD-00452 (above).
+// Two successful replacements happened before Task-171 shipped:
+// the patient's blurry initial scan was swapped via the email-link
+// route, then staff swapped the resulting wrong-page PDF via the
+// staff-upload control. The current `px_upload` on the order is the
+// third (latest) file, so the history should end up with two entries.
+MOCK_ORDER_AUDIT_EVENTS.push(
+  {
+    order_id: 'ORD-00452',
+    clinic_id: 'feeltru',
+    event_type: 'px_upload_result',
+    actor_user_id: null,
+    occurred_at: '2026-05-05T11:14:00Z',
+    payload: {
+      outcome: 'success',
+      is_replacement: true,
+      source: 'email_link',
+      filename: 'leila-rx-v2.jpg',
+      replaced_from: {
+        filename: 'leila-rx-initial.jpg',
+        size: 412_000,
+        content_type: 'image/jpeg',
+        source: 'success_screen',
+      },
+    },
+  },
+  {
+    order_id: 'ORD-00452',
+    clinic_id: 'feeltru',
+    event_type: 'px_upload_result',
+    actor_user_id: 'user_claire',
+    occurred_at: '2026-05-06T15:42:00Z',
+    payload: {
+      outcome: 'success',
+      is_replacement: true,
+      source: 'staff_upload',
+      filename: 'leila-rx-final.pdf',
+      replaced_from: {
+        filename: 'leila-rx-v2.jpg',
+        size: 388_400,
+        content_type: 'image/jpeg',
+        source: 'email_link',
+      },
+    },
+  },
+);
+
+// Task-253 — One-shot backfill that reconstructs `px_upload_history`
+// for orders whose replacements happened before Task-171 shipped.
+// Inlined here (rather than calling backfillPxUploadReplacementHistory
+// from lib/api/jobs) to avoid the circular import — that job module
+// imports MOCK_ORDERS / MOCK_ORDER_AUDIT_EVENTS from this file. The
+// logic is intentionally identical: read px_upload_result audit rows
+// with outcome=success + is_replacement=true, dedupe by replaced_at +
+// replaced_filename, append in chronological order. Idempotent.
+(function backfillLegacyPxUploadHistoryAtBoot(): void {
+  type Row = {
+    order_id: string;
+    occurred_at: string;
+    actor_user_id: string | null;
+    source: 'success_screen' | 'email_link' | 'staff_upload';
+    replaced_filename: string;
+  };
+  const rows: Row[] = [];
+  for (const evt of MOCK_ORDER_AUDIT_EVENTS) {
+    if (evt.event_type !== 'px_upload_result') continue;
+    const p = evt.payload as Record<string, unknown>;
+    if (p.outcome !== 'success' || p.is_replacement !== true) continue;
+    const replacedFrom = p.replaced_from as Record<string, unknown> | null | undefined;
+    const replacedFilename = typeof replacedFrom?.filename === 'string'
+      ? replacedFrom.filename : null;
+    const source = typeof p.source === 'string' ? p.source : null;
+    if (!replacedFilename) continue;
+    if (source !== 'success_screen' && source !== 'email_link' && source !== 'staff_upload') {
+      continue;
+    }
+    rows.push({
+      order_id: evt.order_id,
+      occurred_at: evt.occurred_at,
+      actor_user_id: evt.actor_user_id,
+      source,
+      replaced_filename: replacedFilename,
+    });
+  }
+  rows.sort((a, b) =>
+    new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
+  );
+  for (const r of rows) {
+    const order = MOCK_ORDERS.find((o) => o.id === r.order_id);
+    if (!order) continue;
+    const history = order.px_upload_history ?? [];
+    const present = history.some(
+      (h) => h.replaced_at === r.occurred_at && h.replaced_filename === r.replaced_filename,
+    );
+    if (present) continue;
+    order.px_upload_history = [
+      ...history,
+      {
+        replaced_at: r.occurred_at,
+        replaced_filename: r.replaced_filename,
+        replaced_by_user_id: r.actor_user_id,
+        replaced_by_source: r.source,
+      },
+    ];
+  }
+})();
 
 // ---------------------------------------------------------------------------
 // Queries

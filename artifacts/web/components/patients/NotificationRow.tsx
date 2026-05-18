@@ -11,6 +11,9 @@
  * order-level notification surface re-implementing it (and forgetting).
  */
 
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, CheckCircle2, Clock, XCircle } from "lucide-react";
 import type { PatientNotification } from "@/lib/api/mock";
@@ -45,6 +48,13 @@ export function NotificationRow({
   currentChannel?: 'email' | 'sms' | 'phone';
   canSwitchChannel?: boolean;
 }) {
+  // Task-257 — keep the "Auto-retry in X" countdown ticking live without
+  // requiring a page reload. The mock fixture's NOW is a frozen constant so
+  // we anchor on it at mount and then advance by real wall-clock elapsed
+  // time, re-rendering once a second. When `next_retry_at` passes, the
+  // pill flips to a "retry due now" state via formatAutoRetryIn returning
+  // null below.
+  const liveNow = useLiveNow(NOW);
   const statusMeta =
     n.status === "Delivered"
       ? { Icon: CheckCircle2, cls: "bg-ok-bg text-ok border-ok-bdr" }
@@ -102,9 +112,17 @@ export function NotificationRow({
         const showError = (n.status === "Failed" || n.status === "Bounced") && !!n.last_error;
         const autoRetryIn =
           n.status === "Failed" && n.next_retry_at
-            ? formatAutoRetryIn(n.next_retry_at, NOW)
+            ? formatAutoRetryIn(n.next_retry_at, liveNow)
             : null;
-        if (!showError && !autoRetryIn) return null;
+        // Task-257 — once the scheduled retry time has elapsed in the live
+        // clock, show a "retry due now" indicator instead of letting the pill
+        // simply disappear. This makes it obvious to staff that the next
+        // scheduler sweep should pick the row up imminently.
+        const retryDueNow =
+          n.status === "Failed"
+          && n.next_retry_at
+          && new Date(n.next_retry_at).getTime() <= new Date(liveNow).getTime();
+        if (!showError && !autoRetryIn && !retryDueNow) return null;
         const inlineErrorText =
           n.channel === "SMS" && n.last_error
             ? formatSmsCarrierReason(n.last_error)
@@ -130,6 +148,14 @@ export function NotificationRow({
                 title={`Scheduled auto-retry at ${formatDateTime(n.next_retry_at)}`}
               >
                 <Clock className="w-3 h-3" /> Auto-retry {autoRetryIn}
+              </span>
+            )}
+            {!autoRetryIn && retryDueNow && n.next_retry_at && (
+              <span
+                className="shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded-full border border-warn-bdr bg-warn-bg text-warn font-semibold"
+                title={`Scheduled auto-retry at ${formatDateTime(n.next_retry_at)} — due now`}
+              >
+                <Clock className="w-3 h-3" /> Retry due now
               </span>
             )}
           </div>
@@ -195,6 +221,27 @@ export function NotificationRow({
       )}
     </div>
   );
+}
+
+// Task-257 — advance a "now" timestamp once per second based on real
+// wall-clock elapsed time since mount, anchored on `baseNow` (the mock
+// fixture's frozen NOW on first paint). This keeps the "Auto-retry in X"
+// countdown ticking down live without a page reload while still producing
+// stable, server-matching output on the very first render so we don't
+// hydrate-mismatch. SSR / initial client render both see `baseNow`; the
+// effect schedules the first re-tick only after hydration.
+function useLiveNow(baseNow: string): string {
+  const [now, setNow] = useState(baseNow);
+  useEffect(() => {
+    const baseMs = new Date(baseNow).getTime();
+    const startedAt = Date.now();
+    const id = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      setNow(new Date(baseMs + elapsed).toISOString());
+    }, 1000);
+    return () => clearInterval(id);
+  }, [baseNow]);
+  return now;
 }
 
 // Task-173 — render `next_retry_at` as a short relative countdown ("in 4 min",

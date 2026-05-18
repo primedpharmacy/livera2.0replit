@@ -22,7 +22,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Link2, Check } from "lucide-react";
 import {
   recordPatientWeight,
   WEIGHT_MIN_KG,
@@ -55,11 +55,34 @@ export function LogWeightForm({ clinicId, patientId, heightCm, canEdit }: Props)
   const [lbInput, setLbInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [, startTransition] = useTransition();
+
+  // Task-244 — coaches can copy a tokenised self-report link to send the
+  // patient (mock token: base64url(clinic:patient); real wave will sign+expire).
+  const selfReportToken =
+    typeof window !== "undefined"
+      ? btoa(`${clinicId}:${patientId}`).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_")
+      : "";
+  const selfReportUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/feeltru/weight/${selfReportToken}`
+      : "";
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(selfReportUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
 
   if (!canEdit) return null;
 
   function reset() {
+    setCopied(false);
     setKgInput("");
     setStInput("");
     setLbInput("");
@@ -265,6 +288,24 @@ export function LogWeightForm({ clinicId, patientId, heightCm, canEdit }: Props)
           Cancel
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={copyLink}
+        disabled={saving || !selfReportUrl}
+        className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[11px] font-medium text-t2 hover:text-brand-dark border-t border-bdr pt-2 transition-colors"
+        title="Copy a magic link the patient can use to log their own weight"
+      >
+        {copied ? (
+          <>
+            <Check className="w-3 h-3 text-ok" /> Link copied
+          </>
+        ) : (
+          <>
+            <Link2 className="w-3 h-3" /> Copy patient self-report link
+          </>
+        )}
+      </button>
     </form>
   );
 }

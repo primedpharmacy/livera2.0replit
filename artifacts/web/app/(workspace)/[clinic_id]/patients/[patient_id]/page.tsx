@@ -25,6 +25,7 @@ import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEd
 import { VipFlagEditor, StatusFlagEditor, CoachFlagEditor } from "@/components/patients/PatientFlagsEditor";
 import { LogWeightForm } from "@/components/patients/LogWeightForm";
 import { WeightTrendChart } from "@/components/patients/WeightTrendChart";
+import { PatientWeightCheckIns } from "@/components/patients/PatientWeightCheckIns";
 import { PreferredChannelHistory } from "@/components/patients/PreferredChannelHistory";
 import { NotificationRow, type ResendActionResult } from "@/components/patients/NotificationRow";
 import { resendFailedPatientNotification } from "@/lib/api/jobs/retryPatientNotifications";
@@ -220,6 +221,7 @@ async function ProfileContent({
             canEditFlags={canEditContact}
             coachOptions={coachOptions}
             channelChanges={channelChanges}
+            weightCheckIns={weightCheckIns}
           />
 
           {/* Right column */}
@@ -367,6 +369,7 @@ function LeftColumn({
   canEditFlags,
   coachOptions,
   channelChanges,
+  weightCheckIns,
 }: {
   patient: Patient;
   latestOrder: Order | null;
@@ -377,6 +380,7 @@ function LeftColumn({
   canEditFlags: boolean;
   coachOptions: Array<{ id: string; full_name: string }>;
   channelChanges: PatientPreferredChannelChange[];
+  weightCheckIns: PatientWeightCheckIn[];
 }) {
   const d       = patient.demographic;
   const hasB4   = patient.flags.some((f) => f.code === "B4");
@@ -523,6 +527,11 @@ function LeftColumn({
           patientId={patient.id}
           heightCm={patient.baseline.height_cm}
           canEdit={canEditWeight}
+        />
+        <PatientWeightCheckIns
+          clinicId={clinicId}
+          checkIns={weightCheckIns}
+          canAcknowledge={canEditWeight}
         />
       </PSec>
 

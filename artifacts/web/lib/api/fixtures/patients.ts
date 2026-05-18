@@ -730,6 +730,14 @@ export async function updatePatientPreferredChannel(
 export const WEIGHT_MIN_KG = 30;
 export const WEIGHT_MAX_KG = 300;
 
+// Task-244 — patients can now self-submit a weight reading via a magic-link
+// page. The same fixture handles both staff and patient submissions; `source`
+// makes the distinction explicit so the audit log, the per-patient history
+// surface, and the coach badge can tell them apart. Patient-submitted rows
+// also carry `coach_acknowledged_at` so the assigned coach gets a "new from
+// patient" badge until they tick it off.
+export type WeightCheckInSource = 'staff' | 'patient';
+
 export type PatientWeightCheckIn = {
   id: string;
   clinic_id: ClinicId;
@@ -741,18 +749,56 @@ export type PatientWeightCheckIn = {
   actor_id: string;
   actor_name: string;
   recorded_at: string;
+  source: WeightCheckInSource;
+  coach_acknowledged_at: string | null;
+  coach_acknowledged_by: string | null;
 };
 
 export const PATIENT_WEIGHT_CHECKINS: PatientWeightCheckIn[] = [];
 
 export async function listPatientWeightCheckIns(
   clinic_id: ClinicId,
-  opts?: { patient_id?: string },
+  opts?: { patient_id?: string; source?: WeightCheckInSource; unacknowledgedOnly?: boolean },
 ): Promise<PatientWeightCheckIn[]> {
   await delay();
   let results = PATIENT_WEIGHT_CHECKINS.filter((c) => c.clinic_id === clinic_id);
   if (opts?.patient_id) results = results.filter((c) => c.patient_id === opts.patient_id);
+  if (opts?.source) results = results.filter((c) => c.source === opts.source);
+  if (opts?.unacknowledgedOnly) results = results.filter((c) => c.coach_acknowledged_at === null);
   return results;
+}
+
+export async function acknowledgePatientWeightCheckIn(
+  clinic_id: ClinicId,
+  checkin_id: string,
+  actor = CURRENT_USER,
+): Promise<PatientWeightCheckIn> {
+  await delay(150);
+  if (!can(actor, 'write', 'patients')) {
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Insufficient permissions to acknowledge weight check-in',
+    );
+  }
+  const row = PATIENT_WEIGHT_CHECKINS.find(
+    (c) => c.clinic_id === clinic_id && c.id === checkin_id,
+  );
+  if (!row) throw new APIError('NOT_FOUND', `Check-in ${checkin_id} not found`);
+  if (row.coach_acknowledged_at === null) {
+    row.coach_acknowledged_at = NOW;
+    row.coach_acknowledged_by = actor.id;
+    console.log('[AUDIT]', {
+      event_type: 'patient_weight_checkin_acknowledged',
+      outcome: 'success',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id: row.patient_id,
+      checkin_id,
+      source: row.source,
+      timestamp: NOW,
+    });
+  }
+  return row;
 }
 
 export async function recordPatientWeight(
@@ -760,16 +806,25 @@ export async function recordPatientWeight(
   patient_id: string,
   weight_kg: number,
   actor = CURRENT_USER,
+  opts: { source?: WeightCheckInSource } = {},
 ): Promise<Patient> {
   await delay(250);
 
-  if (!can(actor, 'write', 'patients')) {
+  const source: WeightCheckInSource = opts.source ?? 'staff';
+
+  // Layer-2 gate: staff submissions require write:patients. Patient-sourced
+  // submissions arrive via the magic-link page and are explicitly trusted at
+  // this layer — the magic link itself is the authentication boundary, and
+  // the audit log records `source: 'patient'` so a self-report can never be
+  // mistaken for a clinical mutation.
+  if (source === 'staff' && !can(actor, 'write', 'patients')) {
     console.log('[AUDIT]', {
       event_type: 'patient_weight_recorded',
       outcome: 'safety_violation',
       actor_id: actor.id,
       clinic_id,
       patient_id,
+      source,
       attempted_weight_kg: weight_kg,
       timestamp: NOW,
     });
@@ -809,6 +864,11 @@ export async function recordPatientWeight(
 
   const seq = String(PATIENT_WEIGHT_CHECKINS.length + 1).padStart(3, '0');
   const registryActor = USERS_REGISTRY[actor.id];
+  const actorId = source === 'patient' ? patient.id : actor.id;
+  const actorName =
+    source === 'patient'
+      ? `${patient.demographic.full_name} (patient self-report)`
+      : (registryActor?.full_name ?? actor.full_name ?? actor.id);
   PATIENT_WEIGHT_CHECKINS.push({
     id: `PWC-${seq}`,
     clinic_id,
@@ -817,15 +877,21 @@ export async function recordPatientWeight(
     bmi,
     previous_weight_kg: previousWeight,
     delta_vs_baseline_kg: delta,
-    actor_id: actor.id,
-    actor_name: registryActor?.full_name ?? actor.full_name ?? actor.id,
+    actor_id: actorId,
+    actor_name: actorName,
     recorded_at: NOW,
+    source,
+    // Staff-recorded readings are implicitly "seen" — only patient-submitted
+    // rows surface as a coach badge until acknowledged.
+    coach_acknowledged_at: source === 'patient' ? null : NOW,
+    coach_acknowledged_by: source === 'patient' ? null : actor.id,
   });
 
   console.log('[AUDIT]', {
     event_type: 'patient_weight_recorded',
     outcome: 'success',
-    actor_id: actor.id,
+    actor_id: actorId,
+    source,
     clinic_id,
     patient_id,
     previous_weight_kg: previousWeight,

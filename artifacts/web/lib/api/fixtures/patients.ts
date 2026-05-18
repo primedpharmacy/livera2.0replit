@@ -446,8 +446,10 @@ export async function updatePatientPreferredChannel(
 
 // ── BLD-10.4 — purgePatientData — UK GDPR Art 5(1)(c) data minimisation ──────
 // Called when a male/non-binary patient is identified at a female_only clinic.
-// Owner/Admin only. Audit-logged with legal basis. Removes from Livera mirror only
-// (Primed API purge is a V1.2 concern — noted in audit trail).
+// Owner-only (task-104 explicitly re-gated this to Owner after Admin gained
+// write:patients for the preferred-channel editor — data purge must not be
+// widened by that change). Audit-logged with legal basis. Removes from Livera
+// mirror only (Primed API purge is a V1.2 concern — noted in audit trail).
 export async function purgePatientData(
   clinic_id: ClinicId,
   patient_id: string,
@@ -455,7 +457,7 @@ export async function purgePatientData(
 ): Promise<void> {
   await delay(500);
 
-  if (!can(actor, 'write', 'patients')) {
+  if (!actor.roles.includes('Owner')) {
     throw new APIError('PERMISSION_DENIED', `User ${actor.id} cannot purge patient data`);
   }
 

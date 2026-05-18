@@ -126,7 +126,10 @@ async function ProfileContent({
     const weightLost = rawWeightLost > 0 ? `${rawWeightLost.toFixed(1)} kg` : "—";
     const totalSpend = orders.reduce((s, o) => s + (o.amount_authorised ?? 0), 0);
     const canWriteNotes = can(CURRENT_USER, "write", "clinical_notes");
-    const canPurge = can(CURRENT_USER, "write", "patients");
+    // task-104 — purge stays Owner-only (explicit role check) so that widening
+    // write:patients to Admin (for the preferred-channel editor) does not
+    // accidentally grant data-purge rights.
+    const canPurge = CURRENT_USER.roles.includes("Owner");
     const canEditContact = can(CURRENT_USER, "write", "patients");
     // Task-97 — staff-initiated resend gated to Owner/Admin (the operational
     // roles that already manage pharmacy_comms / holiday_calendar). Coach and

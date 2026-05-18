@@ -147,6 +147,7 @@ function roleMatrix(
       if (action === 'write'       && resource === 'admin_notes')          return true;  // Wave 5 BLD-4.5.1
       if (action === 'write'       && resource === 'gp_letter_templates')  return true;  // Wave 5 BLD-7.6
       if (action === 'write'       && resource === 'complaints')           return true;  // Wave 6 BLD-9.1
+      if (action === 'write'       && resource === 'patients')             return true;  // task-104 — preferred-channel editor (purge stays Owner-only via explicit role check)
       return false;
 
     // BLD-8.3 (Wave 6) — System actor: webhook-internal mutations only.

@@ -16,7 +16,13 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronUp, CheckCircle2, Loader2, MapPin, AlertCircle, Upload, FileCheck2, X } from "lucide-react";
-import type { ClinicId, QuestionItem, QuestionType } from "@/types";
+import type { ClinicId, ClinicConfig, QuestionItem, QuestionType } from "@/types";
+import {
+  buildInitialPersonalData,
+  buildInitialAddressData,
+  buildInitialResponses,
+  purgeApplicantStorage,
+} from "./intakeState";
 import {
   isValidUkMobile,
   isValidUkPostcode,
@@ -36,37 +42,31 @@ const GLP1_HIGHER_DOSE_ID = "ft_oq_10";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ResponseValue = string | number | string[] | null;
-type Responses = Record<string, ResponseValue>;
+type ResponseValue = import("./intakeState").ResponseValue;
+type Responses = import("./intakeState").Responses;
+type AddressData = import("./intakeState").AddressData;
+type SexAtBirth = import("./intakeState").SexAtBirth;
+type HeightUnit = import("./intakeState").HeightUnit;
+type WeightUnit = import("./intakeState").WeightUnit;
+type PersonalData = import("./intakeState").PersonalData;
 
-interface AddressData {
-  formatted: string;
-  line1: string;
-  line2: string;
-  city: string;
-  postcode: string;
-}
+// ── Gender eligibility (DEC-16) ───────────────────────────────────────────────
 
-type SexAtBirth = "female" | "male" | "other";
-type HeightUnit = "cm" | "ftin";
-type WeightUnit = "kg" | "stlb";
+type GenderChoice =
+  | "female"
+  | "male"
+  | "non_binary_or_intersex"
+  | "prefer_not_to_say";
 
-interface PersonalData {
-  firstName: string;
-  lastName: string;
-  dob: string;
-  email: string;
-  phone: string;
-  sexAtBirth: SexAtBirth | "";
-  heightUnit: HeightUnit;
-  heightCm: string;
-  heightFt: string;
-  heightIn: string;
-  weightUnit: WeightUnit;
-  weightKg: string;
-  weightSt: string;
-  weightLb: string;
-}
+const GENDER_OPTIONS: { value: GenderChoice; label: string }[] = [
+  { value: "female", label: "Female" },
+  { value: "male", label: "Male" },
+  { value: "non_binary_or_intersex", label: "Non-binary or intersex" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+];
+
+// VSC registration URL — used by the FeelTru-only redirect screen.
+const VSC_REGISTRATION_URL = "https://www.vsc.health/register";
 
 // ── Baseline biometrics helpers ───────────────────────────────────────────────
 
@@ -1097,51 +1097,98 @@ function ReviewStep({
   );
 }
 
+// ── VSC redirect screen (DEC-16) ──────────────────────────────────────────────
+
+/**
+ * Rendered when a FeelTru applicant selects a non-female gender.
+ *
+ * Empathetic, non-clinical copy. No form, no data collection — by the
+ * time this screen renders, all applicant state has been purged.
+ */
+function VSCRedirectScreen() {
+  return (
+    <div className="min-h-screen bg-[#F5F0EB] flex flex-col">
+      <header className="bg-white border-b border-[#e2e8f0]">
+        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-[#1e293b] flex items-center justify-center text-white font-bold text-sm">
+            F
+          </div>
+          <span className="font-bold text-[#1e293b] text-lg">FeelTru</span>
+        </div>
+      </header>
+      <main className="flex-1 flex flex-col items-center justify-center py-10 px-4">
+        <div className="w-full max-w-lg">
+          <div
+            className="bg-white rounded-2xl border border-[#e2e8f0] shadow-sm p-8 md:p-10 text-center"
+            role="region"
+            aria-label="FeelTru is a women-only service"
+          >
+            <div className="w-12 h-12 rounded-full bg-[#eef2ff] mx-auto mb-5 flex items-center justify-center">
+              <span className="text-[#6366f1] text-xl">♀</span>
+            </div>
+            <h1 className="text-[22px] font-bold text-[#1e293b] mb-3">
+              FeelTru is a women-only service
+            </h1>
+            <p className="text-[14px] text-[#475569] leading-relaxed mb-3">
+              Thank you for considering us. FeelTru is designed specifically for
+              women&rsquo;s health and operates as a single-sex service under
+              the UK Equality Act 2010.
+            </p>
+            <p className="text-[14px] text-[#475569] leading-relaxed mb-6">
+              Our sister clinic, <strong>VSC</strong>, offers the same
+              evidence-based weight-management care and welcomes patients of all
+              genders. We&rsquo;d love to point you there.
+            </p>
+            <a
+              href={VSC_REGISTRATION_URL}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-[#6366f1] text-white hover:bg-[#4f46e5] transition-colors"
+              data-testid="vsc-redirect-cta"
+            >
+              Continue to VSC →
+            </a>
+            <p className="text-[11px] text-[#94a3b8] mt-6">
+              We haven&rsquo;t saved any details from this visit.
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function IntakeForm({
   clinicId,
   initialQuestions,
   minimumAgeYears = MINIMUM_PATIENT_AGE_YEARS,
+  genderEligibility = "gender_neutral",
 }: {
   clinicId: ClinicId;
   initialQuestions: QuestionItem[];
   minimumAgeYears?: number;
+  genderEligibility?: ClinicConfig["gender_eligibility"];
 }) {
   const [questions] = useState<QuestionItem[]>(initialQuestions);
+
+  // Gender gate (DEC-16) — only inserted when the clinic is women-only.
+  // For gender_neutral clinics (VSC) the gate is a no-op: the gender step
+  // is hidden and the redirect branching never runs.
+  const isWomenOnly = genderEligibility === "female_only";
 
   const [step, setStep] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+  const [redirected, setRedirected] = useState(false);
+  const [gender, setGender] = useState<GenderChoice | "">("");
 
-  const [personal, setPersonal] = useState<PersonalData>({
-    firstName: "",
-    lastName: "",
-    dob: "",
-    email: "",
-    phone: "",
-    sexAtBirth: "",
-    heightUnit: "cm",
-    heightCm: "",
-    heightFt: "",
-    heightIn: "",
-    weightUnit: "kg",
-    weightKg: "",
-    weightSt: "",
-    weightLb: "",
-  });
-  const [address, setAddress] = useState<AddressData>({
-    formatted: "",
-    line1: "",
-    line2: "",
-    city: "",
-    postcode: "",
-  });
+  const [personal, setPersonal] = useState<PersonalData>(buildInitialPersonalData());
+  const [address, setAddress] = useState<AddressData>(buildInitialAddressData());
 
   const initResponses = (): Responses => {
-    const init: Responses = {};
+    const init: Responses = buildInitialResponses();
     initialQuestions.forEach((q) => {
       if (q.type === "scale") init[q.id] = Math.ceil(((q.scale_min ?? 1) + (q.scale_max ?? 10)) / 2);
     });
@@ -1156,15 +1203,58 @@ export function IntakeForm({
     questionPages.push(questions.slice(i, i + QUESTIONS_PER_PAGE));
   }
 
-  const STEP_PERSONAL = 0;
-  const STEP_ADDRESS = 1;
-  const STEP_QUESTIONS_START = 2;
-  const STEP_REVIEW = 2 + questionPages.length;
+  // When women-only, the gender step occupies step 0 and everything else
+  // shifts by one. For other clinics the offset is 0 and behaviour is
+  // identical to before.
+  const GENDER_OFFSET = isWomenOnly ? 1 : 0;
+  const STEP_GENDER = isWomenOnly ? 0 : -1;
+  const STEP_PERSONAL = GENDER_OFFSET;
+  const STEP_ADDRESS = GENDER_OFFSET + 1;
+  const STEP_QUESTIONS_START = GENDER_OFFSET + 2;
+  const STEP_REVIEW = GENDER_OFFSET + 2 + questionPages.length;
   const totalSteps = STEP_REVIEW + 1;
+
+  // Purge ALL collected applicant data — React state plus any browser
+  // storage — before navigating to the VSC redirect screen.
+  // UK GDPR Art 5(1)(c) data minimisation.
+  const purgeApplicantState = useCallback(() => {
+    setPersonal(buildInitialPersonalData());
+    setAddress(buildInitialAddressData());
+    setResponses({});
+    setGender("");
+    setStep(0);
+    setShowErrors(false);
+    setCreatedOrderId(null);
+    purgeApplicantStorage();
+  }, []);
+
+  // Trigger the redirect: emit a privacy-safe activity log entry
+  // (clinic_id + timestamp only — NO PII per BLD-10.4), purge all
+  // collected applicant data, then render the redirect screen.
+  const triggerGenderRedirect = useCallback(() => {
+    // Fire-and-forget — never block the redirect on the log call.
+    try {
+      void fetch(`/api/activity-log/gender-eligibility-redirect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "gender_eligibility_redirect_occurred",
+          clinic_id: clinicId,
+          timestamp: new Date().toISOString(),
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {
+      /* never block the redirect on telemetry */
+    }
+    purgeApplicantState();
+    setRedirected(true);
+  }, [clinicId, purgeApplicantState]);
 
   const progressPct = submitted ? 100 : ((step + 1) / totalSteps) * 100;
 
   function getStepLabel(): string {
+    if (step === STEP_GENDER) return "About you";
     if (step === STEP_PERSONAL) return "Personal details";
     if (step === STEP_ADDRESS) return "Your address";
     if (step === STEP_REVIEW) return "Review your answers";
@@ -1173,6 +1263,9 @@ export function IntakeForm({
   }
 
   function isCurrentStepValid(): boolean {
+    if (step === STEP_GENDER) {
+      return gender !== "";
+    }
     if (step === STEP_PERSONAL) {
       const bioErrs = biometricsErrors(personal);
       return !!(
@@ -1211,6 +1304,12 @@ export function IntakeForm({
   function goNext() {
     if (!isCurrentStepValid()) {
       setShowErrors(true);
+      return;
+    }
+    // Gender gate (DEC-16): for women-only clinics, anything other than
+    // "female" triggers the VSC redirect before any PII has been entered.
+    if (step === STEP_GENDER && isWomenOnly && gender !== "female") {
+      triggerGenderRedirect();
       return;
     }
     setShowErrors(false);
@@ -1273,6 +1372,10 @@ export function IntakeForm({
     );
   }
 
+  if (redirected) {
+    return <VSCRedirectScreen />;
+  }
+
   const inputCls =
     "w-full border border-[#e2e8f0] rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#6366f1]/30 focus:border-[#6366f1]";
 
@@ -1317,6 +1420,55 @@ export function IntakeForm({
 
               {/* Card */}
               <div className="bg-white rounded-2xl border border-[#e2e8f0] shadow-sm p-6 md:p-8">
+
+                {/* STEP -1 (women-only only): Gender gate — DEC-16.
+                    Asked BEFORE any PII is collected so the redirect can
+                    happen without any name/email/DOB ever being entered. */}
+                {step === STEP_GENDER && (
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="text-[20px] font-bold text-[#1e293b] mb-1">
+                        Before we start
+                      </h2>
+                      <p className="text-[13px] text-[#64748b]">
+                        FeelTru is a women&rsquo;s health service. To make sure
+                        you&rsquo;re in the right place, please tell us how you
+                        identify. This is the only information we collect at
+                        this stage.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {GENDER_OPTIONS.map((opt) => {
+                        const sel = gender === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setGender(opt.value)}
+                            className={`w-full flex items-center gap-3 px-4 py-3 border-[1.5px] rounded-xl text-left text-sm transition-all ${
+                              sel
+                                ? "border-[#6366f1] bg-[#eef2ff] text-[#4338ca]"
+                                : "border-[#e2e8f0] bg-white text-[#1e293b] hover:border-[#a5b4fc]"
+                            }`}
+                          >
+                            <div
+                              className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
+                                sel ? "border-[#6366f1] bg-[#6366f1]" : "border-[#94a3b8]"
+                              }`}
+                            />
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {showErrors && gender === "" && (
+                      <p className="text-[12px] text-[#ef4444] flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Please choose an option to continue
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* STEP 0: Personal details */}
                 {step === STEP_PERSONAL && (

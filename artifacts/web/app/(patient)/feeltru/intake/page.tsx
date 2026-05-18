@@ -14,6 +14,7 @@ export default function FeelTruIntakePage() {
       clinicId="feeltru"
       initialQuestions={order}
       minimumAgeYears={clinic.config.minimum_patient_age_years}
+      genderEligibility={clinic.config.gender_eligibility}
     />
   );
 }

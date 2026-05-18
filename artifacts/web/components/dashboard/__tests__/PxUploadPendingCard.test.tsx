@@ -18,12 +18,25 @@ import type { Order } from '@/types';
 // that so ageDays is deterministic.
 vi.mock('@/lib/api/mock', () => ({
   resendPxUploadLink: vi.fn(),
+  // Task-183 — card now gates the manual reminder button on
+  // can(CURRENT_USER, 'write', 'orders'), so the mock has to expose a user
+  // with that permission (Owner) or the button never renders.
+  CURRENT_USER: {
+    id: 'U-OWNER',
+    full_name: 'Owner Test',
+    email: 'owner@example.com',
+    roles: ['Owner'],
+    active_clinic_id: 'feeltru',
+    clinic_ids: ['feeltru'],
+  },
 }));
 
 import { PxUploadPendingCard } from '../PxUploadPendingCard';
 import { resendPxUploadLink } from '@/lib/api/mock';
 
 const mockedResend = vi.mocked(resendPxUploadLink);
+
+const ORIGINAL_FETCH = global.fetch;
 
 function makeOrder(
   id: string,
@@ -180,6 +193,13 @@ describe('PxUploadPendingCard — Task-176 rendering', () => {
 
     // One "Resend link" button per order.
     expect(screen.getAllByRole('button', { name: /resend link/i })).toHaveLength(4);
+
+    // Task-183 — "Send reminder" appears on rows whose link is still active
+    // and unconsumed and where the cron has something to send. The expired
+    // row should NOT expose the reminder action.
+    const reminderButtons = screen.getAllByRole('button', { name: /^Send reminder$/i });
+    // fresh + stale + multi-resend = 3 eligible; expired excluded.
+    expect(reminderButtons).toHaveLength(3);
   });
 
   it('renders the empty state when no orders are pending', () => {
@@ -268,5 +288,94 @@ describe('PxUploadPendingCard — Task-176 resend interaction', () => {
     // And the row's labels are intact (still showing Stale Patient).
     expect(within(button.closest('div.flex')!).queryByText(/Sending/)).toBeNull();
     expect(screen.getByText('Stale Patient')).toBeInTheDocument();
+  });
+});
+
+// ── Task-183 — manual reminder action on queue rows ─────────────────────────
+describe('PxUploadPendingCard — Task-183 manual reminder', () => {
+  afterEach(() => {
+    cleanup();
+    mockedResend.mockReset();
+    global.fetch = ORIGINAL_FETCH;
+  });
+
+  it('POSTs to the px-upload-reminder route and surfaces the kind in the toast', async () => {
+    const order = makeOrder('ORD-FRESH', 'PT-FRESH', freshLink());
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        order_id: 'ORD-FRESH',
+        kind: 'first',
+        status: 'Delivered',
+        message_id: 'mid-reminder-1',
+        px_upload_link: {
+          ...freshLink(),
+          reminder_sent_at: '2026-05-11T08:05:00Z',
+          to_email: 'fresh@example.com',
+        },
+      }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PxUploadPendingCard clinicId="feeltru" orders={[order]} patientMap={PATIENT_MAP} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^Send reminder$/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/orders/feeltru/ORD-FRESH/px-upload-reminder',
+        { method: 'POST' },
+      );
+    });
+
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/Reminder sent to fresh@example.com/);
+
+    // After the first reminder fires, only the "final" variant should remain.
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /Send final reminder/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('hides the reminder button once both reminders have already been sent', () => {
+    const link: NonNullable<Order['px_upload_link']> = {
+      ...freshLink(),
+      reminder_sent_at: '2026-05-10T08:00:00Z',
+      final_reminder_sent_at: '2026-05-11T07:00:00Z',
+    };
+    render(
+      <PxUploadPendingCard
+        clinicId="feeltru"
+        orders={[makeOrder('ORD-DONE', 'PT-FRESH', link)]}
+        patientMap={PATIENT_MAP}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /Send( final)? reminder/i })).toBeNull();
+    // Resend link stays available even when no more reminders are due.
+    expect(screen.getByRole('button', { name: /resend link/i })).toBeInTheDocument();
+  });
+
+  it('surfaces an API error from the reminder route in the toast', async () => {
+    const order = makeOrder('ORD-FRESH', 'PT-FRESH', freshLink());
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ message: 'Both reminders have already been sent for this link.' }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PxUploadPendingCard clinicId="feeltru" orders={[order]} patientMap={PATIENT_MAP} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^Send reminder$/i }));
+
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent('Both reminders have already been sent for this link.');
   });
 });

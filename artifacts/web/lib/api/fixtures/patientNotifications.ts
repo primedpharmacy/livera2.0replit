@@ -317,6 +317,77 @@ export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     email_envelope:                    null,
     email_envelope_unavailable_reason: null,
   },
+  // Task-185 — Legacy row captured AFTER Task-66 (envelope snapshotting) but
+  // BEFORE Task-131 (HTML snapshotting): an envelope is present, but
+  // html_body is missing. The backfill should render the branded HTML the
+  // patient would have received and write it back, so the "Preview email"
+  // modal can default to the HTML view on this older send.
+  {
+    id: 'NOTIF-LEGACY-003',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00450',
+    type: 'order_cancelled_no_charge',
+    channel: 'Email',
+    template: 'order_cancelled_no_charge',
+    status: 'Delivered',
+    sent_at: '2026-01-14T10:12:00Z',
+    payload: {
+      order_id: 'ORD-00450',
+      reason: 'Patient changed their mind before dispatch.',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2026-01-14T10:12:00Z',
+    next_retry_at:   null,
+    email_envelope_unavailable_reason: null,
+    email_envelope: {
+      to_email: 'sarah.cookland@example.com',
+      subject:  'Your order ORD-00450 has been cancelled',
+      template: 'order_cancelled_no_charge',
+      text_body:
+        'Hi Sarah,\n\n' +
+        "We've cancelled order ORD-00450. No charge has been taken — the pre-authorisation on your card has been released and you'll see it disappear from your statement within a few working days.\n\n" +
+        'Reason recorded: Patient changed their mind before dispatch.\n\n' +
+        'If you have any questions, just reply to this email.\n\n' +
+        'Thanks,\nThe Livera team',
+      // Intentionally omitted — backfill should populate this.
+      html_body: null,
+    },
+  },
+  // Task-185 — Legacy row with a text-only envelope for a template whose
+  // live path has no HTML renderer (order_dispatched is sent as plain text
+  // today). Backfill should leave html_body null and log the row as
+  // html_unsupported, so we never invent markup the patient didn't see.
+  {
+    id: 'NOTIF-LEGACY-004',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00441',
+    type: 'order_dispatched',
+    channel: 'Email',
+    template: 'order_dispatched',
+    status: 'Delivered',
+    sent_at: '2026-02-03T09:30:00Z',
+    payload: { order_id: 'ORD-00441', tracking_number: 'AB987654321GB' },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2026-02-03T09:30:00Z',
+    next_retry_at:   null,
+    email_envelope_unavailable_reason: null,
+    email_envelope: {
+      to_email: 'sarah.cookland@example.com',
+      subject:  'Your order ORD-00441 is on its way',
+      template: 'order_dispatched',
+      text_body:
+        'Hi Sarah,\n\n' +
+        'Your order ORD-00441 has been dispatched. Tracking number: AB987654321GB.\n\n' +
+        'Thanks,\nThe Livera team',
+      html_body: null,
+    },
+  },
 ];
 
 // Task-49 — append a notification record after a real Postmark send. Returns

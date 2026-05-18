@@ -81,18 +81,26 @@ export function OrderActivityTimeline({ order }: Props) {
     });
   }
 
-  // Task-91 — Staff re-issued the px-upload link (previous token invalidated).
+  // Task-91 / Task-177 — Staff re-issued the px-upload link (previous token
+  // invalidated). We surface one timeline entry per recorded resend so the
+  // wider team can see exactly how many times a patient has been chased,
+  // which staff member triggered each resend, and whether the link they
+  // replaced had already expired at the time.
   if (order.px_upload_link?.resends?.length) {
+    const totalResends = order.px_upload_link.resends.length;
     order.px_upload_link.resends.forEach((resend, idx) => {
+      const staff = USERS_REGISTRY[resend.by_user_id]?.full_name
+        ?? resend.by_user_id;
+      const attemptLabel = `Resend ${idx + 1} of ${totalResends}`;
       entries.push({
         key: `px_link_resent_${idx}`,
         dot: "info",
         title: resend.previous_expired
           ? "Px upload link re-issued (previous link had expired)"
           : "Px upload link resent to patient",
-        meta: `to ${resend.to_email} · ${formatDateTime(resend.sent_at)} · by ${resend.by_user_id}`,
+        meta: `to ${resend.to_email} · ${formatDateTime(resend.sent_at)} · by ${staff}`,
         ts: new Date(resend.sent_at).getTime(),
-        subtext: `New single-use link · expires ${resend.expires_at.slice(0, 10)}`,
+        subtext: `${attemptLabel} · New single-use link · expires ${resend.expires_at.slice(0, 10)}`,
       });
     });
   }

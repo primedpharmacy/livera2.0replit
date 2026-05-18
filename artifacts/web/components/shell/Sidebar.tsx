@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PersonaSwitcher } from "@/components/shell/PersonaSwitcher";
 import {
   getClinicalCheckQueue,
   listAmendments,
@@ -573,6 +574,7 @@ export function Sidebar({ clinicId }: SidebarProps) {
           </div>
         );
       })}
+      <PersonaSwitcher />
       {sweepToast && (
         <div
           role="status"

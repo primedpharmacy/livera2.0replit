@@ -19,8 +19,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Mail, RefreshCw, AlertTriangle } from "lucide-react";
-import { resendPxUploadLink } from "@/lib/api/mock";
+import { Mail, RefreshCw, AlertTriangle, Send } from "lucide-react";
+import { CURRENT_USER, resendPxUploadLink } from "@/lib/api/mock";
+import { can } from "@/lib/permissions";
 import { NOW } from "@/lib/api/constants";
 import type { ClinicId, Order } from "@/types";
 
@@ -40,9 +41,11 @@ function daysBetween(fromIso: string, toIso: string): number {
 }
 
 export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
-  const [rows, setRows]           = useState<Order[]>(orders);
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const [toast, setToast]         = useState<{ message: string; type: "ok" | "err" } | null>(null);
+  const [rows, setRows]                     = useState<Order[]>(orders);
+  const [pendingId, setPendingId]           = useState<string | null>(null);
+  const [reminderPendingId, setReminderPendingId] = useState<string | null>(null);
+  const [toast, setToast]                   = useState<{ message: string; type: "ok" | "err" } | null>(null);
+  const canWriteOrders = can(CURRENT_USER, "write", "orders");
 
   // Keep in sync if the parent re-fetches (e.g. router refresh) — without this,
   // a brand-new pending order added after mount would never appear in the list.
@@ -67,6 +70,50 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
       });
     } finally {
       setPendingId(null);
+    }
+  }
+
+  // Task-183 — Manual "Send reminder now" parity with Order Detail. Hits the
+  // same server route that flips the cron's idempotency flag, so the next
+  // scheduled sweep won't double-send. Eligibility (link active, unconsumed,
+  // unexpired, not both reminders already sent) is mirrored in the row below.
+  async function handleSendReminder(orderId: string) {
+    setReminderPendingId(orderId);
+    try {
+      const res = await fetch(
+        `/api/orders/${clinicId}/${orderId}/px-upload-reminder`,
+        { method: "POST" },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        kind?: "first" | "final";
+        status?: "Delivered" | "Bounced" | "Failed";
+        px_upload_link?: Order["px_upload_link"];
+      };
+      if (!res.ok || body.status !== "Delivered") {
+        throw new Error(body.message || `Reminder failed (${res.status}).`);
+      }
+      // Patch the row so reminder flags + counts update without a refetch.
+      setRows((prev) =>
+        prev.map((o) =>
+          o.id === orderId && body.px_upload_link
+            ? { ...o, px_upload_link: body.px_upload_link }
+            : o,
+        ),
+      );
+      const sentTo = body.px_upload_link?.to_email ?? "the patient";
+      const label = body.kind === "final" ? "Final reminder" : "Reminder";
+      setToast({
+        message: `${label} sent to ${sentTo}.`,
+        type: "ok",
+      });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Could not send reminder.",
+        type: "err",
+      });
+    } finally {
+      setReminderPendingId(null);
     }
   }
 
@@ -106,6 +153,31 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
             const hasInitialSend = Boolean(link?.first_sent_at ?? link?.sent_at);
             const resendCount = (link?.resends?.length ?? 0) + (hasInitialSend ? 1 : 0);
             const isBusy    = pendingId === order.id;
+            const isReminderBusy = reminderPendingId === order.id;
+
+            // Task-183 — Mirror the server-side eligibility from
+            // sendPxUploadReminderNow so the "Send reminder" affordance only
+            // appears when the cron would actually have something to send.
+            const linkConsumed       = link?.consumed_at != null;
+            const firstReminderSent  = link?.reminder_sent_at != null;
+            const finalReminderSent  = link?.final_reminder_sent_at != null;
+            const canSendManualReminder =
+              canWriteOrders &&
+              link != null &&
+              order.px_upload == null &&
+              !expired &&
+              !linkConsumed &&
+              !(firstReminderSent && finalReminderSent);
+            const reminderKindNext: "first" | "final" | null =
+              !canSendManualReminder
+                ? null
+                : !firstReminderSent
+                ? "first"
+                : !finalReminderSent
+                ? "final"
+                : null;
+            const reminderLabel =
+              reminderKindNext === "final" ? "Send final reminder" : "Send reminder";
 
             // Severity tint: red once the link is expired OR sat for 5+ days.
             const tone =
@@ -157,15 +229,33 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
                     </span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleResend(order.id)}
-                  disabled={isBusy}
-                  className="shrink-0 inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded border border-brand/40 text-brand hover:bg-brand/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isBusy ? "animate-spin" : ""}`} />
-                  {isBusy ? "Sending…" : "Resend link"}
-                </button>
+                <div className="shrink-0 flex items-center gap-1.5">
+                  {canSendManualReminder && (
+                    <button
+                      type="button"
+                      onClick={() => handleSendReminder(order.id)}
+                      disabled={isReminderBusy || isBusy}
+                      title={
+                        reminderKindNext === "final"
+                          ? "Send the final reminder email now instead of waiting for the scheduled sweep."
+                          : "Send the first reminder email now instead of waiting for the scheduled sweep."
+                      }
+                      className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded border border-brand/40 text-brand hover:bg-brand/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Send className={`w-3 h-3 ${isReminderBusy ? "animate-pulse" : ""}`} />
+                      {isReminderBusy ? "Sending…" : reminderLabel}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleResend(order.id)}
+                    disabled={isBusy || isReminderBusy}
+                    className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded border border-brand/40 text-brand hover:bg-brand/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isBusy ? "animate-spin" : ""}`} />
+                    {isBusy ? "Sending…" : "Resend link"}
+                  </button>
+                </div>
               </div>
             );
           })}

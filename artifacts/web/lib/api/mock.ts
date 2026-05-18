@@ -37,6 +37,7 @@ export * from './monday';
 export * from './fixtures/clinics';
 export * from './fixtures/users';
 export * from './fixtures/patients';
+export * from './fixtures/patientMutations';
 export * from './fixtures/orders';
 export * from './fixtures/amendments';
 export * from './fixtures/consultations';

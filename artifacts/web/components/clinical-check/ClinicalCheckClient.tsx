@@ -215,7 +215,7 @@ export function ClinicalCheckClient({
     setIsUndoing(true);
     const { snapshot } = undoToast;
     try {
-      await reverseDecision(clinicId, snapshot.id);
+      await reverseDecision(clinicId, snapshot.id);  // quick-undo path (no reason)
       setOrders((prev) => {
         if (prev.some((o) => o.id === snapshot.id)) return prev;
         const restored: Order = {

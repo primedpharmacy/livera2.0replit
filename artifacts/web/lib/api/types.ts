@@ -306,16 +306,26 @@ export type Order = {
     rationale: string;
   } | null;
 
-  // Task-159 — Audit trail for `reverseDecision`. Each undo appends a record
-  // pinning which prior decision was reversed, by whom, and when, so the
-  // Activity log can render a "Decision undone" row long after the decision
-  // itself has been cleared from `clinical_decision`.
-  clinical_decision_reversals?: Array<{
-    prior_decision: 'approved' | 'declined' | 'queried';
-    prior_prescriber_user_id: string;
-    prior_decided_at: string;        // ISO — when the now-reversed decision was originally made
+  // Task-158 / Task-159 — Audit log of clinical decisions that were reversed
+  // on this order. Each entry preserves the prior decision (so the activity
+  // timeline can show that a decision was made and then undone — by whom and
+  // when — long after `clinical_decision` itself has been cleared) plus, when
+  // the long-window "Reverse decision" path is used, the captured reason,
+  // linked clinical note, and any side-effects that were cleaned up. The
+  // short 5-second quick-undo records an entry too, with `reason: null`.
+  reversal_log?: Array<{
+    reversed_at: string;
     reversed_by_user_id: string;
-    reversed_at: string;             // ISO
+    prior_decision: 'approved' | 'declined' | 'queried';
+    prior_decided_at: string;
+    prior_prescriber_user_id: string;
+    prior_rationale: string;
+    reason: string | null;
+    clinical_note_id: string | null;
+    side_effects?: {
+      gp_letter_cancelled_id?: string | null;
+      clinical_notes_reversed_ids?: string[];
+    };
   }> | null;
   sla_warn_at: string;
   sla_breach_at: string;

@@ -206,26 +206,9 @@ export function OrderActivityTimeline({ order }: Props) {
     });
   }
 
-  // Task-159 — Render a "Decision undone" row for each reversal so reviewers
-  // can see which prior decision was reversed, who reversed it, and when —
-  // not just from the server-side audit log.
-  (order.clinical_decision_reversals ?? []).forEach((reversal, idx) => {
-    const reverser = USERS_REGISTRY[reversal.reversed_by_user_id]?.full_name
-      ?? reversal.reversed_by_user_id;
-    const priorPrescriber =
-      USERS_REGISTRY[reversal.prior_prescriber_user_id]?.full_name
-      ?? reversal.prior_prescriber_user_id;
-    entries.push({
-      key: `decision_reversed_${idx}_${reversal.reversed_at}`,
-      dot: "neutral",
-      title: `Decision undone — ${reversal.prior_decision} reversed`,
-      meta: `by ${reverser} · ${formatDateTime(reversal.reversed_at)}`,
-      ts: new Date(reversal.reversed_at).getTime(),
-      subtext:
-        `Previously ${reversal.prior_decision} by ${priorPrescriber} ` +
-        `on ${formatDateTime(reversal.prior_decided_at)}`,
-    });
-  });
+  // Task-159's "Decision undone" rows are now rendered by the consolidated
+  // Task-158 `reversal_log` loop below — it covers both quick-undo and the
+  // long-window path and carries prior-decision/prescriber metadata.
 
   // Task-99 / Task-135 — weight warning acknowledgements appear in the audit
   // timeline so the wider team can see who reviewed which warning, when, and
@@ -277,6 +260,36 @@ export function OrderActivityTimeline({ order }: Props) {
         rationale: ack.reversal_reason ?? null,
       });
     }
+  });
+
+  // Task-158 — Reversal log entries. Each reversal preserves the prior
+  // decision (so colleagues can see what was originally chosen) plus the
+  // rationale captured at reversal time and any side-effects that were
+  // cleaned up (auto GP letter cancelled, approval-gate notes reversed).
+  // Quick-undo (5s window) entries have no reason and render without prose.
+  (order.reversal_log ?? []).forEach((rev, revIdx) => {
+    const reverser = USERS_REGISTRY[rev.reversed_by_user_id]?.full_name
+      ?? rev.reversed_by_user_id;
+    const sideBits: string[] = [];
+    if (rev.side_effects?.gp_letter_cancelled_id) {
+      sideBits.push(`auto GP letter ${rev.side_effects.gp_letter_cancelled_id} cancelled`);
+    }
+    const reversedNoteCount = rev.side_effects?.clinical_notes_reversed_ids?.length ?? 0;
+    if (reversedNoteCount > 0) {
+      sideBits.push(`${reversedNoteCount} approval-gate note(s) marked reversed`);
+    }
+    const sideText = sideBits.length > 0 ? `Side-effects: ${sideBits.join("; ")}.` : null;
+    const rationale = rev.reason
+      ? sideText ? `${rev.reason}\n\n${sideText}` : rev.reason
+      : sideText ?? "Quick-undo within 5-second window — no written reason captured.";
+    entries.push({
+      key: `decision_reversed_${revIdx}`,
+      dot: "neutral",
+      title: `Decision reversed — was ${rev.prior_decision}`,
+      meta: `by ${reverser} · ${formatDateTime(rev.reversed_at)}`,
+      ts: new Date(rev.reversed_at).getTime(),
+      rationale,
+    });
   });
 
   if (order.status !== "clinical_check") {

@@ -290,11 +290,30 @@ export function OrderDetailClient({
     undoDeadline != null &&
     undoRemainingMs > 0;
 
+  // Task-158 — Long-window "Reverse decision" with mandatory rationale.
+  // Available while the order is still pre-dispensing (approved / declined /
+  // on_hold), regardless of how long ago the decision was made or who made
+  // it. The short quick-undo above remains the recovery path for misclicks
+  // within the first ~5s; this is the audited fallback for everything after.
+  const REVERSAL_PRE_DISPENSING_STATUSES: Order["status"][] = [
+    "approved",
+    "declined",
+    "on_hold",
+  ];
+  const canReverseDecision =
+    order.clinical_decision != null &&
+    REVERSAL_PRE_DISPENSING_STATUSES.includes(order.status) &&
+    can(CURRENT_USER, "decide", "orders");
+  const [reverseOpen, setReverseOpen]       = useState(false);
+  const [reverseReason, setReverseReason]   = useState("");
+  const [isReversing, setIsReversing]       = useState(false);
+  const REVERSE_MIN_CHARS = 20;
+
   async function handleUndoDecision() {
     if (!canUndoDecision || isUndoing) return;
     setIsUndoing(true);
     try {
-      const updated = await reverseDecision(clinicId, order.id);
+      const { order: updated } = await reverseDecision(clinicId, order.id);
       setOrder(updated);
       clearOrderUndoWindow(order.id);
       setUndoDeadline(null);
@@ -314,6 +333,85 @@ export function OrderDetailClient({
       });
     } finally {
       setIsUndoing(false);
+    }
+  }
+
+  // Task-158 — Long-window reverse with mandatory rationale. Creates a
+  // clinical note (so the rationale lives in the patient record), then calls
+  // reverseDecision with the same body so the audit trail links the two.
+  // Surfaces side-effects (auto GP letter cancelled, approval-gate notes
+  // reversed) in the toast so the clinician knows what got cleaned up.
+  async function handleReverseDecision() {
+    const trimmed = reverseReason.trim();
+    if (trimmed.length < REVERSE_MIN_CHARS || isReversing) return;
+    if (!order.clinical_decision) return;
+    setIsReversing(true);
+    try {
+      const priorDecision = order.clinical_decision.decision;
+      // Step 1 — write a clinical note so the rationale is captured against
+      // the patient record (not just the order audit log). The min-chars
+      // gate inside createClinicalNote may be stricter than ours; pad with
+      // a deterministic prefix so even a clinic with a high threshold
+      // accepts the body.
+      const minNoteChars = clinic.config.clinical_note_min_chars;
+      const noteBody = trimmed.length >= minNoteChars
+        ? `Decision reversal (${priorDecision} → returned to clinical check): ${trimmed}`
+        : `Decision reversal (${priorDecision} → returned to clinical check): ${trimmed}${" ".repeat(Math.max(0, minNoteChars - trimmed.length))}`;
+      const note = await createClinicalNote(clinicId, {
+        patient_id: patient.id,
+        order_id: order.id,
+        body: noteBody,
+        approval_gate_for_order_id: null,
+        tags: ["decision_reversal"],
+      });
+      setNotes((prev) => [note, ...prev]);
+
+      // Step 2 — reverse the decision, threading the same note id so the
+      // reversal log can point at it for traceability.
+      const { order: updated, side_effects } = await reverseDecision(
+        clinicId,
+        order.id,
+        { reason: trimmed, clinical_note_id: note.id },
+      );
+      setOrder(updated);
+      // Returning the order to clinical_check increases the queue by 1.
+      dispatchQueueCountChange({ queue: "clinical_check", delta: 1 });
+      // Clear any short-window quick-undo state so we don't render a stale
+      // 0-second countdown next to a freshly reversed decision.
+      clearOrderUndoWindow(order.id);
+      setUndoDeadline(null);
+      setUndoRemainingMs(0);
+
+      setReverseOpen(false);
+      setReverseReason("");
+
+      // Build a toast that surfaces side-effects the clinician needs to
+      // know about — auto GP letter cancelled, approval-gate notes
+      // reversed — so nothing is silently left dangling.
+      const sideNotes: string[] = [];
+      if (side_effects.gp_letter_cancelled_id) {
+        sideNotes.push(
+          `auto-triggered GP letter ${side_effects.gp_letter_cancelled_id} cancelled`,
+        );
+      }
+      if (side_effects.clinical_notes_reversed_ids.length > 0) {
+        sideNotes.push(
+          `${side_effects.clinical_notes_reversed_ids.length} approval-gate note(s) marked reversed`,
+        );
+      }
+      const sideMsg = sideNotes.length > 0 ? ` Side-effects: ${sideNotes.join(", ")}.` : "";
+      setToast({
+        message: `Decision reversed — order returned to the clinical check queue.${sideMsg}`,
+        type: "ok",
+      });
+      setActiveTab("activity");
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Could not reverse the decision. Please retry.",
+        type: "err",
+      });
+    } finally {
+      setIsReversing(false);
     }
   }
 
@@ -810,6 +908,20 @@ export function OrderDetailClient({
               >
                 <ArrowLeft className="w-4 h-4" />
                 {isUndoing ? "Undoing…" : `Undo decision (${Math.ceil(undoRemainingMs / 1000)}s)`}
+              </button>
+            )}
+            {/* Task-158 — Long-window Reverse decision (mandatory rationale).
+                Hidden while the short quick-undo window is still open to
+                keep the header tidy: that path is the right one for a
+                fresh misclick. Once the 5-second window closes, this
+                audited fallback takes over. */}
+            {canReverseDecision && !canUndoDecision && (
+              <button
+                onClick={() => { setReverseReason(""); setReverseOpen(true); }}
+                className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-warn border border-warn-bdr bg-warn-bg hover:bg-warn hover:text-white rounded-md transition-colors"
+                title="Reverse the clinical decision and return this order to the clinical check queue. Requires a written reason."
+              >
+                <ArrowLeft className="w-4 h-4" /> Reverse decision
               </button>
             )}
             {/* Intercom — Request info: switches to Intercom tab */}
@@ -2053,6 +2165,84 @@ export function OrderDetailClient({
             >
               <Mail className="w-3.5 h-3.5 mr-1" />
               {isResendingPxLink ? "Sending…" : "Send a new link anyway"}
+            </Button>
+          </ConfirmDialogFooter>
+        </ConfirmDialogContent>
+      </ConfirmDialog>
+
+      {/* Task-158 — Reverse decision modal: mandatory rationale, captured as
+          clinical note + reversal_log audit entry. Surfaces what will happen
+          (status flip, queue re-entry, side-effect cleanup) so the clinician
+          opts in deliberately. */}
+      <ConfirmDialog open={reverseOpen} onOpenChange={(o) => !o && !isReversing && setReverseOpen(false)}>
+        <ConfirmDialogContent className="max-w-md">
+          <ConfirmDialogHeader>
+            <ConfirmDialogTitle className="text-base flex items-center gap-2">
+              <ArrowLeft className="w-4 h-4 text-warn" />
+              Reverse decision on {order.id}
+            </ConfirmDialogTitle>
+          </ConfirmDialogHeader>
+          <div className="space-y-3">
+            {order.clinical_decision && (
+              <div className="rounded-md border border-bdr bg-page-bg px-3 py-2 space-y-1 text-[12px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">Current decision</span>
+                  <span className="text-t1 font-semibold text-right capitalize">
+                    {order.clinical_decision.decision}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">Decided by</span>
+                  <span className="text-t1 text-right">
+                    {USERS_REGISTRY[order.clinical_decision.prescriber_user_id]?.full_name
+                      ?? order.clinical_decision.prescriber_user_id}
+                    {order.clinical_decision.prescriber_user_id !== CURRENT_USER.id && (
+                      <span className="ml-1 text-[10px] text-warn font-semibold">(another clinician)</span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-t3">Decided at</span>
+                  <span className="text-t1 text-right">{formatDateTime(order.clinical_decision.decided_at)}</span>
+                </div>
+              </div>
+            )}
+            <div className="flex items-start gap-2 text-[12px] rounded-md px-3 py-2 border border-warn-bdr bg-warn-bg text-warn">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                The order will return to the <strong>clinical check</strong> queue.
+                {order.clinical_decision?.decision === "approved" && (
+                  <> The auto-triggered GP letter (if still pending) will be cancelled and the approval-gate clinical note will be marked as reversed — both preserved in the audit log.</>
+                )}
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-t3 uppercase tracking-wider mb-1 block">
+                Reason for reversal <span className="text-err normal-case">(min {REVERSE_MIN_CHARS} characters)</span>
+              </label>
+              <Textarea
+                value={reverseReason}
+                onChange={(e) => setReverseReason(e.target.value)}
+                placeholder="Why is this decision being reversed? Captured as a clinical note and stamped on the audit log."
+                rows={4}
+                className="text-[13px]"
+              />
+              <p className={`text-[11px] mt-1 ${reverseReason.trim().length >= REVERSE_MIN_CHARS ? "text-ok" : "text-t3"}`}>
+                {reverseReason.trim().length} / {REVERSE_MIN_CHARS} characters
+              </p>
+            </div>
+          </div>
+          <ConfirmDialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setReverseOpen(false)} disabled={isReversing}>
+              Keep decision
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleReverseDecision}
+              disabled={isReversing || reverseReason.trim().length < REVERSE_MIN_CHARS}
+            >
+              <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+              {isReversing ? "Reversing…" : "Reverse and re-queue"}
             </Button>
           </ConfirmDialogFooter>
         </ConfirmDialogContent>

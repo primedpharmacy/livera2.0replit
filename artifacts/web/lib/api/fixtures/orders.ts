@@ -587,40 +587,60 @@ export async function decideOrder(
 }
 
 // ---------------------------------------------------------------------------
-// reverseDecision — Task-71: Undo a clinical decision within the toast window.
-// Restores the order to 'clinical_check' so it pops back into the queue.
+// reverseDecision — Task-71 + Task-158
 //
-// Task-109: when the prior decision was 'approved', also cleans up the
-// side-effects that decideOrder fired off — the auto-triggered GP letter is
-// cancelled (if still cancellable, i.e. not already sent or cancelled), and
-// any approval-gate clinical note is marked as reversed (preserved for audit,
-// not deleted). Every step emits its own [AUDIT] entry for traceability.
+// Two entry points share this fixture:
+//   * Short quick-undo (~5s after deciding): the toast / detail-page Undo
+//     button calls without a reason. We treat that as a misclick recovery.
+//   * Long-window "Reverse decision" (Task-158): clinician (or a colleague)
+//     reverses a still-pre-dispensing decision an arbitrary time later. A
+//     mandatory rationale is required, captured as a clinical note and
+//     stamped on the order's reversal_log so the activity timeline shows
+//     who reversed it, when, and why.
+//
+// Either way the order is restored to 'clinical_check' so it pops back into
+// the queue, and Task-109 side-effects (auto-triggered GP letter, approval
+// gate clinical note) are tidied. The reversal_log entry captures any side
+// effects that fired so the caller (UI) can surface them to the clinician
+// instead of leaving them dangling silently.
 // ---------------------------------------------------------------------------
+
+export type ReverseDecisionResult = {
+  order: Order;
+  side_effects: {
+    gp_letter_cancelled_id: string | null;
+    clinical_notes_reversed_ids: string[];
+  };
+};
 
 export async function reverseDecision(
   clinic_id: ClinicId,
   id: string,
-): Promise<Order> {
+  opts?: { reason?: string; clinical_note_id?: string | null },
+): Promise<ReverseDecisionResult> {
   await delay(200);
   const o = MOCK_ORDERS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!o) throw new APIError('NOT_FOUND', 'Order not found');
   if (!o.clinical_decision) {
     throw new APIError('VALIDATION', 'No decision to reverse on this order');
   }
-  const prior = o.clinical_decision.decision;
-  // Task-159 — pin the reversal on the order so the Activity log can render
-  // a "Decision undone" row even after `clinical_decision` is cleared.
-  const reversalRecord = {
-    prior_decision: prior,
-    prior_prescriber_user_id: o.clinical_decision.prescriber_user_id,
-    prior_decided_at: o.clinical_decision.decided_at,
-    reversed_by_user_id: CURRENT_USER.id,
-    reversed_at: NOW,
-  };
-  o.clinical_decision_reversals = [
-    ...(o.clinical_decision_reversals ?? []),
-    reversalRecord,
-  ];
+  const reason = opts?.reason?.trim() || null;
+  // Long-window path requires a non-trivial rationale so the audit entry is
+  // meaningful. Quick-undo callers pass no reason at all and bypass the gate.
+  if (opts && 'reason' in opts) {
+    if (!reason || reason.length < 20) {
+      throw new APIError(
+        'VALIDATION',
+        'A reversal reason of at least 20 characters is required.',
+      );
+    }
+  }
+
+  const priorDecision   = o.clinical_decision.decision;
+  const priorDecidedAt  = o.clinical_decision.decided_at;
+  const priorPrescriber = o.clinical_decision.prescriber_user_id;
+  const priorRationale  = o.clinical_decision.rationale;
+
   o.clinical_decision = null;
   o.intervention_raised_at = null;
   o.status = 'clinical_check';
@@ -630,10 +650,18 @@ export async function reverseDecision(
     event_type: 'clinical_decision_reversed',
     clinic_id,
     order_id: id,
-    prior_decision: prior,
+    prior_decision: priorDecision,
+    prior_prescriber_user_id: priorPrescriber,
+    prior_decided_at: priorDecidedAt,
     user_id: CURRENT_USER.id,
+    reason,
     timestamp: NOW,
   });
+
+  const sideEffects: ReverseDecisionResult['side_effects'] = {
+    gp_letter_cancelled_id: null,
+    clinical_notes_reversed_ids: [],
+  };
 
   // Task-109 — Side-effect cleanup for reversed approvals.
   // When the prior decision was 'approved', the system auto-triggered:
@@ -643,7 +671,7 @@ export async function reverseDecision(
   // an authoritative note for a decision that no longer stands. We never hard-
   // delete (the audit trail must remain); we cancel the letter and stamp the
   // note as reversed.
-  if (prior === 'approved') {
+  if (priorDecision === 'approved') {
     // 1) Cancel the auto-triggered GP letter, if it's still cancellable.
     const autoLetter = MOCK_GP_LETTERS.find(
       (l) =>
@@ -658,6 +686,7 @@ export async function reverseDecision(
       autoLetter.lifecycle_status = 'cancelled';
       autoLetter.cancel_reason =
         'Auto-cancelled: the prescriber reversed the approval that created this letter.';
+      sideEffects.gp_letter_cancelled_id = autoLetter.id;
       console.log('[AUDIT]', {
         event_type: 'gp_letter_cancelled',
         outcome: 'success',
@@ -683,6 +712,7 @@ export async function reverseDecision(
         note.reversed_by_user_id = CURRENT_USER.id;
         if (!note.tags.includes('reversed')) note.tags = [...note.tags, 'reversed'];
         note.updated_at = NOW;
+        sideEffects.clinical_notes_reversed_ids.push(note.id);
         console.log('[AUDIT]', {
           event_type: 'clinical_note_reversed',
           outcome: 'success',
@@ -697,7 +727,30 @@ export async function reverseDecision(
     }
   }
 
-  return o;
+  // Task-158 — Persist the reversal in an append-only log on the order so the
+  // activity timeline can show that a decision was made, then reversed, and
+  // by whom / why. Quick-undo entries have `reason: null` and are still
+  // surfaced (so colleagues can see something happened) but without prose.
+  const existingLog = o.reversal_log ?? [];
+  o.reversal_log = [
+    ...existingLog,
+    {
+      reversed_at: NOW,
+      reversed_by_user_id: CURRENT_USER.id,
+      prior_decision: priorDecision,
+      prior_decided_at: priorDecidedAt,
+      prior_prescriber_user_id: priorPrescriber,
+      prior_rationale: priorRationale,
+      reason,
+      clinical_note_id: opts?.clinical_note_id ?? null,
+      side_effects: {
+        gp_letter_cancelled_id: sideEffects.gp_letter_cancelled_id,
+        clinical_notes_reversed_ids: [...sideEffects.clinical_notes_reversed_ids],
+      },
+    },
+  ];
+
+  return { order: o, side_effects: sideEffects };
 }
 
 // ---------------------------------------------------------------------------

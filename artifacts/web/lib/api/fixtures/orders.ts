@@ -543,42 +543,6 @@ export async function decideOrder(
 }
 
 // ---------------------------------------------------------------------------
-// reverseDecision — Task-71: Undo a clinical decision within the toast window.
-// Restores the order to 'clinical_check' so it pops back into the queue.
-// Side-effects from the original decision (auto-triggered GP letter, clinical
-// note) are intentionally left in place — clinicians can address those via the
-// normal flows. The audit log captures the reversal for traceability.
-// ---------------------------------------------------------------------------
-
-export async function reverseDecision(
-  clinic_id: ClinicId,
-  id: string,
-): Promise<Order> {
-  await delay(200);
-  const o = MOCK_ORDERS.find((x) => x.clinic_id === clinic_id && x.id === id);
-  if (!o) throw new APIError('NOT_FOUND', 'Order not found');
-  if (!o.clinical_decision) {
-    throw new APIError('VALIDATION', 'No decision to reverse on this order');
-  }
-  const prior = o.clinical_decision.decision;
-  o.clinical_decision = null;
-  o.intervention_raised_at = null;
-  o.status = 'clinical_check';
-  o.updated_at = NOW;
-
-  console.log('[AUDIT]', {
-    event_type: 'clinical_decision_reversed',
-    clinic_id,
-    order_id: id,
-    prior_decision: prior,
-    user_id: CURRENT_USER.id,
-    timestamp: NOW,
-  });
-
-  return o;
-}
-
-// ---------------------------------------------------------------------------
 // expireOrder — BLD-4.6.3 internal helper (called by detectOrderExpiry)
 // Transitions a single order to 'expired'. Not exported directly —
 // detectOrderExpiry owns the loop + effects.
@@ -821,7 +785,7 @@ export async function getOrderByPxUploadToken(
 export async function attachPxUploadByToken(
   clinic_id: ClinicId,
   token: string,
-  upload: { filename: string; size: number; content_type: string; data_url?: string },
+  upload: { filename: string; size: number; content_type: string; object_path: string },
 ): Promise<Order> {
   console.log('[AUDIT]', {
     event_type: 'px_upload_link_attempt',
@@ -879,14 +843,34 @@ export async function attachPxUploadByToken(
 //   Layer 3 (audit): every attempt + outcome logged under [AUDIT].
 // ---------------------------------------------------------------------------
 
-const PX_UPLOAD_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
-const PX_UPLOAD_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-const PX_UPLOAD_INLINE_DATA_URL_LIMIT = 2 * 1024 * 1024; // 2 MB — keep mock store light
+export const PX_UPLOAD_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
+export const PX_UPLOAD_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
+/**
+ * Resolve an order by (clinic_id, order_id) and enforce that it sits on the
+ * GLP-1 higher-dose path (the only path that may receive a px upload). Throws
+ * an APIError on mismatch — used by both the presigned-URL endpoint and the
+ * finalize endpoint so a guessed order_id can't be used to smuggle a file in.
+ */
+export function findOrderForPxUpload(clinic_id: ClinicId, order_id: string): Order {
+  const order = MOCK_ORDERS.find((o) => o.clinic_id === clinic_id && o.id === order_id);
+  if (!order) throw new APIError('NOT_FOUND', `Order '${order_id}' not found`);
+  const isGlp1HigherDosePath =
+    order.questionnaire_responses?.['ft_oq_9'] === 'yes' &&
+    order.questionnaire_responses?.['ft_oq_10'] === 'yes';
+  if (!isGlp1HigherDosePath) {
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Prescription upload is only accepted for GLP-1 higher-dose patients.',
+    );
+  }
+  return order;
+}
 
 export async function attachPxUpload(
   clinic_id: ClinicId,
   order_id: string,
-  upload: { filename: string; size: number; content_type: string; data_url?: string },
+  upload: { filename: string; size: number; content_type: string; object_path: string },
 ): Promise<Order> {
   console.log('[AUDIT]', {
     event_type: 'px_upload_attempt',
@@ -895,31 +879,31 @@ export async function attachPxUpload(
     filename: upload.filename,
     size: upload.size,
     content_type: upload.content_type,
+    object_path: upload.object_path,
     timestamp: NOW,
   });
 
   await delay(200);
 
-  const order = MOCK_ORDERS.find((o) => o.clinic_id === clinic_id && o.id === order_id);
-  if (!order) throw new APIError('NOT_FOUND', `Order '${order_id}' not found`);
-
-  // Layer 2 — only accept uploads for orders on the GLP-1 higher-dose path.
-  // Anything else is rejected so a guessed order_id can't be used to attach files.
-  const isGlp1HigherDosePath =
-    order.questionnaire_responses?.['ft_oq_9'] === 'yes' &&
-    order.questionnaire_responses?.['ft_oq_10'] === 'yes';
-  if (!isGlp1HigherDosePath) {
+  let order: Order;
+  try {
+    order = findOrderForPxUpload(clinic_id, order_id);
+  } catch (err) {
+    const reason = err instanceof APIError && err.code === 'NOT_FOUND'
+      ? 'order_not_found'
+      : 'not_glp1_higher_dose_path';
     console.log('[AUDIT]', {
       event_type: 'px_upload_result',
       outcome: 'safety_violation',
-      reason: 'not_glp1_higher_dose_path',
+      reason,
       order_id,
       timestamp: NOW,
     });
-    throw new APIError(
-      'SAFETY_VIOLATION',
-      'Prescription upload is only accepted for GLP-1 higher-dose patients.',
-    );
+    throw err;
+  }
+
+  if (!upload.object_path.startsWith('/objects/')) {
+    throw new APIError('VALIDATION', 'object_path must start with /objects/');
   }
 
   if (!PX_UPLOAD_ALLOWED_TYPES.includes(upload.content_type)) {
@@ -951,7 +935,7 @@ export async function attachPxUpload(
     size: upload.size,
     content_type: upload.content_type,
     uploaded_at: NOW,
-    data_url: upload.size <= PX_UPLOAD_INLINE_DATA_URL_LIMIT ? upload.data_url : undefined,
+    object_path: upload.object_path,
   };
 
   // Surface a contextual flag for the clinical-check queue so prescribers can see

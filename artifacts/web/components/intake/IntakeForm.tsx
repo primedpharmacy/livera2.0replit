@@ -519,15 +519,55 @@ function PxUploadSection({ clinicId, orderId }: { clinicId: ClinicId; orderId: s
     setStatus("uploading");
     setError(null);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`/api/intake/${clinicId}/orders/${orderId}/px-upload`, {
-        method: "POST",
-        body: formData,
+      // Step 1 — ask the server for a presigned URL.
+      const urlRes = await fetch(
+        `/api/intake/${clinicId}/orders/${orderId}/px-upload/request-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name,
+            size: file.size,
+            content_type: file.type,
+          }),
+        },
+      );
+      if (!urlRes.ok) {
+        const body = await urlRes.json().catch(() => ({}));
+        throw new Error(body?.message || `Could not start upload (${urlRes.status})`);
+      }
+      const { uploadURL, object_path } = (await urlRes.json()) as {
+        uploadURL: string;
+        object_path: string;
+      };
+
+      // Step 2 — PUT the file bytes directly to GCS via the presigned URL.
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.message || `Upload failed (${res.status})`);
+      if (!putRes.ok) {
+        throw new Error(`File transfer failed (${putRes.status})`);
+      }
+
+      // Step 3 — finalise: attach the object path to the order.
+      const finalizeRes = await fetch(
+        `/api/intake/${clinicId}/orders/${orderId}/px-upload`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            object_path,
+            filename: file.name,
+            size: file.size,
+            content_type: file.type,
+          }),
+        },
+      );
+      if (!finalizeRes.ok) {
+        const body = await finalizeRes.json().catch(() => ({}));
+        throw new Error(body?.message || `Upload failed (${finalizeRes.status})`);
       }
       setUploaded({ filename: file.name, size: file.size });
       setStatus("success");

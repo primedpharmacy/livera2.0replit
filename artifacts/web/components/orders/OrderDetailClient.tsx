@@ -816,46 +816,50 @@ export function OrderDetailClient({
                 {(order.px_upload || order.contextual_flags?.includes("Px upload pending")) && (
                   <DCard icon={FileCheck2} title="Patient-uploaded prescription">
                     {order.px_upload ? (
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-3 p-3 rounded-lg bg-ok-bg border border-ok-bdr">
-                          <Paperclip className="w-4 h-4 text-ok shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-t1 truncate">
-                              {order.px_upload.filename}
-                            </p>
-                            <p className="text-[11px] text-t2 mt-0.5">
-                              {order.px_upload.content_type} ·{" "}
-                              {order.px_upload.size < 1024 * 1024
-                                ? `${(order.px_upload.size / 1024).toFixed(1)} KB`
-                                : `${(order.px_upload.size / 1024 / 1024).toFixed(1)} MB`}{" "}
-                              · uploaded {formatDateTime(order.px_upload.uploaded_at)}
-                            </p>
+                      (() => {
+                        const streamUrl = `/api/storage${order.px_upload.object_path}`;
+                        const isImage = order.px_upload.content_type.startsWith("image/");
+                        return (
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3 p-3 rounded-lg bg-ok-bg border border-ok-bdr">
+                              <Paperclip className="w-4 h-4 text-ok shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[13px] font-semibold text-t1 truncate">
+                                  {order.px_upload.filename}
+                                </p>
+                                <p className="text-[11px] text-t2 mt-0.5">
+                                  {order.px_upload.content_type} ·{" "}
+                                  {order.px_upload.size < 1024 * 1024
+                                    ? `${(order.px_upload.size / 1024).toFixed(1)} KB`
+                                    : `${(order.px_upload.size / 1024 / 1024).toFixed(1)} MB`}{" "}
+                                  · uploaded {formatDateTime(order.px_upload.uploaded_at)}
+                                </p>
+                              </div>
+                              <a
+                                href={streamUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                download={order.px_upload.filename}
+                                className="text-[11px] font-semibold text-ok hover:underline shrink-0"
+                              >
+                                Open
+                              </a>
+                            </div>
+                            {isImage && (
+                              <img
+                                src={streamUrl}
+                                alt={`Prescription upload from patient (${order.px_upload.filename})`}
+                                className="max-h-72 w-auto rounded-md border border-bdr"
+                              />
+                            )}
+                            {!isImage && (
+                              <p className="text-[11px] text-t2">
+                                PDF — use “Open” to view the full document in a new tab.
+                              </p>
+                            )}
                           </div>
-                          {order.px_upload.data_url && (
-                            <a
-                              href={order.px_upload.data_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={order.px_upload.filename}
-                              className="text-[11px] font-semibold text-ok hover:underline shrink-0"
-                            >
-                              Open
-                            </a>
-                          )}
-                        </div>
-                        {order.px_upload.data_url?.startsWith("data:image/") && (
-                          <img
-                            src={order.px_upload.data_url}
-                            alt={`Prescription upload from patient (${order.px_upload.filename})`}
-                            className="max-h-72 w-auto rounded-md border border-bdr"
-                          />
-                        )}
-                        {!order.px_upload.data_url && (
-                          <p className="text-[11px] text-t2">
-                            Preview unavailable — file exceeded the inline preview size.
-                          </p>
-                        )}
-                      </div>
+                        );
+                      })()
                     ) : (
                       <div className="flex items-center gap-2 p-3 rounded-lg bg-warn-bg border border-warn-bdr">
                         <AlertTriangle className="w-4 h-4 text-warn shrink-0" />
@@ -870,7 +874,7 @@ export function OrderDetailClient({
 
                 {/* BLD-14.5 — Weight trajectory */}
                 {order.weight_history && order.weight_history.length > 0 && (
-                  <OrderWeightTrajectoryCard history={order.weight_history} orderType={order.type} />
+                  <OrderWeightTrajectoryCard history={order.weight_history} />
                 )}
 
                 <DCard icon={Scale} title="Weight Journey">

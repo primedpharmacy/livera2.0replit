@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { decideOrder, createClinicalNote, CURRENT_USER, NOW } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/format";
-import { analyseWeightHistory, WEIGHT_WARNING_CHIP_CLS } from "@/lib/clinical/weightWarnings";
 import { OrderQuestionnaireCard } from "@/components/orders/OrderQuestionnaireCard";
 import { OrderNICEChecklistCard } from "@/components/orders/OrderNICEChecklistCard";
 import { ApproveConfirmModal } from "@/components/orders/ApproveConfirmModal";
@@ -19,7 +18,6 @@ import { InterventionConfirmModal } from "@/components/orders/InterventionConfir
 import type { AIDraftResult } from "@/components/clinical-notes/AINoteDraftingModal";
 import type { Order, Clinic, ClinicId } from "@/types";
 
-type Decision = "approved" | "declined" | "queried";
 type SlideOverTab = "summary" | "questionnaire" | "nice" | "notes";
 
 const TABS: { key: SlideOverTab; label: string }[] = [
@@ -60,7 +58,7 @@ interface ClinicalCheckSlideOverProps {
   clinic: Clinic;
   clinicId: ClinicId;
   onClose: () => void;
-  onDecisionMade: (orderId: string, decision: Decision, snapshot: Order) => void;
+  onDecisionMade: (orderId: string) => void;
   onNavigate?: (direction: 1 | -1) => void;
 }
 
@@ -78,13 +76,13 @@ export function ClinicalCheckSlideOver({
   const [declineOpen, setDeclineOpen] = useState(false);
   const [interventionOpen, setInterventionOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "ok" | "err" } | null>(null);
 
   useEffect(() => {
-    if (!errorToast) return;
-    const t = setTimeout(() => setErrorToast(null), 4000);
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(t);
-  }, [errorToast]);
+  }, [toast]);
 
   const canDecide = order.status === "clinical_check" && can(CURRENT_USER, "decide", "orders");
 
@@ -153,9 +151,6 @@ export function ClinicalCheckSlideOver({
     const y = 10 + ((wMax - r.weight_kg) / wRange) * 80;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
-  const weightWarnings = analyseWeightHistory(weightHistory, {
-    isContinuation: order.type === "reorder",
-  });
   const currentBmi = wLast?.bmi;
   const bmiBandLabel =
     currentBmi == null   ? null :
@@ -190,14 +185,11 @@ export function ClinicalCheckSlideOver({
       : clinic.config.questionnaire_reorder;
 
   async function handleDecideWithNote(
-    decision: Decision,
+    decision: "approved" | "declined" | "queried",
     body: string,
     aiData?: Omit<AIDraftResult, "body">,
   ) {
     setIsSubmitting(true);
-    // Snapshot the order *before* mutating it so Undo can restore the queue
-    // entry without an extra fetch round-trip.
-    const snapshot: Order = { ...order };
     try {
       await createClinicalNote(clinicId, {
         patient_id:                  order.patient_id,
@@ -214,11 +206,19 @@ export function ClinicalCheckSlideOver({
       setApproveOpen(false);
       setDeclineOpen(false);
       setInterventionOpen(false);
-      // Hand the toast (with Undo) to the parent so it persists after this
-      // slide-over unmounts and the queue refreshes.
-      onDecisionMade(order.id, decision, snapshot);
+      setToast({
+        message:
+          decision === "approved" ? "Order approved successfully."             :
+          decision === "declined" ? "Order declined — patient notified."       :
+                                    "Intervention raised — patient will be contacted.",
+        type: decision === "declined" ? "err" : "ok",
+      });
+      setTimeout(() => onDecisionMade(order.id), 1500);
     } catch (err) {
-      setErrorToast(err instanceof Error ? err.message : "Action failed. Please retry.");
+      setToast({
+        message: err instanceof Error ? err.message : "Action failed. Please retry.",
+        type: "err",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -372,24 +372,6 @@ export function ClinicalCheckSlideOver({
                       </p>
                     </div>
                   </div>
-
-                  {/* Concerning trend warnings (Task-69) */}
-                  {weightWarnings.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {weightWarnings.map((w) => (
-                        <span
-                          key={w.kind}
-                          className={cn(
-                            "inline-flex items-center gap-1 text-[10.5px] font-semibold border rounded-full px-2 py-0.5",
-                            WEIGHT_WARNING_CHIP_CLS[w.severity],
-                          )}
-                        >
-                          <AlertTriangle className="w-3 h-3" />
-                          {w.label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
 
                   {/* BMI tile */}
                   {currentBmi != null && (
@@ -577,11 +559,18 @@ export function ClinicalCheckSlideOver({
         </div>
       )}
 
-      {/* ── Error toast (success toast + Undo handled by parent) ─────────── */}
-      {errorToast && (
-        <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border text-[13px] font-medium bg-err-bg border-err-bdr text-err">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          {errorToast}
+      {/* ── Toast ────────────────────────────────────────────────────────── */}
+      {toast && (
+        <div className={cn(
+          "fixed bottom-6 right-6 z-[60] flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg border text-[13px] font-medium transition-all",
+          toast.type === "ok"
+            ? "bg-ok-bg border-ok-bdr text-ok"
+            : "bg-err-bg border-err-bdr text-err"
+        )}>
+          {toast.type === "ok"
+            ? <CheckCircle className="w-4 h-4 shrink-0" />
+            : <AlertTriangle className="w-4 h-4 shrink-0" />}
+          {toast.message}
         </div>
       )}
 

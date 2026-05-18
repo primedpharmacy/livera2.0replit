@@ -117,12 +117,12 @@ function WorkspaceAccessTokenSection({
     try {
       const res = await fetch(`/api/intercom/${clinicId}/credentials`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // Phase 1 stub for the api-server Owner/Admin guard — see follow-up
-          // #88 for moving this into a session-resolving server-side proxy.
-          "X-Livera-Role": "admin",
-        },
+        headers: { "Content-Type": "application/json" },
+        // Owner/Admin enforcement now happens server-side: the api-server
+        // resolves the caller from the signed `livera_session_uid` cookie
+        // (sent automatically because /api shares the host) and rejects
+        // anyone who isn't Owner/Admin on this clinic. No client header.
+        credentials: "same-origin",
         body: JSON.stringify({
           access_token: token.trim(),
           ...(secret.trim() ? { webhook_secret: secret.trim() } : {}),
@@ -150,7 +150,7 @@ function WorkspaceAccessTokenSection({
     try {
       const res = await fetch(`/api/intercom/${clinicId}/credentials`, {
         method: "DELETE",
-        headers: { "X-Livera-Role": "admin" },
+        credentials: "same-origin",
       });
       if (!res.ok) {
         const detail = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
@@ -181,10 +181,8 @@ function WorkspaceAccessTokenSection({
     try {
       const res = await fetch(`/api/intercom/${clinicId}/credentials/secret`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Livera-Role": "admin",
-        },
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({ webhook_secret: value }),
       });
       if (!res.ok) {

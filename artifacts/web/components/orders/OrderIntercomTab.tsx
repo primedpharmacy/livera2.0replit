@@ -13,8 +13,35 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Mail, MessageSquare, Loader2, AlertTriangle, Link2, RefreshCw, Lock } from "lucide-react";
+import {
+  Mail,
+  MessageSquare,
+  Loader2,
+  AlertTriangle,
+  Link2,
+  RefreshCw,
+  Send,
+  Plus,
+  X,
+} from "lucide-react";
 import type { Patient, Clinic, ClinicId } from "@/types";
+
+// Phase 2 — until the web→api auth proxy lands (follow-up #88) the browser
+// supplies its own clinician identity for the audit log. This mirrors the
+// existing X-Livera-Role admin stub used by the contact-link flow.
+const DEMO_CLINICIAN = {
+  id: "user_demo_clinician",
+  name: "Demo Clinician",
+  role: "admin" as const,
+};
+
+function clinicianHeaders(): Record<string, string> {
+  return {
+    "X-Livera-Role": DEMO_CLINICIAN.role,
+    "X-Livera-User-Id": DEMO_CLINICIAN.id,
+    "X-Livera-User-Name": DEMO_CLINICIAN.name,
+  };
+}
 
 type IntercomAuthor = {
   type: "user" | "admin" | "bot";
@@ -91,6 +118,16 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
   // payload stays light and authorization is re-checked on the server.
   const [detailById, setDetailById] = useState<Record<string, IntercomConversation>>({});
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  // Compose state — keyed by conversation id so each thread keeps its own draft.
+  const [composeBody, setComposeBody] = useState<Record<string, string>>({});
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [composeError, setComposeError] = useState<string | null>(null);
+  // New-conversation modal state.
+  const [newOpen, setNewOpen] = useState(false);
+  const [newSubject, setNewSubject] = useState("");
+  const [newBody, setNewBody] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newError, setNewError] = useState<string | null>(null);
 
   const integrationConfigured = useMemo(
     () => Boolean(clinic.config.integrations?.intercom?.workspace_id),
@@ -188,6 +225,198 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
       sseRef.current = null;
     };
   }, [clinicId, loadConversations]);
+
+  // ── Send an admin reply with optimistic UI + rollback ──────────────────────
+  async function handleSendReply(conv: IntercomConversation) {
+    const draft = (composeBody[conv.id] ?? "").trim();
+    if (!draft || sendingId) return;
+    setSendingId(conv.id);
+    setComposeError(null);
+
+    // Optimistic part stamped with a temporary id so we can roll it back if
+    // the request fails. The server's response replaces it on success.
+    const tempId = `ipart_optimistic_${Date.now()}`;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const optimistic: IntercomMessagePart = {
+      id: tempId,
+      part_type: "comment",
+      body: draft,
+      created_at: nowSec,
+      author: {
+        type: "admin",
+        id: DEMO_CLINICIAN.id,
+        name: DEMO_CLINICIAN.name,
+      },
+      attachments: [],
+    };
+    const baseDetail = detailById[conv.id] ?? conv;
+    setDetailById((prev) => ({
+      ...prev,
+      [conv.id]: { ...baseDetail, parts: [...baseDetail.parts, optimistic] },
+    }));
+    setComposeBody((prev) => ({ ...prev, [conv.id]: "" }));
+
+    try {
+      const res = await fetch(
+        `/api/intercom/${clinicId}/contacts/${patient.id}/conversations/${conv.id}/reply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...clinicianHeaders() },
+          body: JSON.stringify({ body: draft }),
+        },
+      );
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
+        throw new Error(detail.error ?? `reply_failed_${res.status}`);
+      }
+      const json = (await res.json()) as { part: IntercomMessagePart };
+      // Replace the optimistic part with the server-canonical one in place,
+      // preserving message ordering.
+      setDetailById((prev) => {
+        const current = prev[conv.id];
+        if (!current) return prev;
+        return {
+          ...prev,
+          [conv.id]: {
+            ...current,
+            parts: current.parts.map((p) => (p.id === tempId ? json.part : p)),
+          },
+        };
+      });
+    } catch (err) {
+      // Rollback: drop the optimistic part and restore the draft text so the
+      // clinician can retry without re-typing.
+      setDetailById((prev) => {
+        const current = prev[conv.id];
+        if (!current) return prev;
+        return {
+          ...prev,
+          [conv.id]: {
+            ...current,
+            parts: current.parts.filter((p) => p.id !== tempId),
+          },
+        };
+      });
+      setComposeBody((prev) => ({ ...prev, [conv.id]: draft }));
+      setComposeError(err instanceof Error ? err.message : "reply_failed");
+    } finally {
+      setSendingId((current) => (current === conv.id ? null : current));
+    }
+  }
+
+  async function handleCreateConversation() {
+    const body = newBody.trim();
+    const subject = newSubject.trim();
+    if (!body || creating) return;
+    setCreating(true);
+    setNewError(null);
+
+    // Optimistic insert: a synthetic conversation appears at the top of the
+    // list immediately and is auto-expanded. The temp id is replaced with
+    // the server-assigned one on success, or the whole row is rolled back
+    // on failure.
+    const tempConvId = `iconv_optimistic_${Date.now()}`;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const optimisticAuthor: IntercomAuthor = {
+      type: "admin",
+      id: DEMO_CLINICIAN.id,
+      name: DEMO_CLINICIAN.name,
+    };
+    const optimisticConv: IntercomConversation = {
+      id: tempConvId,
+      contact_id: data?.intercom_contact_id ?? "",
+      subject: subject || "(no subject)",
+      preview: body.slice(0, 140),
+      state: "open",
+      read: true,
+      created_at: nowSec,
+      updated_at: nowSec,
+      last_author: optimisticAuthor,
+      assignee: { id: optimisticAuthor.id, name: optimisticAuthor.name },
+      parts: [
+        {
+          id: `ipart_${tempConvId}_1`,
+          part_type: "comment",
+          body,
+          created_at: nowSec,
+          author: optimisticAuthor,
+          attachments: [],
+        },
+      ],
+    };
+    const previousExpanded = expandedId;
+    setData((prev) =>
+      prev ? { ...prev, conversations: [optimisticConv, ...prev.conversations] } : prev,
+    );
+    setDetailById((prev) => ({ ...prev, [tempConvId]: optimisticConv }));
+    setExpandedId(tempConvId);
+    setNewOpen(false);
+
+    try {
+      const res = await fetch(
+        `/api/intercom/${clinicId}/contacts/${patient.id}/conversations`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...clinicianHeaders() },
+          body: JSON.stringify({ subject, body }),
+        },
+      );
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
+        throw new Error(detail.error ?? `create_failed_${res.status}`);
+      }
+      const json = (await res.json()) as { conversation_id: string };
+      // Swap the temp row's id (and its cached detail) over to the real one
+      // so the upcoming list refresh deduplicates cleanly instead of
+      // showing a flash of two entries.
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              conversations: prev.conversations.map((c) =>
+                c.id === tempConvId ? { ...c, id: json.conversation_id } : c,
+              ),
+            }
+          : prev,
+      );
+      setDetailById((prev) => {
+        const next: Record<string, IntercomConversation> = {};
+        for (const [k, v] of Object.entries(prev)) {
+          if (k === tempConvId) {
+            next[json.conversation_id] = { ...v, id: json.conversation_id };
+          } else {
+            next[k] = v;
+          }
+        }
+        return next;
+      });
+      setExpandedId(json.conversation_id);
+      setNewSubject("");
+      setNewBody("");
+      await loadConversations();
+    } catch (err) {
+      // Rollback: drop the synthetic row, restore the previous expansion,
+      // and re-open the modal with the user's text preserved so they can
+      // retry without re-typing.
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              conversations: prev.conversations.filter((c) => c.id !== tempConvId),
+            }
+          : prev,
+      );
+      setDetailById((prev) => {
+        const { [tempConvId]: _dropped, ...rest } = prev;
+        return rest;
+      });
+      setExpandedId(previousExpanded);
+      setNewOpen(true);
+      setNewError(err instanceof Error ? err.message : "create_failed");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   async function handleLink() {
     if (!linkEmail.trim()) return;
@@ -438,10 +667,158 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         </div>
       )}
 
-      {/* Phase 2 footer — sending is intentionally disabled in Phase 1 */}
-      <div className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-t3">
-        <Lock className="w-3 h-3" /> Read-only — sending and replying ship in Phase 2.
-      </div>
+      {/* Inline compose for the currently expanded conversation */}
+      {!loading && !error && data?.linked && expandedId && (() => {
+        const conv = data.conversations.find((c) => c.id === expandedId);
+        if (!conv) return null;
+        const draft = composeBody[conv.id] ?? "";
+        const sending = sendingId === conv.id;
+        return (
+          <div className="mt-3 border border-bdr rounded-lg bg-surface p-3">
+            <label className="block text-[11px] font-semibold text-t2 mb-1.5">
+              Reply to {conv.subject || "this conversation"}
+            </label>
+            <textarea
+              value={draft}
+              onChange={(e) =>
+                setComposeBody((prev) => ({ ...prev, [conv.id]: e.target.value }))
+              }
+              placeholder="Type a reply to the patient…"
+              rows={3}
+              maxLength={10_000}
+              disabled={sending}
+              className="w-full text-[12.5px] border border-bdr rounded-md px-3 py-2 bg-page-bg text-t1 placeholder:text-t3 focus:outline-none focus:border-brand resize-y disabled:opacity-50"
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  void handleSendReply(conv);
+                }
+              }}
+            />
+            {composeError && (
+              <p className="mt-1.5 text-[11px] text-err flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Couldn&apos;t send: {composeError}
+              </p>
+            )}
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-[10.5px] text-t3">
+                Sends as {DEMO_CLINICIAN.name} · ⌘/Ctrl + Enter to send
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleSendReply(conv)}
+                disabled={sending || !draft.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {sending ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" /> Send reply
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Start a brand-new conversation with this patient */}
+      {!loading && !error && data?.linked && (
+        <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-t3">
+          <span>
+            Outbound messages are logged for audit (who, when, conversation, byte length).
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setNewOpen(true);
+              setNewError(null);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11.5px] font-semibold text-brand border border-brand/40 hover:bg-brand/10 rounded-md"
+          >
+            <Plus className="w-3.5 h-3.5" /> Start new conversation
+          </button>
+        </div>
+      )}
+
+      {/* New-conversation modal */}
+      {newOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-surface border border-bdr rounded-lg shadow-lg w-full max-w-md p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[13.5px] font-semibold text-t1">
+                New conversation with {patient.demographic.full_name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setNewOpen(false)}
+                className="text-t3 hover:text-t1"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <label className="block text-[11px] font-semibold text-t2 mb-1">
+              Subject <span className="text-t3 font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={newSubject}
+              onChange={(e) => setNewSubject(e.target.value)}
+              maxLength={200}
+              placeholder="e.g. Follow-up on your check-in"
+              className="w-full text-[12.5px] border border-bdr rounded-md px-3 py-2 bg-page-bg text-t1 placeholder:text-t3 focus:outline-none focus:border-brand mb-3"
+              disabled={creating}
+            />
+            <label className="block text-[11px] font-semibold text-t2 mb-1">
+              Message
+            </label>
+            <textarea
+              value={newBody}
+              onChange={(e) => setNewBody(e.target.value)}
+              rows={5}
+              maxLength={10_000}
+              placeholder="Write your message…"
+              disabled={creating}
+              className="w-full text-[12.5px] border border-bdr rounded-md px-3 py-2 bg-page-bg text-t1 placeholder:text-t3 focus:outline-none focus:border-brand resize-y disabled:opacity-50"
+            />
+            {newError && (
+              <p className="mt-2 text-[11px] text-err flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> {newError}
+              </p>
+            )}
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setNewOpen(false)}
+                disabled={creating}
+                className="px-3 py-1.5 text-[12px] text-t2 hover:text-t1"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCreateConversation()}
+                disabled={creating || !newBody.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-white bg-brand hover:bg-brand/90 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {creating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" /> Send message
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

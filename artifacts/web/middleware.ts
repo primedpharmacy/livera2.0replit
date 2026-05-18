@@ -54,16 +54,24 @@ function isDemoPersonaId(uid: string): boolean {
   return (DEMO_PERSONA_IDS as readonly string[]).includes(uid);
 }
 
+// Task-270 — persist the demo persona across tab opens AND browser restarts.
+// Without an explicit maxAge these were session cookies; opening a fresh tab
+// (or coming back the next day) dropped them and the user reverted to the
+// default Owner. 30 days mirrors a "remember me" sign-in for the demo.
+const DEMO_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+
 function setDemoSessionCookies(response: NextResponse, uid: string) {
   response.cookies.set(SESSION_COOKIE_NAME, mintSessionCookieValue(uid), {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
+    maxAge: DEMO_COOKIE_MAX_AGE_SECONDS,
   });
   response.cookies.set(DEMO_OVERRIDE_COOKIE_NAME, uid, {
     httpOnly: false,
     sameSite: 'lax',
     path: '/',
+    maxAge: DEMO_COOKIE_MAX_AGE_SECONDS,
   });
 }
 

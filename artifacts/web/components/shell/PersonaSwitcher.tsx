@@ -15,9 +15,9 @@ import { cn } from "@/lib/utils";
 import {
   DEMO_PERSONA_IDS,
   USERS_REGISTRY,
-  CURRENT_USER,
   type DemoPersonaId,
 } from "@/lib/api/constants";
+import { useCurrentUserContext } from "@/lib/current-user-context";
 
 /**
  * Task-181 — Demo persona switcher.
@@ -30,8 +30,10 @@ import {
  * the clean URL.
  *
  * Uses a plain anchor (full page load) rather than a Next.js Link so the
- * client module that reads the cookie in `lib/api/constants.ts` is
- * re-evaluated and `CURRENT_USER` picks up the new persona.
+ * server re-reads the `livera_demo_uid` cookie and re-seeds
+ * `CurrentUserProvider` with the new persona; the pill itself reads from
+ * that provider via `useCurrentUserContext()` so the active persona is
+ * reflected on the first paint of every tab (Task-270).
  *
  * Gated on `NODE_ENV !== 'production'` so it never ships to real tenants.
  */
@@ -40,11 +42,18 @@ export function PersonaSwitcher() {
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
 
+  // Task-270 — read the active persona from the request-scoped current-user
+  // context (seeded server-side from the `livera_demo_uid` cookie in the
+  // workspace layout) rather than the module-level `CURRENT_USER` default,
+  // so the pill reflects the remembered persona on the first render of any
+  // tab — including brand-new tabs opened from a deep link.
+  const { user: currentUser } = useCurrentUserContext();
+
   if (process.env.NODE_ENV === "production") return null;
 
-  const currentId = CURRENT_USER.id;
-  const currentName = CURRENT_USER.full_name;
-  const currentRole = CURRENT_USER.roles[0] ?? "User";
+  const currentId = currentUser.id;
+  const currentName = currentUser.full_name;
+  const currentRole = currentUser.roles[0] ?? "User";
 
   function hrefFor(uid: DemoPersonaId): string {
     const params = new URLSearchParams(searchParams?.toString() ?? "");

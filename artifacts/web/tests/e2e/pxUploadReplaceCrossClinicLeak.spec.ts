@@ -38,8 +38,11 @@
 
 import { test, expect, request as pwRequest } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createHmac } from 'node:crypto';
 import * as path from 'node:path';
+import {
+  SESSION_COOKIE_NAME,
+  mintSessionCookieValue,
+} from '../../lib/auth/sessionSignature';
 
 const CLINIC = 'feeltru';
 const ORDER_ID = 'ORD-00451';
@@ -48,18 +51,10 @@ const WEB_ROOT = path.resolve(__dirname, '..', '..');
 
 const REUSE_BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? '';
 
-// Mirrors lib/auth/session.ts — see pxUploadCrossClinicLeak.spec.ts for the
-// reasoning. The fallback secret matches the dev-mode default so the cookie
-// signs cleanly when SESSION_SECRET is unset in the test env.
-const SESSION_COOKIE_NAME = 'livera_session_uid';
-const SESSION_SECRET =
-  process.env.SESSION_SECRET && process.env.SESSION_SECRET.length > 0
-    ? process.env.SESSION_SECRET
-    : 'livera-dev-session-secret-do-not-use-in-prod';
-function mintSessionCookieValue(uid: string): string {
-  const sig = createHmac('sha256', SESSION_SECRET).update(uid).digest('hex');
-  return `${uid}.${sig}`;
-}
+// Task-314 — see pxUploadCrossClinicLeak.spec.ts. The HMAC primitives and
+// dev-fallback secret live in `lib/auth/sessionSignature.ts`, the single
+// source of truth shared with middleware and route handlers, so a
+// rotation in one place can't desync this spec.
 
 let server: ChildProcess | null = null;
 let stdoutBuf = '';

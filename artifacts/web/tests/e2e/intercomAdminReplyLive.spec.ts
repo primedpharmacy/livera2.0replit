@@ -29,7 +29,11 @@
  */
 
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { createHmac, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import {
+  SESSION_COOKIE_NAME,
+  mintSessionCookieValue,
+} from '../../lib/auth/sessionSignature';
 
 const CLINIC = 'feeltru';
 const ORDER_ID = 'ORD-00441';
@@ -42,14 +46,10 @@ const DEMO_USER_NAME = 'Qadir Hussain';
 // from the signed `livera_session_uid` cookie instead of trusting browser
 // headers. Playwright's standalone `request` fixture doesn't inherit the
 // browser context's cookies, so we mint our own session cookie using the
-// same SESSION_SECRET the web app + api-server share (dev fallback when
-// unset, matching lib/auth/session.ts and lib/session.ts).
-const SESSION_SECRET =
-  process.env.SESSION_SECRET ?? 'livera-dev-session-secret-do-not-use-in-prod';
-
+// shared HMAC helper (Task-314) — same primitives the web middleware and
+// route handlers use, so a rotation in one place can't desync the tests.
 function signSessionCookie(uid: string): string {
-  const sig = createHmac('sha256', SESSION_SECRET).update(uid).digest('hex');
-  return `livera_session_uid=${encodeURIComponent(`${uid}.${sig}`)}`;
+  return `${SESSION_COOKIE_NAME}=${encodeURIComponent(mintSessionCookieValue(uid))}`;
 }
 
 const SESSION_COOKIE_HEADER = signSessionCookie(DEMO_USER_ID);

@@ -23,6 +23,7 @@ import { delay, APIError, scopedToClinic, CURRENT_USER, NOW } from '../constants
 import { mondayWrite, mondayRead } from '../monday';
 import { can } from '@/lib/permissions';
 import { getClinicSync } from './clinics';
+import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 // ── Seed data — 5 complaints across both clinics ─────────────────────────────
 // All monday_item_id values reference existing MOCK_MONDAY_BOARDS entries.
@@ -316,6 +317,15 @@ export async function acknowledgeComplaint(clinic_id: ClinicId, id: string): Pro
     complaint_id: id,
     timestamp: NOW,
   });
+  void recordAudit({
+    clinic_id,
+    actor: CURRENT_USER,
+    entity: { type: 'complaint', id },
+    event_type: 'complaint_acknowledged',
+    summary: `Complaint ${id} acknowledged by ${CURRENT_USER.full_name}.`,
+    before: { status: 'received' },
+    after: { status: 'acknowledged', acknowledged_at: NOW },
+  });
   return c;
 }
 
@@ -342,6 +352,14 @@ export async function updateComplaintStatus(
     complaint_id: id,
     status,
     timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor: CURRENT_USER,
+    entity: { type: 'complaint', id },
+    event_type: `complaint_${status}`,
+    summary: `Complaint ${id} marked ${status} by ${CURRENT_USER.full_name}.`,
+    after: { status, resolved_at: c.resolved_at },
   });
   return c;
 }

@@ -14,8 +14,8 @@
  *   POLISH    — Date.now() replaced with monotonic counter to stay consistent with NOW
  */
 
-import type { ClinicId, PharmacyCommThread, PharmacyCommMessage } from '../types';
-import { delay, APIError, scopedToClinic, CURRENT_USER, NOW } from '../constants';
+import type { ClinicId, PharmacyCommThread, PharmacyCommMessage, User } from '../types';
+import { delay, APIError, scopedToClinic, NOW } from '../constants';
 import { can } from '@/lib/permissions';
 
 // ---------------------------------------------------------------------------
@@ -37,7 +37,7 @@ export const MOCK_PHARMACY_COMM_THREADS: PharmacyCommThread[] = [
     id: 'PCT-001',
     clinic_id: 'feeltru',
     anchor_type: 'order',
-    anchor_id: 'ORD-00447',
+    anchor_id: 'ORD-00441',
     topic: 'amendment_address_change',
     priority: 'routine',
     status: 'awaiting_response',
@@ -53,6 +53,40 @@ export const MOCK_PHARMACY_COMM_THREADS: PharmacyCommThread[] = [
         body: 'Patient address has changed. Please update dispatch address for ORD-00447 before next dispatch. Order is post-Primed clinical check — amendment held pending your confirmation (DEC-28).',
         sent_by_user_id: 'user_qadir',
         sent_at: '2026-05-10T10:00:00Z',
+        attachments: [],
+      },
+    ],
+  },
+  {
+    // BLD-16.1 — patient-anchored thread demo (FeelTru · Sarah Cookland PT-00198)
+    id: 'PCT-003',
+    clinic_id: 'feeltru',
+    anchor_type: 'patient',
+    anchor_id: 'PT-00198',
+    topic: 'clinical_query',
+    priority: 'routine',
+    status: 'resolved',
+    created_by_user_id: 'user_qadir',
+    created_at: '2026-05-08T09:15:00Z',
+    updated_at: '2026-05-09T14:22:00Z',
+    amendment_id: null,
+    messages: [
+      {
+        id: 'PCTM-010',
+        thread_id: 'PCT-003',
+        direction: 'outbound',
+        body: 'Clinical query re: patient PT-00198 (Sarah Cookland). Patient has reported starting omeprazole 20mg for reflux. Please confirm dispensing team is aware before the next Mounjaro order is processed. No dose change required at this stage.',
+        sent_by_user_id: 'user_qadir',
+        sent_at: '2026-05-08T09:15:00Z',
+        attachments: [],
+      },
+      {
+        id: 'PCTM-011',
+        thread_id: 'PCT-003',
+        direction: 'inbound',
+        body: 'Confirmed. Dispensing team has noted omeprazole co-prescription for PT-00198. No contraindication for concurrent Mounjaro 7.5mg at this dose. PPI use is consistent with GI side-effect management guidelines. Thread resolved.',
+        sent_by_user_id: null,
+        sent_at: '2026-05-09T14:22:00Z',
         attachments: [],
       },
     ],
@@ -134,15 +168,16 @@ export async function createPharmacyCommThread(
     body: string;
     amendment_id?: string | null;
   },
+  actor: User,
 ): Promise<PharmacyCommThread> {
   await delay();
 
   // Layer 2 — BLOCKER 4: permission gate (Fix Cycle 1)
-  if (!can(CURRENT_USER, 'write', 'pharmacy_comms')) {
+  if (!can(actor, 'write', 'pharmacy_comms')) {
     console.log('[AUDIT]', {
       event_type: 'pharmacy_comm_thread_create_blocked',
       outcome:    'PERMISSION_DENIED',
-      actor_id:   CURRENT_USER.id,
+      actor_id:   actor.id,
       clinic_id,
       timestamp:  NOW,
     });
@@ -165,7 +200,7 @@ export async function createPharmacyCommThread(
     topic:       payload.topic,
     priority:    payload.priority,
     status:      'open',
-    created_by_user_id: CURRENT_USER.id,
+    created_by_user_id: actor.id,
     created_at:  NOW,
     updated_at:  NOW,
     amendment_id: payload.amendment_id ?? null,
@@ -175,7 +210,7 @@ export async function createPharmacyCommThread(
         thread_id:       threadId,
         direction:       'outbound',
         body:            payload.body,
-        sent_by_user_id: CURRENT_USER.id,
+        sent_by_user_id: actor.id,
         sent_at:         NOW,
         attachments:     [],
       },
@@ -188,7 +223,7 @@ export async function createPharmacyCommThread(
   console.log('[AUDIT]', {
     event_type:   'pharmacy_comm_thread_created',
     outcome:      'success',
-    actor_id:     CURRENT_USER.id,
+    actor_id:     actor.id,
     thread_id:    threadId,
     clinic_id,
     anchor_type:  payload.anchor_type,
@@ -210,7 +245,8 @@ export async function replyToPharmacyCommThread(
   clinic_id: ClinicId,
   thread_id: string,
   body: string,
-  attachments: string[] = [],
+  attachments: string[],
+  actor: User,
 ): Promise<PharmacyCommMessage> {
   await delay();
 
@@ -229,7 +265,7 @@ export async function replyToPharmacyCommThread(
     thread_id,
     direction:       'outbound',
     body,
-    sent_by_user_id: CURRENT_USER.id,
+    sent_by_user_id: actor.id,
     sent_at:         NOW,
     attachments,
   };
@@ -241,7 +277,7 @@ export async function replyToPharmacyCommThread(
   console.log('[AUDIT]', {
     event_type: 'pharmacy_comm_reply_sent',
     outcome:    'success',
-    actor_id:   CURRENT_USER.id,
+    actor_id:   actor.id,
     thread_id,
     clinic_id,
     timestamp:  NOW,

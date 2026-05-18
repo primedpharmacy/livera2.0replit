@@ -18,9 +18,10 @@
  *   One workflow letter per patient lifetime. Subsequent triggers → 'ad_hoc'.
  */
 
-import type { ClinicId, GPLetter } from '../types';
-import { NOW, delay, APIError, CURRENT_USER } from '../constants';
+import type { ClinicId, GPLetter, User } from '../types';
+import { NOW, delay, APIError } from '../constants';
 import { MOCK_PATIENTS } from './patients';
+import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 // Consent lookup constant — matches clinic_config.consents seed (consent_id: 'consent_gp').
 // TODO V1.2: Replace with slug-based lookup. Current logic checks patient.consents_given
@@ -93,8 +94,8 @@ admin@feeltru.com`,
     postmark_message_id: null,
     sent_by_user_id: null,
     byte_size: null,
-    anchor_order_id: null,
-    auto_triggered: false,
+    anchor_order_id: 'ORD-00441',
+    auto_triggered: true,
   },
   // GPL-003: feeltru — awaiting_consent
   {
@@ -273,6 +274,7 @@ export async function createGPLetter(
     prescriber_id?: string;
     auto_triggered?: boolean;
   },
+  actor: User,
 ): Promise<GPLetter> {
   await delay(400);
 
@@ -317,7 +319,7 @@ export async function createGPLetter(
     patient_consent_verified: consentVerified,
     sent_at: null,
     sent_to_email: null,
-    created_by_user_id: data.prescriber_id ?? CURRENT_USER.id,
+    created_by_user_id: data.prescriber_id ?? actor.id,
     created_at: NOW,
     cancel_reason: null,
     email_body_sent: null,
@@ -334,7 +336,7 @@ export async function createGPLetter(
   console.log('[AUDIT]', {
     event_type: 'gp_letter_created',
     outcome: 'success',
-    actor_id: CURRENT_USER.id,
+    actor_id: actor.id,
     letter_id: letter.id,
     patient_id: data.patient_id,
     clinic_id,
@@ -353,12 +355,13 @@ export async function createGPLetter(
 export async function sendGPLetter(
   clinic_id: ClinicId,
   id: string,
-  auditPayload?: {
+  auditPayload: {
     email_body_sent: string;
     pdf_filename: string;
     postmark_message_id: string | null;
     byte_size: number;
-  },
+  } | undefined,
+  actor: User,
 ): Promise<GPLetter> {
   await delay(600);
 
@@ -369,7 +372,7 @@ export async function sendGPLetter(
       outcome: 'not_found',
       clinic_id,
       letter_id: id,
-      actor_id: CURRENT_USER.id,
+      actor_id: actor.id,
       timestamp: NOW,
     });
     throw new APIError('NOT_FOUND', 'GP letter not found');
@@ -383,7 +386,7 @@ export async function sendGPLetter(
       reason: 'cancelled_letter_is_terminal',
       clinic_id,
       letter_id: id,
-      actor_id: CURRENT_USER.id,
+      actor_id: actor.id,
       timestamp: NOW,
     });
     throw new APIError('SAFETY_VIOLATION', 'Cancelled letters cannot be sent');
@@ -395,7 +398,7 @@ export async function sendGPLetter(
       outcome: 'consent_violation',
       clinic_id,
       letter_id: id,
-      actor_id: CURRENT_USER.id,
+      actor_id: actor.id,
       timestamp: NOW,
     });
     throw new APIError('CONSENT_VIOLATION', 'Patient has not consented to GP communication');
@@ -411,7 +414,7 @@ export async function sendGPLetter(
       outcome: 'no_gp_email',
       clinic_id,
       letter_id: id,
-      actor_id: CURRENT_USER.id,
+      actor_id: actor.id,
       timestamp: NOW,
     });
     throw new APIError('NO_GP_EMAIL', 'No GP email address on record for this patient');
@@ -423,7 +426,7 @@ export async function sendGPLetter(
   g.status = 'sent';
   g.sent_at = NOW;
   g.sent_to_email = gpEmail;
-  g.sent_by_user_id = CURRENT_USER.id;
+  g.sent_by_user_id = actor.id;
 
   if (auditPayload) {
     g.email_body_sent = auditPayload.email_body_sent;
@@ -436,7 +439,7 @@ export async function sendGPLetter(
   console.log('[AUDIT]', {
     event_type: 'gp_letter_sent',
     outcome: 'success',
-    actor_id: CURRENT_USER.id,
+    actor_id: actor.id,
     letter_id: id,
     clinic_id,
     old_lifecycle_status: oldLifecycle,
@@ -459,6 +462,7 @@ export async function cancelGPLetter(
   clinic_id: ClinicId,
   id: string,
   cancel_reason: string,
+  actor: User,
 ): Promise<GPLetter> {
   await delay(400);
 
@@ -473,7 +477,7 @@ export async function cancelGPLetter(
       reason: 'already_cancelled',
       clinic_id,
       letter_id: id,
-      actor_id: CURRENT_USER.id,
+      actor_id: actor.id,
       timestamp: NOW,
     });
     throw new APIError('SAFETY_VIOLATION', 'Letter is already cancelled');
@@ -485,7 +489,7 @@ export async function cancelGPLetter(
       reason: 'sent_letter_cannot_be_cancelled',
       clinic_id,
       letter_id: id,
-      actor_id: CURRENT_USER.id,
+      actor_id: actor.id,
       timestamp: NOW,
     });
     throw new APIError('SAFETY_VIOLATION', 'Sent letters cannot be cancelled');
@@ -499,13 +503,22 @@ export async function cancelGPLetter(
   console.log('[AUDIT]', {
     event_type: 'gp_letter_cancelled',
     outcome: 'success',
-    actor_id: CURRENT_USER.id,
+    actor_id: actor.id,
     letter_id: id,
     clinic_id,
     old_lifecycle_status: oldLifecycle,
     new_lifecycle_status: 'cancelled',
     cancel_reason,
     timestamp: NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'gp_letter', id },
+    event_type: 'gp_letter_cancelled',
+    summary: `GP letter ${id} cancelled by ${actor.full_name}.`,
+    before: { lifecycle_status: oldLifecycle },
+    after: { lifecycle_status: 'cancelled', cancel_reason },
   });
 
   return g;

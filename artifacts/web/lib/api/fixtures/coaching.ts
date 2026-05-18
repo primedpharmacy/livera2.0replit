@@ -10,8 +10,9 @@
  *   3. Ownership: patient.coach_id === caller.id  (canCoachAccessPatient)
  */
 
-import type { ClinicId, CoachingLog } from '../types';
-import { delay, scopedToClinic, CURRENT_USER, NOW } from '../constants';
+import type { ClinicId, CoachingLog, CalendlyBooking } from '../types';
+import { delay, scopedToClinic, NOW } from '../constants';
+import type { User } from '../types';
 import { getClinicSync } from './clinics';
 import { getPatient } from './patients';
 import { can } from '@/lib/permissions';
@@ -249,6 +250,48 @@ export const MOCK_COACHING_LOGS: CoachingLog[] = [
   },
 ];
 
+// ── Calendly booking fixtures (BLD-CALENDLY-MIRROR-01) ──────────────────────
+const MOCK_CALENDLY_BOOKINGS: CalendlyBooking[] = [
+  {
+    id: 'CBKG-001',
+    patient_id: 'PT-00198',
+    clinic_id: 'feeltru',
+    calendly_event_id: 'evt_8a3f72e1',
+    event_type: 'Coaching session · 30-min check-in',
+    scheduled_at: '2026-05-26T11:00:00+01:00',
+    end_at: '2026-05-26T11:30:00+01:00',
+    coach_name: 'Sarah Wentworth',
+    booking_method: 'patient_self_booked',
+    booked_at: '2026-05-03T14:18:00+01:00',
+    join_url: 'https://meet.google.com/calendly-evt-8a3f72e1',
+    status: 'scheduled',
+  },
+  {
+    id: 'CBKG-002',
+    patient_id: 'PT-00198',
+    clinic_id: 'feeltru',
+    calendly_event_id: 'evt_9c2d18f4',
+    event_type: 'Coaching session · 30-min check-in',
+    scheduled_at: '2026-06-23T11:00:00+01:00',
+    end_at: '2026-06-23T11:30:00+01:00',
+    coach_name: 'Sarah Wentworth',
+    booking_method: 'patient_self_booked',
+    booked_at: '2026-04-28T09:42:00+01:00',
+    join_url: null,
+    status: 'scheduled',
+  },
+];
+
+export async function getUpcomingCalendlyBookings(
+  clinic_id: ClinicId,
+  patient_id: string
+): Promise<CalendlyBooking[]> {
+  await delay();
+  return MOCK_CALENDLY_BOOKINGS.filter(
+    (b) => b.clinic_id === clinic_id && b.patient_id === patient_id && b.status === 'scheduled'
+  );
+}
+
 export async function listCoachingLogs(
   clinic_id: ClinicId,
   opts?: { patient_id?: string; coach_id?: string }
@@ -262,12 +305,13 @@ export async function listCoachingLogs(
 
 export async function addCoachingLog(
   clinic_id: ClinicId,
-  data: Omit<CoachingLog, 'id' | 'clinic_id' | 'created_at' | 'updated_at'>
+  data: Omit<CoachingLog, 'id' | 'clinic_id' | 'created_at' | 'updated_at'>,
+  actor: User,
 ): Promise<CoachingLog> {
   await delay(400);
 
   // ── Layer 1: role check ──────────────────────────────────────────────────
-  if (!can(CURRENT_USER, 'write', 'coaching_log')) {
+  if (!can(actor, 'write', 'coaching_log')) {
     throw new Error('FORBIDDEN: only Coach role may write coaching logs');
   }
 
@@ -279,7 +323,7 @@ export async function addCoachingLog(
 
   // ── Layer 3: coach ownership of patient ─────────────────────────────────
   const patient = await getPatient(clinic_id, data.patient_id);
-  if (patient.coach_id !== CURRENT_USER.id) {
+  if (patient.coach_id !== actor.id) {
     throw new Error('FORBIDDEN: patient is not assigned to you');
   }
 

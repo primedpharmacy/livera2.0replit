@@ -10,7 +10,8 @@
  */
 
 import type { ClinicId, ClinicTeamMember } from '../types';
-import { NOW, APIError, delay } from '../constants';
+import { NOW, APIError, delay, USERS_REGISTRY } from '../constants';
+import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 // ---------------------------------------------------------------------------
 // Seed data
@@ -27,6 +28,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     professional_registration: null,
     active: true,
     joined_at: '2026-01-01T00:00:00Z',
+    can_refund: true,  // Task-38 — refund authority
   },
   {
     // BLD-1.6 — Mobeen Alam, second Owner on FeelTru per DEC-13
@@ -43,6 +45,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     },
     active: true,
     joined_at: '2026-03-17T00:00:00Z',  // CQC Registered Manager approved date
+    can_refund: false,  // Task-38 — refund authority withheld so the gate is demonstrable
   },
   {
     user_id: 'user_claire',
@@ -58,6 +61,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     },
     active: true,
     joined_at: '2026-02-01T00:00:00Z',
+    can_refund: false,
   },
   {
     user_id: 'user_olwyn',
@@ -68,6 +72,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     professional_registration: null,
     active: true,
     joined_at: '2026-02-15T00:00:00Z',
+    can_refund: false,
   },
 
   // ── VSC team ──────────────────────────────────────────────────────────────
@@ -80,6 +85,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     professional_registration: null,
     active: true,
     joined_at: '2025-06-01T00:00:00Z',
+    can_refund: true,
   },
   {
     user_id: 'user_yohan',
@@ -90,6 +96,7 @@ const MOCK_TEAM_MEMBERS: ClinicTeamMember[] = [
     professional_registration: null,
     active: true,
     joined_at: '2025-07-01T00:00:00Z',
+    can_refund: false,
   },
 ];
 
@@ -221,6 +228,16 @@ export async function assignOwnerRole(
     outcome: 'success',
     old_role: prev_role,
     new_role: 'Owner',
+  });
+  const assignerUser = USERS_REGISTRY[assigner_id];
+  void recordAudit({
+    clinic_id,
+    actor: assignerUser ?? { id: assigner_id, role: 'Owner' },
+    entity: { type: 'user', id: target_user_id },
+    event_type: 'owner_role_assigned',
+    summary: `${target.full_name} promoted to Owner on ${clinic_id} by ${assignerUser?.full_name ?? assigner_id}.`,
+    before: { role: prev_role },
+    after: { role: 'Owner' },
   });
 
   return target;

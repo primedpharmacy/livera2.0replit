@@ -8,13 +8,13 @@
  * BLD-1.3: reply_email + monday_incident_board_id + monday_complaints_board_id
  * BLD-1.4: default_slas — all 10 values with documented defaults (§5)
  *
- * DEC-01: Both FeelTru and VSC use amendment_window = 'pre_dispensed'.
+ * DEC-01: FeelTru uses amendment_window = 'pre_dispensed'. VSC corrected to 'pre_approval' in V1.1.
  * DEC-13: FeelTru has two Owners — Qadir + Mobeen (see fixtures/users.ts).
  * DEC-16: FeelTru gender_eligibility = 'female_only' (UK Equality Act 2010 Sch 3 Para 27).
  * DEC-34: coaching_enabled is a per-clinic platform feature toggle.
  */
 
-import type { ClinicId, Clinic, ClinicConfig } from '../types';
+import type { ClinicId, Clinic, ClinicConfig, QuestionItem } from '../types';
 import { delay, APIError, NOW, CURRENT_USER } from '../constants';
 import { can } from '@/lib/permissions';
 
@@ -153,6 +153,18 @@ const INCIDENT_TRIAGE_TEXT: ClinicConfig['incident_triage_text'] = {
 // UK public holidays 2026 (partial — configurable per clinic per DEC-15)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Default weight-warning thresholds (Task-100) — used by analyseWeightHistory.
+// Clinics override via Settings → SLAs page.
+// ---------------------------------------------------------------------------
+
+const DEFAULT_WEIGHT_WARNING_THRESHOLDS: ClinicConfig['weight_warning_thresholds'] = {
+  bmi_continuation_floor: 27.5,
+  rapid_loss_kg_per_week: 2,
+  plateau_tolerance_kg: 0.3,
+  plateau_min_readings: 3,
+};
+
 const UK_HOLIDAYS_2026: ClinicConfig['holiday_calendar'] = [
   { date: '2026-01-01', name: "New Year's Day" },
   { date: '2026-04-03', name: 'Good Friday' },
@@ -183,7 +195,7 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
       // Behavioural flags (BLD-1.1)
       coaching_enabled: false,             // DEC-02/34: disabled at V1.1
       gender_eligibility: 'gender_neutral', // DEC-16: VSC is mixed-gender
-      amendment_window: 'pre_dispensed',   // DEC-01: locked 10 May 2026
+      amendment_window: 'pre_approval',    // V1.1 correction — VSC moves to pre_approval
 
       // Brand (§3.3)
       brand_tokens: {
@@ -197,6 +209,7 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Comms (BLD-1.3 / BLD-3.6)
       reply_email: 'hello@vsc.health',
+      clinical_check_inbox: 'clinical-check@vsc.health',
       patient_sla_copy: {
         clinical_review_message: 'Clinical review usually takes up to 4 hours',
         delivery_message: 'Delivery within 2 working days',
@@ -249,6 +262,15 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Intercom
       intercom_workspace_id: 'a86dr8yl',
+      // Phase 1 integration metadata — public bits only. The Intercom access
+      // token and webhook signing secret live server-side in the api-server
+      // store and are saved via POST /api/intercom/:clinic_id/credentials.
+      integrations: {
+        intercom: {
+          workspace_id: 'a86dr8yl',
+          configured: false, // demo-mode token until an Admin pastes a real one
+        },
+      },
 
       // Feature flags
       features: {
@@ -261,13 +283,53 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
         ai_clinical_note_drafting_enabled: true,
       },
 
-      // Rule-engine stubs — [] until Chunks 13/16a/17 land
+      // Rule-engine (BLD-14.6 seeds)
       flag_rules: [],
-      treatment_gap_rules: [],
+      treatment_gap_rules: [
+        {
+          id: 'tgr_vsc_1',
+          label: '8+ week gap — require consultation',
+          gap_days_min: 56,
+          gap_days_max: null,
+          action: 'require_consult' as const,
+          action_copy: 'Patient has not reordered for over 8 weeks. A consultation is required before approving this reorder to assess current weight, compliance, and clinical appropriateness.',
+          enabled: true,
+        },
+        {
+          id: 'tgr_vsc_2',
+          label: '4–8 week gap — warn prescriber',
+          gap_days_min: 28,
+          gap_days_max: 55,
+          action: 'warn' as const,
+          action_copy: 'Patient has a gap of 4–8 weeks since their last order. Verify current weight, compliance, and any relevant lifestyle changes before approving.',
+          enabled: true,
+        },
+      ],
       dose_escalation_rules: [],
       primed_flag_rules: [],
-      questionnaire_order: [],
-      questionnaire_reorder: [],
+      questionnaire_order: [
+        { id: 'vsc_oq_1', label: 'What is your current weight? (kg)',             type: 'number',  required: true,  order: 1, placeholder: 'Enter your current weight in kg' },
+        { id: 'vsc_oq_2', label: 'What is your goal weight? (kg)',                type: 'number',  required: true,  order: 2, placeholder: 'Enter your target weight in kg' },
+        { id: 'vsc_oq_3', label: 'Do you have any drug allergies?',               type: 'yes_no',  required: true,  order: 3, safety_flag: true },
+        { id: 'vsc_oq_4', label: 'Are you taking any other medications?',         type: 'yes_no',  required: true,  order: 4, safety_flag: true },
+        { id: 'vsc_oq_5', label: 'Which of the following conditions do you have?', type: 'choice', required: true,  order: 5, options: ['Type 2 diabetes', 'Hypertension', 'Thyroid disorder', 'Heart disease', 'None of the above'] },
+        { id: 'vsc_oq_6', label: 'Have you tried weight-loss medication before?', type: 'yes_no',  required: true,  order: 6, safety_flag: false },
+        { id: 'vsc_oq_7', label: 'Anything else the prescriber should know?',     type: 'text',    required: false, order: 7, placeholder: 'Optional — relevant medical history, previous treatments, etc.' },
+      ],
+      questionnaire_reorder: [
+        { id: 'vsc_rq_1', label: 'What is your current weight? (kg)',                type: 'number', required: true,  order: 1, placeholder: 'Enter your weight in kg' },
+        { id: 'vsc_rq_2', label: 'Have you experienced any side effects?',           type: 'yes_no', required: true,  order: 2, safety_flag: true },
+        { id: 'vsc_rq_3', label: 'If yes, please describe the side effects',         type: 'text',   required: false, order: 3, placeholder: 'e.g. nausea, injection site reaction, fatigue…' },
+        { id: 'vsc_rq_4', label: 'Are you still taking the same other medications?', type: 'yes_no', required: true,  order: 4, safety_flag: false },
+        { id: 'vsc_rq_5', label: 'Any new medical diagnoses since last order?',      type: 'yes_no', required: true,  order: 5, safety_flag: true },
+        { id: 'vsc_rq_6', label: 'How would you rate your progress? (1 = poor, 10 = excellent)', type: 'scale', required: true, order: 6, scale_min: 1, scale_max: 10 },
+      ],
+
+      // Weight-warning thresholds (Task-100) — seeded with platform defaults.
+      weight_warning_thresholds: { ...DEFAULT_WEIGHT_WARNING_THRESHOLDS },
+
+      // Minimum patient age (Task-246) — default 18.
+      minimum_patient_age_years: 18,
     },
   },
 
@@ -299,6 +361,7 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Comms (BLD-1.3 / BLD-3.6)
       reply_email: 'hello@feeltru.health',
+      clinical_check_inbox: 'clinical-check@feeltru.health',
       patient_sla_copy: {
         clinical_review_message: 'Clinical review usually takes up to 4 hours',
         delivery_message: 'Delivery within 2 working days',
@@ -361,25 +424,76 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Intercom
       intercom_workspace_id: 'b91ks9zm',
+      // Phase 1 integration metadata — see VSC config above for the pattern.
+      integrations: {
+        intercom: {
+          workspace_id: 'b91ks9zm',
+          configured: false,
+        },
+      },
 
       // Feature flags
       features: {
         gp_letter_enabled: true,
-        pharmacy_comms_enabled: false,
-        bmi_ai_validation_enabled: false,
+        pharmacy_comms_enabled: true,   // BLD-16.1 — enabled for FeelTru
+        bmi_ai_validation_enabled: true, // BLD-16.2 — enabled for FeelTru
         primed_flag_mirror_enabled: false,
         video_consultations_enabled: true,
         welcome_calls_enabled: true,               // always true per DEC-34
         ai_clinical_note_drafting_enabled: true,
       },
 
-      // Rule-engine stubs — [] until Chunks 13/16a/17 land
+      // Rule-engine (BLD-14.6 seeds)
       flag_rules: [],
-      treatment_gap_rules: [],
+      treatment_gap_rules: [
+        {
+          id: 'tgr_ft_1',
+          label: '8+ week gap — require consultation',
+          gap_days_min: 56,
+          gap_days_max: null,
+          action: 'require_consult' as const,
+          action_copy: 'Patient has not reordered for over 8 weeks. A consultation is required before approving this reorder to assess current weight, compliance, and clinical appropriateness.',
+          enabled: true,
+        },
+        {
+          id: 'tgr_ft_2',
+          label: '4–8 week gap — warn prescriber',
+          gap_days_min: 28,
+          gap_days_max: 55,
+          action: 'warn' as const,
+          action_copy: 'Patient has a gap of 4–8 weeks since their last order. Verify current weight, compliance, and any relevant lifestyle changes before approving.',
+          enabled: true,
+        },
+      ],
       dose_escalation_rules: [],
       primed_flag_rules: [],
-      questionnaire_order: [],
-      questionnaire_reorder: [],
+      questionnaire_order: [
+        { id: 'ft_oq_1', label: 'What is your current weight? (kg)',               type: 'number',  required: true,  order: 1, placeholder: 'Enter your current weight in kg' },
+        { id: 'ft_oq_2', label: 'What is your goal weight? (kg)',                  type: 'number',  required: true,  order: 2, placeholder: 'Enter your target weight in kg' },
+        { id: 'ft_oq_3', label: 'Do you have any drug allergies?',                 type: 'yes_no',  required: true,  order: 3, safety_flag: true },
+        { id: 'ft_oq_4', label: 'Are you currently taking any other medications?', type: 'yes_no',  required: true,  order: 4, safety_flag: true },
+        { id: 'ft_oq_5', label: 'Which conditions apply to you?',                  type: 'choice',  required: true,  order: 5, options: ['PCOS', 'Insulin resistance', 'Type 2 diabetes', 'Hypertension', 'Thyroid disorder', 'None of the above'] },
+        { id: 'ft_oq_6', label: 'Are you pregnant or breastfeeding?',              type: 'yes_no',  required: true,  order: 6, safety_flag: true, help_text: 'GLP-1 medications are contraindicated during pregnancy and breastfeeding.' },
+        { id: 'ft_oq_7', label: 'Have you tried weight-loss medication before?',   type: 'yes_no',  required: true,  order: 7, safety_flag: false },
+        { id: 'ft_oq_8', label: 'Anything else the prescriber should know?',       type: 'text',    required: false, order: 8, placeholder: 'Optional — relevant history, previous treatments, GP details…' },
+        { id: 'ft_oq_9', label: 'Are you currently taking a GLP-1 medication prescribed by another provider?', type: 'yes_no', required: true, order: 9, help_text: 'e.g. Mounjaro, Wegovy, Ozempic, Saxenda — prescribed by your GP or a different clinic.' },
+        { id: 'ft_oq_10', label: 'Are you requesting a higher starting dose based on your current prescription?', type: 'yes_no', required: true, order: 10, help_text: 'If yes, you will be asked to upload your current prescription for clinical review.' },
+      ],
+      questionnaire_reorder: [
+        { id: 'ft_rq_1', label: 'What is your current weight? (kg)',                   type: 'number', required: true,  order: 1, placeholder: 'Enter your weight in kg' },
+        { id: 'ft_rq_2', label: 'Have you experienced any side effects?',              type: 'yes_no', required: true,  order: 2, safety_flag: true },
+        { id: 'ft_rq_3', label: 'If yes, please describe the side effects',            type: 'text',   required: false, order: 3, placeholder: 'e.g. nausea, hair thinning, injection site reaction…' },
+        { id: 'ft_rq_4', label: 'Are you pregnant or breastfeeding?',                 type: 'yes_no', required: true,  order: 4, safety_flag: true, help_text: 'This must be answered at every reorder — clinical requirement.' },
+        { id: 'ft_rq_5', label: 'Any changes to your other medications since last order?', type: 'yes_no', required: true, order: 5, safety_flag: true },
+        { id: 'ft_rq_6', label: 'Any new medical diagnoses since last order?',         type: 'yes_no', required: true,  order: 6, safety_flag: true },
+        { id: 'ft_rq_7', label: 'How would you rate your progress? (1 = poor, 10 = excellent)', type: 'scale', required: true, order: 7, scale_min: 1, scale_max: 10 },
+      ],
+
+      // Weight-warning thresholds (Task-100) — seeded with platform defaults.
+      weight_warning_thresholds: { ...DEFAULT_WEIGHT_WARNING_THRESHOLDS },
+
+      // Minimum patient age (Task-246) — default 18.
+      minimum_patient_age_years: 18,
     },
   },
 };
@@ -459,11 +573,400 @@ export async function updateClinicSlaThresholds(
 }
 
 // ---------------------------------------------------------------------------
+// Clinic-field audit mirror — Task-236
+// Small in-memory log of "who last changed which clinic field, and when",
+// used by the Settings editors to surface a "Last updated by X on Y" line
+// next to inputs. Mirrors the existing console-only `[AUDIT]` events so the
+// UI can render them without querying Postgres. Add new field names below as
+// they become editable.
+// ---------------------------------------------------------------------------
+
+export type ClinicFieldName = 'clinical_check_inbox' | 'reply_email' | 'minimum_patient_age_years';
+
+export type ClinicFieldAuditEvent = {
+  clinic_id:  ClinicId;
+  field_name: ClinicFieldName;
+  actor_id:   string;
+  occurred_at: string; // ISO
+};
+
+const MOCK_CLINIC_FIELD_AUDITS: ClinicFieldAuditEvent[] = [];
+
+function recordClinicFieldAudit(evt: ClinicFieldAuditEvent): void {
+  MOCK_CLINIC_FIELD_AUDITS.push(evt);
+}
+
+export function getLastClinicFieldUpdate(
+  clinic_id:  ClinicId,
+  field_name: ClinicFieldName,
+): ClinicFieldAuditEvent | null {
+  for (let i = MOCK_CLINIC_FIELD_AUDITS.length - 1; i >= 0; i--) {
+    const e = MOCK_CLINIC_FIELD_AUDITS[i];
+    if (e.clinic_id === clinic_id && e.field_name === field_name) return e;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// updateClinicCheckInbox — Task-113
+// Updates the recipient email for new-intake clinical-check alerts.
+// Admin/Owner only. Validates the address before persisting.
+// ---------------------------------------------------------------------------
+
+// Pragmatic RFC-5322-ish check — local@domain.tld with no whitespace.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function updateClinicCheckInbox(
+  clinic_id: ClinicId,
+  new_email: string,
+  actor_id: string,
+): Promise<ClinicConfig> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2a — permission gate: Admin/Owner only.
+  const isAdminOrOwner = CURRENT_USER.roles.some((r) => r === 'Admin' || r === 'Owner');
+  if (!isAdminOrOwner) {
+    console.log('[AUDIT]', {
+      event_type: 'clinical_check_inbox_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Only Admins and Owners may update the clinical-check inbox',
+    );
+  }
+
+  // Layer 2b — validation: non-empty + well-formed email.
+  const trimmed = new_email.trim();
+  if (!trimmed) {
+    throw new APIError('SAFETY_VIOLATION', 'Clinical-check inbox cannot be empty');
+  }
+  if (!EMAIL_RE.test(trimmed)) {
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      `Invalid email address: '${trimmed}'`,
+    );
+  }
+
+  const oldValue = clinic.config.clinical_check_inbox;
+  if (oldValue === trimmed) return clinic.config;
+
+  clinic.config.clinical_check_inbox = trimmed;
+
+  console.log('[AUDIT]', {
+    event_type: 'clinical_check_inbox_updated',
+    outcome:    'success',
+    actor_id,
+    clinic_id,
+    field_name: 'clinical_check_inbox',
+    old_value:  oldValue,
+    new_value:  trimmed,
+    timestamp:  NOW,
+  });
+  recordClinicFieldAudit({
+    clinic_id,
+    field_name: 'clinical_check_inbox',
+    actor_id,
+    occurred_at: NOW,
+  });
+
+  return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
+// updateClinicReplyEmail — Task-161
+// Updates the outbound reply-to email address used on patient comms.
+// Admin/Owner only. Validates the address before persisting.
+// ---------------------------------------------------------------------------
+
+export async function updateClinicReplyEmail(
+  clinic_id: ClinicId,
+  new_email: string,
+  actor_id: string,
+): Promise<ClinicConfig> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2a — permission gate: Admin/Owner only.
+  const isAdminOrOwner = CURRENT_USER.roles.some((r) => r === 'Admin' || r === 'Owner');
+  if (!isAdminOrOwner) {
+    console.log('[AUDIT]', {
+      event_type: 'reply_email_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Only Admins and Owners may update the reply-to email',
+    );
+  }
+
+  // Layer 2b — validation: non-empty + well-formed email.
+  const trimmed = new_email.trim();
+  if (!trimmed) {
+    throw new APIError('SAFETY_VIOLATION', 'Reply-to email cannot be empty');
+  }
+  if (!EMAIL_RE.test(trimmed)) {
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      `Invalid email address: '${trimmed}'`,
+    );
+  }
+
+  const oldValue = clinic.config.reply_email;
+  if (oldValue === trimmed) return clinic.config;
+
+  clinic.config.reply_email = trimmed;
+
+  console.log('[AUDIT]', {
+    event_type: 'reply_email_updated',
+    outcome:    'success',
+    actor_id,
+    clinic_id,
+    field_name: 'reply_email',
+    old_value:  oldValue,
+    new_value:  trimmed,
+    timestamp:  NOW,
+  });
+  recordClinicFieldAudit({
+    clinic_id,
+    field_name: 'reply_email',
+    actor_id,
+    occurred_at: NOW,
+  });
+
+  return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
+// updateClinicMinimumPatientAge — Task-246
+// Persists the per-clinic minimum patient age used by the intake DOB validator.
+// Owner/Admin only; value must be an integer between 13 and 120.
+// ---------------------------------------------------------------------------
+
+export const MIN_ALLOWED_PATIENT_AGE = 13;
+export const MAX_ALLOWED_PATIENT_AGE = 120;
+
+export async function updateClinicMinimumPatientAge(
+  clinic_id: ClinicId,
+  new_age: number,
+  actor_id: string,
+): Promise<ClinicConfig> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2a — permission gate: Admin/Owner only.
+  const isAdminOrOwner = CURRENT_USER.roles.some((r) => r === 'Admin' || r === 'Owner');
+  if (!isAdminOrOwner) {
+    console.log('[AUDIT]', {
+      event_type: 'minimum_patient_age_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Only Admins and Owners may update the minimum patient age',
+    );
+  }
+
+  // Layer 2b — validation: integer within sensible bounds.
+  if (
+    typeof new_age !== 'number' ||
+    !Number.isFinite(new_age) ||
+    !Number.isInteger(new_age) ||
+    new_age < MIN_ALLOWED_PATIENT_AGE ||
+    new_age > MAX_ALLOWED_PATIENT_AGE
+  ) {
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      `Minimum patient age must be a whole number between ${MIN_ALLOWED_PATIENT_AGE} and ${MAX_ALLOWED_PATIENT_AGE}`,
+    );
+  }
+
+  const oldValue = clinic.config.minimum_patient_age_years;
+  if (oldValue === new_age) return clinic.config;
+
+  clinic.config.minimum_patient_age_years = new_age;
+
+  console.log('[AUDIT]', {
+    event_type: 'minimum_patient_age_updated',
+    outcome:    'success',
+    actor_id,
+    clinic_id,
+    field_name: 'minimum_patient_age_years',
+    old_value:  oldValue,
+    new_value:  new_age,
+    timestamp:  NOW,
+  });
+  recordClinicFieldAudit({
+    clinic_id,
+    field_name: 'minimum_patient_age_years',
+    actor_id,
+    occurred_at: NOW,
+  });
+
+  return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
+// updateClinicWeightWarningThresholds — Task-100
+// Persists per-clinic overrides for the weight-trend analyser thresholds.
+// Owner/Admin only; values must be positive numbers (plateau_min_readings >= 2).
+// ---------------------------------------------------------------------------
+
+export async function updateClinicWeightWarningThresholds(
+  clinic_id: ClinicId,
+  updates: Partial<ClinicConfig['weight_warning_thresholds']>,
+  actor_id: string,
+): Promise<ClinicConfig> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2a — permission gate: Admin/Owner only.
+  const isAdminOrOwner = CURRENT_USER.roles.some((r) => r === 'Admin' || r === 'Owner');
+  if (!isAdminOrOwner) {
+    console.log('[AUDIT]', {
+      event_type: 'weight_warning_threshold_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Only Admins and Owners may update weight-warning thresholds',
+    );
+  }
+
+  // Layer 2b — server gate: every value must be a positive number.
+  // plateau_min_readings must additionally be an integer >= 2 (need at least
+  // two readings to compute a min/max spread).
+  for (const [field, value] of Object.entries(updates)) {
+    if (typeof value !== 'number' || !isFinite(value) || value <= 0) {
+      throw new APIError(
+        'SAFETY_VIOLATION',
+        `Invalid value for ${field}: must be a positive number`,
+      );
+    }
+    if (field === 'plateau_min_readings' && (!Number.isInteger(value) || value < 2)) {
+      throw new APIError(
+        'SAFETY_VIOLATION',
+        'plateau_min_readings must be a whole number ≥ 2',
+      );
+    }
+  }
+
+  for (const [field, newValue] of Object.entries(updates)) {
+    const key = field as keyof ClinicConfig['weight_warning_thresholds'];
+    const oldValue = clinic.config.weight_warning_thresholds[key];
+    if (oldValue === newValue) continue;
+    (clinic.config.weight_warning_thresholds as Record<string, number>)[field] =
+      newValue as number;
+    console.log('[AUDIT]', {
+      event_type: 'weight_warning_threshold_updated',
+      outcome:    'success',
+      actor_id,
+      clinic_id,
+      field_name: field,
+      old_value:  oldValue,
+      new_value:  newValue,
+      timestamp:  NOW,
+    });
+    MOCK_WEIGHT_WARNING_THRESHOLD_AUDITS.push({
+      clinic_id,
+      field_name:  key,
+      actor_id,
+      old_value:   oldValue,
+      new_value:   newValue as number,
+      occurred_at: NOW,
+    });
+  }
+
+  return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
+// Weight-warning threshold audit log — Task-307
+// In-memory mirror of the [AUDIT] events written by
+// updateClinicWeightWarningThresholds. Powers the "Recent changes" panel
+// rendered under WeightWarningThresholdsEditor so Admins/Owners have a
+// self-serve audit trail without grepping console logs.
+// ---------------------------------------------------------------------------
+
+export type WeightWarningThresholdFieldName =
+  keyof ClinicConfig['weight_warning_thresholds'];
+
+export type WeightWarningThresholdAuditEvent = {
+  clinic_id:   ClinicId;
+  field_name:  WeightWarningThresholdFieldName;
+  actor_id:    string;
+  old_value:   number;
+  new_value:   number;
+  occurred_at: string; // ISO
+};
+
+const MOCK_WEIGHT_WARNING_THRESHOLD_AUDITS: WeightWarningThresholdAuditEvent[] = [];
+
+export function listWeightWarningThresholdHistory(
+  clinic_id: ClinicId,
+  limit = 10,
+): WeightWarningThresholdAuditEvent[] {
+  const out: WeightWarningThresholdAuditEvent[] = [];
+  for (let i = MOCK_WEIGHT_WARNING_THRESHOLD_AUDITS.length - 1; i >= 0; i--) {
+    const e = MOCK_WEIGHT_WARNING_THRESHOLD_AUDITS[i];
+    if (e.clinic_id !== clinic_id) continue;
+    out.push(e);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // updateClinicHolidays — BLD-4.6.7 (Wave 4)
 // Adds or removes a holiday entry from a clinic's holiday_calendar.
 // Changes take effect immediately for addWorkingHours + dispatchCalculator.
 // In-memory only — backend persistence is post-launch.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Questionnaire helpers — used by /api/questionnaires/[clinic_id] route
+// ---------------------------------------------------------------------------
+
+export function getQuestionnaire(clinic_id: ClinicId) {
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+  return {
+    order: clinic.config.questionnaire_order,
+    reorder: clinic.config.questionnaire_reorder,
+  };
+}
+
+export function updateQuestionnaire(
+  clinic_id: ClinicId,
+  order?: unknown[],
+  reorder?: unknown[],
+) {
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+  if (order) clinic.config.questionnaire_order = order as QuestionItem[];
+  if (reorder) clinic.config.questionnaire_reorder = reorder as QuestionItem[];
+  return {
+    order: clinic.config.questionnaire_order,
+    reorder: clinic.config.questionnaire_reorder,
+  };
+}
 
 export async function updateClinicHolidays(
   clinic_id: ClinicId,

@@ -1,0 +1,574 @@
+/**
+ * Per-patient notification log fixture (BLD-FCM-LOG-01 surface).
+ *
+ * Task-38 — adds an `order_cancelled_refund_processed` fixture so the
+ * notification log shows that the patient was emailed when a refund was
+ * processed against a cancelled order. Live Postmark send is post-launch;
+ * for now this fixture is the source of truth visible in the per-patient
+ * notification log UI.
+ *
+ * Task-66 — adds retry bookkeeping fields (`attempt_count`, `max_attempts`,
+ * `last_error`, `last_attempt_at`, `next_retry_at`) plus an `email_envelope`
+ * snapshot so the `retryFailedPatientNotifications` job can resend a Failed
+ * notification without having to reconstruct the original email content from
+ * the originating order / refund. Hard bounces (status='Bounced') are NOT
+ * retried — only transient 'Failed' rows.
+ *
+ * The shape mirrors the columns used by the BLD-FCM-LOG-01 prototype
+ * (channel, template, status, payload) and extends them with the retry
+ * metadata above.
+ */
+
+import type { ClinicId } from '../types';
+import { scopedToClinic, delay, NOW } from '../constants';
+import { renderPatientEmail } from '@/lib/integrations/emailTemplates'; // Task-278 — keep NOTIF-001's html_body in lock-step with the live renderer
+import { parseTwilioErrorCode } from '@/lib/notifications/smsCarrierReasons'; // Task-302 — fall back to parsing a numeric Twilio code out of error_message when the webhook caller didn't forward error_code separately
+
+export type PatientNotificationChannel = 'Email' | 'SMS' | 'Push' | 'InApp';
+export type PatientNotificationStatus = 'Delivered' | 'Queued' | 'Failed' | 'Bounced';
+
+export type PatientNotificationType =
+  | 'order_cancelled_refund_processed'
+  | 'order_cancelled_no_charge'
+  | 'order_approved'
+  | 'order_dispatched'
+  | 'order_declined';
+
+// Task-66 — snapshot of the email content captured at first-send time so the
+// retry job can resend without coupling back to the originating order/refund.
+export type PatientEmailEnvelope = {
+  to_email: string;
+  subject: string;
+  text_body: string;
+  // Task-131 — optional HTML snapshot captured at first-send time so the
+  // "Preview email" modal can render the styled email the patient actually
+  // received (branding, buttons, formatting) rather than only the plain-text
+  // fallback. Older rows without an HTML snapshot fall back to `text_body`.
+  html_body?: string | null;
+  template: string;
+};
+
+export type PatientNotification = {
+  id: string;
+  clinic_id: ClinicId;
+  patient_id: string;
+  order_id: string | null;
+  type: PatientNotificationType;
+  channel: PatientNotificationChannel;
+  template: string;
+  status: PatientNotificationStatus;
+  sent_at: string;
+  payload: Record<string, unknown>;
+  // ── Task-66 retry bookkeeping ──────────────────────────────────────────
+  attempt_count: number;
+  max_attempts: number;
+  last_error: string | null;
+  last_attempt_at: string | null;
+  next_retry_at: string | null;
+  email_envelope: PatientEmailEnvelope | null;
+  // Task-302 — structured Twilio error code captured by the SMS status
+  // callback, alongside the human-readable `last_error` string. Stored as a
+  // first-class field so the clinic-wide bounce breakdown can group by
+  // reason without re-parsing free-text errors on every render, and so a
+  // single source of truth ties the per-row friendly summary to the
+  // clinic-level aggregation. Null on non-SMS rows, on SMS rows recorded
+  // before Task-302, and on Delivered SMS rows (no error to record).
+  sms_error_code: number | null;
+  // Task-132 — populated by backfillPatientNotificationEnvelopes when an
+  // older row's envelope cannot be reconstructed (e.g. the originating order
+  // was hard-deleted, the row was a non-email channel, or the template is
+  // no longer known). Surfaced in the per-patient notification log so staff
+  // understand why the "Preview email" action is missing instead of silently
+  // hiding it. Stays null on rows that either have an envelope already or
+  // were never email sends in the first place.
+  email_envelope_unavailable_reason: string | null;
+};
+
+// Task-66 — default retry policy. 3 attempts total (initial + 2 retries) so the
+// backoff schedule only needs two slots: 5 min after attempt 1, 15 min after
+// attempt 2. After attempt 3 the row is exhausted and no further retry is
+// scheduled.
+export const DEFAULT_MAX_ATTEMPTS = 3;
+export const RETRY_BACKOFF_MINUTES = [5, 15] as const;
+
+export function nextRetryAtFor(attemptCount: number, fromIso: string = NOW): string | null {
+  // attemptCount is the count *after* the just-completed attempt. The next
+  // retry waits RETRY_BACKOFF_MINUTES[attemptCount-1] from fromIso. Returns
+  // null when no further retries are scheduled.
+  if (attemptCount < 1 || attemptCount >= DEFAULT_MAX_ATTEMPTS) return null;
+  const minutes = RETRY_BACKOFF_MINUTES[attemptCount - 1];
+  if (minutes == null) return null;
+  return new Date(new Date(fromIso).getTime() + minutes * 60 * 1000).toISOString();
+}
+
+export const MOCK_PATIENT_NOTIFICATIONS: PatientNotification[] = [
+  {
+    id: 'NOTIF-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00450',
+    type: 'order_cancelled_refund_processed',
+    channel: 'Email',
+    template: 'order_cancelled_refund',
+    status: 'Delivered',
+    sent_at: '2026-05-10T14:32:00Z',
+    payload: {
+      order_id: 'ORD-00450',
+      refunded_amount: 179.00,
+      card_last4: '4242',
+      reason: 'Order cancellation — relocating overseas',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2026-05-10T14:32:00Z',
+    next_retry_at:   null,
+    // Task-98 — snapshot of the email the patient received, surfaced by the
+    // "Preview email" action in the per-patient notification log.
+    email_envelope_unavailable_reason: null,
+    sms_error_code: null,
+    // Task-278 — render the seeded snapshot through the shared renderer so the
+    // fixture stays structurally identical to anything the live refund path
+    // produces today (no `<!doctype html>` literals outside emailTemplates.ts).
+    email_envelope:  (() => {
+      const rendered = renderPatientEmail({
+        heading: 'Hi Alex,',
+        paragraphs: [
+          'We have processed a refund of <strong>£179.00</strong> to the card ending <strong>4242</strong> for your cancelled order <strong>ORD-00450</strong>.',
+          '<span style="color:#6b7280;">Reason:</span> Order cancellation — relocating overseas.',
+          'Refunds typically appear on your statement within 5–10 working days, depending on your bank.',
+          'If you have any questions, just reply to this email and our team will be in touch.',
+        ],
+        signoff: 'The FeelTru team',
+      });
+      return {
+        to_email: 'patient+pt00198@example.com',
+        subject:  'Your refund for order ORD-00450 has been processed',
+        template: 'order_cancelled_refund',
+        text_body: rendered.text,
+        html_body: rendered.html,
+      };
+    })(),
+  },
+  // Task-128 — Failed row with retry budget remaining so reviewers can see and
+  // click the "Resend now" button in the per-patient Notification log tab.
+  // The retry job runs against this exact shape: status='Failed',
+  // attempt_count < max_attempts, and a populated email_envelope so the
+  // resend has everything it needs without reconstructing from the order.
+  {
+    id: 'NOTIF-002',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00451',
+    type: 'order_approved',
+    channel: 'Email',
+    template: 'order_approved',
+    status: 'Failed',
+    sent_at: '2026-05-18T09:12:00Z',
+    payload: {
+      order_id: 'ORD-00451',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      'Postmark 504: upstream timeout while accepting message',
+    last_attempt_at: '2026-05-18T09:12:00Z',
+    next_retry_at:   '2026-05-18T09:17:00Z',
+    email_envelope_unavailable_reason: null,
+    sms_error_code:  null,
+    email_envelope:  {
+      to_email: 'patient+pt00198@example.com',
+      subject:  'Your order ORD-00451 has been approved',
+      template: 'order_approved',
+      text_body:
+        'Hi Alex,\n\n' +
+        'Good news — your order ORD-00451 has been approved by our clinical team and is being prepared for dispatch.\n\n' +
+        'We will email you again as soon as it has been handed to the courier.\n\n' +
+        'Thanks,\n' +
+        'The FeelTru team',
+    },
+  },
+  // Task-128 — Bounced row to prove that the "Resend now" button does NOT
+  // appear for hard bounces (the address is invalid, so retrying would be
+  // pointless and could harm sender reputation).
+  {
+    id: 'NOTIF-003',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00452',
+    type: 'order_dispatched',
+    channel: 'Email',
+    template: 'order_dispatched',
+    status: 'Bounced',
+    sent_at: '2026-05-17T16:04:00Z',
+    payload: {
+      order_id: 'ORD-00452',
+      tracking_number: 'AB123456789GB',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      'Hard bounce: mailbox does not exist (550 5.1.1)',
+    last_attempt_at: '2026-05-17T16:04:00Z',
+    next_retry_at:   null,
+    email_envelope_unavailable_reason: null,
+    sms_error_code:  null,
+    email_envelope:  {
+      to_email: 'patient+pt00198@example.com',
+      subject:  'Your order ORD-00452 is on its way',
+      template: 'order_dispatched',
+      text_body:
+        'Hi Alex,\n\n' +
+        'Your order ORD-00452 has been dispatched. Tracking number: AB123456789GB.\n\n' +
+        'Thanks,\n' +
+        'The FeelTru team',
+    },
+  },
+  // Task-137 — SMS row marked Bounced by the Twilio async status callback.
+  // `payload.sms_error_message` and `last_error` carry the carrier reason so
+  // the per-patient notification log can show clinicians WHY the SMS failed
+  // (e.g. "Unreachable destination handset") instead of a bare 'Bounced' chip.
+  // No email_envelope — SMS rows are not retried; the carrier-final status
+  // is terminal and the staff action is to switch channel or fix the number.
+  {
+    id: 'NOTIF-004',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00453',
+    type: 'order_approved',
+    channel: 'SMS',
+    template: 'order_approved',
+    status: 'Bounced',
+    sent_at: '2026-05-18T08:01:00Z',
+    payload: {
+      order_id: 'ORD-00453',
+      sms_message_id: 'SM7c5d2e8a1b9f4e6a8d2c1f3e9b7a6d2c',
+      sms_to_phone: '+447700900123',
+      sms_error_message: 'Unreachable destination handset (Twilio 30003)',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      'Unreachable destination handset (Twilio 30003)',
+    last_attempt_at: '2026-05-18T08:01:00Z',
+    next_retry_at:   null,
+    email_envelope:                    null,
+    email_envelope_unavailable_reason: null,
+    sms_error_code:                    30003,
+  },
+  // Task-137 — SMS marked Failed by the carrier (landline / unroutable). Same
+  // shape as above; UI must surface the carrier reason so clinicians know to
+  // collect a mobile number rather than retry the same one.
+  {
+    id: 'NOTIF-005',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00454',
+    type: 'order_dispatched',
+    channel: 'SMS',
+    template: 'order_dispatched',
+    status: 'Failed',
+    sent_at: '2026-05-18T07:42:00Z',
+    payload: {
+      order_id: 'ORD-00454',
+      sms_message_id: 'SM3a1b2c4d5e6f7a8b9c0d1e2f3a4b5c6d',
+      sms_to_phone: '+441234567890',
+      sms_error_message: 'Landline or unreachable carrier (Twilio 30006)',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      'Landline or unreachable carrier (Twilio 30006)',
+    last_attempt_at: '2026-05-18T07:42:00Z',
+    next_retry_at:   null,
+    email_envelope:                    null,
+    email_envelope_unavailable_reason: null,
+    sms_error_code:                    30006,
+  },
+  // Task-132 — "older" rows recorded before the email_envelope snapshot field
+  // existed. The backfill job (backfillPatientNotificationEnvelopes) walks
+  // these and reconstructs the envelope from the originating order + patient.
+  // NOTIF-LEGACY-001 is reconstructible (order still in fixtures); -002 points
+  // at a long-deleted order so the job marks it unrecoverable and sets
+  // email_envelope_unavailable_reason so the UI explains the missing preview.
+  {
+    id: 'NOTIF-LEGACY-001',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00441',
+    type: 'order_approved',
+    channel: 'Email',
+    template: 'order_approved',
+    status: 'Delivered',
+    sent_at: '2025-11-04T11:08:00Z',
+    payload: { order_id: 'ORD-00441' },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2025-11-04T11:08:00Z',
+    next_retry_at:   null,
+    email_envelope:                    null,
+    email_envelope_unavailable_reason: null,
+    sms_error_code:                    null,
+  },
+  {
+    id: 'NOTIF-LEGACY-002',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00099',
+    type: 'order_dispatched',
+    channel: 'Email',
+    template: 'order_dispatched',
+    status: 'Delivered',
+    sent_at: '2025-09-19T15:41:00Z',
+    payload: { order_id: 'ORD-00099', tracking_number: 'AB000000000GB' },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2025-09-19T15:41:00Z',
+    next_retry_at:   null,
+    email_envelope:                    null,
+    email_envelope_unavailable_reason: null,
+    sms_error_code:                    null,
+  },
+  // Task-185 — Legacy row captured AFTER Task-66 (envelope snapshotting) but
+  // BEFORE Task-131 (HTML snapshotting): an envelope is present, but
+  // html_body is missing. The backfill should render the branded HTML the
+  // patient would have received and write it back, so the "Preview email"
+  // modal can default to the HTML view on this older send.
+  {
+    id: 'NOTIF-LEGACY-003',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00450',
+    type: 'order_cancelled_no_charge',
+    channel: 'Email',
+    template: 'order_cancelled_no_charge',
+    status: 'Delivered',
+    sent_at: '2026-01-14T10:12:00Z',
+    payload: {
+      order_id: 'ORD-00450',
+      reason: 'Patient changed their mind before dispatch.',
+    },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2026-01-14T10:12:00Z',
+    next_retry_at:   null,
+    email_envelope_unavailable_reason: null,
+    sms_error_code:  null,
+    email_envelope: {
+      to_email: 'sarah.cookland@example.com',
+      subject:  'Your order ORD-00450 has been cancelled',
+      template: 'order_cancelled_no_charge',
+      text_body:
+        'Hi Sarah,\n\n' +
+        "We've cancelled order ORD-00450. No charge has been taken — the pre-authorisation on your card has been released and you'll see it disappear from your statement within a few working days.\n\n" +
+        'Reason recorded: Patient changed their mind before dispatch.\n\n' +
+        'If you have any questions, just reply to this email.\n\n' +
+        'Thanks,\nThe Livera team',
+      // Intentionally omitted — backfill should populate this.
+      html_body: null,
+    },
+  },
+  // Task-185 / Task-275 — Legacy row with a text-only envelope for an
+  // order_dispatched send that pre-dates the HTML snapshot field. Task-185
+  // could not backfill HTML here because no renderer existed for
+  // order_dispatched yet; Task-275 adds that renderer, so the next backfill
+  // run populates the branded html_body to match the cancellation/refund
+  // shell.
+  {
+    id: 'NOTIF-LEGACY-004',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    order_id: 'ORD-00441',
+    type: 'order_dispatched',
+    channel: 'Email',
+    template: 'order_dispatched',
+    status: 'Delivered',
+    sent_at: '2026-02-03T09:30:00Z',
+    payload: { order_id: 'ORD-00441', tracking_number: 'AB987654321GB' },
+    attempt_count:   1,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      null,
+    last_attempt_at: '2026-02-03T09:30:00Z',
+    next_retry_at:   null,
+    email_envelope_unavailable_reason: null,
+    sms_error_code:  null,
+    email_envelope: {
+      to_email: 'sarah.cookland@example.com',
+      subject:  'Your order ORD-00441 is on its way',
+      template: 'order_dispatched',
+      text_body:
+        'Hi Sarah,\n\n' +
+        'Your order ORD-00441 has been dispatched. Tracking number: AB987654321GB.\n\n' +
+        'Thanks,\nThe Livera team',
+      html_body: null,
+    },
+  },
+];
+
+// Task-49 — append a notification record after a real Postmark send. Returns
+// the appended record so callers can audit / surface its ID.
+//
+// Task-66 — accepts `email_envelope` (snapshot used by the retry job) and
+// `error_message` (becomes `last_error` when status is 'Failed' / 'Bounced').
+// When status='Failed' a `next_retry_at` is scheduled using the default
+// backoff; 'Delivered' and 'Bounced' never schedule retries.
+export function recordPatientNotification(input: {
+  clinic_id: ClinicId;
+  patient_id: string;
+  order_id: string | null;
+  type: PatientNotificationType;
+  template: string;
+  status: PatientNotificationStatus;
+  payload: Record<string, unknown>;
+  channel?: PatientNotificationChannel;
+  sent_at?: string;
+  email_envelope?: PatientEmailEnvelope | null;
+  error_message?: string | null;
+}): PatientNotification {
+  const next = String(MOCK_PATIENT_NOTIFICATIONS.length + 1).padStart(3, '0');
+  const sentAt = input.sent_at ?? NOW;
+  const attemptCount = 1;
+  const record: PatientNotification = {
+    id: `NOTIF-${next}`,
+    clinic_id:  input.clinic_id,
+    patient_id: input.patient_id,
+    order_id:   input.order_id,
+    type:       input.type,
+    channel:    input.channel ?? 'Email',
+    template:   input.template,
+    status:     input.status,
+    sent_at:    sentAt,
+    payload:    input.payload,
+    attempt_count:   attemptCount,
+    max_attempts:    DEFAULT_MAX_ATTEMPTS,
+    last_error:      input.status === 'Delivered' ? null : (input.error_message ?? null),
+    last_attempt_at: sentAt,
+    next_retry_at:   input.status === 'Failed' ? nextRetryAtFor(attemptCount, sentAt) : null,
+    email_envelope:  input.email_envelope ?? null,
+    email_envelope_unavailable_reason: null,
+    // Task-302 — sms_error_code is populated later by the Twilio status
+    // callback (see applyTwilioStatusCallback). At first-send time we don't
+    // know it yet — the synchronous Messages API response only reports the
+    // "accepted" state for outbound sends.
+    sms_error_code:                    null,
+  };
+  MOCK_PATIENT_NOTIFICATIONS.push(record);
+  return record;
+}
+
+// Task-66 — mutate a notification after a retry attempt. Centralised so the
+// retry job and tests stay in sync with the retry policy.
+export function applyRetryOutcome(
+  notif: PatientNotification,
+  outcome: { status: PatientNotificationStatus; error_message?: string | null; message_id?: string | null },
+  attemptedAt: string = NOW,
+): PatientNotification {
+  notif.attempt_count   = notif.attempt_count + 1;
+  notif.status          = outcome.status;
+  notif.last_attempt_at = attemptedAt;
+  notif.last_error      = outcome.status === 'Delivered' ? null : (outcome.error_message ?? notif.last_error);
+  // Only schedule another retry while transient-failing and below max_attempts.
+  notif.next_retry_at =
+    outcome.status === 'Failed' && notif.attempt_count < notif.max_attempts
+      ? nextRetryAtFor(notif.attempt_count, attemptedAt)
+      : null;
+  if (outcome.message_id) {
+    notif.payload = { ...notif.payload, postmark_message_id: outcome.message_id };
+  }
+  return notif;
+}
+
+// Task-101 — apply an asynchronous Twilio status callback to the matching SMS
+// notification row. We look the row up by `payload.sms_message_id` (Twilio
+// MessageSid stored when the synchronous send returned). Returns the mutated
+// notification, or null when no matching row exists (e.g. callback arrives
+// for an SMS sent outside Livera, or against a wiped dev fixture set).
+//
+// Carrier-final statuses are terminal: no retry is ever scheduled from a
+// status callback — the SMS already left our system. Bounced/Failed rows
+// produced this way will not be picked up by retryFailedPatientNotifications
+// because `next_retry_at` stays null.
+//
+// Task-138 — idempotency for Twilio retries / out-of-order delivery.
+// Twilio re-POSTs status callbacks on any non-2xx and can also resend a
+// callback if its own first POST is dropped, so the same MessageSid can hit
+// this endpoint multiple times — sometimes with stale or out-of-order
+// statuses (e.g. a late `sent` arriving after `delivered`). Rules:
+//   1. Once the row is in a terminal state (Delivered/Bounced/Failed), any
+//      subsequent callback is ignored — the carrier-final outcome wins, and
+//      we never demote it back to an intermediate state or replace it with
+//      another terminal state from a stale retry.
+//   2. If the incoming status equals the row's current status it is a
+//      true duplicate — no-op, do NOT restamp `last_attempt_at`.
+const TERMINAL_SMS_STATUSES: ReadonlySet<PatientNotificationStatus> = new Set([
+  'Delivered',
+  'Bounced',
+  'Failed',
+]);
+
+export function applyTwilioStatusCallback(
+  smsMessageId: string,
+  outcome: {
+    status: PatientNotificationStatus;
+    error_message?: string | null;
+    // Task-302 — the webhook now forwards the numeric Twilio ErrorCode as a
+    // first-class value alongside the human-readable error message, so the
+    // clinic-wide bounce breakdown can group on a structured field instead
+    // of re-parsing `last_error` strings. Optional so existing callers and
+    // tests that only pass `error_message` keep working — we'll attempt to
+    // parse a code out of the message in that case.
+    error_code?: number | null;
+  },
+  occurredAt: string = NOW,
+): PatientNotification | null {
+  const notif = MOCK_PATIENT_NOTIFICATIONS.find(
+    (n) =>
+      n.channel === 'SMS' &&
+      (n.payload as { sms_message_id?: unknown }).sms_message_id === smsMessageId,
+  );
+  if (!notif) return null;
+
+  // Task-138 — already terminal: leave the row untouched.
+  if (TERMINAL_SMS_STATUSES.has(notif.status)) {
+    return notif;
+  }
+
+  // Task-138 — duplicate of current (non-terminal) state: no-op, no restamp.
+  if (notif.status === outcome.status) {
+    return notif;
+  }
+
+  notif.status          = outcome.status;
+  notif.last_attempt_at = occurredAt;
+  notif.last_error      =
+    outcome.status === 'Delivered' ? null : (outcome.error_message ?? notif.last_error);
+  notif.next_retry_at   = null;
+  if (outcome.error_message) {
+    notif.payload = { ...notif.payload, sms_error_message: outcome.error_message };
+  }
+  // Task-302 — record the structured Twilio error code so the clinic-level
+  // breakdown can `GROUP BY sms_error_code` without re-parsing strings.
+  // A Delivered callback clears any prior code (the row recovered); any
+  // other terminal outcome stores the code from the callback if provided,
+  // otherwise parses one out of the error message for backwards
+  // compatibility with callers that only pass `error_message`.
+  if (outcome.status === 'Delivered') {
+    notif.sms_error_code = null;
+  } else if (outcome.error_code !== undefined && outcome.error_code !== null) {
+    notif.sms_error_code = outcome.error_code;
+  } else if (outcome.error_message) {
+    notif.sms_error_code =
+      parseTwilioErrorCode(outcome.error_message) ?? notif.sms_error_code;
+  }
+  return notif;
+}
+
+export async function listPatientNotifications(
+  clinic_id: ClinicId,
+  opts?: { patient_id?: string; order_id?: string },
+): Promise<PatientNotification[]> {
+  await delay();
+  let results = scopedToClinic(MOCK_PATIENT_NOTIFICATIONS, clinic_id);
+  if (opts?.patient_id) results = results.filter((n) => n.patient_id === opts.patient_id);
+  if (opts?.order_id) results = results.filter((n) => n.order_id === opts.order_id);
+  return results;
+}

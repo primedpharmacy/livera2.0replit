@@ -5,8 +5,8 @@
  *           submitYellowCard, notifyCQC, syncIncidentFromMonday.
  */
 
-import type { ClinicId, Incident, IncidentOrigin, IncidentType, IncidentSeverity, User } from '../types';
-import { delay, APIError, scopedToClinic, CURRENT_USER, SYSTEM_USER, NOW } from '../constants';
+import type { ClinicId, Incident, IncidentComment, IncidentOrigin, IncidentType, IncidentSeverity, User } from '../types';
+import { delay, APIError, scopedToClinic, USERS_REGISTRY, NOW } from '../constants';
 import { mondayWrite, mondayRead } from '../monday';
 import { can } from '@/lib/permissions';
 import { allowIntercomClosure } from '@/lib/integrations/intercom';
@@ -30,6 +30,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: false,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: null,
@@ -38,6 +39,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     created_at: '2026-05-08T09:15:00Z',
     intercom_thread_url: null,
     incident_origin: 'manual',
+    created_by_user_id: 'user_qadir',
   },
   {
     id: 'INC-002',
@@ -56,14 +58,16 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: true,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: true,
     cqc_notified_at: null,
     escalated_to_user_id: 'user_qadir',
     resolution_notes: null,
     sync_status: 'in_sync',
     created_at: '2026-05-09T11:30:00Z',
-    intercom_thread_url: null,
-    incident_origin: 'manual',
+    intercom_thread_url: 'https://app.intercom.com/conversations/4821',
+    incident_origin: 'intercom_tag',
+    created_by_user_id: 'user_qadir',
   },
   {
     id: 'INC-003',
@@ -82,6 +86,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: false,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: null,
@@ -90,6 +95,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     created_at: '2026-05-07T14:00:00Z',
     intercom_thread_url: null,
     incident_origin: 'manual',
+    created_by_user_id: 'user_mobeen',
   },
   {
     id: 'INC-004',
@@ -108,6 +114,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: false,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: null,
@@ -116,6 +123,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     created_at: '2026-04-20T10:00:00Z',
     intercom_thread_url: null,
     incident_origin: 'manual',
+    created_by_user_id: 'user_claire',
   },
   {
     id: 'INC-005',
@@ -134,6 +142,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     yellow_card_required: true,
     yellow_card_submitted: true,
     yellow_card_reference: 'MHRA-2026-005891',
+    yellow_card_decision: 'filed' as const,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: 'user_qadir',
@@ -142,8 +151,87 @@ export const MOCK_INCIDENTS: Incident[] = [
     created_at: '2026-05-01T08:00:00Z',
     intercom_thread_url: null,
     incident_origin: 'manual',
+    created_by_user_id: 'user_mobeen',
   },
 ];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function userInitials(name: string): string {
+  return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+}
+
+function resolveUser(userId: string): { name: string; initials: string } {
+  const u = USERS_REGISTRY[userId];
+  if (u) return { name: u.full_name, initials: userInitials(u.full_name) };
+  return { name: userId, initials: '?' };
+}
+
+// ── Incident comments ─────────────────────────────────────────────────────────
+export let MOCK_INCIDENT_COMMENTS: IncidentComment[] = [
+  {
+    id: 'ICM-001',
+    incident_id: 'INC-002',
+    user_id: 'user_qadir',
+    user_name: 'Qadir Hussain',
+    user_initials: 'QH',
+    body: 'Patient has been advised to attend A&E. I have contacted the duty GP and escalated to Mobeen for clinical oversight. Awaiting CQC notification confirmation from the compliance team.',
+    created_at: '2026-05-09T12:45:00Z',
+  },
+  {
+    id: 'ICM-002',
+    incident_id: 'INC-002',
+    user_id: 'user_claire',
+    user_name: 'Claire Moynehan',
+    user_initials: 'CM',
+    body: 'Yellow Card has been submitted to MHRA — ref MHRA-2026-004821. CQC notification drafted and sent via the Regulation 18 online portal. Confirmation email received. Moving to under investigation pending hospital discharge summary.',
+    created_at: '2026-05-09T15:20:00Z',
+  },
+  {
+    id: 'ICM-003',
+    incident_id: 'INC-003',
+    user_id: 'user_mobeen',
+    user_name: 'Mobeen Alam',
+    user_initials: 'MA',
+    body: 'Dispensing label error has been traced to a manual entry override at the pharmacy. SOP updated. All pending orders for this patient reviewed and no further errors found. Ready to close once team confirms.',
+    created_at: '2026-05-08T09:00:00Z',
+  },
+];
+
+export async function listIncidentComments(
+  _clinic_id: ClinicId,
+  incident_id: string,
+): Promise<IncidentComment[]> {
+  await delay(150);
+  return MOCK_INCIDENT_COMMENTS.filter((c) => c.incident_id === incident_id);
+}
+
+export async function addIncidentComment(
+  _clinic_id: ClinicId,
+  incident_id: string,
+  body: string,
+  actor: User,
+): Promise<IncidentComment> {
+  await delay(250);
+  const { name, initials } = resolveUser(actor.id);
+  const comment: IncidentComment = {
+    id: `ICM-${Date.now().toString().slice(-6)}`,
+    incident_id,
+    user_id: actor.id,
+    user_name: name,
+    user_initials: initials,
+    body: body.trim(),
+    created_at: new Date().toISOString(),
+  };
+  MOCK_INCIDENT_COMMENTS.push(comment);
+  console.log('[AUDIT]', {
+    event_type: 'incident_comment_added',
+    incident_id,
+    comment_id: comment.id,
+    actor_id: actor.id,
+    timestamp: comment.created_at,
+  });
+  return comment;
+}
 
 export async function listIncidents(
   clinic_id: ClinicId,
@@ -168,7 +256,8 @@ export async function updateIncidentStatus(
   clinic_id: ClinicId,
   id: string,
   status: Incident['status'],
-  resolution_notes?: string
+  resolution_notes: string | undefined,
+  actor: User,
 ): Promise<Incident> {
   await delay(300);
   const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
@@ -208,37 +297,68 @@ export async function updateIncidentStatus(
     prev_status: prevStatus,
     new_status: status,
     clinic_id,
-    actor_id: CURRENT_USER.id,
+    actor_id: actor.id,
     timestamp: NOW,
   });
   return i;
 }
 
-export async function submitYellowCard(clinic_id: ClinicId, id: string): Promise<Incident> {
+export async function submitYellowCard(clinic_id: ClinicId, id: string, actor: User): Promise<Incident> {
   await delay(600);
   const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
   if (i.yellow_card_submitted) throw new APIError('ALREADY_SUBMITTED', 'Yellow Card already submitted for this incident');
   i.yellow_card_submitted = true;
+  i.yellow_card_decision = 'filed';
   i.yellow_card_reference = `MHRA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(6, '0')}`;
-  console.log('[AUDIT]', { action: 'yellow_card.submitted', incident_id: id, reference: i.yellow_card_reference, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  console.log('[AUDIT]', { action: 'yellow_card.submitted', incident_id: id, reference: i.yellow_card_reference, clinic_id, user_id: actor.id, timestamp: new Date().toISOString() });
   return i;
 }
 
-export async function notifyCQC(clinic_id: ClinicId, id: string): Promise<Incident> {
+// BLD-YC-01 — prescriber records Yellow Card decision (filed with reference or not applicable)
+export async function recordYellowCardDecision(
+  clinic_id: ClinicId,
+  id: string,
+  decision: 'filed' | 'not_applicable',
+  reference: string | undefined,
+  actor: User,
+): Promise<Incident> {
+  await delay(500);
+  const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
+  if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
+  if (i.yellow_card_decision === 'filed') throw new APIError('ALREADY_FILED', 'Yellow Card already filed for this incident');
+  i.yellow_card_decision = decision;
+  if (decision === 'filed') {
+    i.yellow_card_submitted = true;
+    i.yellow_card_required = true;
+    i.yellow_card_reference = reference?.trim() || `MHRA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999)).padStart(6, '0')}`;
+  }
+  console.log('[AUDIT]', {
+    action: 'yellow_card.decision_recorded',
+    decision,
+    reference: i.yellow_card_reference ?? null,
+    incident_id: id,
+    clinic_id,
+    user_id: actor.id,
+    timestamp: NOW,
+  });
+  return i;
+}
+
+export async function notifyCQC(clinic_id: ClinicId, id: string, actor: User): Promise<Incident> {
   await delay(400);
   const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
   if (i.cqc_notified_at) throw new APIError('ALREADY_NOTIFIED', 'CQC has already been notified for this incident');
   i.cqc_notified_at = new Date().toISOString();
-  console.log('[AUDIT]', { action: 'cqc.notified', incident_id: id, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  console.log('[AUDIT]', { action: 'cqc.notified', incident_id: id, clinic_id, user_id: actor.id, timestamp: new Date().toISOString() });
   return i;
 }
 
 // ── createIncident — BLD-8.3 (Wave 6) ────────────────────────────────────────
 // Primary caller: app/api/webhooks/intercom/route.ts with actor=SYSTEM_USER
 //   (origin='intercom_tag', intercom_thread_url set)
-// Future callers may create incidents manually (origin='manual', actor=CURRENT_USER).
+// Manual callers (logIncidentAction) pass the resolved signed-in user.
 //
 // Layer 1 (UI gate): n/a for webhook-driven path — no Livera UI calls this in V1.1
 // Layer 2 (server gate): can() check on 'incidents' resource
@@ -247,13 +367,13 @@ export async function createIncident(
   patient_id: string,
   origin: IncidentOrigin,
   body: string,
-  options?: {
+  options: {
     intercom_thread_url?: string;
     clinic_id?: string;
     incident_type?: IncidentType;
     severity?: IncidentSeverity;
-  },
-  actor: User = CURRENT_USER
+  } | undefined,
+  actor: User,
 ): Promise<Incident> {
   await delay(300);
 
@@ -302,6 +422,7 @@ export async function createIncident(
     yellow_card_required: false,
     yellow_card_submitted: false,
     yellow_card_reference: null,
+    yellow_card_decision: null,
     cqc_notification_required: false,
     cqc_notified_at: null,
     escalated_to_user_id: null,
@@ -310,6 +431,7 @@ export async function createIncident(
     created_at: NOW,
     intercom_thread_url: options?.intercom_thread_url ?? null,
     incident_origin: origin,
+    created_by_user_id: actor.id,
   };
 
   MOCK_INCIDENTS.push(incident);
@@ -330,11 +452,11 @@ export async function createIncident(
   return incident;
 }
 
-export async function syncIncidentFromMonday(clinic_id: ClinicId, id: string): Promise<Incident> {
+export async function syncIncidentFromMonday(clinic_id: ClinicId, id: string, actor: User): Promise<Incident> {
   const i = MOCK_INCIDENTS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!i) throw new APIError('NOT_FOUND', 'Incident not found');
   await mondayRead(i.monday_board_id);
   i.sync_status = 'in_sync';
-  console.log('[AUDIT]', { action: 'incident.synced_from_monday', incident_id: id, clinic_id, user_id: CURRENT_USER.id, timestamp: new Date().toISOString() });
+  console.log('[AUDIT]', { action: 'incident.synced_from_monday', incident_id: id, clinic_id, user_id: actor.id, timestamp: new Date().toISOString() });
   return i;
 }

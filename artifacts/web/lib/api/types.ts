@@ -68,6 +68,9 @@ export type ClinicTeamMember = {
   } | null;
   active: boolean;
   joined_at: string;  // ISO
+  // Task-38 — Refund authority: admins with this flag can action `type: 'refund'`
+  // amendments via the refund-specific panel on AmendmentDetailClient.
+  can_refund?: boolean;
 };
 
 // --- Clinic config (PRODUCT_VISION.md §6.1 — authoritative schema) ---
@@ -96,6 +99,8 @@ export type ClinicConfig = {
 
   // Comms (BLD-1.3)
   reply_email: string;
+  // Task-78 — staff inbox notified when a new patient intake is submitted.
+  clinical_check_inbox: string;
   // BLD-3.6 — object per DEC-35 (replaces flat string from Wave 1)
   patient_sla_copy: {
     clinical_review_message: string;  // "Clinical review usually takes up to 4 hours"
@@ -157,6 +162,17 @@ export type ClinicConfig = {
   // Intercom workspace
   intercom_workspace_id: string;
 
+  // Intercom integration (Phase 1 — read-only). Tokens and webhook secrets are
+  // held server-side only (api-server/src/lib/intercom-store.ts) and must never
+  // appear in this client-visible type. We only expose a public workspace id
+  // and a "configured" indicator that the settings UI fetches at runtime.
+  integrations?: {
+    intercom?: {
+      workspace_id: string;
+      configured: boolean;
+    };
+  };
+
   // Feature flags
   features: {
     gp_letter_enabled: boolean;
@@ -169,13 +185,26 @@ export type ClinicConfig = {
   };
 
   // Rule-engine stubs — concrete types added in Chunks 13/16a/17
-  // Both clinic fixtures seed these with [] until the rule types land.
-  flag_rules: unknown[];            // G6 flag evaluation rules (Chunk 16a)
-  treatment_gap_rules: unknown[];   // Treatment gap rules (Chunk 13)
-  dose_escalation_rules: unknown[]; // Dose escalation protocol (Chunk 13)
-  primed_flag_rules: unknown[];     // Primed flag mirror rules (Chunk 17)
-  questionnaire_order: unknown[];   // New-patient questionnaire config (Chunk 13)
-  questionnaire_reorder: unknown[]; // Reorder questionnaire config (Chunk 13)
+  flag_rules: unknown[];                   // G6 flag evaluation rules (Chunk 16a)
+  treatment_gap_rules: TreatmentGapRule[]; // Treatment gap rules (BLD-14.6)
+  dose_escalation_rules: unknown[];        // Dose escalation protocol (Chunk 13)
+  primed_flag_rules: unknown[];            // Primed flag mirror rules (Chunk 17)
+  questionnaire_order: QuestionItem[];     // New-patient questionnaire config (BLD-13.4)
+  questionnaire_reorder: QuestionItem[];   // Reorder questionnaire config (BLD-13.4)
+
+  // Task-246 — clinic-tunable minimum patient age for intake (DOB validator).
+  // Default 18; some GLP-1 protocols want 21, paediatric flows may want lower.
+  // Read by validateDob via the `minimumAgeYears` override.
+  minimum_patient_age_years: number;
+
+  // Task-100 — clinic-tunable thresholds for the weight-trend analyser.
+  // Read by analyseWeightHistory in lib/clinical/weightWarnings.ts.
+  weight_warning_thresholds: {
+    bmi_continuation_floor: number;     // default 27.5 — min BMI on continuation/reorder before warn
+    rapid_loss_kg_per_week: number;     // default 2   — >this kg/week between last 2 readings = err
+    plateau_tolerance_kg: number;       // default 0.3 — max kg spread across tail to count as plateau
+    plateau_min_readings: number;       // default 3   — tail length used for plateau detection
+  };
 };
 
 // --- Clinic (outer entity) ---
@@ -199,6 +228,9 @@ export type User = {
     status: string;
   }>;
   active: boolean;
+  // Task-38 — Refund authority. Mirrors ClinicTeamMember.can_refund and is
+  // consumed by the AmendmentDetailClient refund panel gate.
+  can_refund?: boolean;
 };
 
 // --- Patient ---
@@ -226,6 +258,14 @@ export type Patient = {
     sumsub_id: string;
     identity_verified_at: string | null;
     bmi_verified_at: string | null;
+    // Task-326 (Wave 9a) — multi-step SumSub mirror. UI surfaces these on the
+    // patient profile Verification panel and the patient-facing /verify flow.
+    // Backend remains mocked; fields are optional so legacy fixtures still
+    // compile without an explicit step (treated as "applicant" by the UI).
+    sumsub_status?: 'pending' | 'submitted' | 'review' | 'approved' | 'rejected';
+    sumsub_step?: 'applicant' | 'document_upload' | 'liveness' | 'completed';
+    sumsub_document_type?: 'passport' | 'driving_licence' | 'national_id' | null;
+    sumsub_confidence?: number | null;  // 0-1 mock score from the SDK
   };
   consents_given: Array<{ consent_id: string; version: string; given_at: string }>;
   flags: Array<{ id: string; code: string; severity: 'low' | 'medium' | 'high'; raised_at: string }>;
@@ -237,6 +277,10 @@ export type Patient = {
   // Used by app/api/webhooks/intercom/route.ts to look up patient from webhook payload.
   // Optional — null for patients not yet linked to an Intercom contact.
   intercom_user_id?: string | null;
+  // Phase 1 Intercom integration — Intercom's internal contact id. The Order
+  // Detail Intercom tab uses this to scope conversation reads to the patient.
+  // null until a clinician runs the "Link Intercom contact" admin action.
+  intercom_contact_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -274,13 +318,273 @@ export type Order = {
     decided_at: string;
     rationale: string;
   } | null;
+
+  // Task-158 / Task-159 — Audit log of clinical decisions that were reversed
+  // on this order. Each entry preserves the prior decision (so the activity
+  // timeline can show that a decision was made and then undone — by whom and
+  // when — long after `clinical_decision` itself has been cleared) plus, when
+  // the long-window "Reverse decision" path is used, the captured reason,
+  // linked clinical note, and any side-effects that were cleaned up. The
+  // short 5-second quick-undo records an entry too, with `reason: null`.
+  reversal_log?: Array<{
+    reversed_at: string;
+    reversed_by_user_id: string;
+    prior_decision: 'approved' | 'declined' | 'queried';
+    prior_decided_at: string;
+    prior_prescriber_user_id: string;
+    prior_rationale: string;
+    reason: string | null;
+    clinical_note_id: string | null;
+    side_effects?: {
+      gp_letter_cancelled_id?: string | null;
+      clinical_notes_reversed_ids?: string[];
+    };
+  }> | null;
   sla_warn_at: string;
   sla_breach_at: string;
   g6_flags: string[];
+  contextual_flags?: string[];            // Behavioural flags for display in queue (Dose increase, Safeguarding, etc.)
   intervention_raised_at: string | null;  // BLD-4.6.1 — set when decision='queried'
   expired_at: string | null;              // BLD-4.6.3 — set by detectOrderExpiry
+
+  // BLD-14.3 — NICE CG189 checklist (toggled by prescriber during clinical_check)
+  nice_checklist?: Array<{
+    id: string;
+    label: string;
+    checked: boolean;
+    checked_by?: string;
+    checked_at?: string;
+  }> | null;
+
+  // BLD-14.4 — Dose escalation gate (computed from questionnaire + treatment history)
+  dose_escalation_gate?: {
+    is_dose_escalation: boolean;
+    from_dose: string;
+    to_dose: string;
+    weeks_at_current_dose: number;
+    weeks_required: number;
+    weight_loss_pct: number;
+    weight_loss_kg: number;
+    prior_evidence_uploaded: boolean;
+    evidence_label?: string;
+    eligible: boolean;
+  } | null;
+
+  // BLD-14.5 — Weight trajectory (last ≤5 readings snapshotted at order submission)
+  weight_history?: Array<{
+    recorded_at: string;  // ISO
+    weight_kg: number;
+    bmi: number;
+  }> | null;
+
+  // Task-99 — Clinician acknowledgements of concerning weight warnings
+  // surfaced from analyseWeightHistory(). Each entry pins who reviewed which
+  // warning kind, when, and why a clinical decision was still made.
+  //
+  // Task-135 — Entries are append-only: editing a rationale appends an edit
+  // record (the previous rationale is preserved), and "undoing" an
+  // acknowledgement sets `reversed_at`/`reversed_by_user_id`/`reversal_reason`
+  // rather than removing the row. `findAcknowledgement` returns the latest
+  // non-reversed entry for a kind, so re-acknowledging after an undo simply
+  // appends a fresh entry to the array.
+  weight_warning_acknowledgements?: Array<{
+    kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold';
+    acknowledged_by_user_id: string;
+    acknowledged_at: string;  // ISO
+    rationale: string;
+    // Task-211 — snapshot of the clinic's weight-warning thresholds in effect
+    // when this warning was first evaluated/acknowledged. Lets clinicians
+    // reviewing acknowledged warnings answer "what threshold value did this
+    // warning fire under?" even after Admin/Owner has retuned the numbers.
+    // Optional so legacy acknowledgements (from before Task-211 shipped) still
+    // load cleanly — callers treat a missing snapshot as "unknown history".
+    thresholds_snapshot?: {
+      bmi_continuation_floor: number;
+      rapid_loss_kg_per_week: number;
+      plateau_tolerance_kg: number;
+      plateau_min_readings: number;
+    } | null;
+    edits?: Array<{
+      edited_by_user_id: string;
+      edited_at: string;       // ISO
+      previous_rationale: string;
+      new_rationale: string;
+    }>;
+    reversed_at?: string | null;          // ISO
+    reversed_by_user_id?: string | null;
+    reversal_reason?: string | null;
+  }> | null;
+
+  royal_mail_tracking_id?: string | null;   // BLD-11.1 — RM1234567890GB format
+  dispatched_at?: string | null;            // BLD-11.2 — ISO timestamp; set when status → dispatched
+
+  // Task-38 — Post-approval cancellation & refund flow
+  cancelled_at?: string | null;             // ISO timestamp when status → cancelled
+  cancellation_reason?: string | null;      // Free-text reason captured in the confirm modal
+  refund_amendment_id?: string | null;      // Linked Amendment.id when a refund was required
+
+  // Task-61 / Task-82 — Patient-uploaded prescription for GLP-1 higher-dose path
+  // Captured from the intake success screen when the patient answered "yes" to
+  // both ft_oq_9 (currently on GLP-1) and ft_oq_10 (requesting a higher start dose).
+  // The file lives in object storage (GCS); we persist only the object path.
+  // Stream it back via `GET /api/storage/objects/<id>` (clinic-staff ACL).
+  px_upload?: {
+    filename: string;
+    size: number;          // bytes
+    content_type: string;  // image/* or application/pdf
+    uploaded_at: string;   // ISO timestamp
+    object_path: string;   // e.g. '/objects/uploads/<uuid>' — served by /api/storage/objects/...
+    source?: 'success_screen' | 'email_link' | 'staff_upload'; // Task-80 + Task-85 — provenance for the audit log
+    uploaded_by_user_id?: string | null; // Task-85 — populated when staff uploads on patient's behalf
+  } | null;
+
+  // Task-171 / Task-252 — Running history of every prescription uploaded for
+  // this order. Task-119 captures replacements in the [AUDIT] log; we also
+  // persist a slim per-order list here so the Order Detail UI can render
+  // "Previous uploads" (filename, uploader, timestamp, source, Open link)
+  // without having to query the audit pipeline. One entry per superseded
+  // file, appended in chronological order.
+  //
+  // `replaced_*` fields describe the swap event (who/what replaced it).
+  // `prior_*` fields (Task-252) describe the superseded file itself so the
+  // UI can show its uploader/source/timestamp and link back to the archived
+  // object. They're optional for backward-compatibility with older entries
+  // captured before Task-252.
+  px_upload_history?: Array<{
+    replaced_at: string;        // ISO — when the swap happened
+    replaced_filename: string;  // filename of the file that was swapped out
+    replaced_by_user_id: string | null; // user who uploaded the new file
+    replaced_by_source: 'success_screen' | 'email_link' | 'staff_upload';
+    // Task-252 — prior file metadata so staff can open the archived object.
+    prior_uploaded_at?: string;
+    prior_uploaded_by_user_id?: string | null;
+    prior_source?: 'success_screen' | 'email_link' | 'staff_upload';
+    prior_object_path?: string;
+    prior_content_type?: string;
+    prior_size?: number;
+  }>;
+
+  // Task-80 — Tokenised email-link upload (Px upload "complete later")
+  // Generated at intake submission when the order requires a Px upload.
+  // The patient can use the link in their email to open a minimal page that
+  // POSTs to the same px-upload endpoint via the token route. Tokens are
+  // single-use and expire after `expires_at`.
+  px_upload_link?: {
+    token: string;
+    expires_at: string;       // ISO
+    sent_at: string | null;   // ISO — when the *current* token's email was successfully queued
+    // Task-125 — Immutable timestamp of the very first successful delivery
+    // for this order's px upload link. Survives token rotation in
+    // resendPxUploadLink so dashboards can show "days since first sent"
+    // accurately even after multiple resends.
+    first_sent_at?: string | null;
+    consumed_at: string | null; // ISO — when an upload arrived via this token
+    email_message_id: string | null;
+    to_email: string;
+    // Task-91 — Each time staff re-issues this link (e.g. patient lost the
+    // original email or the token expired), we invalidate the old token,
+    // generate a new one, and append an entry here so the activity timeline
+    // can show every resend.
+    resends?: Array<{
+      // ISO — when the resend email was successfully queued. Null for
+      // Bounced/Failed attempts (parallels the Task-80 semantics of the
+      // top-level `sent_at`: only Delivered sends are marked "sent"). Use
+      // `attempted_at` to get the time of every attempt regardless of outcome.
+      sent_at: string | null;
+      to_email: string;
+      expires_at: string;     // new TTL for the freshly-issued token
+      previous_expired: boolean; // true if the previous token was past its TTL
+      by_user_id: string;     // staff member who triggered the resend
+      // Task-178 — delivery outcome of the resend itself (mirrors Postmark
+      // status). Older fixture entries may omit this; treat as 'Delivered'
+      // when the entry exists with a populated sent_at and no recorded
+      // status (preserving the original Task-91 semantics).
+      status?: 'Delivered' | 'Bounced' | 'Failed';
+      error_message?: string | null;
+      attempted_at?: string;  // ISO — when the resend was attempted, even if Bounced/Failed
+    }>;
+    // Task-178 — Initial send record, preserved across token rotation so the
+    // Email-history view can always show the very first attempt (including
+    // ones that bounced before the patient ever received a working link).
+    initial_attempted_at?: string;
+    initial_to_email?: string;
+    initial_send_status?: 'Delivered' | 'Bounced' | 'Failed';
+    initial_send_error_message?: string | null;
+    initial_send_by_user_id?: string | null; // null for system / intake auto-send
+    // Task-92 — scheduled reminder bookkeeping. Each field is set the first
+    // (and only) time its corresponding reminder is sent, so the daily sweep
+    // is idempotent: a reminder is never dispatched twice for the same order.
+    //   reminder_sent_at        — first nudge, ~48h after sent_at
+    //   final_reminder_sent_at  — last-chance nudge, ~24h before expires_at
+    reminder_sent_at?: string | null;
+    final_reminder_sent_at?: string | null;
+    // Task-261 — Attribution for each scheduled-reminder send. `null` means
+    // the daily scheduled job (sendPxUploadReminders) fired the email; a
+    // string is the staff member's user id when a human triggered it via
+    // sendPxUploadReminderNow / retryFailedPxUploadReminder. Undefined on
+    // legacy fixture entries — callers should treat undefined as `null`
+    // (i.e. system-sent) for back-compat.
+    reminder_sent_by_user_id?: string | null;
+    final_reminder_sent_by_user_id?: string | null;
+    // Task-129 — Audit trail of failed reminder attempts (Bounced / Failed
+    // sends from Postmark). The job pushes one entry per failed attempt so
+    // the Order Detail activity timeline can render them with the Postmark
+    // error message alongside the successful sends. Successes still flip
+    // the dedicated _sent_at idempotency flags above.
+    // Task-261 — `by_user_id` follows the same convention as the per-kind
+    // attribution above: `null` for the scheduled job, a staff user id when
+    // a human triggered the failing attempt.
+    reminder_failures?: Array<{
+      kind: 'first' | 'final';
+      attempted_at: string;   // ISO
+      to_email: string;
+      status: 'Bounced' | 'Failed';
+      error_message: string | null;
+      by_user_id?: string | null;
+    }>;
+    // Task-175 — Auto-chase bookkeeping for the scheduled job that re-issues
+    // an expired (or about-to-expire) upload link without staff effort.
+    // Each entry records one cron-triggered token rotation; the job stops
+    // re-issuing once the array length hits MAX_AUTO_RESENDS and instead
+    // escalates the order for a staff phone call.
+    auto_resends?: Array<{
+      sent_at: string;            // ISO — when the auto-resend email was queued
+      to_email: string;
+      expires_at: string;         // new TTL for the freshly-issued token
+      previous_expired: boolean;  // true if the previous token was past its TTL
+      status: 'Delivered' | 'Bounced' | 'Failed';
+      error_message: string | null;
+    }>;
+    // Task-175 — Set once the auto-resend cap has been hit and the link is
+    // still expired (or near-expired) with no upload. Surfaces a "call the
+    // patient" task instead of silently re-trying forever.
+    auto_chase_escalated_at?: string | null;
+  } | null;
+
   created_at: string;
   updated_at: string;
+};
+
+// --- Courier Event (BLD-11.1 — Royal Mail webhook events) ---
+export type CourierEventType =
+  | 'accepted'          // RM accepted parcel from pharmacy
+  | 'collected'         // RM driver collected from depot
+  | 'in_transit'        // en route to delivery office
+  | 'out_for_delivery'  // on vehicle today
+  | 'delivered'         // successfully delivered
+  | 'exception';        // failed delivery / problem
+
+export type CourierEvent = {
+  id: string;
+  clinic_id: ClinicId;
+  order_id: string;
+  event_type: CourierEventType;
+  occurred_at: string;            // ISO 8601
+  location: string | null;        // e.g. "Manchester Delivery Office"
+  description: string;
+  is_exception: boolean;
+  exception_code: string | null;  // 'NOT_HOME' | 'ADDRESS_NOT_FOUND' | 'REFUSED' | 'DAMAGED'
+  postmark_triggered: boolean;    // BLD-11.3 — Postmark template fired for this event
 };
 
 // --- Consultation (DEC-40 — unified entity) ---
@@ -359,6 +663,7 @@ export type Incident = {
   yellow_card_required: boolean;
   yellow_card_submitted: boolean;
   yellow_card_reference: string | null;
+  yellow_card_decision: 'filed' | 'not_applicable' | null; // BLD-YC-01
   cqc_notification_required: boolean;
   cqc_notified_at: string | null;
   escalated_to_user_id: string | null;
@@ -368,6 +673,18 @@ export type Incident = {
   // BLD-8.1 additions (Wave 6 — DEC-10)
   intercom_thread_url: string | null;
   incident_origin: IncidentOrigin;
+  // Creator attribution
+  created_by_user_id: string | null;
+};
+
+export type IncidentComment = {
+  id: string;
+  incident_id: string;
+  user_id: string;
+  user_name: string;
+  user_initials: string;
+  body: string;
+  created_at: string;
 };
 
 // --- Complaint (DEC-37 — Monday source of truth; Livera mirrors) ---
@@ -520,6 +837,24 @@ export type CoachingLog = {
   structured_observations?: Record<string, unknown> | null;
 };
 
+// --- Calendly booking mirror (DEC-40 — BLD-CALENDLY-MIRROR-01) ---
+// Mirrored from Calendly via webhook events:
+//   invitee.created · invitee.canceled · invitee_no_show.created
+export type CalendlyBooking = {
+  id: string;                        // Livera internal ID
+  patient_id: string;
+  clinic_id: ClinicId;
+  calendly_event_id: string;         // evt_xxxxxxxx
+  event_type: string;                // e.g. "Coaching session · 30-min check-in"
+  scheduled_at: string;              // ISO — start datetime
+  end_at: string;                    // ISO — end datetime
+  coach_name: string;
+  booking_method: 'patient_self_booked' | 'coach_booked' | 'admin_booked';
+  booked_at: string;                 // ISO — when booking was created in Calendly
+  join_url: string | null;           // video meeting link, if applicable
+  status: 'scheduled' | 'cancelled' | 'no_show';
+};
+
 // --- Clinical escalation flag (DEC-05 — BLD-2.7) ---
 export type ClinicalEscalationFlag = {
   id: string;
@@ -574,6 +909,11 @@ export type ClinicalNote = {
   final_note: string | null;                   // what was signed off and saved
   tags: string[];                              // e.g. ['clinical_check', 'follow_up']
   visibility: 'clinical_team' | 'patient_record';
+  // Task-109 — set when the approval that anchored this note was reversed via
+  // the Undo toast. The note itself is preserved for audit (never deleted) but
+  // surfaces as "reversed" wherever it renders.
+  reversed_at?: string | null;
+  reversed_by_user_id?: string | null;
 };
 
 // --- Pharmacy Comm Thread (DEC-23, BLD-5.3) ---
@@ -603,6 +943,203 @@ export type PharmacyCommThread = {
   updated_at: string;
   messages: PharmacyCommMessage[];
   amendment_id: string | null;          // linked Amendment if thread = amendment comms (DEC-28)
+};
+
+// --- WelcomeCall (BLD-13.3) ---
+
+export type WelcomeCallStatus = 'awaiting' | 'attempted' | 'completed' | 'unreachable';
+export type WelcomeCallAttemptType = 'success' | 'no_answer' | 'voicemail';
+
+export type WelcomeCallAttempt = {
+  id: string;
+  type: WelcomeCallAttemptType;
+  timestamp: string;            // ISO
+  by_user_id: string;
+  duration_display: string;     // e.g. "8 min", "0:32"
+  channel: string;              // e.g. "Intercom telephone"
+  body: string;                 // plain text outcome line
+  notes?: string;               // clinician's own notes / quote
+};
+
+export type WelcomeCallOutcomeNote = {
+  id: string;
+  body: string;
+  by_user_id: string;
+  timestamp: string;            // ISO
+};
+
+export type WelcomeCallOutcome = {
+  outcome_summary: string;
+  patient_receptive?: boolean;
+  comfortable_with_app?: boolean;
+  side_effects_understood?: boolean;
+  follow_up_needed?: boolean;
+  follow_up_note?: string;
+  flag_raised_text?: string;
+  additional_notes?: WelcomeCallOutcomeNote[];
+};
+
+export type WelcomeCallFlag = {
+  flag_id: string;
+  flag_name: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  reason: string;
+  raised_by_user_id: string;
+};
+
+export type WelcomeCall = {
+  id: string;                   // WC-XXXX
+  patient_id: string;
+  order_id: string;
+  clinic_id: ClinicId;
+  status: WelcomeCallStatus;
+  owner_user_id: string;
+  trigger_description: string;
+  triggered_at: string;         // ISO — when the dispatch fired
+  attempts: WelcomeCallAttempt[];
+  outcome?: WelcomeCallOutcome;
+  flag_raised?: WelcomeCallFlag;
+  created_at: string;           // ISO
+  updated_at: string;           // ISO
+};
+
+// --- Task (BLD-13.2) ---
+
+export type TaskStatus = 'todo' | 'progress' | 'done' | 'blocked';
+export type TaskPriority = 'high' | 'med' | 'low';
+export type TaskLinkedType = 'Patient' | 'Order' | 'Incident' | 'Complaint';
+
+export type TaskLinkedRecord = {
+  type: TaskLinkedType;
+  ref: string;
+  label: string;        // human-readable: e.g. "ORD-01287 · Sarah Chen · 0.25mg semaglutide"
+  meta?: string;        // e.g. "Status: In Clinical Check · Submitted 01 May 2026"
+};
+
+export type TaskSubtask = {
+  id: string;
+  title: string;
+  done: boolean;
+  due_label?: string;   // display string e.g. "Today", "02 May"
+};
+
+export type TaskActivityKind =
+  | 'created'
+  | 'status_change'
+  | 'assigned'
+  | 'comment'
+  | 'note'
+  | 'subtask_done'
+  | 'linked';
+
+export type TaskActivity = {
+  id: string;
+  kind: TaskActivityKind;
+  actor_user_id: string;
+  timestamp: string;           // ISO
+  content?: string;            // for comment / note
+  from_status?: TaskStatus;
+  to_status?: TaskStatus;
+  subtask_title?: string;
+  linked_ref?: string;
+  assigned_to_user_id?: string;
+};
+
+export type Task = {
+  id: string;                  // TSK-XXXX
+  title: string;
+  description: string;
+  owner_user_id: string;
+  reporter_user_id: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  due_date: string;            // ISO date e.g. '2026-05-11'
+  clinic_id: ClinicId;
+  linked?: TaskLinkedRecord;
+  subtasks: TaskSubtask[];
+  activity: TaskActivity[];
+  created_at: string;          // ISO
+  updated_at: string;          // ISO
+};
+
+// --- DiscontinuationProtocol (BLD-13.5) ---
+// Created when a patient's treatment is discontinued for any reason.
+// Triggers GP notification (GP letter) + follow-up SLA.
+export type DiscontinuationReason =
+  | 'patient_request'
+  | 'clinical_decision'
+  | 'non_compliance'
+  | 'adverse_event'
+  | 'lost_to_follow_up';
+
+export type DiscontinuationStatus =
+  | 'initiated'
+  | 'gp_notified'
+  | 'follow_up_pending'
+  | 'closed';
+
+export type DiscontinuationProtocol = {
+  id: string;                        // DISC-XXXXX
+  clinic_id: ClinicId;
+  patient_id: string;
+  order_id: string | null;           // linked order if applicable
+  reason: DiscontinuationReason;
+  reason_detail: string;
+  created_at: string;                // ISO
+  created_by: string;                // user_id
+  status: DiscontinuationStatus;
+  gp_notified_at: string | null;     // ISO — when GP letter was sent
+  follow_up_call_at: string | null;  // ISO — when follow-up call was completed
+  sla_follow_up_days: number;        // from clinic config, default 7
+  closed_at: string | null;
+  notes: string;
+};
+
+// --- QuestionItem (BLD-13.4) ---
+// Configurable questionnaire question — used in ClinicConfig.questionnaire_order
+// and questionnaire_reorder. The builder in Settings → Questionnaire edits these.
+export type QuestionType = 'text' | 'yes_no' | 'scale' | 'number' | 'choice';
+
+export type QuestionItem = {
+  id: string;
+  label: string;
+  type: QuestionType;
+  required: boolean;
+  order: number;
+  placeholder?: string;
+  help_text?: string;
+  options?: string[];      // for type = 'choice'
+  scale_min?: number;      // for type = 'scale'
+  scale_max?: number;      // for type = 'scale'
+  safety_flag?: boolean;   // BLD-13.4 — if true, a yes_no "yes" answer triggers a clinical "Review needed" highlight on the order questionnaire card. Non-safety questions stay neutral regardless of answer.
+  safety_category?: SafetyCategory; // Task-168 — groups flagged answers by clinical theme (cardiac, mental health, etc.) so the "Review needed" popover stays scannable. Only meaningful when safety_flag is true. Inferred from the label when omitted.
+};
+
+// --- SafetyCategory (Task-168) ---
+// Clinical theme used to group safety-flagged questionnaire answers on the
+// Clinical Check queue popover so long lists stay scannable.
+export type SafetyCategory =
+  | 'cardiac'
+  | 'mental_health'
+  | 'safeguarding'
+  | 'allergy'
+  | 'pregnancy'
+  | 'medication'
+  | 'other';
+
+// --- TreatmentGapRule (BLD-14.6) ---
+// Configurable rules that fire when a patient's reorder gap exceeds thresholds.
+// Stored in ClinicConfig.treatment_gap_rules[].
+export type TreatmentGapAction = 'warn' | 'block_reorder' | 'require_consult';
+
+export type TreatmentGapRule = {
+  id: string;
+  label: string;
+  gap_days_min: number;          // minimum gap since last dispensed order (calendar days)
+  gap_days_max: number | null;   // null = no upper bound
+  action: TreatmentGapAction;
+  action_copy: string;           // message shown to clinician when rule fires
+  enabled: boolean;
 };
 
 // --- SlaBreach (BLD-3.2) ---

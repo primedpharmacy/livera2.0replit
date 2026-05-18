@@ -14,30 +14,33 @@
  */
 
 import type { ClinicId, ClinicalNote, CoachingLog, Order, GPLetter, AdminNote, User } from '@/lib/api/types';
-import { adaptClinicalNote } from './adapters/clinicalNote';
-import { adaptCoachingLog }  from './adapters/coachingLog';
-import { adaptOrderEvent }   from './adapters/orderEvent';
-import { adaptGpLetter }     from './adapters/gpLetter';
-import { adaptAdminNote }    from './adapters/adminNote';
+import type { PatientPreferredChannelChange } from '@/lib/api/fixtures/patients';
+import { adaptClinicalNote }  from './adapters/clinicalNote';
+import { adaptCoachingLog }   from './adapters/coachingLog';
+import { adaptOrderEvent }    from './adapters/orderEvent';
+import { adaptGpLetter }      from './adapters/gpLetter';
+import { adaptAdminNote }     from './adapters/adminNote';
+import { adaptChannelChange } from './adapters/channelChange';
 import type { TimelineEntry, TimelineFilter } from './types';
 
 type TimelineInput = {
-  clinicalNotes: ClinicalNote[];
-  coachingLogs:  CoachingLog[];
-  orders:        Order[];
-  gpLetters:     GPLetter[];
-  adminNotes:    AdminNote[];   // BLD-4.5.3 — hidden from Coach
-  clinicId:      ClinicId;
-  actor:         User;
+  clinicalNotes:  ClinicalNote[];
+  coachingLogs:   CoachingLog[];
+  orders:         Order[];
+  gpLetters:      GPLetter[];
+  adminNotes:     AdminNote[];   // BLD-4.5.3 — hidden from Coach
+  channelChanges?: PatientPreferredChannelChange[];  // Task-223 — preferred-channel breadcrumbs
+  clinicId:       ClinicId;
+  actor:          User;
   /** Optional display-name maps for author labels */
-  userNames?:    Record<string, string>;
+  userNames?:     Record<string, string>;
 };
 
 export function aggregateTimeline(
   input: TimelineInput,
   filter?: TimelineFilter,
 ): TimelineEntry[] {
-  const { clinicalNotes, coachingLogs, orders, gpLetters, adminNotes, clinicId, actor, userNames = {} } = input;
+  const { clinicalNotes, coachingLogs, orders, gpLetters, adminNotes, channelChanges = [], clinicId, actor, userNames = {} } = input;
 
   const entries: TimelineEntry[] = [];
 
@@ -45,7 +48,12 @@ export function aggregateTimeline(
   // Wave 6.5 cascade fix: all roles read clinical notes. Write is gated at
   // component level (ClinicalNoteEditor checks can(actor,'write','clinical_notes')).
   for (const n of clinicalNotes) {
-    entries.push(adaptClinicalNote(n, clinicId, userNames[n.author_user_id]));
+    entries.push(adaptClinicalNote(
+      n,
+      clinicId,
+      userNames[n.author_user_id],
+      n.reversed_by_user_id ? userNames[n.reversed_by_user_id] : undefined,
+    ));
   }
 
   // ── Coaching logs ─────────────────────────────────────────────────────────
@@ -58,7 +66,15 @@ export function aggregateTimeline(
     const prescriberName = o.clinical_decision
       ? userNames[o.clinical_decision.prescriber_user_id]
       : undefined;
-    entries.push(...adaptOrderEvent(o, clinicId, prescriberName));
+    // Task-234 — Build a reverser-name map from `userNames` so the patient
+    // timeline can label each reversal entry with the clinician who undid
+    // the decision (mirrors the order-detail Activity log).
+    const reverserNames: Record<string, string> = {};
+    for (const rev of o.reversal_log ?? []) {
+      const name = userNames[rev.reversed_by_user_id];
+      if (name) reverserNames[rev.reversed_by_user_id] = name;
+    }
+    entries.push(...adaptOrderEvent(o, clinicId, prescriberName, reverserNames));
   }
 
   // ── GP Letters ────────────────────────────────────────────────────────────
@@ -72,6 +88,14 @@ export function aggregateTimeline(
   // component level (AdminNoteFABModal checks can(actor,'write','admin_notes')).
   for (const n of adminNotes) {
     entries.push(adaptAdminNote(n, clinicId, userNames[n.created_by_user_id]));
+  }
+
+  // ── Preferred-channel changes ─────────────────────────────────────────────
+  // Task-223 — same audit projection used by PreferredChannelHistory and the
+  // Notification log tab. Visible to anyone with read:patients (gated at the
+  // route level, same posture as PreferredChannelHistory).
+  for (const c of channelChanges) {
+    entries.push(adaptChannelChange(c, clinicId));
   }
 
   // ── Apply filter ───────────────────────────────────────────────────────────

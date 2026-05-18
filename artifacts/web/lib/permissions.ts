@@ -147,14 +147,20 @@ function roleMatrix(
       if (action === 'write'       && resource === 'admin_notes')          return true;  // Wave 5 BLD-4.5.1
       if (action === 'write'       && resource === 'gp_letter_templates')  return true;  // Wave 5 BLD-7.6
       if (action === 'write'       && resource === 'complaints')           return true;  // Wave 6 BLD-9.1
+      if (action === 'write'       && resource === 'patients')             return true;  // task-104 — preferred-channel editor (purge stays Owner-only via explicit role check)
       return false;
 
     // BLD-8.3 (Wave 6) — System actor: webhook-internal mutations only.
     // No human role has write access to 'intercom_webhooks'.
     // System actor also writes 'incidents' (webhook-triggered incident creation).
+    // Task-286 — System actor also writes 'patients' so the auto-channel-switch
+    // sweep (autoSwitchBouncedSmsChannel) can flip preferred_channel to email
+    // for patients whose phone has bounced N times in a row, reusing the same
+    // updatePatientPreferredChannel gate / audit trail as staff edits.
     case 'System':
       if (action === 'write' && resource === 'intercom_webhooks') return true;
       if (action === 'write' && resource === 'incidents')          return true;
+      if (action === 'write' && resource === 'patients')           return true;
       return false;
 
     // Deprecated roles — no access in V1.2 UI

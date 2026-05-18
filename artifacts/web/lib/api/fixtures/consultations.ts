@@ -5,7 +5,7 @@
  */
 
 import type { ClinicId, Consultation } from '../types';
-import { delay, APIError, scopedToClinic } from '../constants';
+import { delay, APIError, scopedToClinic, CURRENT_USER } from '../constants';
 
 export const MOCK_CONSULTATIONS: Consultation[] = [
   // ─── FeelTru consultations ────────────────────────────────────────────────
@@ -198,4 +198,53 @@ export async function getConsultation(clinic_id: ClinicId, id: string): Promise<
   const c = MOCK_CONSULTATIONS.find((x) => x.clinic_id === clinic_id && x.id === id);
   if (!c) throw new APIError('NOT_FOUND', 'Consultation not found');
   return c;
+}
+
+// ── BLD-CONS-DETAIL-01 — updateConsultationStatus ─────────────────────────────
+// Advances the consultation through its 4-phase lifecycle.
+// Writes AUD-04 audit trail entry on every status transition.
+export async function updateConsultationStatus(
+  clinic_id: ClinicId,
+  consultation_id: string,
+  status: Consultation['status'],
+  actor = CURRENT_USER
+): Promise<Consultation> {
+  await delay(400);
+
+  const idx = MOCK_CONSULTATIONS.findIndex(
+    (c) => c.clinic_id === clinic_id && c.id === consultation_id
+  );
+  if (idx === -1) throw new APIError('NOT_FOUND', `Consultation ${consultation_id} not found`);
+
+  const now           = new Date().toISOString();
+  const previousStatus = MOCK_CONSULTATIONS[idx].status;   // capture BEFORE mutation
+  const updated        = { ...MOCK_CONSULTATIONS[idx] };
+
+  updated.status = status;
+
+  if (status === 'in_progress' && !updated.actual_start) {
+    updated.actual_start = now;
+  }
+  if (
+    (status === 'completed' || status === 'no_show' || status === 'cancelled') &&
+    !updated.actual_end
+  ) {
+    updated.actual_end = now;
+  }
+
+  MOCK_CONSULTATIONS[idx] = updated;
+
+  console.log('[AUDIT] AUD-04', {
+    event_type: 'consultation_status_changed',
+    outcome: 'success',
+    consultation_id,
+    clinic_id,
+    actor_id: actor.id,
+    previous_status: previousStatus,
+    new_status: status,
+    timestamp: now,
+    legal_basis: 'UK GDPR Art 9(2)(h) — health care and treatment (DEC-40)',
+  });
+
+  return updated;
 }

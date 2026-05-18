@@ -4,8 +4,8 @@
  * Contains: MOCK_AMENDMENTS, listAmendments, getAmendment, decideAmendment.
  */
 
-import type { ClinicId, Amendment } from '../types';
-import { delay, APIError, scopedToClinic, CURRENT_USER, NOW } from '../constants';
+import type { ClinicId, Amendment, User } from '../types';
+import { delay, APIError, scopedToClinic, NOW } from '../constants';
 import { MOCK_ORDERS } from './orders';
 import { MOCK_PATIENTS } from './patients';
 import { refundPayment } from '@/lib/integrations/ryft';
@@ -94,7 +94,8 @@ export async function decideAmendment(
   clinic_id: ClinicId,
   id: string,
   decision: 'approved' | 'rejected',
-  rationale: string
+  rationale: string,
+  actor: User,
 ): Promise<Amendment> {
   // Layer 3 — Audit: log every attempt before any validation
   // TODO: Replace with audit_event API call when backend is ready
@@ -102,7 +103,7 @@ export async function decideAmendment(
     event_type: 'amendment_decision_attempt',
     clinic_id,
     amendment_id: id,
-    user_id: CURRENT_USER.id,
+    user_id: actor.id,
     decision_attempted: decision,
     rationale,
     timestamp: new Date().toISOString(),
@@ -132,7 +133,7 @@ export async function decideAmendment(
         outcome: 'safety_violation',
         reason: 'high_severity_flag_unacknowledged',
         amendment_id: id,
-        user_id: CURRENT_USER.id,
+        user_id: actor.id,
         timestamp: new Date().toISOString(),
       });
       throw new APIError('SAFETY_VIOLATION', 'Cannot approve: patient has an unacknowledged high-severity clinical flag');
@@ -140,7 +141,7 @@ export async function decideAmendment(
   }
 
   a.status = decision === 'approved' ? 'approved' : 'rejected';
-  a.decided_by = CURRENT_USER.id;
+  a.decided_by = actor.id;
   a.decided_at = new Date().toISOString();
   a.decision_rationale = rationale;
 
@@ -149,15 +150,15 @@ export async function decideAmendment(
     event_type: 'amendment_decision_result',
     outcome: decision,
     amendment_id: id,
-    user_id: CURRENT_USER.id,
+    user_id: actor.id,
     timestamp: new Date().toISOString(),
   });
   void recordAudit({
     clinic_id,
-    actor: CURRENT_USER,
+    actor,
     entity: { type: 'amendment', id },
     event_type: `amendment_${decision}`,
-    summary: `Amendment ${id} ${decision} by ${CURRENT_USER.full_name}.`,
+    summary: `Amendment ${id} ${decision} by ${actor.full_name}.`,
     after: { decision, type: a.type, order_id: a.order_id, rationale },
   });
 
@@ -198,12 +199,13 @@ export async function processRefundAmendment(
   clinic_id: ClinicId,
   amendment_id: string,
   input: RefundDecisionInput,
+  actor: User,
 ): Promise<Amendment> {
   console.log('[AUDIT]', {
     event_type: 'refund_amendment_decision_attempt',
     clinic_id,
     amendment_id,
-    user_id: CURRENT_USER.id,
+    user_id: actor.id,
     decision_attempted: input.decision,
     timestamp: NOW,
   });
@@ -218,13 +220,13 @@ export async function processRefundAmendment(
   }
 
   // Layer 2 — refund-authority gate
-  if (!CURRENT_USER.can_refund) {
+  if (!actor.can_refund) {
     console.log('[AUDIT]', {
       event_type: 'refund_amendment_decision_result',
       outcome: 'safety_violation',
       reason: 'no_refund_authority',
       amendment_id,
-      user_id: CURRENT_USER.id,
+      user_id: actor.id,
       timestamp: NOW,
     });
     throw new APIError('FORBIDDEN', 'You do not have refund authority on this clinic.');
@@ -238,22 +240,22 @@ export async function processRefundAmendment(
       throw new APIError('VALIDATION', 'A rationale is required when rejecting a refund.');
     }
     a.status = 'rejected';
-    a.decided_by = CURRENT_USER.id;
+    a.decided_by = actor.id;
     a.decided_at = NOW;
     a.decision_rationale = input.rationale.trim();
     console.log('[AUDIT]', {
       event_type: 'refund_amendment_decision_result',
       outcome: 'rejected',
       amendment_id,
-      user_id: CURRENT_USER.id,
+      user_id: actor.id,
       timestamp: NOW,
     });
     void recordAudit({
       clinic_id,
-      actor: CURRENT_USER,
+      actor,
       entity: { type: 'amendment', id: amendment_id },
       event_type: 'refund_rejected',
-      summary: `Refund ${amendment_id} rejected by ${CURRENT_USER.full_name}.`,
+      summary: `Refund ${amendment_id} rejected by ${actor.full_name}.`,
       after: { decision: 'rejected', order_id: a.order_id, rationale: input.rationale.trim() },
     });
     return a;
@@ -279,7 +281,7 @@ export async function processRefundAmendment(
   );
 
   a.status = 'applied';
-  a.decided_by = CURRENT_USER.id;
+  a.decided_by = actor.id;
   a.decided_at = NOW;
   a.decision_rationale =
     input.rationale?.trim() ||
@@ -296,17 +298,17 @@ export async function processRefundAmendment(
     event_type: 'refund_amendment_decision_result',
     outcome: 'applied',
     amendment_id,
-    user_id: CURRENT_USER.id,
+    user_id: actor.id,
     refunded_amount_gbp: input.amount_gbp,
     ryft_refund_ref: result.ryft_refund_ref,
     timestamp: NOW,
   });
   void recordAudit({
     clinic_id,
-    actor: CURRENT_USER,
+    actor,
     entity: { type: 'amendment', id: amendment_id },
     event_type: 'refund_issued',
-    summary: `Refund of £${input.amount_gbp.toFixed(2)} issued on ${a.order_id} by ${CURRENT_USER.full_name}.`,
+    summary: `Refund of £${input.amount_gbp.toFixed(2)} issued on ${a.order_id} by ${actor.full_name}.`,
     after: {
       order_id: a.order_id,
       refund_type: input.refund_type,

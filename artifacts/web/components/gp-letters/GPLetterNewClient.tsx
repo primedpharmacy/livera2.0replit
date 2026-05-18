@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createGPLetter } from "@/lib/api/mock";
+import { createGPLetterAction } from "@/lib/actions/gpLetterActions";
 import type { Patient, Clinic, ClinicId, GPLetterTemplate } from "@/types";
 
 interface Props {
@@ -16,21 +16,50 @@ interface Props {
 }
 
 function fillTemplate(template: string, patient: Patient, clinic: Clinic): string {
+  const addr = patient.demographic.address;
+  const addrLine = [addr.line1, addr.line2, addr.city, addr.postcode].filter(Boolean).join(", ");
   return template
-    .replace(/\{\{patient_name\}\}/g, patient.demographic.full_name)
-    .replace(/\{\{gp_name\}\}/g, patient.gp?.name ?? "Dear GP")
-    .replace(/\{\{medication\}\}/g, "GLP-1 medication")
-    .replace(/\{\{dose\}\}/g, "current prescribed dose")
-    .replace(/\{\{clinic_name\}\}/g, clinic.config.clinic_name)
-    .replace(/\{\{clinic_email\}\}/g, `admin@${clinic.config.clinic_name.toLowerCase().replace(/\s+/g, "")}.com`);
+    .replace(/\{\{patient_name\}\}/g,    patient.demographic.full_name)
+    .replace(/\{\{patient_dob\}\}/g,     patient.demographic.dob)
+    .replace(/\{\{patient_address\}\}/g, addrLine)
+    .replace(/\{\{gp_name\}\}/g,         patient.gp?.name ?? "Dear GP")
+    .replace(/\{\{gp_surgery\}\}/g,      patient.gp?.address ?? "")
+    .replace(/\{\{medication\}\}/g,      "GLP-1 medication")
+    .replace(/\{\{dose\}\}/g,            "current prescribed dose")
+    .replace(/\{\{order_summary\}\}/g,   "")
+    .replace(/\{\{prescriber_name\}\}/g, "")
+    .replace(/\{\{clinic_name\}\}/g,     clinic.config.clinic_name)
+    .replace(/\{\{clinic_email\}\}/g,    clinic.config.reply_email)
+    .replace(/\{\{clinic_phone\}\}/g,    "")
+    .replace(/\{\{today_date\}\}/g,      new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }));
 }
 
 export function GPLetterNewClient({ patients, templates, clinic, clinicId }: Props) {
   const router = useRouter();
-  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const searchParams = useSearchParams();
+  const initialPatientId = (() => {
+    const q = searchParams?.get("patient_id");
+    return q && patients.some((p) => p.id === q) ? q : "";
+  })();
+  const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId);
+
+  // If the URL param arrives or changes after mount (e.g. client-side
+  // navigation from the welcome-call detail page), preselect the patient
+  // — but never clobber a value the user has already chosen manually.
+  useEffect(() => {
+    const q = searchParams?.get("patient_id");
+    if (q && q !== selectedPatientId && patients.some((p) => p.id === q) && selectedPatientId === "") {
+      setSelectedPatientId(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  // BLD-7.1 — Right-hand PDF letter preview (read-only). Rendered as the
+  // Postmark attachment by sendGPLetterAction.
+  const [pdfPreview, setPdfPreview] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,14 +71,19 @@ export function GPLetterNewClient({ patients, templates, clinic, clinicId }: Pro
     setSelectedTemplateId("");
     setSubject("");
     setBody("");
+    setPdfPreview("");
   }
 
   function handleTemplateChange(templateId: string) {
     setSelectedTemplateId(templateId);
     const tpl = templates.find((t) => t.id === templateId);
-    if (tpl && selectedPatient) {
-      setBody(fillTemplate(tpl.email_body_template, selectedPatient, clinic));
-      setSubject(`${tpl.name} — ${selectedPatient.demographic.full_name}`);
+    const patient = patients.find((p) => p.id === selectedPatientId);
+    if (tpl && patient) {
+      setBody(fillTemplate(tpl.email_body_template, patient, clinic));
+      setPdfPreview(fillTemplate(tpl.pdf_letter_template, patient, clinic));
+      setSubject(`${tpl.name} — ${patient.demographic.full_name}`);
+    } else {
+      setPdfPreview("");
     }
   }
 
@@ -61,7 +95,7 @@ export function GPLetterNewClient({ patients, templates, clinic, clinicId }: Pro
     setError(null);
     setIsSubmitting(true);
     try {
-      const letter = await createGPLetter(clinicId, {
+      const letter = await createGPLetterAction(clinicId, {
         patient_id: selectedPatientId,
         template_id: selectedTemplateId || "custom",
         subject,
@@ -95,7 +129,7 @@ export function GPLetterNewClient({ patients, templates, clinic, clinicId }: Pro
       <div className="grid grid-cols-3 gap-4 px-6 py-4">
         <div className="col-span-2 space-y-4">
           <div className="bg-surface border border-bdr rounded-lg p-4">
-            <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-2">Subject</h3>
+            <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-2">Email subject</h3>
             <input
               type="text"
               value={subject}
@@ -104,15 +138,37 @@ export function GPLetterNewClient({ patients, templates, clinic, clinicId }: Pro
               className="w-full text-[13px] bg-page-bg border border-bdr rounded-md px-3 py-2 text-t1 placeholder:text-t3 focus:outline-none focus:ring-1 focus:ring-brand"
             />
           </div>
-          <div className="bg-surface border border-bdr rounded-lg p-4">
-            <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3 mb-3">Letter body</h3>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Dear Dr. …"
-              rows={16}
-              className="w-full text-[13px] font-sans bg-page-bg border border-bdr rounded-md px-3 py-2 text-t1 placeholder:text-t3 focus:outline-none focus:ring-1 focus:ring-brand resize-y"
-            />
+          {/* BLD-7.1 — two-template layout: Email Body (left, editable) + PDF Letter (right, preview) */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="bg-surface border border-bdr rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3">Email body</h3>
+                <span className="text-[10px] text-t3">Postmark message body</span>
+              </div>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Dear Dr. …"
+                rows={20}
+                className="w-full text-[13px] font-sans bg-page-bg border border-bdr rounded-md px-3 py-2 text-t1 placeholder:text-t3 focus:outline-none focus:ring-1 focus:ring-brand resize-y"
+              />
+            </div>
+            <div className="bg-surface border border-bdr rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[11px] uppercase tracking-wider font-bold text-t3">PDF letter preview</h3>
+                <span className="text-[10px] text-t3">Attached as gp_letter_…pdf</span>
+              </div>
+              <div
+                className="border border-bdr rounded-md bg-page-bg px-3 py-2 overflow-auto text-[12px] text-t1 font-sans whitespace-pre-wrap leading-relaxed"
+                style={{ minHeight: "26rem", maxHeight: "32rem" }}
+                aria-label="PDF letter preview"
+                data-testid="gp-letter-pdf-preview"
+              >
+                {pdfPreview
+                  ? pdfPreview
+                  : <span className="text-t3 italic">Select a template to preview the PDF that will be attached.</span>}
+              </div>
+            </div>
           </div>
           <div className="flex flex-col gap-2 items-end">
             <Button size="sm" onClick={handleSave} disabled={isSubmitting || !selectedPatientId}>

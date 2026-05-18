@@ -26,8 +26,8 @@ import {
   createGPLetterTemplate,
   updateGPLetterTemplate,
   deleteGPLetterTemplate,
-  CURRENT_USER,
 } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { ClinicId, GPLetterTemplate, GpLetterTemplateCategory } from "@/types";
@@ -68,6 +68,7 @@ const CATEGORIES = Object.keys(CATEGORY_LABELS) as GpLetterTemplateCategory[];
 type ModalMode = "create" | "edit" | "preview";
 
 export function GpLetterTemplatesEditor({ clinicId, initialTemplates }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const [templates, setTemplates] = useState<GPLetterTemplate[]>(initialTemplates);
   const [toast, setToast]         = useState<Toast | null>(null);
   const [modal, setModal]         = useState<{ mode: ModalMode; template?: GPLetterTemplate } | null>(null);

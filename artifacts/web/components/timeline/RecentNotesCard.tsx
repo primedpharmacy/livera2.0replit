@@ -10,7 +10,8 @@
 
 import Link from "next/link";
 import { FileText, ChevronRight } from "lucide-react";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
+import { USERS_REGISTRY } from "@/lib/api/mock";
 import type { ClinicId, ClinicalNote } from "@/types";
 
 interface RecentNotesCardProps {
@@ -54,7 +55,11 @@ export function RecentNotesCard({
         </div>
       ) : (
         <div className="divide-y divide-bdr">
-          {visible.map((note) => (
+          {visible.map((note) => {
+            const reverserName = note.reversed_by_user_id
+              ? (USERS_REGISTRY[note.reversed_by_user_id]?.full_name ?? note.reversed_by_user_id)
+              : null;
+            return (
             <div key={note.id} className="px-4 py-3 space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-mono text-t3">{note.id}</span>
@@ -66,6 +71,14 @@ export function RecentNotesCard({
                     Approval note
                   </span>
                 )}
+                {note.reversed_at && (
+                  <span
+                    className="text-[9px] font-bold px-1.5 py-px rounded border bg-err-bg text-err border-err-bdr"
+                    title={`Reversed by ${reverserName ?? "unknown"} · ${formatDateTime(note.reversed_at)}`}
+                  >
+                    Reversed
+                  </span>
+                )}
                 {note.edit_history.length > 0 && (
                   <span className="text-[9px] text-t3 ml-auto">
                     edited {note.edit_history.length}×
@@ -73,9 +86,18 @@ export function RecentNotesCard({
                 )}
                 <span className="text-[10px] text-t3 ml-auto">{formatDate(note.created_at)}</span>
               </div>
-              <p className="text-[12px] text-t1 leading-relaxed line-clamp-2">
+              <p
+                className={`text-[12px] leading-relaxed line-clamp-2 ${
+                  note.reversed_at ? "text-t3 line-through" : "text-t1"
+                }`}
+              >
                 {note.body}
               </p>
+              {note.reversed_at && (
+                <p className="text-[10px] text-err">
+                  Reversed by {reverserName ?? "unknown"} · {formatDateTime(note.reversed_at)}
+                </p>
+              )}
               {note.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {note.tags.map((tag) => (
@@ -86,7 +108,8 @@ export function RecentNotesCard({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

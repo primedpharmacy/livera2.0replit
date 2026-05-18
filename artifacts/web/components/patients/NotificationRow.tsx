@@ -1,0 +1,299 @@
+/**
+ * Shared renderer for a single PatientNotification row.
+ *
+ * Originally inlined inside `app/(workspace)/[clinic_id]/patients/[patient_id]/page.tsx`
+ * (the per-patient Notification log tab — BLD-FCM-LOG-01). Task-199 extracts
+ * it so any *other* consumer of `listPatientNotifications` / notification
+ * rows that wants to render a status chip inherits the carrier-reason
+ * rendering automatically — i.e. Failed/Bounced SMS rows always show the
+ * Twilio `last_error` inline AND as a tooltip on the status chip, matching
+ * the behaviour added in Task-137 / Task-173, instead of any new global or
+ * order-level notification surface re-implementing it (and forgetting).
+ */
+
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { AlertCircle, CheckCircle2, Clock, XCircle } from "lucide-react";
+import type { PatientNotification } from "@/lib/api/mock";
+import type { ClinicId } from "@/lib/api/types";
+import { NOW } from "@/lib/api/constants";
+import { formatDateTime } from "@/lib/format";
+import { EmailPreviewButton } from "@/components/patients/EmailPreviewButton";
+import { ResendNotificationButton } from "@/components/patients/ResendNotificationButton";
+import { SwitchToEmailButton } from "@/components/patients/SwitchToEmailButton";
+// Task-302 — the friendly Twilio carrier-reason vocabulary is now shared
+// between this per-row chip and the new clinic-level bounce breakdown so
+// both surfaces always agree on label text. See
+// lib/notifications/smsCarrierReasons.ts.
+import { formatSmsCarrierReason } from "@/lib/notifications/smsCarrierReasons";
+
+export type ResendActionResult = { ok: true } | { ok: false; reason: string };
+
+export function NotificationRow({
+  notification: n,
+  clinicId,
+  patientId,
+  canResend,
+  onResend,
+  currentChannel,
+  canSwitchChannel,
+}: {
+  notification: PatientNotification;
+  clinicId: ClinicId;
+  // Task-200 — patientId, currentChannel and canSwitchChannel are optional
+  // so non-patient-profile consumers of this shared row (e.g. order-level
+  // notification surfaces) don't have to wire them up. The Switch-to-email
+  // recovery action only mounts when all three are provided AND the row is
+  // a Bounced/Failed SMS for a patient not already on email.
+  patientId?: string;
+  canResend: boolean;
+  onResend: (notificationId: string) => Promise<ResendActionResult>;
+  currentChannel?: 'email' | 'sms' | 'phone';
+  canSwitchChannel?: boolean;
+}) {
+  // Task-257 — keep the "Auto-retry in X" countdown ticking live without
+  // requiring a page reload. The mock fixture's NOW is a frozen constant so
+  // we anchor on it at mount and then advance by real wall-clock elapsed
+  // time, re-rendering once a second. When `next_retry_at` passes, the
+  // pill flips to a "retry due now" state via formatAutoRetryIn returning
+  // null below.
+  const liveNow = useLiveNow(NOW);
+  const statusMeta =
+    n.status === "Delivered"
+      ? { Icon: CheckCircle2, cls: "bg-ok-bg text-ok border-ok-bdr" }
+      : n.status === "Queued"
+      ? { Icon: Clock, cls: "bg-info-bg text-info border-info-bdr" }
+      : n.status === "Failed"
+      ? { Icon: AlertCircle, cls: "bg-warn-bg text-warn border-warn-bdr" }
+      : { Icon: XCircle, cls: "bg-err-bg text-err border-err-bdr" };
+  const StatusIcon = statusMeta.Icon;
+
+  return (
+    // Task-201 — stable test hook so the SMS carrier-failure browser test
+    // can scope per-row assertions to the exact NotificationRow being checked.
+    <div
+      className="px-4 py-3 scroll-mt-20 target:bg-info-bg/40"
+      // Task-299 — stable DOM anchor so the email-envelope backfill panel can
+      // deep-link unrecoverable rows straight to the entry they refer to via
+      // `#notification-<id>`. `scroll-mt-20` keeps the tab bar from covering
+      // the row when the browser jumps to it.
+      id={`notification-${n.id}`}
+      data-testid={`notification-row-${n.id}`}
+    >
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="font-mono text-[11px] font-semibold text-t2 shrink-0">{n.id}</span>
+        <span
+          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-px rounded-full border shrink-0 ${statusMeta.cls}`}
+          // Task-137 — surface the carrier reason as a tooltip on the status
+          // chip itself so clinicians scanning the log see WHY an SMS failed
+          // without expanding the row.
+          title={n.last_error ?? undefined}
+        >
+          <StatusIcon className="w-3 h-3" /> {n.status}
+        </span>
+        <span className="text-[11px] font-semibold text-t2 shrink-0">{n.channel}</span>
+        <span className="text-[12px] text-t1 font-medium">{n.type.replace(/_/g, " ")}</span>
+        {n.order_id && (
+          <Link
+            href={`/${clinicId}/orders/${n.order_id}`}
+            className="font-mono text-[11px] text-brand hover:underline shrink-0"
+          >
+            {n.order_id}
+          </Link>
+        )}
+        <span className="text-[11px] text-t3 ml-auto shrink-0">{formatDateTime(n.sent_at)}</span>
+      </div>
+      {/* Task-173 — surface the underlying failure reason and the relative
+          auto-retry countdown inline on Failed/Bounced rows so staff can
+          decide whether to wait or resend without opening the payload. The
+          full error is preserved in the `title` tooltip when truncated.
+          The retry pill is shown independently of `last_error` so a Failed
+          row with a future `next_retry_at` still surfaces the countdown
+          even when no error string was captured.
+
+          Task-208 — for SMS rows specifically, the raw Twilio reason
+          ("Unreachable destination handset (Twilio 30003)") is too verbose
+          for an at-a-glance scan. Show a short friendly summary inline
+          ("Unreachable handset") and keep the raw Twilio string in the
+          `title` tooltip so the carrier code is still recoverable on hover.
+          Email rows continue to render the raw `last_error` inline — their
+          retry/error UI (Postmark codes, retry budget pill) is already
+          dialled in and doesn't need a synonym layer. */}
+      {(() => {
+        const showError = (n.status === "Failed" || n.status === "Bounced") && !!n.last_error;
+        const autoRetryIn =
+          n.status === "Failed" && n.next_retry_at
+            ? formatAutoRetryIn(n.next_retry_at, liveNow)
+            : null;
+        // Task-257 — once the scheduled retry time has elapsed in the live
+        // clock, show a "retry due now" indicator instead of letting the pill
+        // simply disappear. This makes it obvious to staff that the next
+        // scheduler sweep should pick the row up imminently.
+        const retryDueNow =
+          n.status === "Failed"
+          && n.next_retry_at
+          && new Date(n.next_retry_at).getTime() <= new Date(liveNow).getTime();
+        if (!showError && !autoRetryIn && !retryDueNow) return null;
+        const inlineErrorText =
+          n.channel === "SMS" && n.last_error
+            // Task-302 — pass the structured `sms_error_code` so the
+            // friendly summary lookup happens directly against the
+            // captured Twilio code; the function still falls back to
+            // parsing the code out of the raw string for older rows
+            // that pre-date the structured field.
+            ? formatSmsCarrierReason(n.last_error, n.sms_error_code)
+            : n.last_error;
+        return (
+          <div className="mt-1.5 flex items-start gap-2 text-[11px] text-err leading-relaxed">
+            {showError ? (
+              <>
+                <AlertCircle className="w-3 h-3 mt-px shrink-0" />
+                <span
+                  className="truncate min-w-0 flex-1"
+                  title={n.last_error ?? undefined}
+                >
+                  <span className="font-semibold">Error:</span> {inlineErrorText}
+                </span>
+              </>
+            ) : (
+              <span className="min-w-0 flex-1" />
+            )}
+            {autoRetryIn && n.next_retry_at && (
+              <span
+                className="shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded-full border border-warn-bdr bg-warn-bg text-warn font-semibold"
+                title={`Scheduled auto-retry at ${formatDateTime(n.next_retry_at)}`}
+              >
+                <Clock className="w-3 h-3" /> Auto-retry {autoRetryIn}
+              </span>
+            )}
+            {!autoRetryIn && retryDueNow && n.next_retry_at && (
+              <span
+                className="shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded-full border border-warn-bdr bg-warn-bg text-warn font-semibold"
+                title={`Scheduled auto-retry at ${formatDateTime(n.next_retry_at)} — due now`}
+              >
+                <Clock className="w-3 h-3" /> Retry due now
+              </span>
+            )}
+          </div>
+        );
+      })()}
+      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-t3">
+        <span>Template:</span>
+        <code className="font-mono bg-page-bg px-1.5 py-px rounded border border-bdr text-t2">{n.template}</code>
+        {n.attempt_count > 1 && (
+          <span className="ml-2">
+            Attempt {n.attempt_count}/{n.max_attempts}
+          </span>
+        )}
+      </div>
+      {n.email_envelope && (
+        <div className="mt-2">
+          <EmailPreviewButton envelope={n.email_envelope} notificationId={n.id} />
+        </div>
+      )}
+      {/* Task-132 — explain why "Preview email" is missing on older rows
+          that the envelope-backfill job could not reconstruct, instead of
+          silently hiding the action. */}
+      {!n.email_envelope && n.email_envelope_unavailable_reason && (
+        <p className="mt-2 text-[11px] text-t3 italic">
+          Email preview unavailable: {formatUnavailableReason(n.email_envelope_unavailable_reason)}
+        </p>
+      )}
+      {/* Task-97 — staff-initiated immediate resend. Only on Failed rows that
+          still have retry budget AND a captured email_envelope; Bounced rows
+          are intentionally excluded per retry policy. */}
+      {canResend
+        && n.status === "Failed"
+        && n.email_envelope
+        && n.attempt_count < n.max_attempts && (
+          <ResendNotificationButton notificationId={n.id} onResend={onResend} />
+        )}
+      {/* Task-200 — when an SMS keeps bouncing/failing, offer a one-click
+          recovery to flip the patient's preferred channel to email. Gated by
+          the same write:patients permission as the Contact-section editor,
+          and only shown when the patient isn't already on email. Reuses
+          updatePatientPreferredChannel so the existing change log + audit
+          trail is written exactly as if staff had used the editor. The
+          patientId / currentChannel / canSwitchChannel props are optional
+          on this shared row so non-patient-profile consumers don't have to
+          wire them up — the action simply hides when any are missing. */}
+      {canSwitchChannel
+        && patientId
+        && currentChannel
+        && n.channel === "SMS"
+        && (n.status === "Bounced" || n.status === "Failed")
+        && currentChannel !== "email" && (
+          <SwitchToEmailButton clinicId={clinicId} patientId={patientId} />
+        )}
+      {Object.keys(n.payload).length > 0 && (
+        <details className="mt-2 group">
+          <summary className="text-[11px] font-semibold text-t3 cursor-pointer hover:text-t2 select-none">
+            Payload
+          </summary>
+          <pre className="mt-1.5 text-[11px] leading-relaxed bg-page-bg border border-bdr rounded p-2 overflow-x-auto font-mono text-t2">
+{JSON.stringify(n.payload, null, 2)}
+          </pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// Task-257 — advance a "now" timestamp once per second based on real
+// wall-clock elapsed time since mount, anchored on `baseNow` (the mock
+// fixture's frozen NOW on first paint). This keeps the "Auto-retry in X"
+// countdown ticking down live without a page reload while still producing
+// stable, server-matching output on the very first render so we don't
+// hydrate-mismatch. SSR / initial client render both see `baseNow`; the
+// effect schedules the first re-tick only after hydration.
+function useLiveNow(baseNow: string): string {
+  const [now, setNow] = useState(baseNow);
+  useEffect(() => {
+    const baseMs = new Date(baseNow).getTime();
+    const startedAt = Date.now();
+    const id = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      setNow(new Date(baseMs + elapsed).toISOString());
+    }, 1000);
+    return () => clearInterval(id);
+  }, [baseNow]);
+  return now;
+}
+
+// Task-173 — render `next_retry_at` as a short relative countdown ("in 4 min",
+// "in 2 h", "in <1 min") so staff investigating a failed notification can see
+// at a glance how long until the scheduler retries on its own. Returns null
+// when the retry time has already passed — in that case the sweep is due any
+// moment now and the absolute timestamp would be more misleading than helpful.
+function formatAutoRetryIn(iso: string, nowIso: string): string | null {
+  const diffMs = new Date(iso).getTime() - new Date(nowIso).getTime();
+  if (diffMs <= 0) return null;
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return "in <1 min";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `in ${min} min`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `in ${hr} h`;
+  const d = Math.floor(hr / 24);
+  return `in ${d} d`;
+}
+
+// Task-302 — TWILIO_REASON_SUMMARIES and formatSmsCarrierReason moved to
+// the shared module `lib/notifications/smsCarrierReasons.ts` so the new
+// clinic-level bounce breakdown surface and this per-row chip stay in
+// lock-step. Importing from the shared module above.
+
+// Task-132 — staff-facing copy for the `email_envelope_unavailable_reason`
+// flag set by the envelope-backfill job. Kept colocated with the notification
+// row renderer above so the wording can evolve alongside the UI.
+function formatUnavailableReason(reason: string): string {
+  switch (reason) {
+    case 'patient_not_found':    return 'patient record is no longer on file.';
+    case 'order_not_found':      return 'the originating order has been removed.';
+    case 'no_email_on_file':     return 'no email address is on file for this patient.';
+    case 'unsupported_template': return 'the email template is no longer supported.';
+    default:                     return reason;
+  }
+}

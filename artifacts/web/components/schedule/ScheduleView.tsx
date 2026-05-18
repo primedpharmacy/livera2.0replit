@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { addDays, format, parseISO } from "date-fns";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import Link from "next/link";
@@ -62,6 +62,8 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 interface ScheduleViewProps {
   clinicId: ClinicId;
   initialMonday: string;
+  initialConsultations?: Consultation[];
+  initialPatientNames?: Record<string, string>;
 }
 
 function getWeekDates(mondayStr: string) {
@@ -73,11 +75,12 @@ function offsetMonday(mondayStr: string, weeks: number) {
   return format(addDays(parseISO(mondayStr), weeks * 7), "yyyy-MM-dd");
 }
 
-export function ScheduleView({ clinicId, initialMonday }: ScheduleViewProps) {
+export function ScheduleView({ clinicId, initialMonday, initialConsultations, initialPatientNames }: ScheduleViewProps) {
   const [currentMonday, setCurrentMonday] = useState(initialMonday);
-  const [consultations, setConsultations] = useState<Consultation[]>([]);
-  const [patientNames, setPatientNames] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [consultations, setConsultations] = useState<Consultation[]>(initialConsultations ?? []);
+  const [patientNames, setPatientNames] = useState<Record<string, string>>(initialPatientNames ?? {});
+  const [loading, setLoading] = useState(false);
+  const isInitialLoad = useRef(initialConsultations !== undefined);
 
   const weekDates = getWeekDates(currentMonday);
   const from = `${currentMonday}T00:00:00Z`;
@@ -85,6 +88,10 @@ export function ScheduleView({ clinicId, initialMonday }: ScheduleViewProps) {
     format(addDays(parseISO(currentMonday), 6), "yyyy-MM-dd") + "T23:59:59Z";
 
   useEffect(() => {
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      return;
+    }
     setLoading(true);
     Promise.all([
       listConsultations(clinicId, { from, to }),
@@ -98,6 +105,7 @@ export function ScheduleView({ clinicId, initialMonday }: ScheduleViewProps) {
         });
         setPatientNames(map);
       })
+      .catch((err) => console.error('[ScheduleView] load error:', err))
       .finally(() => setLoading(false));
   }, [clinicId, currentMonday]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -22,6 +22,7 @@ import { aggregateTimeline } from "@/lib/timeline/aggregateTimeline";
 import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEditor";
 import type { TimelineEntryType } from "@/lib/timeline/types";
 import type { ClinicId, ClinicalNote, CoachingLog, Order, GPLetter, AdminNote, User } from "@/types";
+import type { PatientPreferredChannelChange } from "@/lib/api/fixtures/patients";
 
 interface PatientNotesTimelineProps {
   clinicId:      ClinicId;
@@ -30,6 +31,7 @@ interface PatientNotesTimelineProps {
   orders:        Order[];
   gpLetters:     GPLetter[];
   adminNotes:    AdminNote[];  // BLD-4.5.3 — hidden from Coach via aggregateTimeline
+  channelChanges?: PatientPreferredChannelChange[];  // Task-223 — preferred-channel breadcrumbs
   actor:         User;
   minChars:      number;
   userNames?:    Record<string, string>;
@@ -41,6 +43,7 @@ const TYPE_LABELS: Record<TimelineEntryType, string> = {
   order_event:   "Orders",
   gp_letter:     "GP letters",
   admin_note:    "Admin notes",  // BLD-4.5.3
+  channel_change: "Channel changes",  // Task-223
 };
 
 const BADGE_CLASSES: Record<string, string> = {
@@ -64,6 +67,7 @@ export function PatientNotesTimeline({
   orders,
   gpLetters,
   adminNotes,
+  channelChanges,
   actor,
   minChars,
   userNames,
@@ -81,14 +85,14 @@ export function PatientNotesTimeline({
   const entries = useMemo(
     () =>
       aggregateTimeline(
-        { clinicalNotes: notes, coachingLogs, orders, gpLetters, adminNotes, clinicId, actor, userNames },
+        { clinicalNotes: notes, coachingLogs, orders, gpLetters, adminNotes, channelChanges, clinicId, actor, userNames },
         {
           type:      typeFilter.length > 0 ? typeFilter : undefined,
           from_date: fromDate || undefined,
           to_date:   toDate   || undefined,
         },
       ),
-    [clinicId, notes, coachingLogs, orders, gpLetters, adminNotes, actor, userNames, typeFilter, fromDate, toDate],
+    [clinicId, notes, coachingLogs, orders, gpLetters, adminNotes, channelChanges, actor, userNames, typeFilter, fromDate, toDate],
   );
 
   // Unique authors from all entries (before author filter) for the dropdown
@@ -121,7 +125,7 @@ export function PatientNotesTimeline({
   const isCoach = actor.roles.includes("Coach") && !actor.roles.some((r) => r === "Prescriber" || r === "Admin" || r === "Owner");
   const availableTypes: TimelineEntryType[] = isCoach
     ? ["coaching_log", "order_event"]
-    : ["clinical_note", "coaching_log", "order_event", "gp_letter", "admin_note"];  // admin_note added BLD-4.5.3
+    : ["clinical_note", "coaching_log", "order_event", "gp_letter", "admin_note", "channel_change"];  // admin_note added BLD-4.5.3; channel_change added Task-223
 
   return (
     <div className="px-6 py-5 space-y-4">
@@ -205,13 +209,32 @@ export function PatientNotesTimeline({
                       <span className={`inline-flex items-center px-2 py-px text-[9px] font-bold rounded border ${BADGE_CLASSES[entry.badge_color] ?? BADGE_CLASSES["neutral"]}`}>
                         {TYPE_LABELS[entry.type] ?? entry.type}
                       </span>
+                      {entry.reversed_at && (
+                        <span
+                          className="inline-flex items-center px-2 py-px text-[9px] font-bold rounded border bg-err-bg border-err-bdr text-err"
+                          title={`Reversed by ${entry.reversed_by_label ?? "unknown"} · ${formatDateTime(entry.reversed_at)}`}
+                        >
+                          Reversed
+                        </span>
+                      )}
                       <span className="text-[11px] text-t3 ml-auto tabular-nums">
                         {formatDateTime(entry.occurred_at)}
                       </span>
                     </div>
-                    <p className="text-[12px] text-t1 mt-1 leading-relaxed">{entry.summary}</p>
+                    <p
+                      className={`text-[12px] mt-1 leading-relaxed ${
+                        entry.reversed_at ? "text-t3 line-through" : "text-t1"
+                      }`}
+                    >
+                      {entry.summary}
+                    </p>
                     <div className="flex items-center gap-3 mt-0.5">
                       <p className="text-[11px] text-t3">{entry.author_label}</p>
+                      {entry.reversed_at && (
+                        <p className="text-[11px] text-err">
+                          Reversed by {entry.reversed_by_label ?? "unknown"} · {formatDateTime(entry.reversed_at)}
+                        </p>
+                      )}
                       {isClinicalNote && sourceNote && (
                         <button
                           onClick={() => handleNoteClick(entry.id)}

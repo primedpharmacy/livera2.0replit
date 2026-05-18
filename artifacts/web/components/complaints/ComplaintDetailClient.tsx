@@ -2,23 +2,31 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Megaphone, RefreshCw, ExternalLink } from "lucide-react";
+import { ArrowLeft, Megaphone, RefreshCw, ExternalLink, CheckCircle2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   syncComplaintFromMonday,
-  CURRENT_USER,
+  updateComplaintStatus,
   NOW,
 } from "@/lib/api/mock";
-import type { Complaint, Clinic, ClinicId } from "@/types";
+import { dispatchQueueCountChange } from "@/lib/queue-counts";
+import { useQueueNavigation } from "@/lib/queueNavigation";
+import { QueuePositionIndicator } from "@/components/shared/QueuePositionIndicator";
+import type { Complaint, ComplaintStatus, Clinic, ClinicId } from "@/types";
 
-// Decision E.1 (locked) — Pure read-only mirror per DEC-37.
-// acknowledgeComplaint + updateComplaintStatus exist in fixtures but are NOT
-// called from this UI. Status mutations happen in Monday (source of truth).
-// V1.1: No Acknowledge button, no Update status panel, no investigation textarea.
-// V1.2: May wire Monday-first status mutation if clinics request in-app flow.
+const CLOSED_STATUSES: ComplaintStatus[] = ["resolved", "closed"];
+const isClosed = (s: ComplaintStatus) => CLOSED_STATUSES.includes(s);
+
+// DEC-37: Monday remains the source of truth for complaints. The detail page
+// is still a read-only mirror for investigation, lesson learned and resolution
+// content (those continue to be edited in Monday).
+// V1.2 addition: a minimal in-app Resolve / Reopen control wraps the existing
+// Monday-first updateComplaintStatus helper (which writes to Monday before
+// touching local state) so the sidebar Complaints badge can update live
+// without a full reload. No Acknowledge button, no investigation textarea.
 
 interface Props {
   initialComplaint: Complaint;
@@ -74,8 +82,10 @@ function SLACard({ label, dueAt, done }: { label: string; dueAt: Date; done: boo
 }
 
 export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Props) {
+  useQueueNavigation({ kind: "complaints", currentId: initialComplaint.id, clinicId });
   const [complaint, setComplaint] = useState<Complaint>(initialComplaint);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
 
   useEffect(() => {
@@ -107,6 +117,32 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
     }
   }
 
+  // V1.2 in-app status mutation (Monday-first via updateComplaintStatus).
+  // Keeps the sidebar Complaints badge in sync without a full reload.
+  async function handleStatusChange(next: ComplaintStatus) {
+    if (isUpdating || next === complaint.status) return;
+    setIsUpdating(true);
+    try {
+      const wasOpen = !isClosed(complaint.status);
+      const updated = await updateComplaintStatus(clinicId, complaint.id, next);
+      setComplaint(updated);
+      const nowOpen = !isClosed(updated.status);
+      if (wasOpen !== nowOpen) {
+        dispatchQueueCountChange({ queue: "complaints", delta: nowOpen ? 1 : -1 });
+      }
+      setToast({
+        message: nowOpen ? "Complaint reopened" : `Marked as ${updated.status}`,
+        type: "ok",
+      });
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Update failed", type: "err" });
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  const complaintClosed = isClosed(complaint.status);
+
   return (
     <div className="relative">
       {toast && (
@@ -123,6 +159,11 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
         <Link href={`/${clinicId}/complaints`} className="text-t3 hover:text-t1 transition-colors">
           <ArrowLeft className="w-4 h-4" />
         </Link>
+        <QueuePositionIndicator
+          kind="complaints"
+          currentId={complaint.id}
+          clinicId={clinicId}
+        />
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Megaphone className="w-4 h-4 text-brand shrink-0" />
           <span className="font-mono text-[13px] font-bold text-t1">{complaint.id}</span>
@@ -140,6 +181,30 @@ export function ComplaintDetailClient({ initialComplaint, clinic, clinicId }: Pr
           <Button size="sm" variant="outline" onClick={handleSync} disabled={isSyncing} className="h-7 text-[12px] gap-1.5">
             <RefreshCw className={cn("w-3.5 h-3.5", isSyncing && "animate-spin")} />
             Resync
+          </Button>
+        )}
+        {/* V1.2 in-app status mutation — Monday-first write, sidebar badge stays live */}
+        {complaintClosed ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleStatusChange("investigating")}
+            disabled={isUpdating}
+            className="h-7 text-[12px] gap-1.5"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reopen
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleStatusChange("resolved")}
+            disabled={isUpdating}
+            className="h-7 text-[12px] gap-1.5"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Resolve
           </Button>
         )}
         {/* Primary action — Open in Monday (BLD-9.3) */}

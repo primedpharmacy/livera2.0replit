@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { addCoachingLog, raiseClinicalEscalation } from "@/lib/api/mock";
-import { CURRENT_USER } from "@/lib/api/mock";
+import { raiseClinicalEscalation } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
+import { addCoachingLogAction } from "@/lib/actions/coachingActions";
 import { NOW } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import type { ClinicId, CoachingLog, ClinicalEscalationFlag } from "@/types";
@@ -41,6 +42,7 @@ const SEVERITIES: { value: ClinicalEscalationFlag["severity"]; label: string }[]
 ];
 
 export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel }: Props) {
+  const CURRENT_USER = useCurrentUser();
   const today = NOW.slice(0, 16); // "YYYY-MM-DDTHH:MM"
 
   const [entryType, setEntryType]                 = useState<CoachingLog["entry_type"]>("check_in");
@@ -89,7 +91,7 @@ export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel 
         });
 
         // 2. Create the coaching log entry referencing the new flag.
-        const log = await addCoachingLog(clinicId, {
+        const log = await addCoachingLogAction(clinicId, {
           patient_id:                   patientId,
           coach_id:                     CURRENT_USER.id,
           entry_type:                   entryType,
@@ -109,7 +111,7 @@ export function CoachingLogEntryForm({ clinicId, patientId, onSuccess, onCancel 
       }
 
       // ── Non-escalation entry ─────────────────────────────────────────────
-      const log = await addCoachingLog(clinicId, {
+      const log = await addCoachingLogAction(clinicId, {
         patient_id:                   patientId,
         coach_id:                     CURRENT_USER.id,
         entry_type:                   entryType,

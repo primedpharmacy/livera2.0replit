@@ -22,9 +22,14 @@ import {
   Settings,
   BookOpen,
   ShieldAlert,
+  XCircle,
+  RotateCw,
+  MailCheck,
+  MessageSquareWarning,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PersonaSwitcher } from "@/components/shell/PersonaSwitcher";
 import {
   getClinicalCheckQueue,
   listAmendments,
@@ -33,12 +38,14 @@ import {
   listGPLetters,
   listPatients,
   listOrders,
-  listConsultations,
+  listWelcomeCalls,
   listClinicalEscalationFlags,
-  CURRENT_USER,
+  listDiscontinuations,
 } from "@/lib/api/mock";
+import { useCurrentUser } from "@/lib/context";
 import type { ClinicId } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
+import { QUEUE_COUNT_EVENT, type QueueCountChangeDetail, type QueueKey } from "@/lib/queue-counts";
 
 type BadgeVariant = "muted" | "warn" | "err" | "default";
 
@@ -135,7 +142,10 @@ function buildSections(
   welcomeCallsCount: number,
   complaintsCount: number,
   incidentsCount: number,
-  gpLettersCount: number
+  gpLettersCount: number,
+  discontinuationsCount: number,
+  failedSweepCount: number,
+  contactCleanupCount: number
 ): NavSection[] {
   return [
     {
@@ -247,6 +257,16 @@ function buildSections(
             : {}),
           permission: { action: "read", resource: "gp_letters" },
         },
+        {
+          key: "discontinuations",
+          label: "Discontinuations",
+          icon: XCircle,
+          href: `/${clinicId}/discontinuations`,
+          ...(discontinuationsCount > 0
+            ? { badge: { value: discontinuationsCount, variant: "warn" as BadgeVariant } }
+            : {}),
+          permission: { action: "read", resource: "complaints" },
+        },
       ],
     },
     {
@@ -288,6 +308,47 @@ function buildSections(
           href: `/${clinicId}/settings`,
           permission: { action: "read", resource: "settings" },
         },
+        {
+          key: "retry-sweeps",
+          label: "Retry Sweeps",
+          icon: RotateCw,
+          href: `/${clinicId}/ops/retry-sweeps`,
+          permission: { action: "read", resource: "settings" },
+          ...(failedSweepCount > 0
+            ? { badge: { value: failedSweepCount, variant: "err" as BadgeVariant } }
+            : {}),
+        },
+        {
+          key: "email-envelope-backfill",
+          label: "Email Backfill",
+          icon: MailCheck,
+          href: `/${clinicId}/admin/email-envelope-backfill`,
+          // Admin/Owner only — Owner short-circuits to true in roleMatrix;
+          // Admin has write on admin_notes (Wave 5 BLD-4.5.1) and no other
+          // role does, which matches the page's own role gate exactly.
+          permission: { action: "write", resource: "admin_notes" },
+        },
+        {
+          key: "patient-contact-cleanup",
+          label: "Patient Contact Cleanup",
+          icon: Phone,
+          href: `/${clinicId}/ops/patient-contact-cleanup`,
+          permission: { action: "read", resource: "settings" },
+          ...(contactCleanupCount > 0
+            ? { badge: { value: contactCleanupCount, variant: "warn" as BadgeVariant } }
+            : {}),
+        },
+        // Task-302 — clinic-wide bounced-SMS breakdown by Twilio reason.
+        // Gated on the same read:settings permission as the other Ops
+        // tools; the page also re-checks server-side because it surfaces
+        // aggregate carrier-failure counts.
+        {
+          key: "sms-bounces",
+          label: "SMS Bounces",
+          icon: MessageSquareWarning,
+          href: `/${clinicId}/ops/sms-bounces`,
+          permission: { action: "read", resource: "settings" },
+        },
       ],
     },
   ];
@@ -314,6 +375,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ clinicId }: SidebarProps) {
+  const CURRENT_USER = useCurrentUser();
   const pathname = usePathname();
   const isCoach = CURRENT_USER.roles.includes("Coach");
 
@@ -326,9 +388,13 @@ export function Sidebar({ clinicId }: SidebarProps) {
   const [clinicalCheckCount, setClinicalCheckCount]   = useState<number>(0);
   const [amendmentsCount, setAmendmentsCount]         = useState<number>(0);
   const [welcomeCallsCount, setWelcomeCallsCount]     = useState<number>(0);
-  const [complaintsCount, setComplaintsCount]         = useState<number>(0);
-  const [incidentsCount, setIncidentsCount]           = useState<number>(0);
-  const [gpLettersCount, setGPLettersCount]           = useState<number>(0);
+  const [complaintsCount, setComplaintsCount]               = useState<number>(0);
+  const [incidentsCount, setIncidentsCount]                 = useState<number>(0);
+  const [gpLettersCount, setGPLettersCount]                 = useState<number>(0);
+  const [discontinuationsCount, setDiscontinuationsCount]   = useState<number>(0);
+  const [failedSweepCount, setFailedSweepCount]             = useState<number>(0);
+  const [sweepToast, setSweepToast]                         = useState<string | null>(null);
+  const [contactCleanupCount, setContactCleanupCount]       = useState<number>(0);
 
   useEffect(() => {
     const cid = clinicId as ClinicId;
@@ -354,12 +420,20 @@ export function Sidebar({ clinicId }: SidebarProps) {
       .then((orders) => setClinicalCheckCount(orders.length))
       .catch(() => {});
 
-    listAmendments(cid, { status: "requested" })
-      .then((amendments) => setAmendmentsCount(amendments.length))
+    listAmendments(cid)
+      .then((amendments) =>
+        setAmendmentsCount(
+          amendments.filter((a) => a.status === "requested" || a.status === "reviewing").length
+        )
+      )
       .catch(() => {});
 
-    listConsultations(cid, { type: "welcome_call" })
-      .then((c) => setWelcomeCallsCount(c.filter((x) => x.status === "scheduled").length))
+    listWelcomeCalls(cid)
+      .then((calls) =>
+        setWelcomeCallsCount(
+          calls.filter((c) => c.status === "awaiting" || c.status === "attempted").length
+        )
+      )
       .catch(() => {});
 
     listComplaints(cid)
@@ -371,9 +445,117 @@ export function Sidebar({ clinicId }: SidebarProps) {
       .catch(() => {});
 
     listGPLetters(cid)
-      .then((g) => setGPLettersCount(g.length))
+      .then((g) => setGPLettersCount(g.filter((x) => x.lifecycle_status === "owed").length))
+      .catch(() => {});
+
+    listDiscontinuations(cid)
+      .then((d) => setDiscontinuationsCount(d.filter((x) => x.status !== "closed").length))
+      .catch(() => {});
+
+    fetch(`/api/ops/patient-contact-cleanup?clinic_id=${cid}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { followup_count?: number } | null) => {
+        if (data && typeof data.followup_count === "number") {
+          setContactCleanupCount(data.followup_count);
+        }
+      })
       .catch(() => {});
   }, [clinicId, isCoach]);
+
+  // ── Retry-sweep health polling (Task-156) ─────────────────────────────────
+  // Poll the in-process ring buffer summary so the sidebar can surface a red
+  // badge with the count of failed sweeps and emit a one-shot toast when the
+  // most recent sweep transitions to failed.
+  useEffect(() => {
+    if (isCoach) return;
+    let cancelled = false;
+    let lastSweepId: string | null = null;
+    let lastOutcome: string | null = null;
+    let primed = false;
+
+    async function poll() {
+      try {
+        const res = await fetch("/api/ops/retry-sweeps", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json() as {
+          failed_count: number;
+          latest: {
+            sweep_id: string;
+            outcome: string;
+            failed_clinics: string[];
+            error_message: string | null;
+          } | null;
+        };
+        if (cancelled) return;
+        setFailedSweepCount(data.failed_count ?? 0);
+        const latest = data.latest;
+        if (latest) {
+          const transitioned =
+            primed &&
+            latest.outcome === "error" &&
+            (latest.sweep_id !== lastSweepId || lastOutcome !== "error");
+          if (transitioned) {
+            const who =
+              latest.failed_clinics.length === 1
+                ? latest.failed_clinics[0]
+                : `${latest.failed_clinics.length} clinics`;
+            setSweepToast(
+              `Retry sweep failed for ${who}` +
+                (latest.error_message ? ` — ${latest.error_message}` : "")
+            );
+          }
+          lastSweepId = latest.sweep_id;
+          lastOutcome = latest.outcome;
+        }
+        primed = true;
+      } catch {
+        /* ignore — transient fetch errors shouldn't spam the UI */
+      }
+    }
+
+    void poll();
+    const id = setInterval(poll, 30 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [isCoach]);
+
+  // Auto-dismiss the sweep failure toast after a few seconds.
+  useEffect(() => {
+    if (!sweepToast) return;
+    const t = setTimeout(() => setSweepToast(null), 8000);
+    return () => clearTimeout(t);
+  }, [sweepToast]);
+
+  // Live-update queue badges when an item is resolved elsewhere in-app.
+  // Detail components dispatch `queue-count-changed` via `dispatchQueueCountChange`.
+  useEffect(() => {
+    const setters: Record<QueueKey, (updater: (prev: number) => number) => void> = {
+      clinical_check:   (u) => setClinicalCheckCount((p) => Math.max(0, u(p))),
+      amendments:       (u) => setAmendmentsCount((p) => Math.max(0, u(p))),
+      welcome_calls:    (u) => setWelcomeCallsCount((p) => Math.max(0, u(p))),
+      complaints:       (u) => setComplaintsCount((p) => Math.max(0, u(p))),
+      incidents:        (u) => setIncidentsCount((p) => Math.max(0, u(p))),
+      gp_letters:       (u) => setGPLettersCount((p) => Math.max(0, u(p))),
+      discontinuations: (u) => setDiscontinuationsCount((p) => Math.max(0, u(p))),
+    };
+    function onQueueCountChanged(e: Event) {
+      const detail = (e as CustomEvent<QueueCountChangeDetail>).detail;
+      if (!detail) return;
+      const set = setters[detail.queue];
+      if (!set) return;
+      if (typeof detail.count === "number") {
+        set(() => detail.count!);
+      } else if (typeof detail.delta === "number") {
+        set((prev) => prev + detail.delta!);
+      }
+    }
+    window.addEventListener(QUEUE_COUNT_EVENT, onQueueCountChanged);
+    return () => {
+      window.removeEventListener(QUEUE_COUNT_EVENT, onQueueCountChanged);
+    };
+  }, []);
 
   const sections = isCoach
     ? buildCoachSections(clinicId, openEscalations)
@@ -387,6 +569,9 @@ export function Sidebar({ clinicId }: SidebarProps) {
         complaintsCount,
         incidentsCount,
         gpLettersCount,
+        discontinuationsCount,
+        failedSweepCount,
+        contactCleanupCount,
       );
 
   function isActive(href: string) {
@@ -435,6 +620,28 @@ export function Sidebar({ clinicId }: SidebarProps) {
           </div>
         );
       })}
+      <PersonaSwitcher />
+      {sweepToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 left-4 z-50 max-w-sm bg-err text-white text-[12px] font-medium px-3 py-2 rounded-md shadow-lg flex items-start gap-2"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-px" aria-hidden />
+          <div className="flex-1">
+            <div className="font-bold">Retry sweep failed</div>
+            <div className="opacity-90 break-words">{sweepToast}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSweepToast(null)}
+            className="opacity-80 hover:opacity-100 text-white text-[11px] font-bold ml-1"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

@@ -1,0 +1,204 @@
+/**
+ * OrderActivityTimeline — Task-92 reminder rendering.
+ *
+ * Pins that:
+ *   - When `px_upload_link.reminder_sent_at` is set, the timeline shows
+ *     "Px upload reminder emailed to patient".
+ *   - When `px_upload_link.final_reminder_sent_at` is set, the timeline shows
+ *     "Final Px upload reminder emailed to patient".
+ *   - When neither flag is set, neither entry renders.
+ */
+
+import { describe, it, expect, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
+import { OrderActivityTimeline } from '../OrderActivityTimeline';
+import type { Order } from '@/types';
+
+function makeOrder(overrides: Partial<NonNullable<Order['px_upload_link']>> = {}): Order {
+  return {
+    id: 'ORD-T1',
+    clinic_id: 'feeltru',
+    patient_id: 'PT-00198',
+    type: 'new',
+    status: 'clinical_check',
+    product: { medication: 'Mounjaro', dose: '2.5mg', strength: 'pre-filled pen', plan: '4 weeks' },
+    questionnaire_responses: {},
+    amendment_window: 'pre_approval',
+    primed_order_id: null,
+    primed_clinical_check_completed: false,
+    ryft_authorisation_id: null,
+    amount_charged: null,
+    amount_authorised: 149,
+    clinical_decision: null,
+    sla_warn_at: '2026-05-12T08:00:00Z',
+    sla_breach_at: '2026-05-13T08:00:00Z',
+    g6_flags: [],
+    contextual_flags: ['Px upload pending'],
+    intervention_raised_at: null,
+    px_upload: null,
+    px_upload_link: {
+      token: 'tok-x',
+      expires_at: '2026-05-25T08:00:00Z',
+      sent_at: '2026-05-09T08:00:00Z',
+      consumed_at: null,
+      email_message_id: 'mid',
+      to_email: 'patient@example.com',
+      reminder_sent_at: null,
+      final_reminder_sent_at: null,
+      ...overrides,
+    },
+    expired_at: null,
+    created_at: '2026-05-09T08:00:00Z',
+    updated_at: '2026-05-09T08:00:00Z',
+  };
+}
+
+describe('OrderActivityTimeline — Task-92 reminders', () => {
+  afterEach(() => cleanup());
+
+  it('renders a reminder entry when reminder_sent_at is set', () => {
+    render(<OrderActivityTimeline order={makeOrder({ reminder_sent_at: '2026-05-11T08:00:00Z' })} />);
+    expect(screen.getByText('Px upload reminder emailed to patient')).toBeInTheDocument();
+    expect(screen.queryByText('Final Px upload reminder emailed to patient')).not.toBeInTheDocument();
+  });
+
+  it('renders a final reminder entry when final_reminder_sent_at is set', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_sent_at: '2026-05-11T08:00:00Z',
+          final_reminder_sent_at: '2026-05-24T10:00:00Z',
+        })}
+      />,
+    );
+    expect(screen.getByText('Final Px upload reminder emailed to patient')).toBeInTheDocument();
+    expect(screen.getByText('Px upload reminder emailed to patient')).toBeInTheDocument();
+  });
+
+  it('renders neither reminder entry when both flags are null', () => {
+    render(<OrderActivityTimeline order={makeOrder()} />);
+    expect(screen.queryByText('Px upload reminder emailed to patient')).not.toBeInTheDocument();
+    expect(screen.queryByText('Final Px upload reminder emailed to patient')).not.toBeInTheDocument();
+  });
+
+  // Task-129 — Failed reminder attempts (Bounced / Failed Postmark sends) are
+  // recorded on `px_upload_link.reminder_failures` and shown on the timeline
+  // with the Postmark error message so reviewers can see why the nudge never
+  // landed.
+  it('renders a failed reminder entry with the Postmark error message', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_failures: [
+            {
+              kind: 'first',
+              attempted_at: '2026-05-11T08:00:00Z',
+              to_email: 'patient@example.com',
+              status: 'Failed',
+              error_message: 'Postmark 422: InactiveRecipient',
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText('Px upload reminder failed to deliver')).toBeInTheDocument();
+    expect(screen.getByText('Postmark 422: InactiveRecipient')).toBeInTheDocument();
+  });
+
+  // Task-261 — Reminder rows should make it obvious whether the cron or a
+  // staff member fired the email so the audit trail matches the staff-resend
+  // rows added in Task-177.
+  it('attributes a system-sent reminder to the FeelTru reminder job', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_sent_at: '2026-05-11T08:00:00Z',
+          reminder_sent_by_user_id: null,
+        })}
+      />,
+    );
+    expect(screen.getByText(/by FeelTru reminder job/)).toBeInTheDocument();
+  });
+
+  it('attributes a staff-triggered reminder to the staff member', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_sent_at: '2026-05-11T08:00:00Z',
+          reminder_sent_by_user_id: 'user_claire',
+          final_reminder_sent_at: '2026-05-24T10:00:00Z',
+          final_reminder_sent_by_user_id: null,
+        })}
+      />,
+    );
+    // First reminder (manual) names the staff member (or falls back to the
+    // raw id if USERS_REGISTRY doesn't know them); final reminder (cron)
+    // names the scheduled job.
+    expect(screen.getByText('Px upload reminder emailed to patient')).toBeInTheDocument();
+    expect(screen.getByText('Final Px upload reminder emailed to patient')).toBeInTheDocument();
+    expect(screen.getByText(/by FeelTru reminder job/)).toBeInTheDocument();
+    // The first-reminder row must carry a non-cron actor — either the
+    // resolved full name or the raw id, but not "FeelTru reminder job".
+    const firstReminderRow = screen
+      .getByText('Px upload reminder emailed to patient')
+      .closest('li');
+    expect(firstReminderRow).not.toBeNull();
+    expect(firstReminderRow!.textContent).toMatch(/by (?!FeelTru reminder job)/);
+  });
+
+  it('treats undefined attribution as a system-sent reminder for back-compat', () => {
+    // Legacy fixture rows pre-Task-261 don't carry reminder_sent_by_user_id;
+    // they should still render as "by FeelTru reminder job" rather than
+    // leaking an undefined actor into the meta line.
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({ reminder_sent_at: '2026-05-11T08:00:00Z' })}
+      />,
+    );
+    expect(screen.getByText(/by FeelTru reminder job/)).toBeInTheDocument();
+  });
+
+  it('attributes a failed reminder retry to the staff member who fired it', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_failures: [
+            {
+              kind: 'first',
+              attempted_at: '2026-05-11T08:00:00Z',
+              to_email: 'patient@example.com',
+              status: 'Failed',
+              error_message: 'Postmark 422: InactiveRecipient',
+              by_user_id: 'user_claire',
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText('Px upload reminder failed to deliver')).toBeInTheDocument();
+    // Whether or not USERS_REGISTRY knows the id, the meta line should
+    // include a `by …` suffix referring to that user (not the cron).
+    expect(screen.getByText(/by (?!FeelTru reminder job)/)).toBeInTheDocument();
+  });
+
+  it('renders a failed final reminder entry with the Postmark error message', () => {
+    render(
+      <OrderActivityTimeline
+        order={makeOrder({
+          reminder_failures: [
+            {
+              kind: 'final',
+              attempted_at: '2026-05-24T10:00:00Z',
+              to_email: 'patient@example.com',
+              status: 'Bounced',
+              error_message: 'Postmark 406: Hard bounce',
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText('Final Px upload reminder failed to deliver')).toBeInTheDocument();
+    expect(screen.getByText('Postmark 406: Hard bounce')).toBeInTheDocument();
+  });
+});

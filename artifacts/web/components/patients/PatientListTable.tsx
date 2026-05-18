@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { saveQueue } from "@/lib/queueNavigation";
 import {
   Table,
   TableBody,
@@ -13,7 +14,7 @@ import {
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatAge, formatBMI } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { ArrowUpDown, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowUpDown, CheckCircle2, XCircle, ShieldAlert } from "lucide-react";
 import type { Patient } from "@/types";
 
 type SortKey = "name" | "status" | "updated_at";
@@ -22,9 +23,10 @@ type SortDir = "asc" | "desc";
 interface PatientListTableProps {
   patients: Patient[];
   clinicId: string;
+  genderEligibility?: "female_only" | "gender_neutral";
 }
 
-export function PatientListTable({ patients, clinicId }: PatientListTableProps) {
+export function PatientListTable({ patients, clinicId, genderEligibility }: PatientListTableProps) {
   const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -51,6 +53,12 @@ export function PatientListTable({ patients, clinicId }: PatientListTableProps) 
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [patients, sortKey, sortDir]);
+
+  // Persist the current displayed order so the patient detail page can
+  // ↑/↓ through the filtered+sorted queue (mirrors orders/complaints/incidents).
+  useEffect(() => {
+    saveQueue("patients", sorted.map((p) => p.id));
+  }, [sorted]);
 
   function SortHeader({ label, sortable }: { label: string; sortable?: SortKey }) {
     const active = sortable && sortKey === sortable;
@@ -125,6 +133,13 @@ export function PatientListTable({ patients, clinicId }: PatientListTableProps) 
                         {patient.vip && (
                           <span className="text-[9px] font-bold bg-coach-bg text-coach border border-coach-bdr px-1.5 py-px rounded">
                             VIP
+                          </span>
+                        )}
+                        {genderEligibility === "female_only" &&
+                          patient.demographic.sex_at_birth !== "female" && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold bg-err-bg text-err border border-err-bdr px-1.5 py-px rounded whitespace-nowrap">
+                            <ShieldAlert className="w-2.5 h-2.5" />
+                            GENDER
                           </span>
                         )}
                       </div>

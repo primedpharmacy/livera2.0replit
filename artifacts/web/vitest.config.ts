@@ -12,6 +12,7 @@ export default defineConfig({
       'tests/**/*.test.ts',
       'components/**/*.test.ts',
       'components/**/*.test.tsx',
+      'app/**/*.test.ts',
     ],
     globals: false,
   },

@@ -6,6 +6,12 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createIntakeOrder } from '@/lib/api/fixtures/orders';
+import {
+  isValidUkMobile,
+  isValidUkPostcode,
+  normalisePostcode,
+  normaliseUkMobile,
+} from '@/lib/validation/intake';
 import type { ClinicId } from '@/types';
 
 type Params = { params: Promise<{ clinic_id: string }> };
@@ -82,6 +88,28 @@ export async function POST(req: NextRequest, { params }: Params) {
         ? body.personal.sexAtBirth
         : 'female';
 
+    // ── Server-side re-validation (Task-115) ────────────────────────────
+    // The intake form validates phone + postcode client-side, but the API
+    // must reject malformed values regardless of where they came from so
+    // bad data cannot reach the patient record.
+    const rawPhone = (body.personal.phone ?? '').trim();
+    if (!isValidUkMobile(rawPhone)) {
+      return NextResponse.json(
+        { message: 'Invalid UK mobile phone number. Expected 07… or +44 format.' },
+        { status: 400 },
+      );
+    }
+    const normalisedPhone = normaliseUkMobile(rawPhone)!;
+
+    const rawPostcode = (body.address.postcode ?? '').trim();
+    if (!isValidUkPostcode(rawPostcode)) {
+      return NextResponse.json(
+        { message: 'Invalid UK postcode.' },
+        { status: 400 },
+      );
+    }
+    const normalisedPostcode = normalisePostcode(rawPostcode);
+
     const order = await createIntakeOrder(
       clinic_id as ClinicId,
       {
@@ -89,7 +117,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         lastName: body.personal.lastName,
         email: body.personal.email,
         dob: body.personal.dob,
-        phone: (body.personal.phone ?? '').trim(),
+        phone: normalisedPhone,
         sex_at_birth: sex,
       },
       {
@@ -97,7 +125,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         line1: (body.address.line1 ?? '').trim(),
         line2: (body.address.line2 ?? '').trim(),
         city: (body.address.city ?? '').trim(),
-        postcode: (body.address.postcode ?? '').trim(),
+        postcode: normalisedPostcode,
       },
       body.responses,
       { height_cm: heightCm, weight_kg: weightKg, bmi },

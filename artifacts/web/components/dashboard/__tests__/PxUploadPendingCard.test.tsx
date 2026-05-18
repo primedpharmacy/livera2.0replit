@@ -491,3 +491,134 @@ describe('PxUploadPendingCard — Task-183 manual reminder', () => {
     expect(toast).toHaveTextContent('Both reminders have already been sent for this link.');
   });
 });
+
+// ── Task-269 — auto-chase escalated rows ────────────────────────────────────
+function escalatedLink(): NonNullable<Order['px_upload_link']> {
+  return {
+    token: 'tok-escalated',
+    expires_at: '2026-05-09T08:00:00Z', // expired
+    sent_at: '2026-05-03T08:00:00Z',
+    first_sent_at: '2026-05-03T08:00:00Z',
+    consumed_at: null,
+    email_message_id: 'mid-escalated',
+    to_email: 'escalated@example.com',
+    reminder_sent_at: '2026-05-05T08:00:00Z',
+    final_reminder_sent_at: '2026-05-08T08:00:00Z',
+    auto_resends: [
+      { sent_at: '2026-05-09T09:00:00Z', to_email: 'escalated@example.com', expires_at: '2026-05-10T09:00:00Z', previous_expired: true, status: 'Delivered', error_message: null },
+      { sent_at: '2026-05-10T09:00:00Z', to_email: 'escalated@example.com', expires_at: '2026-05-11T09:00:00Z', previous_expired: true, status: 'Delivered', error_message: null },
+      { sent_at: '2026-05-10T10:00:00Z', to_email: 'escalated@example.com', expires_at: '2026-05-11T10:00:00Z', previous_expired: true, status: 'Delivered', error_message: null },
+    ],
+    auto_chase_escalated_at: '2026-05-10T10:30:00Z',
+  };
+}
+
+function escalatedOrder(): Order {
+  const o = makeOrder('ORD-CALL', 'PT-FRESH', escalatedLink());
+  o.contextual_flags = ['Px upload pending', 'Px upload chase escalated'];
+  return o;
+}
+
+describe('PxUploadPendingCard — Task-269 chase escalation', () => {
+  afterEach(() => {
+    cleanup();
+    mockedResend.mockReset();
+    global.fetch = ORIGINAL_FETCH;
+  });
+
+  it('shows the "Call patient" badge, header count and replaces Resend with Mark called', () => {
+    render(
+      <PxUploadPendingCard
+        clinicId="feeltru"
+        orders={[escalatedOrder(), makeOrder('ORD-NORMAL', 'PT-STALE', staleLink())]}
+        patientMap={PATIENT_MAP}
+      />,
+    );
+
+    // Header surfaces the escalated count alongside the total.
+    expect(screen.getByTestId('px-upload-escalated-count')).toHaveTextContent('1 TO CALL');
+    expect(screen.getByText('2 ORDERS')).toBeInTheDocument();
+
+    // Per-row "Call patient" badge appears only on the escalated row.
+    expect(screen.getAllByText(/Call patient/i)).toHaveLength(1);
+    expect(screen.getByText(/Auto-chase gave up/i)).toBeInTheDocument();
+
+    // The escalated row exposes "Mark called" instead of "Resend link".
+    const markCalled = screen.getByRole('button', { name: /Mark called/i });
+    expect(markCalled).toBeInTheDocument();
+    // Normal row still has its Resend link button.
+    const resendButtons = screen.getAllByRole('button', { name: /resend link/i });
+    expect(resendButtons).toHaveLength(1);
+  });
+
+  it('POSTs to the mark-called route, clears the row treatment and shows a toast', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        order_id: 'ORD-CALL',
+        contextual_flags: ['Px upload pending'],
+        px_upload_link: {
+          ...escalatedLink(),
+          auto_chase_escalated_at: null,
+          auto_resends: [],
+        },
+      }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PxUploadPendingCard
+        clinicId="feeltru"
+        orders={[escalatedOrder()]}
+        patientMap={PATIENT_MAP}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Mark called/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/orders/feeltru/ORD-CALL/px-upload/mark-called',
+        { method: 'POST' },
+      );
+    });
+
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent(/Marked as called/);
+
+    // Header escalated badge disappears and the row reverts to the
+    // ordinary treatment (no more "Call patient" badge / Mark called).
+    await waitFor(() => {
+      expect(screen.queryByTestId('px-upload-escalated-count')).toBeNull();
+      expect(screen.queryByRole('button', { name: /Mark called/i })).toBeNull();
+    });
+    // Resend link button now exposed again on this (de-escalated) row.
+    expect(screen.getByRole('button', { name: /resend link/i })).toBeInTheDocument();
+  });
+
+  it('surfaces an API error from mark-called in the toast', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ message: 'This order is not flagged for auto-chase escalation.' }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    render(
+      <PxUploadPendingCard
+        clinicId="feeltru"
+        orders={[escalatedOrder()]}
+        patientMap={PATIENT_MAP}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Mark called/i }));
+
+    const toast = await screen.findByRole('status');
+    expect(toast).toHaveTextContent('This order is not flagged for auto-chase escalation.');
+
+    // Row remains escalated.
+    expect(screen.getByRole('button', { name: /Mark called/i })).toBeInTheDocument();
+  });
+});

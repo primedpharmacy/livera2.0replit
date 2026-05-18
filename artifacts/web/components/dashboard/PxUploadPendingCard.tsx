@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Mail, RefreshCw, AlertTriangle, Send } from "lucide-react";
+import { Mail, RefreshCw, AlertTriangle, Send, Phone, PhoneCall } from "lucide-react";
 import { CURRENT_USER, resendPxUploadLink } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import { NOW } from "@/lib/api/constants";
@@ -44,6 +44,7 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
   const [rows, setRows]                     = useState<Order[]>(orders);
   const [pendingId, setPendingId]           = useState<string | null>(null);
   const [reminderPendingId, setReminderPendingId] = useState<string | null>(null);
+  const [markCalledPendingId, setMarkCalledPendingId] = useState<string | null>(null);
   const [toast, setToast]                   = useState<{ message: string; type: "ok" | "err" } | null>(null);
   const canWriteOrders = can(CURRENT_USER, "write", "orders");
   // Task-263 — synchronous re-entrancy guard. The `pendingId` state above
@@ -83,6 +84,52 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
     } finally {
       resendInFlightRef.current = false;
       setPendingId(null);
+    }
+  }
+
+  // Task-269 — Clear the auto-chase escalation once staff have phoned the
+  // patient. Drops the "Px upload chase escalated" contextual flag, clears
+  // `auto_chase_escalated_at` and resets `auto_resends` server-side so the
+  // cron is allowed to resume. We patch the row in place so the red
+  // "Call patient" treatment disappears immediately and the header count
+  // recalculates without a refetch.
+  async function handleMarkCalled(orderId: string) {
+    setMarkCalledPendingId(orderId);
+    try {
+      const res = await fetch(
+        `/api/orders/${clinicId}/${orderId}/px-upload/mark-called`,
+        { method: "POST" },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        contextual_flags?: string[];
+        px_upload_link?: Order["px_upload_link"];
+      };
+      if (!res.ok) {
+        throw new Error(body.message || `Could not mark patient as called (${res.status}).`);
+      }
+      setRows((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? {
+                ...o,
+                contextual_flags: body.contextual_flags ?? o.contextual_flags,
+                px_upload_link: body.px_upload_link ?? o.px_upload_link,
+              }
+            : o,
+        ),
+      );
+      setToast({
+        message: "Marked as called — the auto-chase will resume if no upload arrives.",
+        type: "ok",
+      });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Could not mark patient as called.",
+        type: "err",
+      });
+    } finally {
+      setMarkCalledPendingId(null);
     }
   }
 
@@ -130,6 +177,13 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
     }
   }
 
+  // Task-269 — Count of rows where the auto-chase cron has escalated. Surfaced
+  // in the header so staff see at a glance how many patients need a phone
+  // call instead of another email tap.
+  const escalatedCount = rows.filter(
+    (o) => o.px_upload_link?.auto_chase_escalated_at != null,
+  ).length;
+
   return (
     <div className="bg-surface border border-warn-bdr rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-warn-bdr bg-warn-bg/40">
@@ -137,6 +191,16 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
         <h3 className="text-[11px] font-bold text-warn uppercase tracking-wider flex-1">
           Awaiting Px upload
         </h3>
+        {escalatedCount > 0 && (
+          <span
+            data-testid="px-upload-escalated-count"
+            className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-px rounded bg-err text-white"
+            title="Auto-chase has given up on these orders — staff need to call the patient."
+          >
+            <PhoneCall className="w-2.5 h-2.5" aria-hidden />
+            {escalatedCount} TO CALL
+          </span>
+        )}
         <span className="text-[9px] font-bold px-1.5 py-px rounded bg-warn text-white">
           {rows.length} {rows.length === 1 ? "ORDER" : "ORDERS"}
         </span>
@@ -167,10 +231,17 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
             const resendCount = (link?.resends?.length ?? 0) + (hasInitialSend ? 1 : 0);
             const isBusy    = pendingId === order.id;
             const isReminderBusy = reminderPendingId === order.id;
+            const isMarkCalledBusy = markCalledPendingId === order.id;
             // Task-263 — any in-flight resend disables every row's Resend
             // button so staff can't fire a second send on a different row
             // while the first one is still mid-flight.
             const anyResendInFlight = pendingId !== null;
+
+            // Task-269 — Auto-chase has burned through MAX_AUTO_RESENDS and
+            // wants staff to phone the patient. We trust the link timestamp
+            // as the source of truth (the contextual flag is added at the
+            // same time but the timestamp is what the cron checks to skip).
+            const escalated = link?.auto_chase_escalated_at != null;
 
             // Task-183 — Mirror the server-side eligibility from
             // sendPxUploadReminderNow so the "Send reminder" affordance only
@@ -196,9 +267,11 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
             const reminderLabel =
               reminderKindNext === "final" ? "Send final reminder" : "Send reminder";
 
-            // Severity tint: red once the link is expired OR sat for 5+ days.
+            // Severity tint: red once the link is expired OR sat for 5+ days,
+            // OR the auto-chase has escalated (in which case the row already
+            // sports the red treatment regardless of age).
             const tone =
-              expired || (ageDays !== null && ageDays >= 5)
+              escalated || expired || (ageDays !== null && ageDays >= 5)
                 ? "text-err"
                 : ageDays !== null && ageDays >= 3
                 ? "text-warn"
@@ -214,18 +287,39 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
             return (
               <div
                 key={order.id}
-                className="flex items-center gap-3 px-4 py-2.5 hover:bg-brand/5 transition-colors"
+                data-testid={escalated ? "px-upload-row-escalated" : "px-upload-row"}
+                className={`flex items-center gap-3 px-4 py-2.5 transition-colors ${
+                  escalated
+                    ? "bg-err-bg/40 hover:bg-err-bg/60 border-l-4 border-err"
+                    : "hover:bg-brand/5"
+                }`}
               >
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-mid to-brand flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 ${
+                    escalated
+                      ? "bg-gradient-to-br from-err to-err"
+                      : "bg-gradient-to-br from-brand-mid to-brand"
+                  }`}
+                >
                   {initials(name)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <Link
-                    href={`/${clinicId}/orders/${order.id}`}
-                    className="block text-[12px] font-semibold text-t1 truncate hover:text-brand"
-                  >
-                    {name}
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={`/${clinicId}/orders/${order.id}`}
+                      className="block text-[12px] font-semibold text-t1 truncate hover:text-brand"
+                    >
+                      {name}
+                    </Link>
+                    {escalated && (
+                      <span
+                        className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-px rounded bg-err text-white"
+                        title="The auto-chase has stopped emailing this patient — call them directly."
+                      >
+                        <Phone className="w-2.5 h-2.5" aria-hidden /> Call patient
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[10.5px] text-t3 truncate flex items-center gap-1.5">
                     <span>{order.id}</span>
                     <span aria-hidden>·</span>
@@ -244,34 +338,61 @@ export function PxUploadPendingCard({ clinicId, orders, patientMap }: Props) {
                     <span>
                       {resendCount === 1 ? "1 send" : `${resendCount} sends`}
                     </span>
+                    {escalated && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <span className="font-semibold text-err">
+                          Auto-chase gave up
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
-                  {canSendManualReminder && (
+                  {escalated && canWriteOrders ? (
+                    // Task-269 — On escalated rows the email avenue has been
+                    // exhausted; replace the inline Resend with a "Mark called"
+                    // action that drops the escalation flag, resets
+                    // auto_resends and lets the cron resume nudging.
                     <button
                       type="button"
-                      onClick={() => handleSendReminder(order.id)}
-                      disabled={isReminderBusy || isBusy}
-                      title={
-                        reminderKindNext === "final"
-                          ? "Send the final reminder email now instead of waiting for the scheduled sweep."
-                          : "Send the first reminder email now instead of waiting for the scheduled sweep."
-                      }
-                      className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded border border-brand/40 text-brand hover:bg-brand/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      onClick={() => handleMarkCalled(order.id)}
+                      disabled={isMarkCalledBusy}
+                      title="Confirm you've spoken to the patient. Clears the escalation and re-enables the auto-chase."
+                      className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded bg-err text-white hover:bg-err/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      <Send className={`w-3 h-3 ${isReminderBusy ? "animate-pulse" : ""}`} />
-                      {isReminderBusy ? "Sending…" : reminderLabel}
+                      <PhoneCall className={`w-3 h-3 ${isMarkCalledBusy ? "animate-pulse" : ""}`} />
+                      {isMarkCalledBusy ? "Saving…" : "Mark called"}
                     </button>
+                  ) : (
+                    <>
+                      {canSendManualReminder && (
+                        <button
+                          type="button"
+                          onClick={() => handleSendReminder(order.id)}
+                          disabled={isReminderBusy || isBusy}
+                          title={
+                            reminderKindNext === "final"
+                              ? "Send the final reminder email now instead of waiting for the scheduled sweep."
+                              : "Send the first reminder email now instead of waiting for the scheduled sweep."
+                          }
+                          className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded border border-brand/40 text-brand hover:bg-brand/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Send className={`w-3 h-3 ${isReminderBusy ? "animate-pulse" : ""}`} />
+                          {isReminderBusy ? "Sending…" : reminderLabel}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleResend(order.id)}
+                        disabled={anyResendInFlight || isReminderBusy}
+                        className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded border border-brand/40 text-brand hover:bg-brand/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isBusy ? "animate-spin" : ""}`} />
+                        {isBusy ? "Sending…" : "Resend link"}
+                      </button>
+                    </>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => handleResend(order.id)}
-                    disabled={anyResendInFlight || isReminderBusy}
-                    className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded border border-brand/40 text-brand hover:bg-brand/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isBusy ? "animate-spin" : ""}`} />
-                    {isBusy ? "Sending…" : "Resend link"}
-                  </button>
                 </div>
               </div>
             );

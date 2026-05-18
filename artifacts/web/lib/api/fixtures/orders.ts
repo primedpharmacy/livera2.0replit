@@ -2322,6 +2322,91 @@ export async function autoResendPxUploadLink(
   return { status: sendResult.status, message_id: sendResult.message_id };
 }
 
+// ---------------------------------------------------------------------------
+// Task-269 — Clear the auto-chase escalation after a staff member has spoken
+// to the patient.
+//
+// `autoChaseExpiringPxUploadLinks` stamps `auto_chase_escalated_at` and adds
+// the "Px upload chase escalated" contextual flag once it has burned through
+// MAX_AUTO_RESENDS without a successful upload. The dashboard widget surfaces
+// these rows with a "Call patient" badge; once staff have made the phone call
+// they hit "Mark called" which lands here. We:
+//   - drop the contextual flag so the row reverts to a normal pending entry
+//   - clear `auto_chase_escalated_at` and reset `auto_resends` to []
+//     so the cron is allowed to resume nudging the patient if needed
+//   - leave the link token + manual `resends` history intact so staff can
+//     still see prior attempts on the order timeline
+//   - emit an audit line + durable audit row under the calling user
+//
+// Refuses to mutate orders that aren't currently escalated so a stray POST
+// can't reset perfectly healthy state.
+// ---------------------------------------------------------------------------
+const ESCALATED_FLAG = 'Px upload chase escalated';
+
+export async function clearPxUploadChaseEscalation(
+  clinic_id: ClinicId,
+  order_id: string,
+  opts: { actor?: import('../types').User } = {},
+): Promise<Order> {
+  // Audit fidelity (code-review fix): attribute the durable audit row to
+  // the verified session user when the route supplied one, falling back to
+  // CURRENT_USER only when called outside an HTTP context (e.g. fixture-
+  // backed unit tests).
+  const actor = opts.actor ?? CURRENT_USER;
+  await delay(120);
+  const order = MOCK_ORDERS.find(
+    (o) => o.clinic_id === clinic_id && o.id === order_id,
+  );
+  if (!order) throw new APIError('NOT_FOUND', `Order ${order_id} not found`);
+
+  const link = order.px_upload_link;
+  const wasEscalated =
+    Boolean(link?.auto_chase_escalated_at) ||
+    (order.contextual_flags?.includes(ESCALATED_FLAG) ?? false);
+  if (!link || !wasEscalated) {
+    throw new APIError(
+      'INVALID_STATE',
+      'This order is not flagged for auto-chase escalation.',
+    );
+  }
+
+  const priorAutoResends = link.auto_resends?.length ?? 0;
+  const escalatedAt = link.auto_chase_escalated_at ?? null;
+
+  link.auto_chase_escalated_at = null;
+  // Resetting auto_resends so the cron's MAX_AUTO_RESENDS counter starts
+  // over — staff have intervened, the patient is now expecting another nudge.
+  link.auto_resends = [];
+
+  order.contextual_flags = (order.contextual_flags ?? []).filter(
+    (f) => f !== ESCALATED_FLAG,
+  );
+  order.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type:        'px_upload_auto_chase_cleared',
+    clinic_id,
+    order_id,
+    by_user_id:        actor.id,
+    prior_auto_resends: priorAutoResends,
+    escalated_at:      escalatedAt,
+    timestamp:         NOW,
+  });
+  void recordAudit({
+    clinic_id,
+    actor,
+    entity: { type: 'order', id: order_id },
+    event_type: 'px_upload_auto_chase_cleared',
+    summary: `Auto-chase escalation cleared for ${order_id} — ${actor.full_name} confirmed they spoke to the patient.`,
+    after: {
+      escalated_at: escalatedAt,
+      prior_auto_resends: priorAutoResends,
+    },
+  });
+
+  return order;
+}
+
 /**
  * Resolve an order from a px-upload link token without consuming it.
  * Used by the patient-facing page to check validity before showing the

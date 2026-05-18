@@ -119,14 +119,31 @@ export function OrderActivityTimeline({ order }: Props) {
     });
   }
 
-  // Px upload received (success-screen or email link)
+  // Px upload received (success-screen, email link, or staff upload).
+  // Task-118 — surface the uploader so reviewers can tell at a glance whether
+  // the patient self-served or a teammate uploaded on their behalf.
   if (order.px_upload?.uploaded_at) {
-    const viaLink = order.px_upload.source === "email_link" || !!order.px_upload_link?.consumed_at;
+    const source = order.px_upload.source
+      ?? (order.px_upload_link?.consumed_at ? "email_link" : "success_screen");
+    let title: string;
+    let actorMeta: string;
+    if (source === "staff_upload") {
+      const staffId = order.px_upload.uploaded_by_user_id ?? "";
+      const staffName = USERS_REGISTRY[staffId]?.full_name || staffId || "staff";
+      title = `Px upload received — uploaded by ${staffName} on patient's behalf`;
+      actorMeta = `by ${staffName} · `;
+    } else if (source === "email_link") {
+      title = "Px upload received via email link";
+      actorMeta = "by patient · ";
+    } else {
+      title = "Px upload received";
+      actorMeta = "by patient · ";
+    }
     entries.push({
       key: "px_upload",
       dot: "ok",
-      title: viaLink ? "Px upload received via email link" : "Px upload received",
-      meta: `${order.px_upload.filename} · ${formatDateTime(order.px_upload.uploaded_at)}`,
+      title,
+      meta: `${actorMeta}${order.px_upload.filename} · ${formatDateTime(order.px_upload.uploaded_at)}`,
       ts: new Date(order.px_upload.uploaded_at).getTime(),
     });
   }

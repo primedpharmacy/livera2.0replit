@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, CURRENT_USER, NOW, USERS_REGISTRY } from "@/lib/api/mock";
 import {
   Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent,
   DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle,
@@ -983,6 +983,19 @@ export function OrderDetailClient({
                       (() => {
                         const streamUrl = `/api/storage${order.px_upload.object_path}`;
                         const isImage = order.px_upload.content_type.startsWith("image/");
+                        // Task-118 — surface uploader provenance recorded by Task-85.
+                        const source = order.px_upload.source
+                          ?? (order.px_upload_link?.consumed_at ? "email_link" : "success_screen");
+                        let attribution: string;
+                        if (source === "staff_upload") {
+                          const staffId = order.px_upload.uploaded_by_user_id ?? "";
+                          const staffName = USERS_REGISTRY[staffId]?.full_name || staffId || "staff";
+                          attribution = `Uploaded by ${staffName} on patient's behalf`;
+                        } else if (source === "email_link") {
+                          attribution = "Uploaded via email link";
+                        } else {
+                          attribution = "Uploaded by patient";
+                        }
                         return (
                           <div className="space-y-3">
                             <div className="flex items-start gap-3 p-3 rounded-lg bg-ok-bg border border-ok-bdr">
@@ -997,6 +1010,9 @@ export function OrderDetailClient({
                                     ? `${(order.px_upload.size / 1024).toFixed(1)} KB`
                                     : `${(order.px_upload.size / 1024 / 1024).toFixed(1)} MB`}{" "}
                                   · uploaded {formatDateTime(order.px_upload.uploaded_at)}
+                                </p>
+                                <p className="text-[11px] font-semibold text-ok mt-1">
+                                  {attribution}
                                 </p>
                               </div>
                               <a

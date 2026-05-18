@@ -3,6 +3,7 @@ import { TopNav } from "@/components/shell/TopNav";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { GlobalFABSpeedDial } from "@/components/shell/GlobalFABSpeedDial";
 import { KeyboardShortcutsHelp } from "@/components/shell/KeyboardShortcutsHelp";
+import { CurrentUserProvider } from "@/lib/current-user-context";
 
 const VALID_CLINIC_IDS = ["vsc", "feeltru"];
 
@@ -19,16 +20,18 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
   }
 
   return (
-    <div className="min-h-screen bg-page-bg flex flex-col">
-      <TopNav />
-      <div className="flex flex-1">
-        <Sidebar clinicId={clinic_id} />
-        <main className="flex-1 min-w-0 bg-page-bg">
-          {children}
-        </main>
+    <CurrentUserProvider>
+      <div className="min-h-screen bg-page-bg flex flex-col">
+        <TopNav />
+        <div className="flex flex-1">
+          <Sidebar clinicId={clinic_id} />
+          <main className="flex-1 min-w-0 bg-page-bg">
+            {children}
+          </main>
+        </div>
+        <GlobalFABSpeedDial clinicId={clinic_id} />
+        <KeyboardShortcutsHelp />
       </div>
-      <GlobalFABSpeedDial clinicId={clinic_id} />
-      <KeyboardShortcutsHelp />
-    </div>
+    </CurrentUserProvider>
   );
 }

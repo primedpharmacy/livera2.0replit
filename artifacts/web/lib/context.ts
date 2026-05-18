@@ -1,11 +1,12 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { getClinicSync, CURRENT_USER } from "@/lib/api/mock";
+import { getClinicSync } from "@/lib/api/mock";
 import type { ClinicId, Clinic, User } from "@/lib/api/mock";
+import { useCurrentUserContext } from "@/lib/current-user-context";
 
 export function useCurrentUser(): User {
-  return CURRENT_USER;
+  return useCurrentUserContext().user;
 }
 
 export function useCurrentClinic(): Clinic {

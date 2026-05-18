@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime, formatRelativeTime, formatAge } from "@/lib/format";
-import { decideAmendment, processRefundAmendment, CURRENT_USER } from "@/lib/api/mock";
+import { decideAmendment, processRefundAmendment } from "@/lib/api/mock";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
+import { useCurrentUser } from "@/lib/context";
 import type { Amendment, Order, Patient } from "@/types";
 
 const TYPE_LABELS: Record<Amendment["type"], string> = {
@@ -64,6 +65,7 @@ export function AmendmentDetailClient({
   patient,
   clinicId,
 }: AmendmentDetailClientProps) {
+  const currentUser = useCurrentUser();
   const [amendment, setAmendment] = useState<Amendment>(initialAmendment);
   const [modal, setModal]         = useState<Modal>(null);
   const [rationale, setRationale] = useState("");
@@ -162,7 +164,7 @@ export function AmendmentDetailClient({
   const isRefund   = amendment.type === "refund";
   const canDecide  = amendment.status === "requested" || amendment.status === "reviewing";
   const isDecided  = amendment.status === "approved" || amendment.status === "rejected" || amendment.status === "applied";
-  const canRefund  = !!CURRENT_USER.can_refund;
+  const canRefund  = !!currentUser.can_refund;
   const d          = patient.demographic;
   const age        = formatAge(d.dob);
 

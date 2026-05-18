@@ -12,7 +12,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCurrentUser, useCurrentClinic } from "@/lib/context";
+import { useCurrentUserContext } from "@/lib/current-user-context";
 import type { ClinicId } from "@/lib/api/mock";
+
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 const WORKSPACES: { id: ClinicId; label: string }[] = [
   { id: "vsc", label: "VSC" },
@@ -77,11 +80,72 @@ export function TopNav() {
         >
           <Keyboard className="w-3.5 h-3.5" aria-hidden={true} />
         </button>
-        <span className="text-white/60">Signed in as</span>
-        <span className="bg-white/10 text-white font-semibold rounded-full px-2.5 py-0.5 text-[11px] tracking-wide">
-          {user.full_name} · {user.roles[0]}
-        </span>
+        {IS_DEV ? (
+          <DemoUserSwitcher />
+        ) : (
+          <>
+            <span className="text-white/60">Signed in as</span>
+            <span className="bg-white/10 text-white font-semibold rounded-full px-2.5 py-0.5 text-[11px] tracking-wide">
+              {user.full_name} · {user.roles[0]}
+            </span>
+          </>
+        )}
       </div>
     </header>
+  );
+}
+
+function DemoUserSwitcher() {
+  const { user, setUserId, availableUsers } = useCurrentUserContext();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          title="Switch demo user (dev only)"
+          className="flex items-center gap-1.5 bg-white/10 hover:bg-white/[0.18] text-white rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide transition-colors outline-none"
+        >
+          <span className="text-white/60 font-normal">Demo:</span>
+          <span>
+            {user.full_name} · {user.roles[0]}
+            {user.can_refund ? "" : " · 🔒"}
+          </span>
+          <ChevronDown className="w-3 h-3 opacity-70" aria-hidden={true} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64 mt-1">
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-t3 font-bold">
+          Switch demo user
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {availableUsers.map((u) => {
+          const active = u.id === user.id;
+          return (
+            <DropdownMenuItem
+              key={u.id}
+              onSelect={() => setUserId(u.id)}
+              className={active ? "font-semibold text-brand" : ""}
+            >
+              <div className="flex flex-col">
+                <span>
+                  {u.full_name} · {u.roles[0]}
+                </span>
+                <span className="text-[10px] text-t3">
+                  {u.can_refund ? "can refund" : "no refund authority"}
+                </span>
+              </div>
+              {active && (
+                <span className="ml-auto text-[10px] text-t3">current</span>
+              )}
+            </DropdownMenuItem>
+          );
+        })}
+        <DropdownMenuSeparator />
+        <div className="px-2 py-1.5 text-[10px] text-t3 leading-snug">
+          Dev-only control. Hidden in production builds.
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

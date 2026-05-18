@@ -89,13 +89,12 @@ const SUB_QUEUES: {
 
 // ── Medication filter chips (secondary, within the selected sub-queue) ─────────
 
-type FilterChip = "all" | "flagged" | "review_needed" | "weight_warning" | "reminder_bounced" | "mounjaro" | "wegovy" | "dose_increase";
+type FilterChip = "all" | "flagged" | "review_needed" | "reminder_bounced" | "mounjaro" | "wegovy" | "dose_increase";
 
 const CHIPS: { value: FilterChip; label: string }[] = [
   { value: "all",              label: "All orders"        },
   { value: "flagged",          label: "Flagged only"      },
   { value: "review_needed",    label: "Review needed"     },
-  { value: "weight_warning",   label: "Weight warning"    },
   { value: "reminder_bounced", label: "Reminder bounced"  },
   { value: "mounjaro",         label: "Mounjaro"          },
   { value: "wegovy",           label: "Wegovy"            },
@@ -346,11 +345,6 @@ export function ClinicalCheckClient({
       case "review_needed":
         list = subFiltered.filter((o) => (reviewNeededByOrderId[o.id] ?? 0) > 0);
         break;
-      case "weight_warning":
-        list = subFiltered.filter(
-          (o) => (weightWarningStateByOrderId[o.id]?.unacknowledged ?? 0) > 0,
-        );
-        break;
       case "reminder_bounced":
         list = subFiltered.filter((o) => computeReminderStatus(o)?.state === "bounced");
         break;
@@ -511,26 +505,13 @@ export function ClinicalCheckClient({
                     0,
                   )
                 : 0;
-            // Task-191 — Scope weight-warning chip count to the current sub-queue
-            // so the number matches what the user will see if they click it.
-            const subWeightWarningCount =
-              chip.value === "weight_warning"
-                ? subFiltered.reduce(
-                    (acc, o) =>
-                      acc +
-                      ((weightWarningStateByOrderId[o.id]?.unacknowledged ?? 0) > 0 ? 1 : 0),
-                    0,
-                  )
-                : 0;
             const count =
-              chip.value === "review_needed"    ? subReviewCount        :
-              chip.value === "reminder_bounced" ? subBouncedCount       :
-              chip.value === "weight_warning"   ? subWeightWarningCount :
+              chip.value === "review_needed"    ? subReviewCount  :
+              chip.value === "reminder_bounced" ? subBouncedCount :
               undefined;
             const disabled =
               (chip.value === "review_needed"    && subReviewCount === 0) ||
-              (chip.value === "reminder_bounced" && subBouncedCount === 0) ||
-              (chip.value === "weight_warning"   && subWeightWarningCount === 0);
+              (chip.value === "reminder_bounced" && subBouncedCount === 0);
             return (
               <button
                 key={chip.value}

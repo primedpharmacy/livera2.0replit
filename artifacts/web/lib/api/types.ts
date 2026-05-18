@@ -447,12 +447,31 @@ export type Order = {
     // generate a new one, and append an entry here so the activity timeline
     // can show every resend.
     resends?: Array<{
-      sent_at: string;        // ISO — when the resend email was queued
+      // ISO — when the resend email was successfully queued. Null for
+      // Bounced/Failed attempts (parallels the Task-80 semantics of the
+      // top-level `sent_at`: only Delivered sends are marked "sent"). Use
+      // `attempted_at` to get the time of every attempt regardless of outcome.
+      sent_at: string | null;
       to_email: string;
       expires_at: string;     // new TTL for the freshly-issued token
       previous_expired: boolean; // true if the previous token was past its TTL
       by_user_id: string;     // staff member who triggered the resend
+      // Task-178 — delivery outcome of the resend itself (mirrors Postmark
+      // status). Older fixture entries may omit this; treat as 'Delivered'
+      // when the entry exists with a populated sent_at and no recorded
+      // status (preserving the original Task-91 semantics).
+      status?: 'Delivered' | 'Bounced' | 'Failed';
+      error_message?: string | null;
+      attempted_at?: string;  // ISO — when the resend was attempted, even if Bounced/Failed
     }>;
+    // Task-178 — Initial send record, preserved across token rotation so the
+    // Email-history view can always show the very first attempt (including
+    // ones that bounced before the patient ever received a working link).
+    initial_attempted_at?: string;
+    initial_to_email?: string;
+    initial_send_status?: 'Delivered' | 'Bounced' | 'Failed';
+    initial_send_error_message?: string | null;
+    initial_send_by_user_id?: string | null; // null for system / intake auto-send
     // Task-92 — scheduled reminder bookkeeping. Each field is set the first
     // (and only) time its corresponding reminder is sent, so the daily sweep
     // is idempotent: a reminder is never dispatched twice for the same order.

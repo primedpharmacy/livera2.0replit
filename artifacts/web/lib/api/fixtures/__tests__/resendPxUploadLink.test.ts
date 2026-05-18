@@ -13,10 +13,12 @@
  * silently leave the old link valid.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as postmark from '../../../integrations/postmark';
 import {
   resendPxUploadLink,
   attachPxUploadByToken,
+  getOrderAuditEvents,
   MOCK_ORDERS,
 } from '../orders';
 import type { Order } from '../../types';
@@ -160,6 +162,81 @@ describe('resendPxUploadLink() — refusals', () => {
         code: 'INVALID_STATE',
         message: expect.stringContaining('does not require'),
       });
+  });
+});
+
+describe('resendPxUploadLink() — Task-178 Email-history backfill', () => {
+  it('backfills initial_* from a legacy link (sent_at only) so the original send survives the first resend', async () => {
+    const originalSentAt = '2026-05-02T07:30:00Z';
+    const originalEmail = 'zara.ahmed@example.com';
+    // Seed deliberately omits the new initial_* fields to mimic a pre-Task-178
+    // record (matches the seedExistingLink shape, which doesn't set them).
+    seedExistingLink(PX_PENDING_ORDER_ID, { sentAt: originalSentAt });
+    const order = getOrder(PX_PENDING_ORDER_ID);
+    expect(order.px_upload_link!.initial_attempted_at).toBeUndefined();
+
+    const updated = await resendPxUploadLink(PX_PENDING_CLINIC, PX_PENDING_ORDER_ID);
+    const link = updated.px_upload_link!;
+
+    // The original send's timestamp/email must be preserved, NOT overwritten
+    // with the resend's NOW timestamp.
+    expect(link.initial_attempted_at).toBe(originalSentAt);
+    expect(link.initial_to_email).toBe(originalEmail);
+    expect(link.initial_send_status).toBe('Delivered');
+    expect(link.initial_send_error_message).toBeNull();
+
+    // And the resend itself is appended separately as a resends[] entry.
+    expect(link.resends ?? []).toHaveLength(1);
+    expect(link.resends![0].sent_at).not.toBe(originalSentAt);
+  });
+
+  it('records a Bounced resend with sent_at = null + status/error_message so the timeline does not show it as successful', async () => {
+    seedExistingLink(PX_PENDING_ORDER_ID, { sentAt: '2026-05-01T08:00:00Z' });
+    const spy = vi.spyOn(postmark, 'sendPatientEmail').mockResolvedValueOnce({
+      message_id: null,
+      status: 'Bounced',
+      error_message: 'Postmark 422: inactive recipient',
+    });
+
+    try {
+      const updated = await resendPxUploadLink(PX_PENDING_CLINIC, PX_PENDING_ORDER_ID);
+      const resends = updated.px_upload_link!.resends ?? [];
+      expect(resends).toHaveLength(1);
+      const entry = resends[0];
+      // sent_at must NOT be populated for a bounced resend — existing Task-91
+      // timeline rendering keys off `sent_at` to label a row as a successful
+      // "Px upload link resent". Bounces carry attempted_at + status instead.
+      expect(entry.sent_at).toBeNull();
+      expect(entry.attempted_at).toBeTruthy();
+      expect(entry.status).toBe('Bounced');
+      expect(entry.error_message).toBe('Postmark 422: inactive recipient');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('records a px_upload_link_resend_suppressed audit event when a resend is rate-limited', async () => {
+    // Task-178 — Suppressed attempts are sourced from the audit log (per task
+    // brief — no new persistence on the link record). Seed with sent_at = "just
+    // now" so the next resend trips the 60s cool-down.
+    seedExistingLink(PX_PENDING_ORDER_ID, { sentAt: new Date().toISOString() });
+    const eventsBefore = getOrderAuditEvents(PX_PENDING_ORDER_ID, [
+      'px_upload_link_resend_suppressed',
+    ]).length;
+
+    await expect(resendPxUploadLink(PX_PENDING_CLINIC, PX_PENDING_ORDER_ID))
+      .rejects.toMatchObject({ code: 'COOLDOWN' });
+
+    const eventsAfter = getOrderAuditEvents(PX_PENDING_ORDER_ID, [
+      'px_upload_link_resend_suppressed',
+    ]);
+    expect(eventsAfter).toHaveLength(eventsBefore + 1);
+    const newest = eventsAfter[eventsAfter.length - 1];
+    expect(newest.payload).toMatchObject({
+      reason: 'cooldown',
+      cooldown_seconds: 60,
+    });
+    expect(newest.actor_user_id).toEqual(expect.any(String));
   });
 });
 

@@ -88,6 +88,15 @@ function WorkspaceAccessTokenSection({
   const [secret, setSecret] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Revoke / rotate state — owner/admin only. A revoke flips the workspace
+  // back to demo-mode without anyone needing DB access; a rotate accepts a
+  // new whsec_… value and verifies length client-side before the round-trip.
+  const [revoking, setRevoking] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [rotateSecret, setRotateSecret] = useState("");
+  const [rotating, setRotating] = useState(false);
+  const [rotateOpen, setRotateOpen] = useState(false);
+  const [rotateError, setRotateError] = useState<string | null>(null);
 
   useEffect(() => {
     let aborted = false;
@@ -134,6 +143,65 @@ function WorkspaceAccessTokenSection({
       setSaving(false);
     }
   }
+
+  async function handleRevoke() {
+    setRevoking(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/intercom/${clinicId}/credentials`, {
+        method: "DELETE",
+        headers: { "X-Livera-Role": "admin" },
+      });
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
+        throw new Error(detail.error ?? `revoke_failed_${res.status}`);
+      }
+      setStatus({ configured: false, demo_mode: true });
+      setConfirmRevoke(false);
+      onToast("Intercom token revoked — workspace reverted to demo mode");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "revoke_failed");
+    } finally {
+      setRevoking(false);
+    }
+  }
+
+  async function handleRotateSecret() {
+    const value = rotateSecret.trim();
+    if (!value.startsWith("whsec_")) {
+      setRotateError("Signing secret must start with whsec_");
+      return;
+    }
+    if (value.length < 16) {
+      setRotateError("Signing secret looks too short");
+      return;
+    }
+    setRotateError(null);
+    setRotating(true);
+    try {
+      const res = await fetch(`/api/intercom/${clinicId}/credentials/secret`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Livera-Role": "admin",
+        },
+        body: JSON.stringify({ webhook_secret: value }),
+      });
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string };
+        throw new Error(detail.error ?? `rotate_failed_${res.status}`);
+      }
+      setRotateSecret("");
+      setRotateOpen(false);
+      onToast("Webhook signing secret rotated");
+    } catch (err) {
+      setRotateError(err instanceof Error ? err.message : "rotate_failed");
+    } finally {
+      setRotating(false);
+    }
+  }
+
+  const isLive = !!status?.configured && !status?.demo_mode;
 
   return (
     <div className="bg-surface border border-bdr rounded-lg p-4 space-y-3">
@@ -212,6 +280,100 @@ function WorkspaceAccessTokenSection({
         <p className="text-[11.5px] text-err flex items-center gap-1.5">
           <AlertCircle className="w-3.5 h-3.5" /> {error}
         </p>
+      )}
+
+      {/* Revoke / rotate — Owner/Admin only. Hidden until a live token is
+          configured because there is nothing to revoke or rotate in demo
+          mode (the stub credentials live entirely in process memory). */}
+      {isLive && (
+        <div className="border-t border-bdr pt-3 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11.5px] font-semibold text-t1">Key management</p>
+              <p className="text-[11px] text-t3">
+                Revoke clears the saved token and reverts to demo mode. Rotate replaces the webhook signing secret only.
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setRotateOpen((v) => !v); setRotateError(null); }}
+                className="h-8 text-[12px] gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Rotate signing secret
+              </Button>
+              {confirmRevoke ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setConfirmRevoke(false)}
+                    disabled={revoking}
+                    className="h-8 text-[12px]"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={handleRevoke}
+                    disabled={revoking}
+                    className="h-8 text-[12px] bg-err text-white hover:bg-err/90"
+                  >
+                    {revoking ? "Revoking…" : "Confirm revoke"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConfirmRevoke(true)}
+                  className="h-8 text-[12px] text-err border-err/40 hover:bg-err-bg"
+                >
+                  Revoke token
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {rotateOpen && (
+            <div className="bg-page-bg border border-bdr rounded-md p-3 space-y-2">
+              <label className="block text-[11px] text-t3">
+                New webhook signing secret
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  placeholder="whsec_…"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={rotateSecret}
+                  onChange={(e) => setRotateSecret(e.target.value)}
+                  className="flex-1 text-[12px] bg-surface border border-bdr rounded px-3 py-2 font-mono text-t1 focus:outline-none focus:border-brand"
+                />
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={handleRotateSecret}
+                  disabled={rotating || rotateSecret.trim().length === 0}
+                  className="h-9 text-[12px]"
+                >
+                  {rotating ? "Rotating…" : "Save new secret"}
+                </Button>
+              </div>
+              {rotateError && (
+                <p className="text-[11.5px] text-err flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5" /> {rotateError}
+                </p>
+              )}
+              <p className="text-[11px] text-t3">
+                Must start with <code className="font-mono">whsec_</code> and be at least 16 characters. The previous secret is replaced atomically — restart any in-flight Intercom redelivery after rotation.
+              </p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

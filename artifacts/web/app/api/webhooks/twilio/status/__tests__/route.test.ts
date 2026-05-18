@@ -55,7 +55,7 @@ afterEach(() => {
 });
 
 describe('POST /api/webhooks/twilio/status — stub mode signature bypass', () => {
-  it('flips a matching Delivered SMS notification to Bounced when Twilio reports undelivered', async () => {
+  it('flips a matching Queued SMS notification to Bounced when Twilio reports undelivered', async () => {
     const sid = 'SMtest_' + Math.random().toString(36).slice(2);
     const created = recordPatientNotification({
       clinic_id:  'feeltru',
@@ -63,11 +63,11 @@ describe('POST /api/webhooks/twilio/status — stub mode signature bypass', () =
       order_id:   'ORD-WEBHOOK-TEST-1',
       type:       'order_approved',
       template:   'order_approved',
-      status:     'Delivered',
+      status:     'Queued',
       channel:    'SMS',
       payload:    { sms_message_id: sid, sms_to_phone: '+447700900000' },
     });
-    expect(created.status).toBe('Delivered');
+    expect(created.status).toBe('Queued');
 
     const res = await POST(buildRequest({
       MessageSid:    sid,

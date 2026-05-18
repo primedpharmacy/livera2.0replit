@@ -1,5 +1,5 @@
 import { IntakeForm } from "@/components/intake/IntakeForm";
-import { getQuestionnaire } from "@/lib/api/fixtures/clinics";
+import { getQuestionnaire, getClinicSync } from "@/lib/api/fixtures/clinics";
 
 export const metadata = {
   title: "FeelTru — Patient Intake",
@@ -8,5 +8,12 @@ export const metadata = {
 
 export default function FeelTruIntakePage() {
   const { order } = getQuestionnaire("feeltru");
-  return <IntakeForm clinicId="feeltru" initialQuestions={order} />;
+  const clinic = getClinicSync("feeltru");
+  return (
+    <IntakeForm
+      clinicId="feeltru"
+      initialQuestions={order}
+      minimumAgeYears={clinic.config.minimum_patient_age_years}
+    />
+  );
 }

@@ -145,6 +145,25 @@ describe('POST /api/intake/:clinic_id — email validation (Task-164)', () => {
     expect(createIntakeOrder).not.toHaveBeenCalled();
   });
 
+  it.each([
+    'jane@mailinator.com',
+    'jane@tempmail.com',
+    'jane@guerrillamail.com',
+    'jane+filter@yopmail.com',
+    'Jane@Mailinator.com',
+  ])('rejects disposable inbox "%s" with 400 (Task-245)', async (email) => {
+    const { req, params } = buildReq({
+      personal: { ...VALID_PERSONAL, email },
+      address: VALID_ADDRESS,
+      responses: {},
+    });
+    const res = await POST(req as never, { params });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.message).toMatch(/permanent email address/i);
+    expect(createIntakeOrder).not.toHaveBeenCalled();
+  });
+
   it('normalises a valid email to lower-case before persisting', async () => {
     const { req, params } = buildReq({
       personal: { ...VALID_PERSONAL, email: '  Jane@Example.COM ' },

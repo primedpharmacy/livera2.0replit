@@ -327,6 +327,9 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Weight-warning thresholds (Task-100) — seeded with platform defaults.
       weight_warning_thresholds: { ...DEFAULT_WEIGHT_WARNING_THRESHOLDS },
+
+      // Minimum patient age (Task-246) — default 18.
+      minimum_patient_age_years: 18,
     },
   },
 
@@ -488,6 +491,9 @@ const MOCK_CLINICS: Record<ClinicId, Clinic> = {
 
       // Weight-warning thresholds (Task-100) — seeded with platform defaults.
       weight_warning_thresholds: { ...DEFAULT_WEIGHT_WARNING_THRESHOLDS },
+
+      // Minimum patient age (Task-246) — default 18.
+      minimum_patient_age_years: 18,
     },
   },
 };
@@ -575,7 +581,7 @@ export async function updateClinicSlaThresholds(
 // they become editable.
 // ---------------------------------------------------------------------------
 
-export type ClinicFieldName = 'clinical_check_inbox' | 'reply_email';
+export type ClinicFieldName = 'clinical_check_inbox' | 'reply_email' | 'minimum_patient_age_years';
 
 export type ClinicFieldAuditEvent = {
   clinic_id:  ClinicId;
@@ -733,6 +739,79 @@ export async function updateClinicReplyEmail(
   recordClinicFieldAudit({
     clinic_id,
     field_name: 'reply_email',
+    actor_id,
+    occurred_at: NOW,
+  });
+
+  return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
+// updateClinicMinimumPatientAge — Task-246
+// Persists the per-clinic minimum patient age used by the intake DOB validator.
+// Owner/Admin only; value must be an integer between 13 and 120.
+// ---------------------------------------------------------------------------
+
+export const MIN_ALLOWED_PATIENT_AGE = 13;
+export const MAX_ALLOWED_PATIENT_AGE = 120;
+
+export async function updateClinicMinimumPatientAge(
+  clinic_id: ClinicId,
+  new_age: number,
+  actor_id: string,
+): Promise<ClinicConfig> {
+  await delay();
+  const clinic = MOCK_CLINICS[clinic_id];
+  if (!clinic) throw new APIError('NOT_FOUND', `Clinic '${clinic_id}' not found`);
+
+  // Layer 2a — permission gate: Admin/Owner only.
+  const isAdminOrOwner = CURRENT_USER.roles.some((r) => r === 'Admin' || r === 'Owner');
+  if (!isAdminOrOwner) {
+    console.log('[AUDIT]', {
+      event_type: 'minimum_patient_age_update_blocked',
+      outcome:    'PERMISSION_DENIED',
+      actor_id:   CURRENT_USER.id,
+      clinic_id,
+      timestamp:  NOW,
+    });
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      'Only Admins and Owners may update the minimum patient age',
+    );
+  }
+
+  // Layer 2b — validation: integer within sensible bounds.
+  if (
+    typeof new_age !== 'number' ||
+    !Number.isFinite(new_age) ||
+    !Number.isInteger(new_age) ||
+    new_age < MIN_ALLOWED_PATIENT_AGE ||
+    new_age > MAX_ALLOWED_PATIENT_AGE
+  ) {
+    throw new APIError(
+      'SAFETY_VIOLATION',
+      `Minimum patient age must be a whole number between ${MIN_ALLOWED_PATIENT_AGE} and ${MAX_ALLOWED_PATIENT_AGE}`,
+    );
+  }
+
+  const oldValue = clinic.config.minimum_patient_age_years;
+  if (oldValue === new_age) return clinic.config;
+
+  clinic.config.minimum_patient_age_years = new_age;
+
+  console.log('[AUDIT]', {
+    event_type: 'minimum_patient_age_updated',
+    outcome:    'success',
+    actor_id,
+    clinic_id,
+    field_name: 'minimum_patient_age_years',
+    old_value:  oldValue,
+    new_value:  new_age,
+    timestamp:  NOW,
+  });
+  recordClinicFieldAudit({
+    clinic_id,
+    field_name: 'minimum_patient_age_years',
     actor_id,
     occurred_at: NOW,
   });

@@ -14,6 +14,9 @@ import {
   normalisePostcode,
   normaliseUkMobile,
   isValidEmail,
+  isAllowedEmailDomain,
+  emailDomain,
+  DISPOSABLE_EMAIL_DOMAINS,
   normaliseEmail,
   validateDob,
   ageOnDate,
@@ -128,6 +131,54 @@ describe('isValidEmail() (Task-164)', () => {
 
   it('lower-cases and trims via normaliseEmail()', () => {
     expect(normaliseEmail('  Jane@Example.COM ')).toBe('jane@example.com');
+  });
+});
+
+describe('isAllowedEmailDomain() — disposable inbox blocklist (Task-245)', () => {
+  it.each([
+    'jane@mailinator.com',
+    'jane@MAILINATOR.com',
+    'jane@tempmail.com',
+    'jane@temp-mail.org',
+    'jane@10minutemail.com',
+    'jane@guerrillamail.com',
+    'jane@sharklasers.com',
+    'jane@grr.la',
+    'jane@yopmail.com',
+    'jane@maildrop.cc',
+    'jane@throwawaymail.com',
+    'jane@trashmail.com',
+    'jane+filter@mailinator.com',
+    '  Jane@Mailinator.com  ',
+  ])('rejects %s', (input) => {
+    expect(isAllowedEmailDomain(input)).toBe(false);
+  });
+
+  it.each([
+    'jane@example.com',
+    'jane@gmail.com',
+    'jane@nhs.net',
+    'jane@outlook.com',
+    'jane@proton.me',
+    'jane.doe@feeltru.co.uk',
+  ])('accepts permanent address %s', (input) => {
+    expect(isAllowedEmailDomain(input)).toBe(true);
+  });
+
+  it('treats a value without an @ as not allowed', () => {
+    expect(isAllowedEmailDomain('plainstring')).toBe(false);
+    expect(isAllowedEmailDomain('')).toBe(false);
+  });
+
+  it('extracts the lower-cased domain via emailDomain()', () => {
+    expect(emailDomain('Jane@Example.COM')).toBe('example.com');
+    expect(emailDomain('plainstring')).toBeNull();
+    expect(emailDomain('jane@')).toBeNull();
+  });
+
+  it('includes the well-known disposable providers from the task', () => {
+    expect(DISPOSABLE_EMAIL_DOMAINS.has('mailinator.com')).toBe(true);
+    expect(DISPOSABLE_EMAIL_DOMAINS.has('tempmail.com')).toBe(true);
   });
 });
 

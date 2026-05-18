@@ -192,6 +192,11 @@ export type ClinicConfig = {
   questionnaire_order: QuestionItem[];     // New-patient questionnaire config (BLD-13.4)
   questionnaire_reorder: QuestionItem[];   // Reorder questionnaire config (BLD-13.4)
 
+  // Task-246 — clinic-tunable minimum patient age for intake (DOB validator).
+  // Default 18; some GLP-1 protocols want 21, paediatric flows may want lower.
+  // Read by validateDob via the `minimumAgeYears` override.
+  minimum_patient_age_years: number;
+
   // Task-100 — clinic-tunable thresholds for the weight-trend analyser.
   // Read by analyseWeightHistory in lib/clinical/weightWarnings.ts.
   weight_warning_thresholds: {

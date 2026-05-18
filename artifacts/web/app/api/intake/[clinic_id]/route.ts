@@ -10,12 +10,15 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createIntakeOrder } from '@/lib/api/fixtures/orders';
+import { getClinic } from '@/lib/api/fixtures/clinics';
 import {
   isValidUkMobile,
   isValidUkPostcode,
   normalisePostcode,
   normaliseUkMobile,
   isValidEmail,
+  isAllowedEmailDomain,
+  DISPOSABLE_EMAIL_MESSAGE,
   normaliseEmail,
   validateDob,
   dobErrorMessage,
@@ -117,13 +120,36 @@ export async function POST(req: NextRequest, { params }: Params) {
         { status: 400 },
       );
     }
+    if (!isAllowedEmailDomain(rawEmail)) {
+      return NextResponse.json(
+        { message: DISPOSABLE_EMAIL_MESSAGE },
+        { status: 400 },
+      );
+    }
     const normalisedEmail = normaliseEmail(rawEmail);
 
+    // Per-clinic minimum patient age (Task-246). Strict lookup — if the
+    // clinic id is unknown we must NOT silently fall back to another
+    // clinic's threshold, so we 404 instead. If the clinic exists but has
+    // no override set, we use the platform default (18).
+    let minimumAgeYears = MINIMUM_PATIENT_AGE_YEARS;
+    try {
+      const clinic = await getClinic(clinic_id as ClinicId);
+      if (typeof clinic.config.minimum_patient_age_years === 'number') {
+        minimumAgeYears = clinic.config.minimum_patient_age_years;
+      }
+    } catch {
+      return NextResponse.json(
+        { message: `Unknown clinic: ${clinic_id}` },
+        { status: 404 },
+      );
+    }
+
     const rawDob = (body.personal.dob ?? '').trim();
-    const dobResult = validateDob(rawDob);
+    const dobResult = validateDob(rawDob, { minimumAgeYears });
     if (!dobResult.ok) {
       return NextResponse.json(
-        { message: dobErrorMessage(dobResult.reason, MINIMUM_PATIENT_AGE_YEARS) },
+        { message: dobErrorMessage(dobResult.reason, minimumAgeYears) },
         { status: 400 },
       );
     }

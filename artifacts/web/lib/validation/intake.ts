@@ -83,6 +83,91 @@ export function isValidEmail(raw: string): boolean {
 }
 
 /**
+ * Disposable / temporary inbox blocklist (Task-245).
+ *
+ * Patients using throwaway inboxes break order confirmation and Px-upload
+ * reminder flows because the link expires before they read it. We reject
+ * a small set of well-known disposable-mail providers at intake time so
+ * the patient is prompted for a permanent address before submitting.
+ *
+ * This is intentionally a hand-curated list — not a domain-reputation
+ * lookup — so it stays deterministic and offline-testable. New domains
+ * can be added here as we see them in the wild.
+ */
+export const DISPOSABLE_EMAIL_DOMAINS: ReadonlySet<string> = new Set([
+  'mailinator.com',
+  'mailinator.net',
+  'mailinator.org',
+  'tempmail.com',
+  'temp-mail.org',
+  'temp-mail.io',
+  'tempmail.net',
+  'tempmailo.com',
+  'tmpmail.org',
+  'tmpmail.net',
+  '10minutemail.com',
+  '10minutemail.net',
+  '20minutemail.com',
+  'guerrillamail.com',
+  'guerrillamail.net',
+  'guerrillamail.org',
+  'guerrillamail.biz',
+  'guerrillamail.info',
+  'sharklasers.com',
+  'grr.la',
+  'yopmail.com',
+  'yopmail.net',
+  'yopmail.fr',
+  'getnada.com',
+  'getairmail.com',
+  'maildrop.cc',
+  'dispostable.com',
+  'throwawaymail.com',
+  'fakeinbox.com',
+  'trashmail.com',
+  'trashmail.de',
+  'mohmal.com',
+  'mintemail.com',
+  'mytemp.email',
+  'spam4.me',
+  'mailnesia.com',
+  'mailcatch.com',
+  'mailnull.com',
+  'inboxbear.com',
+  'tempinbox.com',
+  'emailondeck.com',
+  'emailfake.com',
+  'fakemail.net',
+  'discard.email',
+  'discardmail.com',
+  'mailpoof.com',
+  'moakt.com',
+]);
+
+/**
+ * Extract the lower-cased domain part of an email, or null if absent.
+ */
+export function emailDomain(raw: string): string | null {
+  const v = (raw ?? '').trim().toLowerCase();
+  const at = v.lastIndexOf('@');
+  if (at < 1 || at === v.length - 1) return null;
+  return v.slice(at + 1);
+}
+
+/**
+ * Returns true when the email's domain is NOT on the disposable blocklist.
+ * (A malformed email — no `@` — is treated as "not allowed".)
+ */
+export function isAllowedEmailDomain(raw: string): boolean {
+  const domain = emailDomain(raw);
+  if (!domain) return false;
+  return !DISPOSABLE_EMAIL_DOMAINS.has(domain);
+}
+
+export const DISPOSABLE_EMAIL_MESSAGE =
+  'Please use a permanent email address so we can send you order updates';
+
+/**
  * Compute integer age in whole years on a given reference date.
  * DOB strings are expected as ISO `YYYY-MM-DD` (what the <input type="date">
  * yields). Returns null if the input is not a real calendar date.

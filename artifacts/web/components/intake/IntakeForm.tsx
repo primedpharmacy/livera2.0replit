@@ -21,6 +21,8 @@ import {
   isValidUkMobile,
   isValidUkPostcode,
   isValidEmail,
+  isAllowedEmailDomain,
+  DISPOSABLE_EMAIL_MESSAGE,
   validateDob,
   dobErrorMessage,
   MINIMUM_PATIENT_AGE_YEARS,
@@ -1100,9 +1102,11 @@ function ReviewStep({
 export function IntakeForm({
   clinicId,
   initialQuestions,
+  minimumAgeYears = MINIMUM_PATIENT_AGE_YEARS,
 }: {
   clinicId: ClinicId;
   initialQuestions: QuestionItem[];
+  minimumAgeYears?: number;
 }) {
   const [questions] = useState<QuestionItem[]>(initialQuestions);
 
@@ -1175,9 +1179,10 @@ export function IntakeForm({
         personal.firstName.trim() &&
         personal.lastName.trim() &&
         personal.dob &&
-        validateDob(personal.dob).ok &&
+        validateDob(personal.dob, { minimumAgeYears }).ok &&
         personal.email.trim() &&
         isValidEmail(personal.email) &&
+        isAllowedEmailDomain(personal.email) &&
         personal.phone.trim() &&
         isValidUkMobile(personal.phone) &&
         personal.sexAtBirth &&
@@ -1368,12 +1373,12 @@ export function IntakeForm({
                         onChange={(e) => setPersonal({ ...personal, dob: e.target.value })}
                       />
                       {showErrors && (() => {
-                        const r = validateDob(personal.dob);
+                        const r = validateDob(personal.dob, { minimumAgeYears });
                         if (r.ok) return null;
                         return (
                           <p className="text-[11px] text-[#ef4444] mt-1 flex items-center gap-1">
                             <AlertCircle className="w-3 h-3" />
-                            {dobErrorMessage(r.reason, MINIMUM_PATIENT_AGE_YEARS)}
+                            {dobErrorMessage(r.reason, minimumAgeYears)}
                           </p>
                         );
                       })()}
@@ -1552,6 +1557,15 @@ export function IntakeForm({
                           Enter a valid email address (e.g. jane@example.com)
                         </p>
                       )}
+                      {showErrors &&
+                        personal.email.trim() &&
+                        isValidEmail(personal.email) &&
+                        !isAllowedEmailDomain(personal.email) && (
+                          <p className="text-[11px] text-[#ef4444] mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            {DISPOSABLE_EMAIL_MESSAGE}
+                          </p>
+                        )}
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-[#64748b] uppercase tracking-wide mb-1.5">

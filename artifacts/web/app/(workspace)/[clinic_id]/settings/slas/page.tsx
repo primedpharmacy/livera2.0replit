@@ -14,6 +14,7 @@ import { SlaThresholdEditor } from "@/components/settings/SlaThresholdEditor";
 import { WeightWarningThresholdsEditor } from "@/components/settings/WeightWarningThresholdsEditor";
 import { ClinicalCheckInboxEditor } from "@/components/settings/ClinicalCheckInboxEditor";
 import { ReplyEmailEditor } from "@/components/settings/ReplyEmailEditor";
+import { MinimumPatientAgeEditor } from "@/components/settings/MinimumPatientAgeEditor";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/format";
 import { getClinic, listSlaBreaches } from "@/lib/api/mock";
@@ -58,6 +59,9 @@ async function SlaContent({ clinicId }: { clinicId: ClinicId }) {
 
         {/* Weight-warning thresholds (Task-100) */}
         <WeightWarningThresholdsEditor config={clinic.config} clinicId={clinicId} actorId={CURRENT_USER.id} />
+
+        {/* Minimum patient age (Task-246) */}
+        <MinimumPatientAgeEditor config={clinic.config} clinicId={clinicId} actorId={CURRENT_USER.id} />
 
         {/* Open breaches table */}
         {openBreaches.length > 0 && (

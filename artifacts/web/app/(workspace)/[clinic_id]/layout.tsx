@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { TopNav } from "@/components/shell/TopNav";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { GlobalFABSpeedDial } from "@/components/shell/GlobalFABSpeedDial";
+import { KeyboardShortcutsHelp } from "@/components/shell/KeyboardShortcutsHelp";
 
 const VALID_CLINIC_IDS = ["vsc", "feeltru"];
 
@@ -27,6 +28,7 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
         </main>
       </div>
       <GlobalFABSpeedDial clinicId={clinic_id} />
+      <KeyboardShortcutsHelp />
     </div>
   );
 }

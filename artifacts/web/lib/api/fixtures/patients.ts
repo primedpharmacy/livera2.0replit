@@ -391,6 +391,56 @@ export async function getPatient(clinic_id: ClinicId, id: string): Promise<Patie
   return p;
 }
 
+// ── Task-72 — updatePatientPreferredChannel ──────────────────────────────────
+// Lets an authorised admin/owner change patient.contact.preferred_channel so
+// downstream refund + cancellation notifications (Task-65 dispatcher) route to
+// the right channel. 3-layer safety chain mirrors the AdminNote pattern:
+//   Layer 1 (UI gate): editor only renders if can(actor, 'write', 'patients').
+//   Layer 2 (server gate): can() check here; throws SAFETY_VIOLATION on denial.
+//   Layer 3 (audit log): [AUDIT] entry per mutation (success + denial).
+export async function updatePatientPreferredChannel(
+  clinic_id: ClinicId,
+  patient_id: string,
+  preferred_channel: 'email' | 'sms' | 'phone',
+  actor = CURRENT_USER,
+): Promise<Patient> {
+  await delay(250);
+
+  if (!can(actor, 'write', 'patients')) {
+    console.log('[AUDIT]', {
+      event_type: 'patient_preferred_channel_updated',
+      outcome: 'safety_violation',
+      actor_id: actor.id,
+      clinic_id,
+      patient_id,
+      attempted_channel: preferred_channel,
+      timestamp: NOW,
+    });
+    throw new APIError('SAFETY_VIOLATION', 'Insufficient permissions to update patient contact preferences');
+  }
+
+  const patient = MOCK_PATIENTS.find((p) => p.clinic_id === clinic_id && p.id === patient_id);
+  if (!patient) throw new APIError('NOT_FOUND', `Patient ${patient_id} not found in ${clinic_id}`);
+
+  const previous_channel = patient.contact.preferred_channel;
+  patient.contact = { ...patient.contact, preferred_channel };
+  patient.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'patient_preferred_channel_updated',
+    outcome: 'success',
+    actor_id: actor.id,
+    clinic_id,
+    patient_id,
+    previous_channel,
+    new_channel: preferred_channel,
+    phone_on_file: !!patient.contact.phone,
+    timestamp: NOW,
+  });
+
+  return patient;
+}
+
 // ── BLD-10.4 — purgePatientData — UK GDPR Art 5(1)(c) data minimisation ──────
 // Called when a male/non-binary patient is identified at a female_only clinic.
 // Owner/Admin only. Audit-logged with legal basis. Removes from Livera mirror only

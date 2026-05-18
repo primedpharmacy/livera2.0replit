@@ -19,6 +19,7 @@ import { ClinicalNoteEditor } from "@/components/clinical-notes/ClinicalNoteEdit
 import { PatientFABSpeedDial } from "@/components/patients/PatientFABSpeedDial";
 import { FuturePlaceholderCard } from "@/components/patients/FuturePlaceholderCard";
 import { IntercomPhotoTab } from "@/components/patients/IntercomPhotoTab";
+import { PreferredChannelEditor } from "@/components/patients/PreferredChannelEditor";
 import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
 import {
@@ -122,6 +123,7 @@ async function ProfileContent({
     const totalSpend = orders.reduce((s, o) => s + (o.amount_authorised ?? 0), 0);
     const canWriteNotes = can(CURRENT_USER, "write", "clinical_notes");
     const canPurge = can(CURRENT_USER, "write", "patients");
+    const canEditContact = can(CURRENT_USER, "write", "patients");
     const genderEligibility = clinic.config.gender_eligibility;
 
     return (
@@ -143,6 +145,7 @@ async function ProfileContent({
             latestOrder={latestOrder}
             clinicId={clinicId}
             age={age}
+            canEditContact={canEditContact}
           />
 
           {/* Right column */}
@@ -271,11 +274,13 @@ function LeftColumn({
   latestOrder,
   clinicId,
   age,
+  canEditContact,
 }: {
   patient: Patient;
   latestOrder: Order | null;
   clinicId: ClinicId;
   age: string;
+  canEditContact: boolean;
 }) {
   const d       = patient.demographic;
   const hasB4   = patient.flags.some((f) => f.code === "B4");
@@ -356,7 +361,13 @@ function LeftColumn({
       <PSec title="Contact" icon={Phone}>
         <DR k="Email"   v={patient.contact.email} mono />
         <DR k="Phone"   v={patient.contact.phone} mono />
-        <DR k="Channel" v={patient.contact.preferred_channel} />
+        <PreferredChannelEditor
+          clinicId={clinicId}
+          patientId={patient.id}
+          current={patient.contact.preferred_channel}
+          hasPhone={!!patient.contact.phone}
+          canEdit={canEditContact}
+        />
       </PSec>
 
       {/* GP */}

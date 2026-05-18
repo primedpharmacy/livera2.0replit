@@ -20,8 +20,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, reverseDecision, NOW, USERS_REGISTRY, getOrderAuditEvents } from "@/lib/api/mock";
-import { createClinicalNoteAction } from "@/lib/actions/clinicalNoteActions";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, reverseDecision, NOW, USERS_REGISTRY, getOrderAuditEvents } from "@/lib/api/mock";
 import { useCurrentUser } from "@/lib/context";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import { openOrderUndoWindow, readOrderUndoDeadline, clearOrderUndoWindow } from "@/lib/orderUndo";
@@ -33,6 +32,8 @@ import {
 import { type AIDraftResult } from "@/components/clinical-notes/AINoteDraftingModal";
 import { can } from "@/lib/permissions";
 import type { Order, Patient, Clinic, ClinicId, ClinicalNote, Amendment, CourierEvent } from "@/types";
+import type { PatientNotification } from "@/lib/api/mock";
+import { NotificationRow } from "@/components/patients/NotificationRow";
 import { CourierTrackingCard } from "@/components/orders/CourierTrackingCard";
 import { DCard, Row, Metric, EmptyPane } from "./orderPrimitives";
 import { OrderDecisionDialogs, type Modal, type ToastState } from "./OrderDecisionDialogs";
@@ -88,6 +89,11 @@ interface OrderDetailClientProps {
   clinic: Clinic;
   clinicId: ClinicId;
   initialClinicalNotes: ClinicalNote[];
+  // Task-199 — notifications scoped to this order, surfaced in an inline
+  // panel so Bounced/Failed SMS rows show the Twilio carrier reason
+  // (e.g. "Unreachable destination handset") without staff having to
+  // jump into the per-patient Notification log tab.
+  orderNotifications: PatientNotification[];
 }
 
 type RightTab = "questionnaire" | "clinical_evidence" | "prescription" | "amendments" | "activity" | "notes" | "pharmacy_comms" | "intercom";
@@ -190,6 +196,7 @@ export function OrderDetailClient({
   clinic,
   clinicId,
   initialClinicalNotes,
+  orderNotifications,
 }: OrderDetailClientProps) {
   useQueueNavigation({ kind: "orders", currentId: initialOrder.id, clinicId });
   // Task-182 — resolve the active demo persona via context so the first render
@@ -387,7 +394,7 @@ export function OrderDetailClient({
       const noteBody = trimmed.length >= minNoteChars
         ? `Decision reversal (${priorDecision} → returned to clinical check): ${trimmed}`
         : `Decision reversal (${priorDecision} → returned to clinical check): ${trimmed}${" ".repeat(Math.max(0, minNoteChars - trimmed.length))}`;
-      const note = await createClinicalNoteAction(clinicId, {
+      const note = await createClinicalNote(clinicId, {
         patient_id: patient.id,
         order_id: order.id,
         body: noteBody,
@@ -750,7 +757,7 @@ export function OrderDetailClient({
     setIsSubmitting(true);
     try {
       // Step 1 — create clinical note with full AI audit trail
-      const newNote = await createClinicalNoteAction(clinicId, {
+      const newNote = await createClinicalNote(clinicId, {
         patient_id:                  patient.id,
         order_id:                    order.id,
         body,
@@ -1137,6 +1144,39 @@ export function OrderDetailClient({
                 </Link>
               </div>
             </div>
+
+            {/* ── Task-199 — Order-level notifications panel.
+                 Mirrors the per-patient Notification log row layout via the
+                 shared NotificationRow, so Bounced/Failed SMS rows surface
+                 the Twilio carrier reason inline AND as a tooltip on the
+                 status chip without ops having to drill into the patient.
+                 Resend is intentionally not exposed here — staff use the
+                 full per-patient log for the resend action — so we pass
+                 canResend=false and a no-op onResend. */}
+            {orderNotifications.length > 0 && (
+              <div
+                data-testid="order-notifications-panel"
+                className="bg-surface border border-bdr rounded-lg overflow-hidden"
+              >
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-bdr bg-page-bg">
+                  <Mail className="w-3.5 h-3.5 text-brand" />
+                  <h2 className="text-[11px] font-bold text-t2 uppercase tracking-wider">
+                    Notifications ({orderNotifications.length})
+                  </h2>
+                </div>
+                <div className="divide-y divide-bdr">
+                  {orderNotifications.map((n) => (
+                    <NotificationRow
+                      key={n.id}
+                      notification={n}
+                      clinicId={clinicId}
+                      canResend={false}
+                      onResend={async () => ({ ok: false, reason: "forbidden" })}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ── Order summary ── */}
             <div className="bg-surface border border-bdr rounded-lg overflow-hidden">

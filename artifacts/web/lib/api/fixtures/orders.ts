@@ -12,7 +12,7 @@ import { MOCK_PATIENTS } from './patients';
 import { MOCK_CLINICAL_NOTES } from './clinicalNotes';
 import { getClinicSync } from './clinics';
 import { createPharmacyCommThread } from './pharmacyComms';
-import { createGPLetter } from './gpLetters'; // CLARIFY-1 (Wave 5) — auto-trigger on approval
+import { createGPLetter, MOCK_GP_LETTERS } from './gpLetters'; // CLARIFY-1 (Wave 5) — auto-trigger on approval; Task-109 — direct cleanup on reversal
 import { releaseAuth } from '@/lib/integrations/ryft'; // Task-38 — auth-release branch
 import { notifyPatient } from '@/lib/integrations/patientNotify'; // Task-49 + Task-65
 import { sendPatientEmail, sendStaffEmail } from '@/lib/integrations/postmark'; // Task-80 / Task-78
@@ -589,9 +589,12 @@ export async function decideOrder(
 // ---------------------------------------------------------------------------
 // reverseDecision — Task-71: Undo a clinical decision within the toast window.
 // Restores the order to 'clinical_check' so it pops back into the queue.
-// Side-effects from the original decision (auto-triggered GP letter, clinical
-// note) are intentionally left in place — clinicians can address those via the
-// normal flows. The audit log captures the reversal for traceability.
+//
+// Task-109: when the prior decision was 'approved', also cleans up the
+// side-effects that decideOrder fired off — the auto-triggered GP letter is
+// cancelled (if still cancellable, i.e. not already sent or cancelled), and
+// any approval-gate clinical note is marked as reversed (preserved for audit,
+// not deleted). Every step emits its own [AUDIT] entry for traceability.
 // ---------------------------------------------------------------------------
 
 export async function reverseDecision(
@@ -618,6 +621,68 @@ export async function reverseDecision(
     user_id: CURRENT_USER.id,
     timestamp: NOW,
   });
+
+  // Task-109 — Side-effect cleanup for reversed approvals.
+  // When the prior decision was 'approved', the system auto-triggered:
+  //   1) a GP letter (DEC-22 / CLARIFY-1 in decideOrder above), and
+  //   2) a clinical note recorded at the moment of approval.
+  // Both should be tidied so they don't linger in the Owed queue or appear as
+  // an authoritative note for a decision that no longer stands. We never hard-
+  // delete (the audit trail must remain); we cancel the letter and stamp the
+  // note as reversed.
+  if (prior === 'approved') {
+    // 1) Cancel the auto-triggered GP letter, if it's still cancellable.
+    const autoLetter = MOCK_GP_LETTERS.find(
+      (l) =>
+        l.clinic_id === clinic_id &&
+        l.anchor_order_id === id &&
+        l.auto_triggered === true &&
+        l.lifecycle_status !== 'sent' &&
+        l.lifecycle_status !== 'cancelled',
+    );
+    if (autoLetter) {
+      const oldLifecycle = autoLetter.lifecycle_status;
+      autoLetter.lifecycle_status = 'cancelled';
+      autoLetter.cancel_reason =
+        'Auto-cancelled: the prescriber reversed the approval that created this letter.';
+      console.log('[AUDIT]', {
+        event_type: 'gp_letter_cancelled',
+        outcome: 'success',
+        reason: 'approval_reversed',
+        clinic_id,
+        letter_id: autoLetter.id,
+        order_id: id,
+        old_lifecycle_status: oldLifecycle,
+        new_lifecycle_status: 'cancelled',
+        actor_id: CURRENT_USER.id,
+        timestamp: NOW,
+      });
+    }
+
+    // 2) Mark the approval-gate clinical note(s) as reversed.
+    for (const note of MOCK_CLINICAL_NOTES) {
+      if (
+        note.clinic_id === clinic_id &&
+        note.approval_gate_for_order_id === id &&
+        !note.reversed_at
+      ) {
+        note.reversed_at = NOW;
+        note.reversed_by_user_id = CURRENT_USER.id;
+        if (!note.tags.includes('reversed')) note.tags = [...note.tags, 'reversed'];
+        note.updated_at = NOW;
+        console.log('[AUDIT]', {
+          event_type: 'clinical_note_reversed',
+          outcome: 'success',
+          reason: 'approval_reversed',
+          clinic_id,
+          note_id: note.id,
+          order_id: id,
+          actor_id: CURRENT_USER.id,
+          timestamp: NOW,
+        });
+      }
+    }
+  }
 
   return o;
 }

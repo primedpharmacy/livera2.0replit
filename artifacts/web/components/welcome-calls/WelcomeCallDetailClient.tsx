@@ -111,7 +111,7 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
           Call {patientName.split(" ")[0]}
         </button>
         <button
-          onClick={() => showToast("Stub: opens log attempt modal with outcome capture and notes.")}
+          onClick={() => resolveCallOptimistic("Stub: logs a successful attempt and marks the call completed.")}
           className="text-[12px] font-medium text-t2 border border-border rounded-md px-3 py-1.5 hover:bg-surface-2 transition-colors"
         >
           + Log attempt
@@ -150,7 +150,7 @@ export function WelcomeCallDetailClient({ clinicId, call, patientName, members }
       <div className="flex flex-col gap-2">
         {[
           { icon: Phone, label: "Call now", onClick: () => showToast("Stub: places Intercom call to patient."), primary: true },
-          { icon: Plus, label: "Log attempt", onClick: () => showToast("Stub: opens log attempt modal.") },
+          { icon: Plus, label: "Log attempt", onClick: () => resolveCallOptimistic("Stub: logs a successful attempt and marks the call completed.") },
           { icon: AlertTriangle, label: "Mark unreachable", onClick: () => resolveCallOptimistic("Stub: marks unreachable. Requires reason."), danger: true },
         ].map(({ icon: Icon, label, onClick, primary, danger }) => (
           <button

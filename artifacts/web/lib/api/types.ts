@@ -755,6 +755,11 @@ export type ClinicalNote = {
   final_note: string | null;                   // what was signed off and saved
   tags: string[];                              // e.g. ['clinical_check', 'follow_up']
   visibility: 'clinical_team' | 'patient_record';
+  // Task-109 — set when the approval that anchored this note was reversed via
+  // the Undo toast. The note itself is preserved for audit (never deleted) but
+  // surfaces as "reversed" wherever it renders.
+  reversed_at?: string | null;
+  reversed_by_user_id?: string | null;
 };
 
 // --- Pharmacy Comm Thread (DEC-23, BLD-5.3) ---

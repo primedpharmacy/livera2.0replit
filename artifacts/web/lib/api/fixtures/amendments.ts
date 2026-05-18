@@ -10,6 +10,7 @@ import { MOCK_ORDERS } from './orders';
 import { MOCK_PATIENTS } from './patients';
 import { refundPayment } from '@/lib/integrations/ryft';
 import { notifyPatient } from '@/lib/integrations/patientNotify';
+import { renderPatientEmail } from '@/lib/integrations/emailTemplates'; // Task-186
 import { recordAudit } from '../audit'; // Task-167 — durable spine
 
 export const MOCK_AMENDMENTS: Amendment[] = [
@@ -343,27 +344,15 @@ export async function processRefundAmendment(
     } else {
       const firstName = patient?.demographic.full_name?.split(' ')[0] ?? 'there';
       const subject = `Refund processed for order ${order.id}`;
-      const emailBody =
-        `Hi ${firstName},\n\n` +
-        `We've processed a refund of £${input.amount_gbp.toFixed(2)} for order ` +
-        `${order.id}. The funds will return to the card ending ${cardLast4} within ` +
-        `3–5 working days.\n\n` +
-        `If you have any questions, just reply to this email.\n\n` +
-        `Thanks,\nThe Livera team`;
-      // Task-131 — branded HTML version snapshotted onto the envelope and
-      // forwarded to Postmark. Mirrors the plain-text body 1:1 so retry and
-      // bounce-handling stays text-equivalent.
-      const emailHtml =
-        `<!doctype html><html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937;">` +
-        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">` +
-        `<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">` +
-        `<tr><td style="background:#0a7e57;padding:20px 28px;color:#ffffff;font-weight:600;font-size:18px;">Livera</td></tr>` +
-        `<tr><td style="padding:28px;font-size:15px;line-height:1.55;">` +
-        `<p style="margin:0 0 14px;">Hi ${firstName},</p>` +
-        `<p style="margin:0 0 14px;">We've processed a refund of <strong>£${input.amount_gbp.toFixed(2)}</strong> for order <strong>${order.id}</strong>. The funds will return to the card ending <strong>${cardLast4}</strong> within 3–5 working days.</p>` +
-        `<p style="margin:0 0 20px;">If you have any questions, just reply to this email.</p>` +
-        `<p style="margin:0;color:#6b7280;">Thanks,<br/>The Livera team</p>` +
-        `</td></tr></table></td></tr></table></body></html>`;
+      // Task-186 — shared renderer owns the HTML shell + text fallback so
+      // branding tweaks stay in one place across every patient template.
+      const { text: emailBody, html: emailHtml } = renderPatientEmail({
+        heading: `Hi ${firstName},`,
+        paragraphs: [
+          `We've processed a refund of <strong>£${input.amount_gbp.toFixed(2)}</strong> for order <strong>${order.id}</strong>. The funds will return to the card ending <strong>${cardLast4}</strong> within 3–5 working days.`,
+          `If you have any questions, just reply to this email.`,
+        ],
+      });
       const smsBody =
         `Livera: we've refunded £${input.amount_gbp.toFixed(2)} for order ` +
         `${order.id} to the card ending ${cardLast4}. Allow 3–5 working days.`;

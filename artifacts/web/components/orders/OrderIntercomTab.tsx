@@ -189,6 +189,10 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
   const [newError, setNewError] = useState<string | null>(null);
   const [newAttachments, setNewAttachments] = useState<StagedAttachment[]>([]);
   const [newDragOver, setNewDragOver] = useState(false);
+  // Live-feed connection status — drives the "Live" / "Reconnecting…" pill in
+  // the context strip so clinicians can tell at a glance whether the SSE
+  // stream is healthy or the browser is in the middle of a retry.
+  const [liveStatus, setLiveStatus] = useState<"connecting" | "live" | "reconnecting">("connecting");
 
   const integrationConfigured = useMemo(
     () => Boolean(clinic.config.integrations?.intercom?.workspace_id),
@@ -264,6 +268,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
   const sseRef = useRef<EventSource | null>(null);
   useEffect(() => {
     if (typeof window === "undefined" || typeof EventSource === "undefined") return;
+    setLiveStatus("connecting");
     const source = new EventSource(`/api/intercom/${clinicId}/events`);
     sseRef.current = source;
     const refresh = () => {
@@ -276,10 +281,17 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
     source.addEventListener("conversation.user.replied", refresh);
     source.addEventListener("conversation.admin.replied", refresh);
     source.addEventListener("conversation.admin.closed", refresh);
+    source.onopen = () => {
+      // Either the initial connect or a successful retry — flip the pill
+      // back to "Live" so the clinician knows events are streaming again.
+      setLiveStatus("live");
+    };
     source.onerror = () => {
       // Auto-reconnect is built into EventSource; we just log so failures are
-      // visible during development without spamming toasts.
+      // visible during development without spamming toasts. The pill flips
+      // to "Reconnecting…" until onopen fires again.
       console.warn("[intercom-sse] connection error — browser will retry");
+      setLiveStatus("reconnecting");
     };
     return () => {
       source.close();
@@ -678,6 +690,7 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
             {data?.intercom_contact_id ? ` · contact ${data.intercom_contact_id}` : ""}
           </p>
         </div>
+        <LiveStatusPill status={liveStatus} />
         <button
           type="button"
           onClick={() => { void loadConversations(); }}
@@ -1111,6 +1124,37 @@ export function OrderIntercomTab({ clinicId, clinic, patient, onUnreadChange }: 
         </div>
       )}
     </div>
+  );
+}
+
+// ── Live-feed status pill ───────────────────────────────────────────────────
+// Shows whether the SSE stream is currently connected. Uses a fixed min-width
+// sized for the longer "Reconnecting…" label so swapping between states never
+// shifts the Refresh button next to it. Driven entirely by the EventSource
+// lifecycle: onopen → live, onerror → reconnecting (the browser auto-retries
+// until onopen fires again).
+function LiveStatusPill({ status }: { status: "connecting" | "live" | "reconnecting" }) {
+  const live = status === "live";
+  const label = live ? "Live" : "Reconnecting…";
+  return (
+    <span
+      className={`inline-flex items-center justify-center gap-1.5 text-[10.5px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${
+        live
+          ? "bg-ok-bg text-ok border-ok-bdr"
+          : "bg-warn-bg text-warn border-warn-bdr"
+      }`}
+      style={{ minWidth: "108px" }}
+      title={live ? "Receiving live updates" : "Reconnecting to the live feed…"}
+      aria-live="polite"
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${
+          live ? "bg-ok" : "bg-warn animate-pulse"
+        }`}
+        aria-hidden="true"
+      />
+      {label}
+    </span>
   );
 }
 

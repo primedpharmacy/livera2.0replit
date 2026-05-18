@@ -710,7 +710,10 @@ export async function acknowledgeWeightWarning(
   if (!o) throw new APIError('NOT_FOUND', 'Order not found');
 
   const existing = o.weight_warning_acknowledgements ?? [];
-  if (existing.some((a) => a.kind === kind)) {
+  // Task-135 — entries are append-only and may include reversed historical
+  // rows. Only the latest non-reversed entry counts as "already acknowledged".
+  const active = [...existing].reverse().find((a) => a.kind === kind && !a.reversed_at);
+  if (active) {
     throw new APIError('VALIDATION', 'This warning has already been acknowledged');
   }
   o.weight_warning_acknowledgements = [
@@ -736,6 +739,136 @@ export async function acknowledgeWeightWarning(
 
   // Return a shallow clone so React parents that hold the previous reference
   // (e.g. OrderDetailClient, ClinicalCheckSlideOver) re-render on setOrder.
+  return { ...o };
+}
+
+// ---------------------------------------------------------------------------
+// undoWeightWarningAcknowledgement — Task-135
+// Lets a clinician reverse a weight-warning acknowledgement they (or a
+// teammate) entered by mistake. The original acknowledgement row is retained
+// — we just stamp it with reversed_at/reversed_by_user_id/reversal_reason so
+// the audit timeline can show both events. The chip flips back to its
+// unreviewed state and can be acknowledged again with a fresh rationale.
+// ---------------------------------------------------------------------------
+
+export async function undoWeightWarningAcknowledgement(
+  clinic_id: ClinicId,
+  order_id: string,
+  kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold',
+  reason: string,
+): Promise<Order> {
+  await delay(200);
+  const trimmed = reason.trim();
+  if (trimmed.length < 3) {
+    throw new APIError('VALIDATION', 'Add a short reason for undoing (at least 3 characters)');
+  }
+  const o = MOCK_ORDERS.find((x) => x.clinic_id === clinic_id && x.id === order_id);
+  if (!o) throw new APIError('NOT_FOUND', 'Order not found');
+
+  const entries = o.weight_warning_acknowledgements ?? [];
+  let activeIdx = -1;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (entries[i].kind === kind && !entries[i].reversed_at) {
+      activeIdx = i;
+      break;
+    }
+  }
+  if (activeIdx === -1) {
+    throw new APIError('VALIDATION', 'There is no active acknowledgement to undo');
+  }
+  o.weight_warning_acknowledgements = entries.map((e, i) =>
+    i === activeIdx
+      ? {
+          ...e,
+          reversed_at: NOW,
+          reversed_by_user_id: CURRENT_USER.id,
+          reversal_reason: trimmed,
+        }
+      : e,
+  );
+  o.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'weight_warning_acknowledgement_undone',
+    clinic_id,
+    order_id,
+    warning_kind: kind,
+    reason: trimmed,
+    actor_id: CURRENT_USER.id,
+    timestamp: NOW,
+  });
+
+  return { ...o };
+}
+
+// ---------------------------------------------------------------------------
+// editWeightWarningAcknowledgement — Task-135
+// Lets a clinician amend the rationale they wrote on a weight-warning
+// acknowledgement. The previous rationale is preserved in an `edits` history
+// on the entry so nothing is silently overwritten, and the timeline can
+// surface "rationale edited" as its own audit event.
+// ---------------------------------------------------------------------------
+
+export async function editWeightWarningAcknowledgement(
+  clinic_id: ClinicId,
+  order_id: string,
+  kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold',
+  new_rationale: string,
+): Promise<Order> {
+  await delay(200);
+  const trimmed = new_rationale.trim();
+  if (trimmed.length < 3) {
+    throw new APIError('VALIDATION', 'Add a short rationale (at least 3 characters)');
+  }
+  const o = MOCK_ORDERS.find((x) => x.clinic_id === clinic_id && x.id === order_id);
+  if (!o) throw new APIError('NOT_FOUND', 'Order not found');
+
+  const entries = o.weight_warning_acknowledgements ?? [];
+  let activeIdx = -1;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (entries[i].kind === kind && !entries[i].reversed_at) {
+      activeIdx = i;
+      break;
+    }
+  }
+  if (activeIdx === -1) {
+    throw new APIError('VALIDATION', 'There is no active acknowledgement to edit');
+  }
+  const target = entries[activeIdx];
+  if (target.rationale.trim() === trimmed) {
+    throw new APIError('VALIDATION', 'The rationale is unchanged');
+  }
+  const previous_rationale = target.rationale;
+  o.weight_warning_acknowledgements = entries.map((e, i) =>
+    i === activeIdx
+      ? {
+          ...e,
+          rationale: trimmed,
+          edits: [
+            ...(e.edits ?? []),
+            {
+              edited_by_user_id: CURRENT_USER.id,
+              edited_at: NOW,
+              previous_rationale,
+              new_rationale: trimmed,
+            },
+          ],
+        }
+      : e,
+  );
+  o.updated_at = NOW;
+
+  console.log('[AUDIT]', {
+    event_type: 'weight_warning_acknowledgement_edited',
+    clinic_id,
+    order_id,
+    warning_kind: kind,
+    previous_rationale,
+    new_rationale: trimmed,
+    actor_id: CURRENT_USER.id,
+    timestamp: NOW,
+  });
+
   return { ...o };
 }
 
@@ -983,10 +1116,15 @@ async function sendPxUploadLinkEmail(
   const expiresAt = new Date(Date.now() + PX_UPLOAD_LINK_TTL_DAYS * 24 * 3600 * 1000).toISOString();
   const link = `${appBaseUrl()}/${order.clinic_id}/px-upload/${token}`;
 
+  // Task-125 — preserve the *original* first-send timestamp across token
+  // rotation so dashboards can show "days since first sent" accurately.
+  const previousFirstSentAt = order.px_upload_link?.first_sent_at ?? null;
+
   order.px_upload_link = {
     token,
     expires_at: expiresAt,
     sent_at: null,
+    first_sent_at: previousFirstSentAt,
     consumed_at: null,
     email_message_id: null,
     to_email: patient.email,
@@ -1018,6 +1156,11 @@ async function sendPxUploadLinkEmail(
   // results must not show up as "link emailed" on the activity timeline.
   if (result.status === 'Delivered') {
     order.px_upload_link.sent_at = NOW;
+    // Task-125 — stamp first_sent_at exactly once, on the first successful
+    // delivery. Subsequent resends preserve this value (see previousFirstSentAt).
+    if (!order.px_upload_link.first_sent_at) {
+      order.px_upload_link.first_sent_at = NOW;
+    }
   }
 
   console.log('[AUDIT]', {
@@ -1173,7 +1316,7 @@ export async function sendPxUploadReminderEmail(
   order: Order,
   patient: { firstName: string; lastName: string; email: string },
   kind: 'first' | 'final',
-): Promise<{ status: 'Delivered' | 'Bounced' | 'Failed'; message_id: string | null }> {
+): Promise<{ status: 'Delivered' | 'Bounced' | 'Failed'; message_id: string | null; error_message: string | null }> {
   if (!order.px_upload_link) {
     throw new Error(`sendPxUploadReminderEmail: order ${order.id} has no px_upload_link`);
   }
@@ -1227,7 +1370,11 @@ export async function sendPxUploadReminderEmail(
     timestamp:     NOW,
   });
 
-  return { status: result.status, message_id: result.message_id };
+  return {
+    status:        result.status,
+    message_id:    result.message_id,
+    error_message: result.error_message ?? null,
+  };
 }
 
 // ---------------------------------------------------------------------------

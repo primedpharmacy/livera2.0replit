@@ -119,6 +119,25 @@ export function OrderActivityTimeline({ order }: Props) {
     });
   }
 
+  // Task-129 — Failed reminder attempts (Bounced / Failed sends from Postmark)
+  // surface with the underlying error message so reviewers can see why a nudge
+  // never landed and decide whether to chase the patient another way.
+  if (order.px_upload_link?.reminder_failures?.length) {
+    order.px_upload_link.reminder_failures.forEach((failure, idx) => {
+      const isFinal = failure.kind === "final";
+      entries.push({
+        key: `px_link_reminder_failed_${idx}`,
+        dot: "err",
+        title: isFinal
+          ? "Final Px upload reminder failed to deliver"
+          : "Px upload reminder failed to deliver",
+        meta: `to ${failure.to_email} · ${formatDateTime(failure.attempted_at)} · ${failure.status}`,
+        ts: new Date(failure.attempted_at).getTime(),
+        rationale: failure.error_message ?? "Postmark did not return an error message.",
+      });
+    });
+  }
+
   // Px upload received (success-screen, email link, or staff upload).
   // Task-118 — surface the uploader so reviewers can tell at a glance whether
   // the patient self-served or a teammate uploaded on their behalf.
@@ -161,21 +180,57 @@ export function OrderActivityTimeline({ order }: Props) {
     });
   }
 
-  // Task-99 — weight warning acknowledgements appear in the audit timeline so
-  // the wider team can see who reviewed which warning, when, and why.
-  for (const ack of order.weight_warning_acknowledgements ?? []) {
+  // Task-99 / Task-135 — weight warning acknowledgements appear in the audit
+  // timeline so the wider team can see who reviewed which warning, when, and
+  // why. Edits and reversals each emit their own entry; the original
+  // acknowledgement is preserved (never silently overwritten) so the full
+  // history reads top-to-bottom.
+  (order.weight_warning_acknowledgements ?? []).forEach((ack, ackIdx) => {
+    const label = WEIGHT_WARNING_LABEL[ack.kind] ?? ack.kind;
     const actor = USERS_REGISTRY[ack.acknowledged_by_user_id]?.full_name
       ?? ack.acknowledged_by_user_id;
-    const label = WEIGHT_WARNING_LABEL[ack.kind] ?? ack.kind;
+    // The acknowledgement row carries the *current* rationale once edits have
+    // been applied; the original rationale is the earliest edit's
+    // `previous_rationale`, or the live `rationale` if no edits exist yet.
+    const originalRationale =
+      ack.edits && ack.edits.length > 0
+        ? ack.edits[0].previous_rationale
+        : ack.rationale;
     entries.push({
-      key: `weight_warning_ack_${ack.kind}`,
+      key: `weight_warning_ack_${ack.kind}_${ackIdx}`,
       dot: "info",
       title: `Weight warning acknowledged — ${label}`,
       meta: `by ${actor} · ${formatDateTime(ack.acknowledged_at)}`,
       ts: new Date(ack.acknowledged_at).getTime(),
-      rationale: ack.rationale,
+      rationale: originalRationale,
     });
-  }
+
+    (ack.edits ?? []).forEach((edit, editIdx) => {
+      const editor = USERS_REGISTRY[edit.edited_by_user_id]?.full_name
+        ?? edit.edited_by_user_id;
+      entries.push({
+        key: `weight_warning_ack_${ack.kind}_${ackIdx}_edit_${editIdx}`,
+        dot: "info",
+        title: `Weight warning rationale edited — ${label}`,
+        meta: `by ${editor} · ${formatDateTime(edit.edited_at)}`,
+        ts: new Date(edit.edited_at).getTime(),
+        rationale: `Updated to: “${edit.new_rationale}” · Previously: “${edit.previous_rationale}”`,
+      });
+    });
+
+    if (ack.reversed_at && ack.reversed_by_user_id) {
+      const reverser = USERS_REGISTRY[ack.reversed_by_user_id]?.full_name
+        ?? ack.reversed_by_user_id;
+      entries.push({
+        key: `weight_warning_ack_${ack.kind}_${ackIdx}_undone`,
+        dot: "neutral",
+        title: `Weight warning acknowledgement undone — ${label}`,
+        meta: `by ${reverser} · ${formatDateTime(ack.reversed_at)}`,
+        ts: new Date(ack.reversed_at).getTime(),
+        rationale: ack.reversal_reason ?? null,
+      });
+    }
+  });
 
   if (order.status !== "clinical_check") {
     const ts = order.clinical_decision?.decided_at ?? order.updated_at;

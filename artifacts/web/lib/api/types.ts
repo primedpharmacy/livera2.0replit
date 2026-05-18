@@ -345,11 +345,27 @@ export type Order = {
   // Task-99 — Clinician acknowledgements of concerning weight warnings
   // surfaced from analyseWeightHistory(). Each entry pins who reviewed which
   // warning kind, when, and why a clinical decision was still made.
+  //
+  // Task-135 — Entries are append-only: editing a rationale appends an edit
+  // record (the previous rationale is preserved), and "undoing" an
+  // acknowledgement sets `reversed_at`/`reversed_by_user_id`/`reversal_reason`
+  // rather than removing the row. `findAcknowledgement` returns the latest
+  // non-reversed entry for a kind, so re-acknowledging after an undo simply
+  // appends a fresh entry to the array.
   weight_warning_acknowledgements?: Array<{
     kind: 'weight_regain' | 'plateau' | 'rapid_loss' | 'bmi_below_threshold';
     acknowledged_by_user_id: string;
     acknowledged_at: string;  // ISO
     rationale: string;
+    edits?: Array<{
+      edited_by_user_id: string;
+      edited_at: string;       // ISO
+      previous_rationale: string;
+      new_rationale: string;
+    }>;
+    reversed_at?: string | null;          // ISO
+    reversed_by_user_id?: string | null;
+    reversal_reason?: string | null;
   }> | null;
 
   royal_mail_tracking_id?: string | null;   // BLD-11.1 — RM1234567890GB format
@@ -383,7 +399,12 @@ export type Order = {
   px_upload_link?: {
     token: string;
     expires_at: string;       // ISO
-    sent_at: string | null;   // ISO — when the email was successfully queued
+    sent_at: string | null;   // ISO — when the *current* token's email was successfully queued
+    // Task-125 — Immutable timestamp of the very first successful delivery
+    // for this order's px upload link. Survives token rotation in
+    // resendPxUploadLink so dashboards can show "days since first sent"
+    // accurately even after multiple resends.
+    first_sent_at?: string | null;
     consumed_at: string | null; // ISO — when an upload arrived via this token
     email_message_id: string | null;
     to_email: string;
@@ -405,6 +426,18 @@ export type Order = {
     //   final_reminder_sent_at  — last-chance nudge, ~24h before expires_at
     reminder_sent_at?: string | null;
     final_reminder_sent_at?: string | null;
+    // Task-129 — Audit trail of failed reminder attempts (Bounced / Failed
+    // sends from Postmark). The job pushes one entry per failed attempt so
+    // the Order Detail activity timeline can render them with the Postmark
+    // error message alongside the successful sends. Successes still flip
+    // the dedicated _sent_at idempotency flags above.
+    reminder_failures?: Array<{
+      kind: 'first' | 'final';
+      attempted_at: string;   // ISO
+      to_email: string;
+      status: 'Bounced' | 'Failed';
+      error_message: string | null;
+    }>;
   } | null;
 
   created_at: string;

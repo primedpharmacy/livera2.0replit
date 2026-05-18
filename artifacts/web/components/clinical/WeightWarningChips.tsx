@@ -9,10 +9,15 @@
  *   - Exposes an "Acknowledge" button that expands a small note form.
  *   - Switches to a muted "reviewed" state once acknowledged, surfacing who
  *     reviewed it, when, and the rationale they captured.
+ *
+ * Task-135 — An acknowledged chip also exposes "Edit rationale" and "Undo"
+ * actions (gated by the same decide permission). Edits append to the entry's
+ * history and undos stamp the entry as reversed; nothing is silently
+ * overwritten, and every action shows up in the order activity timeline.
  */
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Pencil, Undo2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/format";
 import {
@@ -21,7 +26,12 @@ import {
   findAcknowledgement,
   type WeightWarning,
 } from "@/lib/clinical/weightWarnings";
-import { acknowledgeWeightWarning, USERS_REGISTRY } from "@/lib/api/mock";
+import {
+  acknowledgeWeightWarning,
+  editWeightWarningAcknowledgement,
+  undoWeightWarningAcknowledgement,
+  USERS_REGISTRY,
+} from "@/lib/api/mock";
 import type { Order, ClinicId } from "@/types";
 
 interface Props {
@@ -63,6 +73,8 @@ export function WeightWarningChips({
   );
 }
 
+type FormMode = "none" | "acknowledge" | "edit" | "undo";
+
 function WeightWarningChip({
   order,
   clinicId,
@@ -79,13 +91,19 @@ function WeightWarningChip({
   onAcknowledged?: (updated: Order) => void;
 }) {
   const ack = findAcknowledgement(order, warning.kind);
-  const [open, setOpen] = useState(false);
-  const [rationale, setRationale] = useState("");
+  const [mode, setMode] = useState<FormMode>("none");
+  const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const textCls = size === "sm" ? "text-[10.5px]" : "text-[11px]";
   const padCls = size === "sm" ? "px-2 py-0.5" : "px-2 py-0.5";
+
+  const reset = () => {
+    setMode("none");
+    setText("");
+    setError(null);
+  };
 
   if (ack) {
     const who = USERS_REGISTRY[ack.acknowledged_by_user_id]?.full_name
@@ -108,7 +126,83 @@ function WeightWarningChip({
         </span>
         <span className="text-[10.5px] text-t3 leading-tight pt-0.5">
           {who} · {formatRelativeTime(ack.acknowledged_at)} — “{ack.rationale}”
+          {ack.edits?.length ? (
+            <span className="ml-1 italic">(edited)</span>
+          ) : null}
         </span>
+        {canAcknowledge && mode === "none" && (
+          <div className="inline-flex items-center gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("edit");
+                setText(ack.rationale);
+                setError(null);
+              }}
+              className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-brand hover:underline"
+            >
+              <Pencil className="w-3 h-3" /> Edit rationale
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("undo");
+                setText("");
+                setError(null);
+              }}
+              className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-t2 hover:underline"
+            >
+              <Undo2 className="w-3 h-3" /> Undo
+            </button>
+          </div>
+        )}
+        {(mode === "edit" || mode === "undo") && (
+          <InlineForm
+            label={
+              mode === "edit"
+                ? "Update the rationale for this acknowledgement"
+                : "Why are you undoing this acknowledgement?"
+            }
+            placeholder={
+              mode === "edit"
+                ? "Updated rationale…"
+                : "e.g. Acknowledged the wrong chip — meant to review the plateau warning."
+            }
+            value={text}
+            onChange={setText}
+            submitting={submitting}
+            error={error}
+            onCancel={reset}
+            submitLabel={mode === "edit" ? "Save changes" : "Undo acknowledgement"}
+            submitIcon={mode === "edit" ? "save" : "undo"}
+            onSubmit={async () => {
+              setSubmitting(true);
+              setError(null);
+              try {
+                const updated =
+                  mode === "edit"
+                    ? await editWeightWarningAcknowledgement(
+                        clinicId,
+                        order.id,
+                        warning.kind,
+                        text,
+                      )
+                    : await undoWeightWarningAcknowledgement(
+                        clinicId,
+                        order.id,
+                        warning.kind,
+                        text,
+                      );
+                reset();
+                onAcknowledged?.(updated);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Could not save change");
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -126,11 +220,12 @@ function WeightWarningChip({
         <AlertTriangle className="w-3 h-3" />
         {warning.label}
       </span>
-      {canAcknowledge && !open && (
+      {canAcknowledge && mode === "none" && (
         <button
           type="button"
           onClick={() => {
-            setOpen(true);
+            setMode("acknowledge");
+            setText("");
             setError(null);
           }}
           className="text-[10.5px] font-semibold text-brand hover:underline pt-0.5"
@@ -138,65 +233,103 @@ function WeightWarningChip({
           Acknowledge
         </button>
       )}
-      {open && (
-        <div className="w-full mt-1 rounded-md border border-bdr bg-surface p-2">
-          <label className="block text-[10.5px] font-semibold text-t2 mb-1">
-            Why is it safe to proceed despite this warning?
-          </label>
-          <textarea
-            value={rationale}
-            onChange={(e) => setRationale(e.target.value)}
-            rows={2}
-            disabled={submitting}
-            placeholder="e.g. Patient on holiday last fortnight — weight stable on review."
-            className="w-full text-[12px] rounded border border-bdr bg-page-bg px-2 py-1.5 text-t1 focus:outline-none focus:ring-1 focus:ring-brand resize-y"
-          />
-          {error && (
-            <p className="mt-1 text-[10.5px] text-err font-medium">{error}</p>
-          )}
-          <div className="mt-1.5 flex items-center justify-end gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                setRationale("");
-                setError(null);
-              }}
-              disabled={submitting}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-t2 px-2 py-1 rounded hover:bg-page-bg disabled:opacity-50"
-            >
-              <X className="w-3 h-3" /> Cancel
-            </button>
-            <button
-              type="button"
-              disabled={submitting || rationale.trim().length < 3}
-              onClick={async () => {
-                setSubmitting(true);
-                setError(null);
-                try {
-                  const updated = await acknowledgeWeightWarning(
-                    clinicId,
-                    order.id,
-                    warning.kind,
-                    rationale,
-                  );
-                  setOpen(false);
-                  setRationale("");
-                  onAcknowledged?.(updated);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Could not save acknowledgement");
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-brand hover:bg-brand/90 px-2.5 py-1 rounded disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-3 h-3" />
-              {submitting ? "Saving…" : "Save acknowledgement"}
-            </button>
-          </div>
-        </div>
+      {mode === "acknowledge" && (
+        <InlineForm
+          label="Why is it safe to proceed despite this warning?"
+          placeholder="e.g. Patient on holiday last fortnight — weight stable on review."
+          value={text}
+          onChange={setText}
+          submitting={submitting}
+          error={error}
+          onCancel={reset}
+          submitLabel="Save acknowledgement"
+          submitIcon="save"
+          onSubmit={async () => {
+            setSubmitting(true);
+            setError(null);
+            try {
+              const updated = await acknowledgeWeightWarning(
+                clinicId,
+                order.id,
+                warning.kind,
+                text,
+              );
+              reset();
+              onAcknowledged?.(updated);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Could not save acknowledgement");
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+        />
       )}
+    </div>
+  );
+}
+
+function InlineForm({
+  label,
+  placeholder,
+  value,
+  onChange,
+  submitting,
+  error,
+  onCancel,
+  onSubmit,
+  submitLabel,
+  submitIcon,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  submitting: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSubmit: () => void | Promise<void>;
+  submitLabel: string;
+  submitIcon: "save" | "undo";
+}) {
+  return (
+    <div className="w-full mt-1 rounded-md border border-bdr bg-surface p-2">
+      <label className="block text-[10.5px] font-semibold text-t2 mb-1">
+        {label}
+      </label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={2}
+        disabled={submitting}
+        placeholder={placeholder}
+        className="w-full text-[12px] rounded border border-bdr bg-page-bg px-2 py-1.5 text-t1 focus:outline-none focus:ring-1 focus:ring-brand resize-y"
+      />
+      {error && (
+        <p className="mt-1 text-[10.5px] text-err font-medium">{error}</p>
+      )}
+      <div className="mt-1.5 flex items-center justify-end gap-1.5">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={submitting}
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-t2 px-2 py-1 rounded hover:bg-page-bg disabled:opacity-50"
+        >
+          <X className="w-3 h-3" /> Cancel
+        </button>
+        <button
+          type="button"
+          disabled={submitting || value.trim().length < 3}
+          onClick={() => void onSubmit()}
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-brand hover:bg-brand/90 px-2.5 py-1 rounded disabled:opacity-50"
+        >
+          {submitIcon === "save" ? (
+            <CheckCircle2 className="w-3 h-3" />
+          ) : (
+            <Undo2 className="w-3 h-3" />
+          )}
+          {submitting ? "Saving…" : submitLabel}
+        </button>
+      </div>
     </div>
   );
 }

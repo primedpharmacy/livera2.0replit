@@ -118,9 +118,19 @@ export type WeightWarningAcknowledgement = NonNullable<
   Order["weight_warning_acknowledgements"]
 >[number];
 
+// Task-135 — Acknowledgement entries are append-only, so a single warning kind
+// may have multiple historical entries (e.g. acknowledged → undone → acknowledged
+// again). The "current" acknowledgement is the most recent entry for that kind
+// that has not been reversed; if every entry has been reversed, the chip falls
+// back to its unreviewed state and exposes the Acknowledge action again.
 export function findAcknowledgement(
   order: Pick<Order, "weight_warning_acknowledgements"> | undefined | null,
   kind: WeightWarningKind,
 ): WeightWarningAcknowledgement | undefined {
-  return order?.weight_warning_acknowledgements?.find((a) => a.kind === kind);
+  const entries = order?.weight_warning_acknowledgements ?? [];
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i];
+    if (e.kind === kind && !e.reversed_at) return e;
+  }
+  return undefined;
 }

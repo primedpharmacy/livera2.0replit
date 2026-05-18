@@ -871,6 +871,7 @@ export async function updateClinicWeightWarningThresholds(
   for (const [field, newValue] of Object.entries(updates)) {
     const key = field as keyof ClinicConfig['weight_warning_thresholds'];
     const oldValue = clinic.config.weight_warning_thresholds[key];
+    if (oldValue === newValue) continue;
     (clinic.config.weight_warning_thresholds as Record<string, number>)[field] =
       newValue as number;
     console.log('[AUDIT]', {
@@ -883,9 +884,53 @@ export async function updateClinicWeightWarningThresholds(
       new_value:  newValue,
       timestamp:  NOW,
     });
+    MOCK_WEIGHT_WARNING_THRESHOLD_AUDITS.push({
+      clinic_id,
+      field_name:  key,
+      actor_id,
+      old_value:   oldValue,
+      new_value:   newValue as number,
+      occurred_at: NOW,
+    });
   }
 
   return clinic.config;
+}
+
+// ---------------------------------------------------------------------------
+// Weight-warning threshold audit log — Task-307
+// In-memory mirror of the [AUDIT] events written by
+// updateClinicWeightWarningThresholds. Powers the "Recent changes" panel
+// rendered under WeightWarningThresholdsEditor so Admins/Owners have a
+// self-serve audit trail without grepping console logs.
+// ---------------------------------------------------------------------------
+
+export type WeightWarningThresholdFieldName =
+  keyof ClinicConfig['weight_warning_thresholds'];
+
+export type WeightWarningThresholdAuditEvent = {
+  clinic_id:   ClinicId;
+  field_name:  WeightWarningThresholdFieldName;
+  actor_id:    string;
+  old_value:   number;
+  new_value:   number;
+  occurred_at: string; // ISO
+};
+
+const MOCK_WEIGHT_WARNING_THRESHOLD_AUDITS: WeightWarningThresholdAuditEvent[] = [];
+
+export function listWeightWarningThresholdHistory(
+  clinic_id: ClinicId,
+  limit = 10,
+): WeightWarningThresholdAuditEvent[] {
+  const out: WeightWarningThresholdAuditEvent[] = [];
+  for (let i = MOCK_WEIGHT_WARNING_THRESHOLD_AUDITS.length - 1; i >= 0; i--) {
+    const e = MOCK_WEIGHT_WARNING_THRESHOLD_AUDITS[i];
+    if (e.clinic_id !== clinic_id) continue;
+    out.push(e);
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

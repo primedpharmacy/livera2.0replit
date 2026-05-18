@@ -66,4 +66,7 @@ export type {
   QuestionType,
   // Task-168 — clinical theme for grouping flagged answers
   SafetyCategory,
+  // Task-307 — weight-warning threshold audit history
+  WeightWarningThresholdAuditEvent,
+  WeightWarningThresholdFieldName,
 } from "@/lib/api/mock";

@@ -14,9 +14,30 @@
  */
 
 import { useState } from "react";
-import { AlertTriangle, Save, RotateCcw } from "lucide-react";
-import { updateClinicWeightWarningThresholds } from "@/lib/api/mock";
-import type { ClinicConfig, ClinicId } from "@/types";
+import { AlertTriangle, Save, RotateCcw, History } from "lucide-react";
+import {
+  updateClinicWeightWarningThresholds,
+  listWeightWarningThresholdHistory,
+  USERS_REGISTRY,
+} from "@/lib/api/mock";
+import type {
+  ClinicConfig,
+  ClinicId,
+  WeightWarningThresholdAuditEvent,
+} from "@/types";
+
+// Format an ISO timestamp as "12 May 2026, 14:05".
+function formatAuditDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("en-GB", {
+    day:    "numeric",
+    month:  "short",
+    year:   "numeric",
+    hour:   "2-digit",
+    minute: "2-digit",
+  });
+}
 
 interface Props {
   config:   ClinicConfig;
@@ -70,12 +91,22 @@ const DEFINITIONS: Array<{
   },
 ];
 
+const FIELD_LABELS: Record<ThresholdKey, string> = {
+  bmi_continuation_floor: "BMI continuation floor",
+  rapid_loss_kg_per_week: "Rapid loss threshold",
+  plateau_tolerance_kg:   "Plateau tolerance",
+  plateau_min_readings:   "Plateau window",
+};
+
 export function WeightWarningThresholdsEditor({ config, clinicId, actorId }: Props) {
   const [draft, setDraft]   = useState<ClinicConfig["weight_warning_thresholds"]>({ ...config.weight_warning_thresholds });
   const [saved, setSaved]   = useState(false);
   const [dirty, setDirty]   = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
+  const [history, setHistory] = useState<WeightWarningThresholdAuditEvent[]>(
+    () => listWeightWarningThresholdHistory(clinicId),
+  );
 
   // Rollback target — tracks the last successfully persisted state so a failed
   // save reverts to what the server actually has, not the original page load.
@@ -102,6 +133,7 @@ export function WeightWarningThresholdsEditor({ config, clinicId, actorId }: Pro
       setLastSaved({ ...draft });
       setDirty(false);
       setSaved(true);
+      setHistory(listWeightWarningThresholdHistory(clinicId));
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       setDraft({ ...lastSaved });
@@ -177,6 +209,56 @@ export function WeightWarningThresholdsEditor({ config, clinicId, actorId }: Pro
         >
           <Save className="w-4 h-4" /> {saving ? "Saving…" : saved ? "Saved!" : "Save changes"}
         </button>
+      </div>
+
+      {/* Task-307 — Recent threshold edits, mirrored from the [AUDIT] events
+          emitted inside updateClinicWeightWarningThresholds. */}
+      <div
+        className="bg-surface border border-bdr rounded-lg overflow-hidden"
+        data-testid="weight-warning-thresholds-history"
+      >
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-bdr bg-page-bg">
+          <History className="w-3.5 h-3.5 text-brand" />
+          <h2 className="text-[11px] font-bold text-t2 uppercase tracking-wider">Recent changes</h2>
+          {history.length > 0 && (
+            <span className="ml-auto text-[10px] font-semibold tabular-nums text-t3">
+              {history.length}
+            </span>
+          )}
+        </div>
+        {history.length === 0 ? (
+          <p className="px-4 py-6 text-[12px] text-t3 text-center">
+            No threshold edits recorded yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-bdr">
+            {history.map((evt, i) => {
+              const actor = USERS_REGISTRY[evt.actor_id]?.full_name ?? evt.actor_id;
+              return (
+                <li
+                  key={`${evt.occurred_at}-${evt.field_name}-${i}`}
+                  className="px-4 py-2.5 text-[12px] grid grid-cols-[1fr_auto] gap-2 items-baseline"
+                >
+                  <div>
+                    <p className="text-t1">
+                      <span className="font-semibold">{FIELD_LABELS[evt.field_name]}</span>{" "}
+                      <span className="text-t3">changed</span>{" "}
+                      <span className="font-mono tabular-nums text-t2">{evt.old_value}</span>
+                      <span className="text-t3"> → </span>
+                      <span className="font-mono tabular-nums text-t1">{evt.new_value}</span>
+                    </p>
+                    <p className="text-[11px] text-t3 mt-0.5">
+                      by <span className="font-medium text-t2">{actor}</span>
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-t3 whitespace-nowrap">
+                    {formatAuditDate(evt.occurred_at)}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </div>
   );

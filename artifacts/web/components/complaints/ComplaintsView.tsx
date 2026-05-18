@@ -6,7 +6,6 @@ import { ChevronDown, ChevronRight, ExternalLink, Check, Search } from "lucide-r
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KeyboardShortcutLegend } from "@/components/shared/KeyboardShortcutLegend";
-import { saveQueue } from "@/lib/queueNavigation";
 import { formatRelativeTime } from "@/lib/format";
 import { NOW } from "@/lib/api/constants";
 import { cn } from "@/lib/utils";
@@ -177,11 +176,6 @@ export function ComplaintsView({ initialComplaints, patients, clinicId, clinic }
   useEffect(() => {
     setFocusedIdx((i) => (i >= filtered.length ? -1 : i));
   }, [filtered.length]);
-
-  // Persist the current queue order so detail pages can ↑/↓ through it.
-  useEffect(() => {
-    saveQueue("complaints", filtered.map((c) => c.id));
-  }, [filtered]);
 
   // ── Keyboard navigation (↑/↓ focus row, Enter opens detail) ───────────────
   useEffect(() => {

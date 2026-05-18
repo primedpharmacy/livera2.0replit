@@ -368,6 +368,17 @@ export type Order = {
     consumed_at: string | null; // ISO — when an upload arrived via this token
     email_message_id: string | null;
     to_email: string;
+    // Task-91 — Each time staff re-issues this link (e.g. patient lost the
+    // original email or the token expired), we invalidate the old token,
+    // generate a new one, and append an entry here so the activity timeline
+    // can show every resend.
+    resends?: Array<{
+      sent_at: string;        // ISO — when the resend email was queued
+      to_email: string;
+      expires_at: string;     // new TTL for the freshly-issued token
+      previous_expired: boolean; // true if the previous token was past its TTL
+      by_user_id: string;     // staff member who triggered the resend
+    }>;
   } | null;
 
   created_at: string;

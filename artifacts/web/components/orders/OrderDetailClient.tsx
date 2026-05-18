@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, resendPxUploadLink, CURRENT_USER, NOW } from "@/lib/api/mock";
 import {
   Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent,
   DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle,
@@ -51,7 +51,6 @@ import { OrderBMIValidationCard } from "./OrderBMIValidationCard";
 import { PharmacyCommsPanel } from "@/components/pharmacy-comms/PharmacyCommsPanel";
 import { DispatchDateCard } from "./DispatchDateCard";
 import { addWorkingHours } from "@/lib/utils/workingHours";
-import { useQueueNavigation } from "@/lib/queueNavigation";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -165,7 +164,6 @@ export function OrderDetailClient({
   clinicId,
   initialClinicalNotes,
 }: OrderDetailClientProps) {
-  useQueueNavigation({ kind: "orders", currentId: initialOrder.id, clinicId });
   const [order, setOrder]             = useState<Order>(initialOrder);
   const [modal, setModal]             = useState<Modal>(null);
   const [rationale, setRationale]     = useState("");
@@ -237,6 +235,29 @@ export function OrderDetailClient({
   const [cancelReason, setCancelReason]       = useState("");
   const [isCancelling, setIsCancelling]       = useState(false);
   const [refundAmendment, setRefundAmendment] = useState<Amendment | null>(null);
+
+  // Task-91 — Resend Px upload link
+  const [isResendingPxLink, setIsResendingPxLink] = useState(false);
+
+  async function handleResendPxUploadLink() {
+    setIsResendingPxLink(true);
+    try {
+      const updated = await resendPxUploadLink(clinicId, order.id);
+      setOrder(updated);
+      const sentTo = updated.px_upload_link?.to_email ?? patient.contact.email;
+      setToast({
+        message: `New prescription upload link sent to ${sentTo}. The previous link is no longer valid.`,
+        type: "ok",
+      });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Could not resend upload link. Please retry.",
+        type: "err",
+      });
+    } finally {
+      setIsResendingPxLink(false);
+    }
+  }
 
   // Load linked refund amendment so OrderPaymentSummary can surface refunded amount.
   useEffect(() => {
@@ -1002,54 +1023,110 @@ export function OrderDetailClient({
                         );
                       })()
                     ) : (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-warn-bg border border-warn-bdr">
-                          <AlertTriangle className="w-4 h-4 text-warn shrink-0" />
-                          <p className="text-[12px] text-warn">
-                            Patient requested a higher GLP-1 starting dose — awaiting prescription
-                            upload from the intake success screen.
-                          </p>
-                        </div>
-                        {/* Task-85 — Staff-side upload on patient's behalf.
-                            Visible only while px_upload is null and the order still
-                            carries the "Px upload pending" contextual flag, and only
-                            for users with write access to orders. */}
-                        {can(CURRENT_USER, "write", "orders") && (
-                          <div className="p-3 rounded-lg border border-bdr bg-surface">
-                            <p className="text-[12px] font-semibold text-t1">
-                              Upload on patient&apos;s behalf
-                            </p>
-                            <p className="text-[11px] text-t2 mt-0.5">
-                              If the patient emailed or posted a copy, attach it here.
-                              JPG, PNG, WebP, HEIC or PDF, up to 10&nbsp;MB.
-                            </p>
-                            <label
-                              className={`mt-3 inline-flex items-center gap-2 px-3 py-2 text-[12px] font-semibold rounded-md border cursor-pointer transition-colors ${
-                                isUploadingPx
-                                  ? "border-bdr text-t3 bg-surface cursor-not-allowed"
-                                  : "border-brand text-brand bg-surface hover:bg-brand hover:text-white"
-                              }`}
-                            >
-                              <Upload className="w-4 h-4" />
-                              {isUploadingPx ? "Uploading…" : "Choose file"}
-                              <input
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
-                                className="hidden"
-                                disabled={isUploadingPx}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  e.target.value = ""; // allow re-selecting same file
-                                  if (f) void handleStaffPxUpload(f);
-                                }}
-                              />
-                            </label>
-                            {pxUploadError && (
-                              <p className="mt-2 text-[11px] text-err">{pxUploadError}</p>
+                      (() => {
+                        // Task-91 — Staff resend of the px-upload email link.
+                        const link = order.px_upload_link;
+                        const linkExpired =
+                          link != null &&
+                          new Date(link.expires_at).getTime() < Date.now();
+                        const resendCount = link?.resends?.length ?? 0;
+                        const lastResend = resendCount > 0 ? link!.resends![resendCount - 1] : null;
+                        const buttonLabel = linkExpired
+                          ? "Send new upload link"
+                          : resendCount > 0
+                          ? "Resend upload link again"
+                          : "Resend upload link";
+
+                        return (
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-2 p-3 rounded-lg bg-warn-bg border border-warn-bdr">
+                              <AlertTriangle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <p className="text-[12px] text-warn">
+                                  Patient requested a higher GLP-1 starting dose — awaiting prescription
+                                  upload from the intake success screen.
+                                </p>
+                                {link && (
+                                  <p className="text-[11px] text-t2">
+                                    Last link emailed to <span className="font-semibold">{link.to_email}</span>
+                                    {link.sent_at ? ` · ${formatDateTime(link.sent_at)}` : ""}
+                                    {" · "}
+                                    {linkExpired ? (
+                                      <span className="text-err font-semibold">
+                                        expired {link.expires_at.slice(0, 10)}
+                                      </span>
+                                    ) : (
+                                      <>expires {link.expires_at.slice(0, 10)}</>
+                                    )}
+                                    {resendCount > 0 && (
+                                      <> · resent {resendCount} {resendCount === 1 ? "time" : "times"}</>
+                                    )}
+                                  </p>
+                                )}
+                                {lastResend && (
+                                  <p className="text-[11px] text-t3">
+                                    Most recent resend by {lastResend.by_user_id} on {formatDateTime(lastResend.sent_at)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            {link && (
+                              <div className="flex justify-end">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleResendPxUploadLink}
+                                  disabled={isResendingPxLink}
+                                  className="gap-1.5"
+                                >
+                                  <Mail className="w-3.5 h-3.5" />
+                                  {isResendingPxLink ? "Sending…" : buttonLabel}
+                                </Button>
+                              </div>
+                            )}
+                            {/* Task-85 — Staff-side upload on patient's behalf.
+                                Coexists with the Task-91 resend button: staff can either
+                                re-issue the upload link OR, if the patient has already
+                                emailed/posted a copy, attach it here directly. */}
+                            {can(CURRENT_USER, "write", "orders") && (
+                              <div className="p-3 rounded-lg border border-bdr bg-surface">
+                                <p className="text-[12px] font-semibold text-t1">
+                                  Upload on patient&apos;s behalf
+                                </p>
+                                <p className="text-[11px] text-t2 mt-0.5">
+                                  If the patient emailed or posted a copy, attach it here.
+                                  JPG, PNG, WebP, HEIC or PDF, up to 10&nbsp;MB.
+                                </p>
+                                <label
+                                  className={`mt-3 inline-flex items-center gap-2 px-3 py-2 text-[12px] font-semibold rounded-md border cursor-pointer transition-colors ${
+                                    isUploadingPx
+                                      ? "border-bdr text-t3 bg-surface cursor-not-allowed"
+                                      : "border-brand text-brand bg-surface hover:bg-brand hover:text-white"
+                                  }`}
+                                >
+                                  <Upload className="w-4 h-4" />
+                                  {isUploadingPx ? "Uploading…" : "Choose file"}
+                                  <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                                    className="hidden"
+                                    disabled={isUploadingPx}
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      e.target.value = ""; // allow re-selecting same file
+                                      if (f) void handleStaffPxUpload(f);
+                                    }}
+                                  />
+                                </label>
+                                {pxUploadError && (
+                                  <p className="mt-2 text-[11px] text-err">{pxUploadError}</p>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()
                     )}
                   </DCard>
                 )}

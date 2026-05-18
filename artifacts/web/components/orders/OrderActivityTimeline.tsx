@@ -72,6 +72,22 @@ export function OrderActivityTimeline({ order }: Props) {
     });
   }
 
+  // Task-91 — Staff re-issued the px-upload link (previous token invalidated).
+  if (order.px_upload_link?.resends?.length) {
+    order.px_upload_link.resends.forEach((resend, idx) => {
+      entries.push({
+        key: `px_link_resent_${idx}`,
+        dot: "info",
+        title: resend.previous_expired
+          ? "Px upload link re-issued (previous link had expired)"
+          : "Px upload link resent to patient",
+        meta: `to ${resend.to_email} · ${formatDateTime(resend.sent_at)} · by ${resend.by_user_id}`,
+        ts: new Date(resend.sent_at).getTime(),
+        subtext: `New single-use link · expires ${resend.expires_at.slice(0, 10)}`,
+      });
+    });
+  }
+
   // Px upload received (success-screen or email link)
   if (order.px_upload?.uploaded_at) {
     const viaLink = order.px_upload.source === "email_link" || !!order.px_upload_link?.consumed_at;

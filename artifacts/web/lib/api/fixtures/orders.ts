@@ -914,6 +914,95 @@ async function sendPxUploadLinkEmail(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Task-91 — Staff-triggered resend of the Px upload link
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-issue the prescription upload link for an order whose patient has lost
+ * the original email (or whose token has expired). Invalidates the previous
+ * token by rotating it, records the resend on the activity timeline, and
+ * audits the action under the current staff user.
+ *
+ * Refuses to send if:
+ *   - the order doesn't require a Px upload (no contextual flag set), or
+ *   - the patient has already uploaded (`px_upload != null`).
+ */
+export async function resendPxUploadLink(
+  clinic_id: ClinicId,
+  order_id: string,
+): Promise<Order> {
+  await delay(150);
+  const order = MOCK_ORDERS.find(
+    (o) => o.clinic_id === clinic_id && o.id === order_id,
+  );
+  if (!order) throw new APIError('NOT_FOUND', `Order ${order_id} not found`);
+
+  if (order.px_upload != null) {
+    throw new APIError(
+      'INVALID_STATE',
+      'Prescription has already been uploaded — no need to resend the link.',
+    );
+  }
+
+  const pxUploadPending =
+    order.contextual_flags?.includes('Px upload pending') ?? false;
+  if (!pxUploadPending) {
+    throw new APIError(
+      'INVALID_STATE',
+      'This order does not require a patient prescription upload.',
+    );
+  }
+
+  const patient = MOCK_PATIENTS.find(
+    (p) => p.clinic_id === clinic_id && p.id === order.patient_id,
+  );
+  if (!patient) {
+    throw new APIError('NOT_FOUND', `Patient ${order.patient_id} not found`);
+  }
+
+  const previousExpired = order.px_upload_link
+    ? new Date(order.px_upload_link.expires_at).getTime() < Date.now()
+    : false;
+  const previousResends = order.px_upload_link?.resends ?? [];
+
+  console.log('[AUDIT]', {
+    event_type: 'px_upload_link_resend_requested',
+    clinic_id,
+    order_id,
+    by_user_id: CURRENT_USER.id,
+    previous_expired: previousExpired,
+    previous_token_prefix: order.px_upload_link?.token.slice(0, 8) ?? null,
+    timestamp: NOW,
+  });
+
+  // sendPxUploadLinkEmail rotates the token (overwrites order.px_upload_link),
+  // so the old token can no longer be used to upload.
+  const fullName = patient.demographic.full_name.trim();
+  const [firstName, ...rest] = fullName.split(/\s+/);
+  await sendPxUploadLinkEmail(order, {
+    firstName: firstName || fullName,
+    lastName: rest.join(' '),
+    email: patient.contact.email,
+  });
+
+  if (order.px_upload_link) {
+    order.px_upload_link.resends = [
+      ...previousResends,
+      {
+        sent_at: order.px_upload_link.sent_at ?? NOW,
+        to_email: order.px_upload_link.to_email,
+        expires_at: order.px_upload_link.expires_at,
+        previous_expired: previousExpired,
+        by_user_id: CURRENT_USER.id,
+      },
+    ];
+  }
+  order.updated_at = NOW;
+
+  return order;
+}
+
 /**
  * Resolve an order from a px-upload link token without consuming it.
  * Used by the patient-facing page to check validity before showing the

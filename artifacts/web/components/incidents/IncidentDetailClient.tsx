@@ -19,7 +19,6 @@ import {
 import { USERS_REGISTRY } from "@/lib/api/constants";
 import { can } from "@/lib/permissions";
 import { dispatchQueueCountChange } from "@/lib/queue-counts";
-import { useQueueNavigation } from "@/lib/queueNavigation";
 import type { Incident, IncidentComment, Clinic, ClinicId } from "@/types";
 
 interface Props {
@@ -256,7 +255,6 @@ function CommentsPanel({
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function IncidentDetailClient({ initialIncident, clinic, clinicId, initialComments }: Props) {
-  useQueueNavigation({ kind: "incidents", currentId: initialIncident.id, clinicId });
   const [incident, setIncident] = useState<Incident>(initialIncident);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isActing,  setIsActing]  = useState(false);

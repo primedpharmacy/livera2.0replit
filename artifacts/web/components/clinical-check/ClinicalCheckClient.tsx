@@ -11,7 +11,6 @@ import { NOW } from "@/lib/api/constants";
 import { reverseDecision } from "@/lib/api/mock";
 import { countReviewNeeded } from "@/lib/questionnaire";
 import { cn } from "@/lib/utils";
-import { dispatchQueueCountChange } from "@/lib/queue-counts";
 import type { Order, Clinic, CoachingLog, ClinicId } from "@/types";
 
 type Decision = "approved" | "declined" | "queried";
@@ -151,8 +150,12 @@ export function ClinicalCheckClient({
     (orderId: string, decision: Decision, snapshot: Order) => {
       setOrders((prev) => {
         const next = prev.filter((o) => o.id !== orderId);
-        if (next.length !== prev.length) {
-          dispatchQueueCountChange({ queue: "clinical_check", delta: -1, count: next.length });
+        if (next.length !== prev.length && typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("clinical-check-count-changed", {
+              detail: { delta: -1, count: next.length },
+            })
+          );
         }
         return next;
       });
@@ -206,7 +209,13 @@ export function ClinicalCheckClient({
           intervention_raised_at: null,
         };
         const next = [...prev, restored];
-        dispatchQueueCountChange({ queue: "clinical_check", delta: 1, count: next.length });
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("clinical-check-count-changed", {
+              detail: { delta: 1, count: next.length },
+            })
+          );
+        }
         return next;
       });
       setUndoToast(null);

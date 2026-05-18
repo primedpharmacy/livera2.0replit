@@ -324,16 +324,19 @@ export type Order = {
   cancellation_reason?: string | null;      // Free-text reason captured in the confirm modal
   refund_amendment_id?: string | null;      // Linked Amendment.id when a refund was required
 
-  // Task-61 — Patient-uploaded prescription for GLP-1 higher-dose path
+  // Task-61 / Task-82 — Patient-uploaded prescription for GLP-1 higher-dose path
   // Captured from the intake success screen when the patient answered "yes" to
   // both ft_oq_9 (currently on GLP-1) and ft_oq_10 (requesting a higher start dose).
+  // The file lives in object storage (GCS); we persist only the object path.
+  // Stream it back via `GET /api/storage/objects/<id>` (clinic-staff ACL).
   px_upload?: {
     filename: string;
     size: number;          // bytes
     content_type: string;  // image/* or application/pdf
     uploaded_at: string;   // ISO timestamp
-    data_url?: string;     // base64 data URL for preview (mock storage only; omitted for >2MB files)
-    source?: 'success_screen' | 'email_link'; // Task-80 — provenance for the audit log
+    object_path: string;   // e.g. '/objects/uploads/<uuid>' — served by /api/storage/objects/...
+    source?: 'success_screen' | 'email_link' | 'staff_upload'; // Task-80 + Task-85 — provenance for the audit log
+    uploaded_by_user_id?: string | null; // Task-85 — populated when staff uploads on patient's behalf
   } | null;
 
   // Task-80 — Tokenised email-link upload (Px upload "complete later")

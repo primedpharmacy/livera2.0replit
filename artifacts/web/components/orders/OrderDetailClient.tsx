@@ -16,11 +16,11 @@ import {
   Package, User, ArrowLeft, ChevronRight, CheckCircle, XCircle,
   MessageSquare, ShieldAlert, Scale, ShieldCheck, AlertTriangle,
   Stethoscope, Pencil, Activity, Clock, Send, Mail, CreditCard,
-  FileText, Camera, Ban, Paperclip, FileCheck2,
+  FileText, Camera, Ban, Paperclip, FileCheck2, Upload,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, formatDateTime, formatBMI, formatWeight, formatAge } from "@/lib/format";
-import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, CURRENT_USER, NOW } from "@/lib/api/mock";
+import { decideOrder, listAmendments, createAmendment, createClinicalNote, listCourierEvents, cancelOrder, getAmendment, getOrder, CURRENT_USER, NOW } from "@/lib/api/mock";
 import {
   Dialog as ConfirmDialog, DialogContent as ConfirmDialogContent,
   DialogHeader as ConfirmDialogHeader, DialogTitle as ConfirmDialogTitle,
@@ -171,6 +171,11 @@ export function OrderDetailClient({
   const [showAmendForm, setShowAmendForm]     = useState(false);
   const [amendLoaded, setAmendLoaded]         = useState(false);
 
+  // Task-85 — Staff-side GLP-1 prescription upload (uploads on patient's behalf
+  // when they email/post a copy instead of using the intake success screen).
+  const [isUploadingPx, setIsUploadingPx]     = useState(false);
+  const [pxUploadError, setPxUploadError]     = useState<string | null>(null);
+
   // Task-38 — Cancel Order flow
   const [cancelOpen, setCancelOpen]           = useState(false);
   const [cancelReason, setCancelReason]       = useState("");
@@ -187,6 +192,81 @@ export function OrderDetailClient({
       .then((a) => setRefundAmendment(a))
       .catch(() => setRefundAmendment(null));
   }, [clinicId, order.refund_amendment_id, amendments]);
+
+  // Task-85 — Staff uploads the GLP-1 prescription on the patient's behalf.
+  // Follows the same presigned-URL flow as the patient intake page (Task-82):
+  //   Step 1: ask the server for a presigned PUT URL (intake request-url route).
+  //   Step 2: PUT the file bytes directly to object storage.
+  //   Step 3: finalize via the staff route, which tags the audit log with
+  //           source='staff_upload' and CURRENT_USER.id as the uploader.
+  // The fixture's attachPxUpload re-validates GLP-1 path, type, and size, and
+  // emits [AUDIT] entries (Layer 3).
+  async function handleStaffPxUpload(file: File) {
+    setPxUploadError(null);
+    if (file.size > 10 * 1024 * 1024) {
+      setPxUploadError("File is larger than 10 MB.");
+      return;
+    }
+    setIsUploadingPx(true);
+    try {
+      // Step 1 — request presigned URL (reuses the patient intake route).
+      const urlRes = await fetch(
+        `/api/intake/${clinicId}/orders/${order.id}/px-upload/request-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name,
+            size: file.size,
+            content_type: file.type,
+          }),
+        },
+      );
+      if (!urlRes.ok) {
+        const b = await urlRes.json().catch(() => ({}));
+        throw new Error(b?.message || `Could not start upload (${urlRes.status}).`);
+      }
+      const { uploadURL, object_path } = (await urlRes.json()) as {
+        uploadURL: string;
+        object_path: string;
+      };
+
+      // Step 2 — PUT bytes directly to object storage.
+      const putRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error(`File transfer failed (${putRes.status}).`);
+
+      // Step 3 — finalize via the staff route (tags audit with staff actor).
+      const finalRes = await fetch(
+        `/api/orders/${clinicId}/${order.id}/px-upload`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ object_path, filename: file.name }),
+        },
+      );
+      if (!finalRes.ok) {
+        const b = await finalRes.json().catch(() => ({}));
+        throw new Error(b?.message || `Upload failed (${finalRes.status}).`);
+      }
+      // Re-read the order so the UI reflects the new px_upload + cleared flag.
+      const updated = await getOrder(clinicId, order.id);
+      setOrder(updated);
+      setToast({
+        message: `Prescription uploaded on patient's behalf — ${file.name}.`,
+        type: "ok",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Prescription upload failed.";
+      setPxUploadError(msg);
+      setToast({ message: msg, type: "err" });
+    } finally {
+      setIsUploadingPx(false);
+    }
+  }
 
   async function handleCancelOrder() {
     if (cancelReason.trim().length < 20) return;
@@ -816,53 +896,98 @@ export function OrderDetailClient({
                 {(order.px_upload || order.contextual_flags?.includes("Px upload pending")) && (
                   <DCard icon={FileCheck2} title="Patient-uploaded prescription">
                     {order.px_upload ? (
+                      (() => {
+                        const streamUrl = `/api/storage${order.px_upload.object_path}`;
+                        const isImage = order.px_upload.content_type.startsWith("image/");
+                        return (
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3 p-3 rounded-lg bg-ok-bg border border-ok-bdr">
+                              <Paperclip className="w-4 h-4 text-ok shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[13px] font-semibold text-t1 truncate">
+                                  {order.px_upload.filename}
+                                </p>
+                                <p className="text-[11px] text-t2 mt-0.5">
+                                  {order.px_upload.content_type} ·{" "}
+                                  {order.px_upload.size < 1024 * 1024
+                                    ? `${(order.px_upload.size / 1024).toFixed(1)} KB`
+                                    : `${(order.px_upload.size / 1024 / 1024).toFixed(1)} MB`}{" "}
+                                  · uploaded {formatDateTime(order.px_upload.uploaded_at)}
+                                </p>
+                              </div>
+                              <a
+                                href={streamUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                download={order.px_upload.filename}
+                                className="text-[11px] font-semibold text-ok hover:underline shrink-0"
+                              >
+                                Open
+                              </a>
+                            </div>
+                            {isImage && (
+                              <img
+                                src={streamUrl}
+                                alt={`Prescription upload from patient (${order.px_upload.filename})`}
+                                className="max-h-72 w-auto rounded-md border border-bdr"
+                              />
+                            )}
+                            {!isImage && (
+                              <p className="text-[11px] text-t2">
+                                PDF — use “Open” to view the full document in a new tab.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : (
                       <div className="space-y-3">
-                        <div className="flex items-start gap-3 p-3 rounded-lg bg-ok-bg border border-ok-bdr">
-                          <Paperclip className="w-4 h-4 text-ok shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-t1 truncate">
-                              {order.px_upload.filename}
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-warn-bg border border-warn-bdr">
+                          <AlertTriangle className="w-4 h-4 text-warn shrink-0" />
+                          <p className="text-[12px] text-warn">
+                            Patient requested a higher GLP-1 starting dose — awaiting prescription
+                            upload from the intake success screen.
+                          </p>
+                        </div>
+                        {/* Task-85 — Staff-side upload on patient's behalf.
+                            Visible only while px_upload is null and the order still
+                            carries the "Px upload pending" contextual flag, and only
+                            for users with write access to orders. */}
+                        {can(CURRENT_USER, "write", "orders") && (
+                          <div className="p-3 rounded-lg border border-bdr bg-surface">
+                            <p className="text-[12px] font-semibold text-t1">
+                              Upload on patient&apos;s behalf
                             </p>
                             <p className="text-[11px] text-t2 mt-0.5">
-                              {order.px_upload.content_type} ·{" "}
-                              {order.px_upload.size < 1024 * 1024
-                                ? `${(order.px_upload.size / 1024).toFixed(1)} KB`
-                                : `${(order.px_upload.size / 1024 / 1024).toFixed(1)} MB`}{" "}
-                              · uploaded {formatDateTime(order.px_upload.uploaded_at)}
+                              If the patient emailed or posted a copy, attach it here.
+                              JPG, PNG, WebP, HEIC or PDF, up to 10&nbsp;MB.
                             </p>
-                          </div>
-                          {order.px_upload.data_url && (
-                            <a
-                              href={order.px_upload.data_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={order.px_upload.filename}
-                              className="text-[11px] font-semibold text-ok hover:underline shrink-0"
+                            <label
+                              className={`mt-3 inline-flex items-center gap-2 px-3 py-2 text-[12px] font-semibold rounded-md border cursor-pointer transition-colors ${
+                                isUploadingPx
+                                  ? "border-bdr text-t3 bg-surface cursor-not-allowed"
+                                  : "border-brand text-brand bg-surface hover:bg-brand hover:text-white"
+                              }`}
                             >
-                              Open
-                            </a>
-                          )}
-                        </div>
-                        {order.px_upload.data_url?.startsWith("data:image/") && (
-                          <img
-                            src={order.px_upload.data_url}
-                            alt={`Prescription upload from patient (${order.px_upload.filename})`}
-                            className="max-h-72 w-auto rounded-md border border-bdr"
-                          />
+                              <Upload className="w-4 h-4" />
+                              {isUploadingPx ? "Uploading…" : "Choose file"}
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                                className="hidden"
+                                disabled={isUploadingPx}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  e.target.value = ""; // allow re-selecting same file
+                                  if (f) void handleStaffPxUpload(f);
+                                }}
+                              />
+                            </label>
+                            {pxUploadError && (
+                              <p className="mt-2 text-[11px] text-err">{pxUploadError}</p>
+                            )}
+                          </div>
                         )}
-                        {!order.px_upload.data_url && (
-                          <p className="text-[11px] text-t2">
-                            Preview unavailable — file exceeded the inline preview size.
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 p-3 rounded-lg bg-warn-bg border border-warn-bdr">
-                        <AlertTriangle className="w-4 h-4 text-warn shrink-0" />
-                        <p className="text-[12px] text-warn">
-                          Patient requested a higher GLP-1 starting dose — awaiting prescription
-                          upload from the intake success screen.
-                        </p>
                       </div>
                     )}
                   </DCard>

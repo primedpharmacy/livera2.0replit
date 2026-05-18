@@ -16,7 +16,7 @@ import { createGPLetter, MOCK_GP_LETTERS } from './gpLetters'; // CLARIFY-1 (Wav
 import { releaseAuth } from '@/lib/integrations/ryft'; // Task-38 — auth-release branch
 import { notifyPatient } from '@/lib/integrations/patientNotify'; // Task-49 + Task-65
 import { sendPatientEmail, sendStaffEmail } from '@/lib/integrations/postmark'; // Task-80 / Task-78
-import { renderPatientEmail } from '@/lib/integrations/emailTemplates'; // Task-186
+import { renderPatientEmail } from '@/lib/integrations/emailTemplates'; // Task-186 / Task-278
 import { randomBytes } from 'crypto';
 import { evaluateSelfReportedBmi, filterSelfReportedBmiFlag, SELF_REPORTED_BMI_FLAG, AWAITING_BMI_EVIDENCE_FLAG } from '@/lib/clinical/selfReportedBmi'; // Task-163 / Task-247
 import { recordAudit } from '../audit'; // Task-167 — durable spine
@@ -1626,23 +1626,26 @@ async function sendPxUploadLinkEmail(
   };
 
   const subject = 'Action needed: upload your current GLP-1 prescription';
-  const body =
-    `Hi ${patient.firstName},\n\n` +
-    `Thanks for submitting your application to FeelTru (order ${order.id}).\n\n` +
-    `Because you're already on a GLP-1 medication and requested a higher starting ` +
-    `dose, our prescriber needs to see your current prescription before they can ` +
-    `approve your order.\n\n` +
-    `Upload your prescription using this secure link:\n${link}\n\n` +
-    `The link is unique to your order, can only be used once, and expires on ` +
-    `${expiresAt.slice(0, 10)} (${PX_UPLOAD_LINK_TTL_DAYS} days from now).\n\n` +
-    `If you already uploaded your prescription from the confirmation screen, you ` +
-    `can ignore this email.\n\n` +
-    `Thanks,\nThe FeelTru team`;
+  // Task-278 — shared renderer owns the branded HTML shell + plain-text fallback
+  // so px-upload link emails stay visually consistent with refund / cancellation
+  // sends. Server-controlled copy + IDs only — safe per renderPatientEmail's
+  // trusted-input contract.
+  const { text: body, html: htmlBody } = renderPatientEmail({
+    heading: `Hi ${patient.firstName},`,
+    paragraphs: [
+      `Thanks for submitting your application (order <strong>${order.id}</strong>).`,
+      `Because you're already on a GLP-1 medication and requested a higher starting dose, our prescriber needs to see your current prescription before they can approve your order.`,
+      `The link below is unique to your order, can only be used once, and expires on <strong>${expiresAt.slice(0, 10)}</strong> (${PX_UPLOAD_LINK_TTL_DAYS} days from now).`,
+      `If you already uploaded your prescription from the confirmation screen, you can ignore this email.`,
+    ],
+    cta: { label: 'Upload your prescription', href: link },
+  });
 
   const result = await sendPatientEmail({
     to_email: patient.email,
     subject,
     text_body: body,
+    html_body: htmlBody,
     template: 'px_upload_link',
   });
 
@@ -1886,20 +1889,24 @@ export async function sendPxUploadReminderEmail(
       : `Just a quick nudge — our prescriber is still waiting for a copy of your ` +
         `current GLP-1 prescription so they can review your order (${order.id}).`;
 
-  const body =
-    `Hi ${patient.firstName},\n\n` +
-    `${intro}\n\n` +
-    `Upload your prescription here:\n${url}\n\n` +
-    `The link is the same one we sent before — it's unique to your order, can ` +
-    `only be used once, and expires on ${link.expires_at.slice(0, 10)}.\n\n` +
-    `If you've already uploaded your prescription, you can safely ignore this ` +
-    `email.\n\n` +
-    `Thanks,\nThe FeelTru team`;
+  // Task-278 — branded HTML + plain-text fallback via the shared renderer so
+  // reminder emails match the look of the original link send and every other
+  // patient-facing transactional email.
+  const { text: body, html: htmlBody } = renderPatientEmail({
+    heading: `Hi ${patient.firstName},`,
+    paragraphs: [
+      intro,
+      `The link below is the same one we sent before — it's unique to your order, can only be used once, and expires on <strong>${link.expires_at.slice(0, 10)}</strong>.`,
+      `If you've already uploaded your prescription, you can safely ignore this email.`,
+    ],
+    cta: { label: 'Upload your prescription', href: url },
+  });
 
   const result = await sendPatientEmail({
     to_email:  patient.email,
     subject,
     text_body: body,
+    html_body: htmlBody,
     template:  kind === 'final' ? 'px_upload_link_final_reminder' : 'px_upload_link_reminder',
   });
 

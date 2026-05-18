@@ -96,6 +96,20 @@ describe('backfillPatientNotificationEnvelopes', () => {
     expect(row.email_envelope_unavailable_reason).toBe('order_not_found');
   });
 
+  // Task-299 — the admin panel turns unrecoverable rows into deep links to
+  // the per-patient notification log, so every unrecoverable entry must
+  // carry the owning patient/clinic out alongside the notification id.
+  it('exposes patient_id + clinic_id on unrecoverable entries so the panel can deep-link', async () => {
+    const result = await backfillPatientNotificationEnvelopes('feeltru');
+
+    const flagged = result.unrecoverable.find(
+      (u) => u.notification_id === 'NOTIF-LEGACY-002',
+    );
+    const source = findRow('NOTIF-LEGACY-002');
+    expect(flagged?.clinic_id).toBe(source.clinic_id);
+    expect(flagged?.patient_id).toBe(source.patient_id);
+  });
+
   it('is idempotent — a second run skips rows it already handled', async () => {
     await backfillPatientNotificationEnvelopes('feeltru');
     const second = await backfillPatientNotificationEnvelopes('feeltru');

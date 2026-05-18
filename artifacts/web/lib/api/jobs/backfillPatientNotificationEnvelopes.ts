@@ -55,6 +55,12 @@ export type BackfillUnrecoverableReason =
 export type BackfillEntry = {
   notification_id: string;
   reason?: BackfillUnrecoverableReason;
+  // Task-299 — surfaced so the admin panel can deep-link each unrecoverable
+  // row straight to the per-patient notification log entry it refers to.
+  // Populated for unrecoverable rows; left undefined for the `backfilled`
+  // list (those rows succeed silently — no follow-up needed).
+  clinic_id?: ClinicId;
+  patient_id?: string;
 };
 
 export type HtmlBackfillEntry = {
@@ -159,7 +165,16 @@ export async function backfillPatientNotificationEnvelopes(
         }
       } else {
         notif.email_envelope_unavailable_reason = reconstructed.reason;
-        result.unrecoverable.push({ notification_id: notif.id, reason: reconstructed.reason });
+        result.unrecoverable.push({
+          notification_id: notif.id,
+          reason:          reconstructed.reason,
+          // Task-299 — carry the row's owning patient/clinic out to the panel
+          // so the "Unrecoverable rows" table can deep-link to the per-patient
+          // notification log entry (and explain when the patient itself is
+          // gone so the link would resolve to nothing).
+          clinic_id:       notif.clinic_id,
+          patient_id:      notif.patient_id,
+        });
         console.log('[AUDIT]', {
           event_type:      'patient_notification_envelope_unrecoverable',
           notification_id: notif.id,

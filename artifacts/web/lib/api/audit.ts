@@ -23,8 +23,32 @@
 "use server";
 
 import type { RecordAuditInput } from "./audit-types";
-import { recordAuditImpl } from "./audit.server";
+import {
+  recordAuditImpl,
+  listEmailEnvelopeBackfillRunsImpl,
+  type EmailEnvelopeBackfillRun,
+} from "./audit.server";
 
 export async function recordAudit(input: RecordAuditInput): Promise<void> {
   await recordAuditImpl(input);
+}
+
+/**
+ * Task #298 — power the small "Recent runs" history panel on the
+ * email-envelope-backfill admin page. Returns the most recent N runs
+ * (defaults to 20) for the given clinic, newest first. History is sourced
+ * straight from the existing `audit_events` table (event type
+ * `patient_notification_envelope_backfill_run`) — no new schema.
+ *
+ * A `"use server"` boundary is required because the underlying impl pulls
+ * in `@workspace/db`; without this wrapper a server component on the admin
+ * page would still type-check but the eventual import graph could leak the
+ * pg driver into the client bundle, mirroring the constraint that motivated
+ * the original `recordAudit` boundary.
+ */
+export async function listEmailEnvelopeBackfillRuns(
+  clinicId: string,
+  limit?: number,
+): Promise<EmailEnvelopeBackfillRun[]> {
+  return listEmailEnvelopeBackfillRunsImpl(clinicId, limit);
 }

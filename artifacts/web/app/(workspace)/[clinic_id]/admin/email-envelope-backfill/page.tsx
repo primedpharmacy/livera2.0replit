@@ -1,5 +1,5 @@
 /**
- * Admin → Email envelope backfill — Task-204.
+ * Admin → Email envelope backfill — Task-204, history panel Task-298.
  *
  * Staff-only one-click trigger for `backfillPatientNotificationEnvelopes`,
  * the job that reconstructs missing email snapshots on older patient
@@ -12,6 +12,11 @@
  * flagged unrecoverable, with the run captured as an audit event so we know
  * who triggered it and when.
  *
+ * Task-298 adds a small history panel on the same page so staff can look
+ * back at every past run (who, when, scope, counts) without grepping logs.
+ * The list reads from the same `audit_events` rows the run itself emits —
+ * no new schema, no new emit path.
+ *
  * Role gate: Owner or Admin only — matches the holidays/exports settings
  * pages. Enforced at the page level via a redirect for unauthorised
  * users, and re-checked inside the server action itself so a direct
@@ -20,16 +25,45 @@
  */
 
 import { redirect } from "next/navigation";
-import { CURRENT_USER } from "@/lib/api/mock";
-import { recordAudit } from "@/lib/api/audit";
+import { CURRENT_USER, USERS_REGISTRY } from "@/lib/api/constants";
+import {
+  recordAudit,
+  listEmailEnvelopeBackfillRuns,
+} from "@/lib/api/audit";
 import {
   backfillPatientNotificationEnvelopes,
   type BackfillResult,
 } from "@/lib/api/jobs/backfillPatientNotificationEnvelopes";
 import type { ClinicId } from "@/types";
-import { EmailEnvelopeBackfillPanel } from "@/components/admin/EmailEnvelopeBackfillPanel";
+import {
+  EmailEnvelopeBackfillPanel,
+  type BackfillRunListItem,
+} from "@/components/admin/EmailEnvelopeBackfillPanel";
 
 type PageProps = { params: Promise<{ clinic_id: string }> };
+
+const HISTORY_LIMIT = 20;
+
+function decorateRuns(
+  rows: Awaited<ReturnType<typeof listEmailEnvelopeBackfillRuns>>,
+): BackfillRunListItem[] {
+  return rows.map((r) => {
+    const u = r.actor_user_id ? USERS_REGISTRY[r.actor_user_id] : undefined;
+    return {
+      id: r.id,
+      occurred_at: r.occurred_at,
+      actor_name: u?.full_name ?? (r.actor_user_id ?? "Unknown"),
+      actor_role: r.actor_role,
+      scope: r.scope,
+      considered: r.considered,
+      backfilled_count: r.backfilled_count,
+      unrecoverable_count: r.unrecoverable_count,
+      html_backfilled: r.html_backfilled,
+      html_unsupported: r.html_unsupported,
+      skipped: r.skipped,
+    };
+  });
+}
 
 export default async function EmailEnvelopeBackfillPage({ params }: PageProps) {
   const { clinic_id } = await params;
@@ -37,6 +71,10 @@ export default async function EmailEnvelopeBackfillPage({ params }: PageProps) {
   if (!CURRENT_USER.roles.some((r) => r === "Admin" || r === "Owner")) {
     redirect(`/${clinic_id}/dashboard`);
   }
+
+  const initialHistory = decorateRuns(
+    await listEmailEnvelopeBackfillRuns(clinic_id, HISTORY_LIMIT),
+  );
 
   async function runBackfill(scope: "this_clinic" | "all_clinics"): Promise<BackfillResult> {
     "use server";
@@ -53,10 +91,12 @@ export default async function EmailEnvelopeBackfillPage({ params }: PageProps) {
       scoped ? (clinic_id as ClinicId) : undefined,
     );
 
-    // Durable audit trail — Task-167 spine. The fire-and-forget pattern
-    // mirrors every other recordAudit call site (fixtures/orders.ts etc.)
-    // so a DB hiccup never bubbles up to the staff member who just ran it.
-    void recordAudit({
+    // Durable audit trail — Task-167 spine. `recordAudit` is safe to await
+    // (its impl swallows DB errors internally and logs `[AUDIT_PERSIST_FAIL]`)
+    // so awaiting it eliminates the race where the history reload triggered
+    // by the client immediately after this action returns might still miss
+    // the row we just wrote (task #298).
+    await recordAudit({
       clinic_id: clinic_id as ClinicId,
       actor: CURRENT_USER,
       entity: { type: "patient_notification", id: scoped ? clinic_id : "ALL" },
@@ -85,6 +125,16 @@ export default async function EmailEnvelopeBackfillPage({ params }: PageProps) {
     return result;
   }
 
+  async function loadHistory(): Promise<BackfillRunListItem[]> {
+    "use server";
+    if (!CURRENT_USER.roles.some((r) => r === "Admin" || r === "Owner")) {
+      throw new Error("forbidden: Admin or Owner role required");
+    }
+    return decorateRuns(
+      await listEmailEnvelopeBackfillRuns(clinic_id, HISTORY_LIMIT),
+    );
+  }
+
   return (
     <div className="px-6 py-6 max-w-3xl">
       <div className="mb-6">
@@ -99,6 +149,8 @@ export default async function EmailEnvelopeBackfillPage({ params }: PageProps) {
       <EmailEnvelopeBackfillPanel
         clinicId={clinic_id as ClinicId}
         onRun={runBackfill}
+        initialHistory={initialHistory}
+        onReloadHistory={loadHistory}
       />
     </div>
   );

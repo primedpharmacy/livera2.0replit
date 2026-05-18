@@ -68,7 +68,15 @@ export function NotificationRow({
   return (
     // Task-201 — stable test hook so the SMS carrier-failure browser test
     // can scope per-row assertions to the exact NotificationRow being checked.
-    <div className="px-4 py-3" data-testid={`notification-row-${n.id}`}>
+    <div
+      className="px-4 py-3 scroll-mt-20 target:bg-info-bg/40"
+      // Task-299 — stable DOM anchor so the email-envelope backfill panel can
+      // deep-link unrecoverable rows straight to the entry they refer to via
+      // `#notification-<id>`. `scroll-mt-20` keeps the tab bar from covering
+      // the row when the browser jumps to it.
+      id={`notification-${n.id}`}
+      data-testid={`notification-row-${n.id}`}
+    >
       <div className="flex items-center gap-3 flex-wrap">
         <span className="font-mono text-[11px] font-semibold text-t2 shrink-0">{n.id}</span>
         <span

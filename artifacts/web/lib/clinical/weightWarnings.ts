@@ -103,6 +103,50 @@ export function analyseWeightHistory(
   return warnings;
 }
 
+// Task-143 — Human-readable summary of the active clinic thresholds, rendered
+// next to the warning chips so prescribers can see *which* numbers triggered a
+// warning without leaving the order. Returns null when no thresholds were
+// supplied so callers don't accidentally surface platform defaults as if they
+// were clinic-tuned values.
+export function formatWeightWarningThresholdsSummary(
+  thresholds: ClinicConfig["weight_warning_thresholds"] | undefined | null,
+): string | null {
+  if (!thresholds) return null;
+  const {
+    bmi_continuation_floor,
+    rapid_loss_kg_per_week,
+    plateau_tolerance_kg,
+    plateau_min_readings,
+  } = thresholds;
+  return [
+    `Plateau: ${plateau_min_readings} readings within ${plateau_tolerance_kg}kg`,
+    `Rapid loss > ${rapid_loss_kg_per_week}kg/week`,
+    `BMI floor ${bmi_continuation_floor}`,
+  ].join(" · ");
+}
+
+// Task-143 — Per-warning tooltip explaining the exact threshold value the
+// warning was measured against. Surfaced via `title` on each chip so hovering
+// the chip reveals the trigger condition.
+export function describeWeightWarningThreshold(
+  kind: WeightWarningKind,
+  thresholds: ClinicConfig["weight_warning_thresholds"] | undefined | null,
+): string | null {
+  if (!thresholds) return null;
+  switch (kind) {
+    case "plateau":
+      return `Triggered when the last ${thresholds.plateau_min_readings} readings stay within ${thresholds.plateau_tolerance_kg}kg of each other.`;
+    case "rapid_loss":
+      return `Triggered when weight loss exceeds ${thresholds.rapid_loss_kg_per_week}kg/week between consecutive readings.`;
+    case "bmi_below_threshold":
+      return `Triggered on continuation orders when the latest BMI drops below ${thresholds.bmi_continuation_floor}.`;
+    case "weight_regain":
+      return "Triggered whenever the latest reading is heavier than the previous one.";
+    default:
+      return null;
+  }
+}
+
 export const WEIGHT_WARNING_CHIP_CLS: Record<WeightWarningSeverity, string> = {
   warn: "bg-warn-bg text-warn border-warn-bdr",
   err: "bg-err-bg text-err border-err-bdr",

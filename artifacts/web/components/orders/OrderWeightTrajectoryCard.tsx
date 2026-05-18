@@ -1,7 +1,10 @@
 import { TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
-import { analyseWeightHistory } from "@/lib/clinical/weightWarnings";
+import {
+  analyseWeightHistory,
+  formatWeightWarningThresholdsSummary,
+} from "@/lib/clinical/weightWarnings";
 import { WeightWarningChips } from "@/components/clinical/WeightWarningChips";
 import type { ClinicConfig, Order, ClinicId } from "@/types";
 
@@ -29,6 +32,7 @@ export function OrderWeightTrajectoryCard({
     isContinuation: order.type === "reorder",
     thresholds: weightWarningThresholds,
   });
+  const thresholdsSummary = formatWeightWarningThresholdsSummary(weightWarningThresholds);
 
   const sorted    = [...history].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
   const first     = sorted[0];
@@ -70,16 +74,24 @@ export function OrderWeightTrajectoryCard({
       </div>
 
       <div className="p-4">
-        {/* Concerning trend warnings (Task-69) + acknowledgements (Task-99) */}
+        {/* Concerning trend warnings (Task-69) + acknowledgements (Task-99)
+            + active threshold hint (Task-143) */}
         {warnings.length > 0 && (
-          <div className="mb-3">
+          <div className="mb-3 space-y-1.5">
             <WeightWarningChips
               order={order}
               clinicId={clinicId}
               warnings={warnings}
               canAcknowledge={canAcknowledgeWarnings}
+              thresholds={weightWarningThresholds}
               onAcknowledged={onWarningAcknowledged}
             />
+            {thresholdsSummary && (
+              <p className="text-[10.5px] text-t3 leading-tight">
+                <span className="font-semibold text-t3">Thresholds in use · </span>
+                {thresholdsSummary}
+              </p>
+            )}
           </div>
         )}
 

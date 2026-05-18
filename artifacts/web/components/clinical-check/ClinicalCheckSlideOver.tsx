@@ -10,7 +10,10 @@ import { cn } from "@/lib/utils";
 import { decideOrder, createClinicalNote, CURRENT_USER, NOW } from "@/lib/api/mock";
 import { can } from "@/lib/permissions";
 import { formatRelativeTime } from "@/lib/format";
-import { analyseWeightHistory } from "@/lib/clinical/weightWarnings";
+import {
+  analyseWeightHistory,
+  formatWeightWarningThresholdsSummary,
+} from "@/lib/clinical/weightWarnings";
 import { WeightWarningChips } from "@/components/clinical/WeightWarningChips";
 import { OrderQuestionnaireCard } from "@/components/orders/OrderQuestionnaireCard";
 import { OrderNICEChecklistCard } from "@/components/orders/OrderNICEChecklistCard";
@@ -181,6 +184,9 @@ export function ClinicalCheckSlideOver({
     isContinuation: order.type === "reorder",
     thresholds: clinic.config.weight_warning_thresholds,
   });
+  const weightThresholdsSummary = formatWeightWarningThresholdsSummary(
+    clinic.config.weight_warning_thresholds,
+  );
   const currentBmi = wLast?.bmi;
   const bmiBandLabel =
     currentBmi == null   ? null :
@@ -398,16 +404,26 @@ export function ClinicalCheckSlideOver({
                     </div>
                   </div>
 
-                  {/* Concerning trend warnings (Task-69) + acknowledgements (Task-99) */}
+                  {/* Concerning trend warnings (Task-69) + acknowledgements (Task-99)
+                      + active threshold hint (Task-143) */}
                   {weightWarnings.length > 0 && (
-                    <WeightWarningChips
-                      order={order}
-                      clinicId={clinicId}
-                      warnings={weightWarnings}
-                      size="sm"
-                      canAcknowledge={canDecide}
-                      onAcknowledged={setOrder}
-                    />
+                    <div className="space-y-1.5">
+                      <WeightWarningChips
+                        order={order}
+                        clinicId={clinicId}
+                        warnings={weightWarnings}
+                        size="sm"
+                        canAcknowledge={canDecide}
+                        thresholds={clinic.config.weight_warning_thresholds}
+                        onAcknowledged={setOrder}
+                      />
+                      {weightThresholdsSummary && (
+                        <p className="text-[10px] text-t3 leading-tight">
+                          <span className="font-semibold text-t3">Thresholds in use · </span>
+                          {weightThresholdsSummary}
+                        </p>
+                      )}
+                    </div>
                   )}
 
                   {/* BMI tile */}

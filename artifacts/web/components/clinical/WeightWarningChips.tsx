@@ -23,9 +23,11 @@ import { formatRelativeTime } from "@/lib/format";
 import {
   WEIGHT_WARNING_CHIP_CLS,
   WEIGHT_WARNING_ACK_CHIP_CLS,
+  describeWeightWarningThreshold,
   findAcknowledgement,
   type WeightWarning,
 } from "@/lib/clinical/weightWarnings";
+import type { ClinicConfig } from "@/types";
 import {
   acknowledgeWeightWarning,
   editWeightWarningAcknowledgement,
@@ -42,6 +44,8 @@ interface Props {
   size?: "sm" | "md";
   /** Allow staff without decide permission to view chips but not acknowledge. */
   canAcknowledge?: boolean;
+  /** Clinic-tuned thresholds (Task-143) — surfaced as a hover tooltip on each chip. */
+  thresholds?: ClinicConfig["weight_warning_thresholds"];
   /** Notify parent that the order on the server changed (so it can refetch / patch state). */
   onAcknowledged?: (updated: Order) => void;
 }
@@ -52,6 +56,7 @@ export function WeightWarningChips({
   warnings,
   size = "md",
   canAcknowledge = true,
+  thresholds,
   onAcknowledged,
 }: Props) {
   if (warnings.length === 0) return null;
@@ -66,6 +71,7 @@ export function WeightWarningChips({
           warning={w}
           size={size}
           canAcknowledge={canAcknowledge}
+          thresholdTooltip={describeWeightWarningThreshold(w.kind, thresholds)}
           onAcknowledged={onAcknowledged}
         />
       ))}
@@ -81,6 +87,7 @@ function WeightWarningChip({
   warning,
   size,
   canAcknowledge,
+  thresholdTooltip,
   onAcknowledged,
 }: {
   order: Order;
@@ -88,6 +95,7 @@ function WeightWarningChip({
   warning: WeightWarning;
   size: "sm" | "md";
   canAcknowledge: boolean;
+  thresholdTooltip?: string | null;
   onAcknowledged?: (updated: Order) => void;
 }) {
   const ack = findAcknowledgement(order, warning.kind);
@@ -111,6 +119,7 @@ function WeightWarningChip({
     return (
       <div className="inline-flex flex-wrap items-start gap-1.5">
         <span
+          title={thresholdTooltip ?? undefined}
           className={cn(
             "inline-flex items-center gap-1 font-semibold border rounded-full",
             WEIGHT_WARNING_ACK_CHIP_CLS,
@@ -210,6 +219,7 @@ function WeightWarningChip({
   return (
     <div className="inline-flex flex-wrap items-start gap-1.5">
       <span
+        title={thresholdTooltip ?? undefined}
         className={cn(
           "inline-flex items-center gap-1 font-semibold border rounded-full",
           WEIGHT_WARNING_CHIP_CLS[warning.severity],
